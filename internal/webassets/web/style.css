@@ -1248,15 +1248,14 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .video-js .vjs-shuffle-next .vjs-icon-placeholder::before,
 .video-js .vjs-favorite .vjs-icon-placeholder::before,
 .video-js .vjs-addplaylist .vjs-icon-placeholder::before,
-.video-js .vjs-delete .vjs-icon-placeholder::before,
-.video-js .vjs-skip-back-30 .vjs-icon-placeholder::before,
-.video-js .vjs-skip-forward-30 .vjs-icon-placeholder::before {
+.video-js .vjs-delete .vjs-icon-placeholder::before {
   font-family: inherit;
   font-size: 1.6em;
   line-height: 2.2;
 }
-.video-js .vjs-skip-back-30 .vjs-icon-placeholder::before { content: "⏪"; }
-.video-js .vjs-skip-forward-30 .vjs-icon-placeholder::before { content: "⏩"; }
+/* Skip-30-Buttons nutzen die nativen Video.js-Icons (vjs-icon-replay-30 /
+   vjs-icon-forward-30) — keine eigenen Glyph- oder font-Overrides, sonst
+   sehen sie nicht aus wie Play/Pause. */
 /* Dezenter Delete-Button: grau im Idle, rötlich bei Hover. */
 .video-js .vjs-delete .vjs-icon-placeholder::before {
   content: "🗑";

@@ -3878,7 +3878,10 @@ function ensurePlayerComponents() {
     constructor(player, options) {
       super(player, options);
       this.controlText("30 Sekunden zurück");
-      this.addClass("vjs-skip-back-30");
+      // Native Video.js-Icon-Klassen — gleiche Schrift, Größe, Höhe wie der
+      // Play-Button. Eigene Glyph-CSS-Overrides würden das brechen.
+      this.addClass("vjs-skip-backward-30");
+      this.addClass("vjs-icon-replay-30");
     }
     handleClick() { skipPlayer(-30); }
   }
@@ -3887,6 +3890,7 @@ function ensurePlayerComponents() {
       super(player, options);
       this.controlText("30 Sekunden vor");
       this.addClass("vjs-skip-forward-30");
+      this.addClass("vjs-icon-forward-30");
     }
     handleClick() { skipPlayer(30); }
   }
