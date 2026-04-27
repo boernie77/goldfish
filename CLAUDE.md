@@ -6,6 +6,56 @@ Kompatibilitätsgründen `videoplayer` / `simple-videoplayer` — nur das UI-Bra
 
 ---
 
+## ⚠ Aktive Integrationen — NICHT entfernen, nicht regenerieren
+
+### OIDC SSO via Authentik (seit 2026-04-27)
+
+Goldfish ist als OIDC-Client an `https://auth.<your-domain>` (Authentik) angebunden.
+Das passwortbasierte Login bleibt parallel bestehen und ist Fallback. Nicht
+zurückbauen, wenn jemand den Code neu strukturiert oder Login-UI refactored.
+
+**Beteiligte Files (alle nötig):**
+- `internal/api/oidc.go` — `OIDCConfig`, `OIDCRuntime`, `oidcLogin` + `oidcCallback`
+  (PKCE+nonce, In-Memory-State-Store, lazy Discovery)
+- `internal/api/router.go` — `Server.OIDC` Feld + 2 Routes
+  (`GET /api/auth/oidc/login`, `GET /api/auth/oidc/callback`)
+- `internal/api/auth.go` — beide Pfade in `isPublicPath`
+- `internal/store/sqlite.go` — `addCol("users", "oidc_subject", "TEXT")` + partial-unique
+  Index auf `oidc_subject`
+- `internal/store/users.go` — `GetUserByOIDCSubject`, `GetUserByNameCI`,
+  `SetUserOIDCSubject`
+- `cmd/goldfish/main.go` — `OIDCConfig` aus 4 Env-Vars (`OIDC_ISSUER_URL`,
+  `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL`)
+- `internal/webassets/web/login.html` — „Mit Authentik anmelden"-Button +
+  `?sso_error=`-Anzeige
+- `Dockerfile` — Build-Stage `golang:1.24-bookworm` (oauth2 v0.24.0 braucht 1.23+)
+- `docker-compose.yml` — Env-Vars aus dem Stack durchgereicht
+- `go.mod` — `coreos/go-oidc/v3 v3.11.0`, `golang.org/x/oauth2 v0.24.0`
+
+**Match-Logik im Callback:**
+1. `users.oidc_subject = sub` (Authentik schickt Email als sub, sub_mode=user_email)
+2. Fallback: `users.username = preferred_username COLLATE NOCASE`, dann
+   `oidc_subject` setzen
+3. Sonst: Redirect auf `/login.html?sso_error=Kein Goldfish-Konto für …`
+
+**Authentik-Provider:**
+- App-Slug: `goldfish`
+- Redirect-URI: `https://goldfish.<your-domain>/api/auth/oidc/callback`
+- An Gruppe `Familie` gebunden (Christian + Alex)
+- Provider-Defaults: `sub_mode = user_email`, `signing_key = authentik Self-signed`
+  (RS256). Niemals zurück auf HS256 stellen — die meisten Clients lehnen das ab.
+
+**Deployment-Voraussetzung — was außerhalb des Repos passiert:**
+- 4 Env-Vars müssen im Portainer-Stack (Stack-37) gesetzt sein, sonst meldet
+  `/api/auth/oidc/login` „SSO nicht konfiguriert" 503
+- Per-User Pre-Link in der SQLite (siehe README/Notizen) — Christian und Alex
+  brauchen einmalig `UPDATE users SET oidc_subject = '<email>' WHERE username = ...`
+
+**Wenn Login-UI / login.html überarbeitet wird:** den `#ssoBtn`-Block + den
+`?sso_error=` Hash-Reader nicht entfernen.
+
+---
+
 Ein schlanker Video-Streaming-Server auf Intel-iGPU-Hardware. Einzelner Go-Binärcontainer,
 eingebettetes Web-UI, SQLite, ffmpeg mit VAAPI.
 
