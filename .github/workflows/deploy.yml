@@ -58,8 +58,19 @@ jobs:
       - name: Redeploy stack
         env:
           TOKEN: ${{ steps.portainer-auth.outputs.token }}
+          OIDC_ISSUER_URL: ${{ secrets.OIDC_ISSUER_URL }}
+          OIDC_CLIENT_ID: ${{ secrets.OIDC_CLIENT_ID }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+          OIDC_REDIRECT_URL: ${{ secrets.OIDC_REDIRECT_URL }}
         run: |
           set -euo pipefail
+          # Stack-Compose 1:1 aus Portainer behalten, aber Env-Vars per CI
+          # ENFORCEN aus GitHub-Secrets — nicht nur "preserve what's there".
+          # Hintergrund: andere Stack-Updates (manuell oder andere Sessions)
+          # haben in der Vergangenheit die OIDC_*-Vars genullt → SSO-503.
+          # Wir nehmen GitHub-Secrets als Source-of-Truth und schreiben sie
+          # bei jedem Deploy zurück. Falls jemand die Secrets aktualisiert,
+          # zieht der nächste Deploy nach.
           STACK_FILE=$(curl -sS --max-time 15 \
             "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/file" \
             -H "Authorization: Bearer $TOKEN" | jq -r '.StackFileContent')
@@ -67,7 +78,23 @@ jobs:
             echo "Konnte Stack-Compose nicht lesen" >&2
             exit 1
           fi
-          PAYLOAD=$(jq -n --arg sf "$STACK_FILE" '{stackFileContent: $sf, prune: false, pullImage: false}')
+          if [ -z "$OIDC_CLIENT_SECRET" ]; then
+            echo "OIDC_CLIENT_SECRET-Secret fehlt im Repo — Deploy abgebrochen, sonst SSO kaputt" >&2
+            exit 1
+          fi
+          ENV_JSON=$(jq -n \
+            --arg iss "$OIDC_ISSUER_URL" \
+            --arg cid "$OIDC_CLIENT_ID" \
+            --arg sec "$OIDC_CLIENT_SECRET" \
+            --arg red "$OIDC_REDIRECT_URL" \
+            '[
+              {name: "OIDC_ISSUER_URL",    value: $iss},
+              {name: "OIDC_CLIENT_ID",     value: $cid},
+              {name: "OIDC_CLIENT_SECRET", value: $sec},
+              {name: "OIDC_REDIRECT_URL",  value: $red}
+            ]')
+          PAYLOAD=$(jq -n --arg sf "$STACK_FILE" --argjson env "$ENV_JSON" \
+            '{stackFileContent: $sf, env: $env, prune: false, pullImage: false}')
           curl -sS --max-time 60 -X PUT \
             "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
             -H "Authorization: Bearer $TOKEN" \
