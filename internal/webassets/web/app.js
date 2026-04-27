@@ -3844,9 +3844,52 @@ async function openPlayer(item, opts = {}) {
 // Video.js-Components für Shuffle/Favorit/Playlist in der Control-Bar.
 // Einmalig pro Session registriert; Child-Komponenten werden in applyPlayback
 // hinzugefügt. So sind die Buttons auch im Vollbildmodus sichtbar.
+// skipPlayer: ±N Sekunden absolut. Bei Direct Play simpler currentTime-Set;
+// bei Transcode wird der virtualOffset berücksichtigt, und falls das Ziel
+// außerhalb des aktuellen Server-Buffers liegt, eine neue Transcode-Session
+// am Ziel gestartet (gleich wie der Capture-Handler auf dem progressControl).
+function skipPlayer(deltaSec) {
+  const vjs = state.vjs;
+  if (!vjs || !state.currentItem) return;
+  const offset = (state.playback && state.playback.virtualOffset) || 0;
+  const total = state.currentItem.durationSec || 0;
+  let cur = 0;
+  try { cur = vjs.currentTime() || 0; } catch {}
+  const absCur = cur + offset;
+  const target = Math.max(0, total > 0 ? Math.min(total, absCur + deltaSec) : absCur + deltaSec);
+  if (state.playback && state.playback.mode === "transcode") {
+    const seekable = vjs.seekable();
+    const seekableEnd = (seekable && seekable.length) ? seekable.end(0) : 0;
+    const absSeekableEnd = seekableEnd + offset;
+    if (target >= offset && target <= absSeekableEnd + 3) {
+      try { vjs.currentTime(Math.max(0, target - offset)); } catch {}
+    } else {
+      restartTranscodeAt(target);
+    }
+  } else {
+    try { vjs.currentTime(target); } catch {}
+  }
+}
+
 function ensurePlayerComponents() {
   if (!window.videojs || state.playerComponentsRegistered) return;
   const Button = window.videojs.getComponent("Button");
+  class Skip30Back extends Button {
+    constructor(player, options) {
+      super(player, options);
+      this.controlText("30 Sekunden zurück");
+      this.addClass("vjs-skip-back-30");
+    }
+    handleClick() { skipPlayer(-30); }
+  }
+  class Skip30Forward extends Button {
+    constructor(player, options) {
+      super(player, options);
+      this.controlText("30 Sekunden vor");
+      this.addClass("vjs-skip-forward-30");
+    }
+    handleClick() { skipPlayer(30); }
+  }
   class ShufflePrev extends Button {
     constructor(player, options) {
       super(player, options);
@@ -3935,6 +3978,8 @@ function ensurePlayerComponents() {
     }
   }
   if (!window.videojs.getComponent("ShufflePrev")) {
+    window.videojs.registerComponent("Skip30Back", Skip30Back);
+    window.videojs.registerComponent("Skip30Forward", Skip30Forward);
     window.videojs.registerComponent("ShufflePrev", ShufflePrev);
     window.videojs.registerComponent("ShuffleNext", ShuffleNext);
     window.videojs.registerComponent("FavoriteButton", FavoriteButton);
@@ -4374,6 +4419,16 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   ensurePlayerComponents();
   const cb = vjs.getChild("controlBar");
   if (cb) {
+    // Skip-Buttons direkt nach PlayToggle einsortieren — typisches UX-Pattern
+    // (links, neben Play). Falls PlayToggle nicht gefunden, am Anfang.
+    const playIdx = cb.children().findIndex(c => c.name_ === "PlayToggle");
+    const skipBase = playIdx >= 0 ? playIdx + 1 : 0;
+    const addAt = (name, idx) => {
+      if (!cb.getChild(name)) cb.addChild(name, {}, idx);
+    };
+    addAt("Skip30Back", skipBase);
+    addAt("Skip30Forward", skipBase + 1);
+    // Custom-Buttons rechts (vor FullscreenToggle) — am Ende der ControlBar.
     const fsIdx = cb.children().findIndex(c => c.name_ === "FullscreenToggle");
     const insertAt = fsIdx >= 0 ? fsIdx : cb.children().length;
     const addIfMissing = (name, offset) => {
