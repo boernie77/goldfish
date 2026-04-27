@@ -7,9 +7,9 @@ on:
 
 jobs:
   deploy:
-    # Self-hosted Runner läuft als Container auf dem Unraid-Server (Stack
-    # `goldfish-ci`). Damit hat der Runner nativen LAN-Zugriff auf Portainer
-    # (<UNRAID-LAN-IP>:9000) — kein Tailscale o. ä. nötig.
+    # Self-hosted Runner läuft als Container neben dem Goldfish-Stack auf
+    # demselben Docker-Host. Damit hat der Runner nativen LAN-Zugriff auf
+    # die Portainer-API — kein externes VPN o. ä. nötig.
     runs-on: [self-hosted, linux, goldfish]
 
     steps:
