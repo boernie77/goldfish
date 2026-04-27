@@ -21,6 +21,11 @@ use; an API key is required and configured by the end user.
 | Component | License | Upstream |
 |-----------|---------|----------|
 | Video.js  | Apache-2.0 | <https://github.com/videojs/video.js> |
+| Twemoji (1f420 — Tropical Fish, used in `favicon.svg`) | CC-BY 4.0 | <https://github.com/jdecked/twemoji> |
+
+The favicon embeds the Twemoji "Tropical Fish" glyph, © Twitter, Inc. and
+other contributors, licensed under
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 The Video.js NOTICE accompanying its distribution is preserved in its source
 bundle at `internal/webassets/web/video.min.js` (header comment) and
