@@ -6,53 +6,119 @@ Kompatibilitätsgründen `videoplayer` / `simple-videoplayer` — nur das UI-Bra
 
 ---
 
-## ⚠ Aktive Integrationen — NICHT entfernen, nicht regenerieren
+# 🔒 OIDC SSO mit Authentik — LIVE seit 2026-04-27
 
-### OIDC SSO via Authentik (seit 2026-04-27)
+> **An jede Claude-Session, die Goldfish anfasst:**
+> Das Repo hat eine **vollständig deployte und produktiv laufende OIDC-Anbindung
+> an Authentik**. Sie funktioniert. Sie ist getestet. Sie wird im Browser UND in
+> der iOS/Android-App genutzt. **Bitte nicht „aufräumen", nicht „vereinfachen",
+> nicht „den Auth-Code modernisieren"** ohne den ganzen Block hier verstanden zu
+> haben. Wenn du etwas an Login-Code, Login-UI, User-Tabelle, Routern oder
+> Dockerfile machst, lies erst diesen Abschnitt zu Ende.
 
-Goldfish ist als OIDC-Client an `https://auth.<your-domain>` (Authentik) angebunden.
-Das passwortbasierte Login bleibt parallel bestehen und ist Fallback. Nicht
-zurückbauen, wenn jemand den Code neu strukturiert oder Login-UI refactored.
+## Was läuft
 
-**Beteiligte Files (alle nötig):**
-- `internal/api/oidc.go` — `OIDCConfig`, `OIDCRuntime`, `oidcLogin` + `oidcCallback`
-  (PKCE+nonce, In-Memory-State-Store, lazy Discovery)
-- `internal/api/router.go` — `Server.OIDC` Feld + 2 Routes
-  (`GET /api/auth/oidc/login`, `GET /api/auth/oidc/callback`)
-- `internal/api/auth.go` — beide Pfade in `isPublicPath`
-- `internal/store/sqlite.go` — `addCol("users", "oidc_subject", "TEXT")` + partial-unique
-  Index auf `oidc_subject`
-- `internal/store/users.go` — `GetUserByOIDCSubject`, `GetUserByNameCI`,
-  `SetUserOIDCSubject`
-- `cmd/goldfish/main.go` — `OIDCConfig` aus 4 Env-Vars (`OIDC_ISSUER_URL`,
-  `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL`)
-- `internal/webassets/web/login.html` — „Mit Authentik anmelden"-Button +
-  `?sso_error=`-Anzeige
-- `Dockerfile` — Build-Stage `golang:1.24-bookworm` (oauth2 v0.24.0 braucht 1.23+)
-- `docker-compose.yml` — Env-Vars aus dem Stack durchgereicht
-- `go.mod` — `coreos/go-oidc/v3 v3.11.0`, `golang.org/x/oauth2 v0.24.0`
+- **Authentik** auf `https://auth.<your-domain>` (separater VPS) ist der zentrale
+  IdP für 9 Apps inkl. Goldfish.
+- Goldfish ist ein **OIDC-Client** (Authorization Code Flow + PKCE + nonce).
+- **Email/Passwort-Login bleibt bestehen** als Fallback. SSO ist additiv.
+- **iOS/Android-App** funktioniert ebenfalls — die App nutzt den gleichen
+  Web-Endpoint (Goldfish ist Web-only, kein Custom-URL-Scheme nötig wie bei Immich).
 
-**Match-Logik im Callback:**
-1. `users.oidc_subject = sub` (Authentik schickt Email als sub, sub_mode=user_email)
-2. Fallback: `users.username = preferred_username COLLATE NOCASE`, dann
-   `oidc_subject` setzen
-3. Sonst: Redirect auf `/login.html?sso_error=Kein Goldfish-Konto für …`
+## Authentik-Provider (am Authentik-Server, nicht im Goldfish-Repo)
 
-**Authentik-Provider:**
-- App-Slug: `goldfish`
-- Redirect-URI: `https://goldfish.<your-domain>/api/auth/oidc/callback`
-- An Gruppe `Familie` gebunden (Christian + Alex)
-- Provider-Defaults: `sub_mode = user_email`, `signing_key = authentik Self-signed`
-  (RS256). Niemals zurück auf HS256 stellen — die meisten Clients lehnen das ab.
+| Feld | Wert |
+|---|---|
+| App-Slug | `goldfish` |
+| Provider-Name | `Goldfish` |
+| Issuer | `https://auth.<your-domain>/application/o/goldfish/` |
+| Redirect-URI | `https://goldfish.<your-domain>/api/auth/oidc/callback` (strict) |
+| Sub-Mode | `user_email` (sub-Claim ist die Email) |
+| Signing-Key | `authentik Self-signed Certificate` → **RS256** |
+| Scopes | `openid email profile` |
+| Group-Binding | `Familie` (Christian + Alex) |
 
-**Deployment-Voraussetzung — was außerhalb des Repos passiert:**
-- 4 Env-Vars müssen im Portainer-Stack (Stack-37) gesetzt sein, sonst meldet
-  `/api/auth/oidc/login` „SSO nicht konfiguriert" 503
-- Per-User Pre-Link in der SQLite (siehe README/Notizen) — Christian und Alex
-  brauchen einmalig `UPDATE users SET oidc_subject = '<email>' WHERE username = ...`
+**Niemals zurück auf HS256** stellen — go-oidc-Client lehnt das ab.
+**Trailing-Slash am Issuer NICHT trimmen** — Authentik liefert ihn mit zurück,
+strict-Match-Verifier vergleicht 1:1.
 
-**Wenn Login-UI / login.html überarbeitet wird:** den `#ssoBtn`-Block + den
-`?sso_error=` Hash-Reader nicht entfernen.
+## Im Repo (alle Files NÖTIG, NICHT LÖSCHEN)
+
+```
+internal/api/oidc.go                — OIDCConfig, OIDCRuntime, oidcLogin/oidcCallback
+internal/api/router.go              — Server.OIDC Feld + 2 Routes
+internal/api/auth.go                — /api/auth/oidc/{login,callback} in isPublicPath
+internal/store/sqlite.go            — addCol(users, oidc_subject) + partial-unique Index
+internal/store/users.go             — GetUserByOIDCSubject, GetUserByNameCI, SetUserOIDCSubject
+cmd/goldfish/main.go                — OIDCConfig aus 4 Env-Vars
+internal/webassets/web/login.html   — #ssoBtn + sso_error-Reader
+Dockerfile                          — golang:1.24-bookworm (oauth2 v0.24 braucht ≥1.23)
+docker-compose.yml                  — OIDC_*-Env aus Stack durchgereicht
+go.mod                              — coreos/go-oidc/v3 v3.11.0, golang.org/x/oauth2 v0.24.0
+```
+
+## Match-Logik (`oidcCallback` in `internal/api/oidc.go`)
+
+1. `users.oidc_subject = sub` → Login direkt durch
+2. Sonst: `users.username = preferred_username COLLATE NOCASE` → setzt
+   `oidc_subject` und Login durch (one-time-link)
+3. Sonst: Redirect zu `/login.html?sso_error=Kein Goldfish-Konto für …`
+
+## Deployment (Stand 2026-04-27)
+
+- **Image:** `simple-videoplayer:latest`, gebaut von Image-CI (self-hosted Runner
+  `goldfish-ci` Stack 38) bei jedem Push auf `main`.
+  Falls Runner offline (Reg-Token expired): direkt builden via
+  `POST http://<UNRAID-LAN-IP>:9000/api/endpoints/3/docker/build?t=simple-videoplayer:latest`
+  mit Tarball als Body (siehe `.github/workflows/deploy.yml`).
+- **Stack:** Portainer-Stack-37 `videoplayer` auf Endpoint 3 (`<UNRAID-LAN-IP>`).
+- **Volume:** Bind ist `videoplayer_config:/config`. **WICHTIG:** das Volume ist
+  als `external: true, name: videoplayer_videoplayer_config` deklariert — der
+  echte Datenbestand (User-DB, Posters, Trickplay-Cache) liegt im
+  Volume `videoplayer_videoplayer_config` (101 MB). Wer das Compose neu
+  schreibt und das `external`-Mapping vergisst, mountet ein leeres Volume
+  und alle User-Daten sind „verschwunden" (sind nicht weg, aber nicht gemountet).
+- **Stack-Env (in Portainer Stack-Editor → Environment variables, MUSS gesetzt sein):**
+  ```
+  OIDC_ISSUER_URL    = https://auth.<your-domain>/application/o/goldfish/
+  OIDC_CLIENT_ID     = (aus Authentik Admin → Applications → Goldfish → Provider)
+  OIDC_CLIENT_SECRET = (aus Authentik Admin → Applications → Goldfish → Provider)
+  OIDC_REDIRECT_URL  = https://goldfish.<your-domain>/api/auth/oidc/callback
+  ```
+  Ohne diese 4 Vars → `/api/auth/oidc/login` antwortet 503 „SSO nicht konfiguriert".
+- **User-Pre-Link** (einmalig per SQLite gegen `videoplayer_videoplayer_config`):
+  ```sql
+  UPDATE users SET oidc_subject='user1@example.com'   WHERE username='Christian';
+  UPDATE users SET oidc_subject='user2@example.com'    WHERE username='Alex';
+  ```
+  (`Christian` mit großem C — case-sensitive in der DB.) `Familie`-User bleibt
+  ohne SSO-Verknüpfung; loggt sich wie gewohnt mit Username/Passwort ein.
+
+## Live-Health-Test
+
+```bash
+curl -i https://goldfish.<your-domain>/api/auth/oidc/login
+# Erwartet: 302 zu auth.<your-domain>/application/o/authorize/?...
+```
+
+Wenn 503 zurückkommt → Env-Vars fehlen im Container.
+Wenn 502 zurückkommt mit „issuer did not match" → jemand hat den Trailing-Slash
+gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
+
+## Was NICHT zu tun ist
+
+- **NICHT** `internal/api/oidc.go` löschen oder „auf Standardbibliothek umstellen".
+  go-oidc/v3 + oauth2 ist die Standardbibliothek für OIDC in Go.
+- **NICHT** das Email/Passwort-Login („authLogin") rauswerfen — ist Fallback.
+- **NICHT** `oidc_subject`-Spalte aus dem User-Schema entfernen.
+- **NICHT** den `#ssoBtn`-Block in `login.html` „aufräumen".
+- **NICHT** das Volume von `external: true` auf einen lokalen Default umstellen
+  ohne den Volume-Namen `videoplayer_videoplayer_config` zu erhalten — sonst
+  leere User-DB.
+- **NICHT** im Authentik-Provider `sub_mode` auf `hashed_user_id` zurücksetzen —
+  würde alle bestehenden Pre-Links ungültig machen.
+- **NICHT** den Authentik-Provider neu erstellen — die Client-ID/Secret in
+  Portainer-Stack-37 müsste sonst auch aktualisiert werden.
 
 ---
 
