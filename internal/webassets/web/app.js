@@ -4259,7 +4259,20 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   }
 
   // Metadaten-Footer
-  $("#playerTitle").textContent = item.title;
+  // Player-Titel: bei TMDB-Match den richtigen Titel zeigen (bei Episoden
+  // „Show — Episodentitel"), sonst Fallback auf den Dateinamen.
+  let playerTitle = item.title;
+  const md = item.metadata;
+  if (md && md.title) {
+    if (md.tmdbType === "episode") {
+      const segs = (item.relPath || "").split("/");
+      const showName = segs.length > 1 ? segs[0] : "";
+      playerTitle = showName ? `${showName} — ${md.title}` : md.title;
+    } else {
+      playerTitle = md.title;
+    }
+  }
+  $("#playerTitle").textContent = playerTitle;
   $("#playerMeta").innerHTML = `
     <span><strong>Format:</strong> ${escapeHTML((item.container || "").toUpperCase())}</span>
     <span><strong>Video:</strong> ${escapeHTML(item.videoCodec || "?")} ${item.width}×${item.height}</span>
@@ -4284,6 +4297,16 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     } else {
       resumeForDirectPlay = resumeSec;
     }
+  }
+  // Cache-Bust: bei Transcode hängen wir einen einzigartigen Token an die URL.
+  // Sonst „erinnert" sich VHS / der Browser bei identischer URL an die letzte
+  // Session-Position und springt dorthin statt zur tatsächlich frisch
+  // geladenen Playlist-Position 0. Die Server-Session selbst wird trotzdem
+  // per Profile/Audio/Start aus dem In-Memory-Pool wiederverwendet — der
+  // _t-Param landet beim Server in den ungenutzten Query-Parametern.
+  if (info.mode === "transcode") {
+    const sep = info.url.includes("?") ? "&" : "?";
+    info.url = `${info.url}${sep}_t=${Date.now()}`;
   }
   // Für applyStartBufferGate: bei Transcode ist die Player-Local-Start-Zeit
   // immer 0 (der Offset steckt in der URL); bei Direct Play ist es die
@@ -4350,14 +4373,12 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       },
     });
     vjs.src({ src: info.url, type: srcType });
-    // Direct Play: currentTime explizit auf die gewünschte Startposition (oder
-    // 0 bei „Von Anfang") setzen. Video.js behält bei src-Wechsel auf einer
-    // wiederverwendeten Instanz sonst gelegentlich die alte Position. Für
-    // Transcode NICHT — dort steckt der Offset in der URL (start=), die
-    // lokale Player-Zeit ist immer 0, ein explizites currentTime(0) würde den
-    // Initial-Seek stören.
-    if (info.mode === "direct") {
-      vjs.one("loadedmetadata", () => { try { vjs.currentTime(resumeForDirectPlay || 0); } catch {} });
+    // currentTime explizit setzen — siehe Reuse-Branch oben für Begründung.
+    // Bei Transcode lokal 0 (Resume-Offset steckt in der URL als start=…),
+    // bei Direct Play die Resume-Pos bzw. 0 bei „Von Anfang".
+    {
+      const localStart0 = info.mode === "direct" ? (resumeForDirectPlay || 0) : 0;
+      vjs.one("loadedmetadata", () => { try { vjs.currentTime(localStart0); } catch {} });
     }
     state.vjs = vjs;
     vjs.on("timeupdate", () => maybeMarkWatched(vjs));
