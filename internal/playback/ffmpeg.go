@@ -110,6 +110,26 @@ func (m *Manager) gcLoop() {
 	}
 }
 
+// StopSession beendet eine spezifische Session und entfernt sie aus dem Pool,
+// falls sie existiert. Wird vom „Von Anfang"-Pfad genutzt: ohne Reset würde
+// eine alte Session bei start=0 (von einem vorherigen Lauf, akkumuliertes
+// Material) wiederverwendet — der Browser bekommt eine Playlist mit weit
+// fortgeschrittenem Stand und springt nicht zu 0.
+func (m *Manager) StopSession(itemID int64, profile Profile, audioIdx int, startSec float64, deinterlace bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	dei := 0
+	if deinterlace {
+		dei = 1
+	}
+	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profile.ID, audioIdx, int(startSec), dei)
+	if s, ok := m.sessions[id]; ok {
+		log.Printf("[transcode] session %s manuell gestoppt (fresh)", id)
+		s.Stop()
+		delete(m.sessions, id)
+	}
+}
+
 // StartOrGet returns an existing session for the item or starts a new one.
 // Sessions werden pro (Item, Profil, Audio-Stream, Start-Offset, Deinterlace) gehalten.
 // audioIdx = -1 → default (erster Audio-Stream). Sonst ffprobe-Stream-Index.

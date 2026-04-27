@@ -4298,15 +4298,20 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       resumeForDirectPlay = resumeSec;
     }
   }
-  // Cache-Bust: bei Transcode hängen wir einen einzigartigen Token an die URL.
-  // Sonst „erinnert" sich VHS / der Browser bei identischer URL an die letzte
-  // Session-Position und springt dorthin statt zur tatsächlich frisch
-  // geladenen Playlist-Position 0. Die Server-Session selbst wird trotzdem
-  // per Profile/Audio/Start aus dem In-Memory-Pool wiederverwendet — der
-  // _t-Param landet beim Server in den ungenutzten Query-Parametern.
+  // Cache-Bust + optional Server-Reset bei „Von Anfang":
+  // - `_t=<now>` zwingt VHS, die Source als komplett neu zu behandeln (sonst
+  //   übernimmt der Browser-interne State von einer früheren identischen URL).
+  // - `fresh=1` (nur wenn resumeSec=0, also „Von Anfang"): zwingt den Server,
+  //   eine evtl. existierende Session bei start=0 zu beenden und neu zu
+  //   starten. Sonst hat die alte Session bereits viele Sekunden Material in
+  //   ihrer Playlist und der Browser springt nicht zu Position 0.
   if (info.mode === "transcode") {
     const sep = info.url.includes("?") ? "&" : "?";
-    info.url = `${info.url}${sep}_t=${Date.now()}`;
+    let tail = `_t=${Date.now()}`;
+    if (resumeSec === 0) {
+      tail += "&fresh=1";
+    }
+    info.url = `${info.url}${sep}${tail}`;
   }
   // Für applyStartBufferGate: bei Transcode ist die Player-Local-Start-Zeit
   // immer 0 (der Offset steckt in der URL); bei Direct Play ist es die

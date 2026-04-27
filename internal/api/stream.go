@@ -217,6 +217,13 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 		it.Streams = streams
 	}
 	deinterlace := resolveDeinterlace(r.URL.Query().Get("deinterlace"), playback.IsInterlaced(it))
+	// fresh=1: bestehende Session zwingt-stop, damit eine neue ffmpeg-Session
+	// mit leerem Playlist-Stand startet. Wird vom „Von Anfang"-Pfad genutzt —
+	// sonst bekommt der Browser eine Playlist, in der schon ein paar hundert
+	// Sekunden Material liegen, und springt nicht zur Position 0.
+	if r.URL.Query().Get("fresh") == "1" {
+		s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
+	}
 	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace)
 	if err != nil {
 		writeError(w, 500, "ffmpeg start: "+err.Error())
