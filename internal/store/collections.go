@@ -19,6 +19,10 @@ type Collection struct {
 	// den Vollständigkeits-Indikator bilden: complete = movieCount >= partCount - hiddenCount.
 	PartCount   int `json:"partCount,omitempty"`
 	HiddenCount int `json:"hiddenCount,omitempty"`
+	// UnreleasedCount: Parts deren TMDB-release_date in der Zukunft liegt
+	// (noch nicht erschienen). Zählen für die Vollständigkeits-Anzeige nicht
+	// als „fehlend" — Sammlung gilt als komplett solange nur unreleased fehlt.
+	UnreleasedCount int `json:"unreleasedCount,omitempty"`
 	// Fallback-Metadata-ID: einer der Filme dieser Sammlung, dessen Poster als
 	// Kachelbild genutzt werden kann, wenn die Sammlung selbst kein Poster hat.
 	FallbackMetaID int64     `json:"fallbackMetaId,omitempty"`
@@ -70,6 +74,11 @@ func (s *Store) ListCollections(userID int64) ([]Collection, error) {
 		       (SELECT COUNT(*) FROM collection_parts cp WHERE cp.collection_id = c.id) AS part_count,
 		       (SELECT COUNT(*) FROM hidden_collection_parts hcp
 		          WHERE hcp.collection_id = c.id AND hcp.user_id = ?) AS hidden_count,
+		       (SELECT COUNT(*) FROM collection_parts cp2
+		          WHERE cp2.collection_id = c.id
+		            AND cp2.release_date IS NOT NULL
+		            AND cp2.release_date <> ''
+		            AND cp2.release_date > date('now')) AS unreleased_count,
 		       COALESCE(
 		         (SELECT m.id FROM metadata m
 		            WHERE m.collection_id = c.id
@@ -112,7 +121,8 @@ func (s *Store) ListCollections(userID int64) ([]Collection, error) {
 	for rows.Next() {
 		var c Collection
 		if err := rows.Scan(&c.ID, &c.TMDBID, &c.Name, &c.PosterPath, &c.BackdropPath,
-			&c.MovieCount, &c.PartCount, &c.HiddenCount, &c.FallbackMetaID, &c.UpdatedAt); err != nil {
+			&c.MovieCount, &c.PartCount, &c.HiddenCount, &c.UnreleasedCount,
+			&c.FallbackMetaID, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

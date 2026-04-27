@@ -3129,12 +3129,19 @@ function renderCollectionCard(c) {
   if (c.posterPath) imgUrl = `/api/poster/collection/${c.id}`;
   else if (c.fallbackMetaId) imgUrl = `/api/poster/metadata/${c.fallbackMetaId}`;
   // „Komplett"-Marker: Sammlung gilt als vollständig, wenn wir alle (nicht
-  // ausgeblendeten) TMDB-Parts besitzen. part_count=0 heißt, die Parts wurden
-  // noch nicht vom Server gefetcht → dann keine Bewertung möglich.
+  // ausgeblendeten) ERSCHIENENEN TMDB-Parts besitzen. Filme, deren Release
+  // noch in der Zukunft liegt, zählen NICHT als fehlend — sobald sie
+  // erscheinen, wird die Sammlung automatisch wieder „unvollständig".
+  // part_count=0 heißt, die Parts wurden noch nicht vom Server gefetcht
+  // → dann keine Bewertung möglich.
+  const unreleased = c.unreleasedCount || 0;
   const effectiveTotal = Math.max(0, (c.partCount || 0) - (c.hiddenCount || 0));
-  const complete = (c.partCount || 0) > 0 && c.movieCount >= effectiveTotal;
+  const releasedTotal = Math.max(0, effectiveTotal - unreleased);
+  const complete = (c.partCount || 0) > 0 && c.movieCount >= releasedTotal;
   const completeBadge = complete
-    ? `<span class="collection-complete" title="Sammlung komplett">✓ komplett</span>`
+    ? (unreleased > 0
+        ? `<span class="collection-complete" title="Alle erschienenen Filme vorhanden — ${unreleased} noch nicht erschienen">✓ komplett</span>`
+        : `<span class="collection-complete" title="Sammlung komplett">✓ komplett</span>`)
     : "";
   const countLabel = c.partCount
     ? `${c.movieCount}/${effectiveTotal} Film${effectiveTotal === 1 ? "" : "e"}`
