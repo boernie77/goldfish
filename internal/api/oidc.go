@@ -66,8 +66,10 @@ func (r *OIDCRuntime) lazyInit(ctx context.Context) error {
 			r.initErr = errors.New("OIDC nicht konfiguriert (OIDC_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/REDIRECT_URL fehlt)")
 			return
 		}
-		issuer := strings.TrimRight(r.cfg.IssuerURL, "/")
-		provider, err := oidc.NewProvider(ctx, issuer)
+		// Issuer-URL exakt so verwenden wie konfiguriert. Authentik liefert den
+		// issuer-Claim MIT Trailing-Slash zurück; Trim würde zu „issuer did not
+		// match" führen.
+		provider, err := oidc.NewProvider(ctx, r.cfg.IssuerURL)
 		if err != nil {
 			r.initErr = fmt.Errorf("oidc discover: %w", err)
 			return
