@@ -1344,6 +1344,14 @@ details.hint p { margin: 6px 0; }
   cursor: pointer;
   line-height: 1;
 }
+.sort-dir.is-disabled,
+.sort-dir:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  background: var(--card);
+  color: var(--text-dim);
+  border-color: var(--border);
+}
 
 /* Flat-View + Selection-Mode Toggles */
 .toggle-btn.active {

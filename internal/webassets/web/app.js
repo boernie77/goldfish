@@ -974,6 +974,21 @@ function effectiveSortDir() {
 function updateSortDirIcon() {
   const btn = $("#sortDirBtn");
   if (!btn) return;
+  // Modi ohne sinnvolle Richtung: Pseudo-Filter (Favoriten/Duplikate/etc.)
+  // und „Zufällig". Button wird ausgegraut + disabled, damit der User nicht
+  // erwartet dass ein Klick was bewirkt.
+  const v = $("#sortSelect").value || "title";
+  const directionless = (v === "shuffle" || v === "favorites" || v === "unmatched"
+                       || v === "duplicates" || v === "suspicious" || v === "interlaced");
+  if (directionless) {
+    btn.disabled = true;
+    btn.classList.add("is-disabled");
+    btn.textContent = v === "shuffle" ? "🎲" : "—";
+    btn.title = v === "shuffle" ? "Zufällige Reihenfolge — keine Sortierrichtung" : "Sortierrichtung in diesem Modus nicht relevant";
+    return;
+  }
+  btn.disabled = false;
+  btn.classList.remove("is-disabled");
   btn.textContent = effectiveSortDir() === "asc" ? "⬆" : "⬇";
   btn.title = effectiveSortDir() === "asc" ? "Aufsteigend · klick für absteigend" : "Absteigend · klick für aufsteigend";
 }
@@ -1948,13 +1963,19 @@ async function loadItemsBody() {
     || !!currentMatchMode()
     || state.resBuckets.size > 0;
   // Flat-View: wenn Toggle aktiv ODER Movies-Library (keine Ordner-Struktur)
-  // ODER aktiver Filter. Nimmt Ordner komplett raus, aktueller Folder wird ignoriert.
-  const flatView = state.flatView || (lib && lib.kind === "movies");
+  // ODER aktiver Filter ODER Sort=Zufällig (sonst würden im Library-Root nur
+  // Folder-Kacheln + Direkt-Root-Files gemischt werden — der User erwartet
+  // aber, dass „Zufällig" wirklich aus allen Videos der Library/des Folders
+  // wählt, rekursiv).
+  const isShuffle = $("#sortSelect").value === "shuffle";
+  const flatView = state.flatView || (lib && lib.kind === "movies") || isShuffle;
   if (searching || flatView) {
     // Bei aktiver Suche IM Subfolder: Suche auf diesen Folder + Subfolder
     // beschränken (Server-Filter `folder=<path>` matcht rekursiv via LIKE).
     // Im Library-Root oder Flat-View suchen wir die ganze Library.
-    if (searching && state.currentFolder) {
+    // Bei Shuffle in einem Subfolder: ebenfalls auf diesen Folder begrenzen,
+    // damit „Zufällig in /Sterne" nicht in die ganze Library spillt.
+    if ((searching || isShuffle) && state.currentFolder) {
       params.set("folder", state.currentFolder);
     }
     items = await apiGetCached(`/api/items?${params}`);
