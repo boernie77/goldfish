@@ -103,15 +103,35 @@ jobs:
             -o /tmp/redeploy.log -w "HTTP=%{http_code}\n"
           tail -n 20 /tmp/redeploy.log
 
-      - name: Health check
+      - name: Health check (Goldfish API)
         run: |
           set -euo pipefail
           for i in $(seq 1 30); do
             if curl -sf --max-time 5 "${{ secrets.GOLDFISH_HEALTH_URL }}" > /dev/null; then
               echo "Goldfish-Health OK nach ${i}s"
-              exit 0
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Health-Check Timeout nach 60s" >&2
+              exit 1
             fi
             sleep 2
           done
-          echo "Health-Check Timeout nach 60s" >&2
-          exit 1
+
+      - name: Health check (OIDC SSO)
+        env:
+          BASE: ${{ secrets.GOLDFISH_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          # GOLDFISH_HEALTH_URL endet mit /api/health → wir bauen /api/auth/oidc/login.
+          OIDC_URL="${BASE%/health}/auth/oidc/login"
+          # 302 = OK (Redirect zu Authentik), 503 = SSO nicht konfiguriert
+          # (Stack-Env genullt) → Deploy scheitert hart, damit der Fehler nicht
+          # erst dem User beim Login auffällt.
+          STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$OIDC_URL" || true)
+          if [ "$STATUS" = "302" ]; then
+            echo "OIDC-Login antwortet 302 — Stack-Env intakt"
+          else
+            echo "OIDC-Login antwortet $STATUS bei $OIDC_URL (erwartet 302) — Stack-Env-Schaden? Deploy fehlgeschlagen." >&2
+            exit 1
+          fi
