@@ -4307,15 +4307,15 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       }
     }
     vjs.src({ src: info.url, type: srcType });
-    // Direct Play: currentTime explizit auf die gewünschte Startposition (oder
-    // 0 bei „Von Anfang") setzen. Video.js behält bei src-Wechsel auf einer
-    // wiederverwendeten Instanz sonst gelegentlich die alte Position. Für
-    // Transcode NICHT — dort steckt der Offset in der URL (start=), die
-    // lokale Player-Zeit ist immer 0, ein explizites currentTime(0) würde den
-    // Initial-Seek stören.
-    if (info.mode === "direct") {
-      vjs.one("loadedmetadata", () => { try { vjs.currentTime(resumeForDirectPlay || 0); } catch {} });
-    }
+    // currentTime explizit setzen, sonst „erinnert" sich der wiederverwendete
+    // Player an die letzte Position des vorherigen Streams. Direct Play:
+    // resumeForDirectPlay (0 bei „Von Anfang"). Transcode: lokal IMMER 0,
+    // weil der Resume-Offset bereits in der URL (start=…) steckt — ohne
+    // expliziten Reset würde der Player bei der vorherigen lokalen Position
+    // weiterspielen, was beim zweiten Open-Mit-Von-Anfang-Reuse das Symptom
+    // „springt etwas weiter, nicht zur Resume-Pos und nicht zu 0" erzeugt.
+    const localStart = info.mode === "direct" ? (resumeForDirectPlay || 0) : 0;
+    vjs.one("loadedmetadata", () => { try { vjs.currentTime(localStart); } catch {} });
     const pp = vjs.play();
     if (pp && typeof pp.catch === "function") pp.catch(() => {});
   } else {
