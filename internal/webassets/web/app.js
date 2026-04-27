@@ -585,8 +585,19 @@ function currentInterlacedMode() {
 // ignoriert SQLite sie und fällt auf Default-Order zurück.
 function currentSortMode() {
   const v = $("#sortSelect").value || "title";
-  if (v === "favorites" || v === "unmatched" || v === "duplicates" || v === "suspicious" || v === "interlaced") return "title";
+  if (v === "favorites" || v === "unmatched" || v === "duplicates" || v === "suspicious" || v === "interlaced" || v === "shuffle") return "title";
   return v;
+}
+// Fisher-Yates Shuffle für client-seitige Zufalls-Sortierung — Server liefert
+// in „natürlicher" Reihenfolge, wir würfeln nach Erhalt. Vorteil gegenüber
+// SQL ORDER BY RANDOM(): keine 60k-Items-Vollscan-Latenz.
+function shuffleInPlace(arr) {
+  if (!Array.isArray(arr)) return arr;
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
 }
 
 // Setzt alle Suche/Filter-Kontrollen zurück (beim Library-Wechsel).
@@ -2008,6 +2019,13 @@ async function loadItemsBody() {
   // (1, 2, …, 10, 11) statt lexikographisch (1, 10, 11, …, 2). Greift nur
   // wenn Sort = title; bei anderen Modi belassen wir die Server-Reihenfolge.
   applyNaturalTitleSort(merged);
+  // Zufalls-Sort: Items + Folder client-seitig shuffeln. Frische Reihenfolge
+  // bei jedem loadItems-Aufruf — nicht stabil über Reloads, aber das ist die
+  // Definition von „zufällig".
+  if ($("#sortSelect").value === "shuffle") {
+    shuffleInPlace(merged);
+    if (Array.isArray(folders)) shuffleInPlace(folders);
+  }
   // Folder-Reihenfolge ebenfalls natürlich (Staffel 1, Staffel 2, …, Staffel 10)
   if (Array.isArray(folders) && folders.length > 1) {
     const folderCollator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
