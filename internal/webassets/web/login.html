@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Anmelden – Goldfish</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/style.css" />
+<style>
+body { display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+.login-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 30px 24px;
+  min-width: 320px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.login-card h1 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  text-align: center;
+}
+.login-card .brand {
+  text-align: center;
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+.login-card label { display: block; margin-bottom: 10px; font-size: 13px; }
+.login-card label input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 8px 10px;
+  font-size: 15px;
+}
+.login-card button { width: 100%; padding: 9px; font-size: 15px; margin-top: 10px; }
+.login-card .err {
+  color: #ef4444;
+  font-size: 13px;
+  margin: 6px 0;
+  min-height: 16px;
+  text-align: center;
+}
+.login-card .hint { margin-top: 10px; text-align: center; }
+</style>
+</head>
+<body>
+<main class="login-card">
+  <div class="brand">🐟</div>
+  <h1 id="loginTitle">Anmelden</h1>
+  <form id="loginForm">
+    <label>Benutzername <input type="text" name="username" autocomplete="username" required autofocus /></label>
+    <label>Passwort <input type="password" name="password" autocomplete="current-password" required /></label>
+    <div class="err" id="loginErr"></div>
+    <button type="submit" class="primary">Anmelden</button>
+  </form>
+  <p class="hint" id="setupHint" style="display:none">
+    Noch kein Benutzer vorhanden. Der erste Benutzer wird Administrator.
+  </p>
+</main>
+<script>
+async function check() {
+  try {
+    const r = await fetch("/api/auth/status");
+    const d = await r.json();
+    if (d.setup) {
+      document.getElementById("loginTitle").textContent = "Erste Einrichtung";
+      document.getElementById("loginForm").querySelector("button").textContent = "Admin-Konto anlegen";
+      document.getElementById("setupHint").style.display = "block";
+      document.getElementById("loginForm").dataset.mode = "setup";
+    }
+    if (d.loggedIn) location.href = "/";
+  } catch {}
+}
+check();
+
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const err = document.getElementById("loginErr");
+  err.textContent = "";
+  const body = Object.fromEntries(new FormData(form));
+  const url = form.dataset.mode === "setup" ? "/api/auth/setup" : "/api/auth/login";
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({error:"Fehler"}));
+      err.textContent = j.error || "Fehler";
+      return;
+    }
+    location.href = "/";
+  } catch (e) {
+    err.textContent = e.message;
+  }
+});
+</script>
+</body>
+</html>

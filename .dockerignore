@@ -1,0 +1,12 @@
+.git
+.gitignore
+.DS_Store
+CLAUDE.md
+config/
+cache/
+tmp/
+dist/
+# keep these in the image for license compliance + user reference
+!README.md
+!LICENSE
+!NOTICE.md

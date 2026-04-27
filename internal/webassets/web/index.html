@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Goldfish</title>
+<link rel="stylesheet" href="/video-js.min.css" />
+<link rel="stylesheet" href="/style.css" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/favicon.svg" />
+<script src="/video.min.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <img src="/favicon.svg" class="brand-icon" alt="" />
+    <span>Goldfish</span>
+  </div>
+  <div class="controls">
+    <select id="librarySelect" title="Bibliothek" class="hidden-select" aria-hidden="true"></select>
+    <span class="search-wrap">
+      <input id="searchInput" type="search" placeholder="Titel oder Schauspieler…" />
+      <button id="searchClear" class="search-clear hidden" title="Suche leeren" aria-label="Leeren">✕</button>
+    </span>
+    <label class="field-label">Sortierung
+      <span class="sort-wrap">
+        <select id="sortSelect">
+          <option value="title">Name</option>
+          <option value="released">Veröffentlicht</option>
+          <option value="added">Hinzugefügt</option>
+          <option value="duration">Laufzeit</option>
+          <option value="resolution">Auflösung</option>
+          <option value="rating">★ Bewertung</option>
+          <option value="played">Zuletzt abgespielt</option>
+          <option value="duplicates">Duplikate</option>
+          <option value="favorites">♡ Nur Favoriten</option>
+          <option value="unmatched">Ohne TMDB-Zuordnung</option>
+          <option value="suspicious">⚠ Verdächtige Zuordnungen</option>
+          <option value="interlaced">🪤 Nur Interlaced</option>
+        </select>
+        <button id="sortDirBtn" class="sort-dir" type="button" title="Richtung umkehren">⬇</button>
+      </span>
+    </label>
+    <label class="field-label">Gesehen
+      <select id="watchedFilter">
+        <option value="">Alle</option>
+        <option value="no">Nur ungesehen</option>
+        <option value="yes">Nur gesehen</option>
+      </select>
+    </label>
+    <label class="field-label">Auflösung
+      <span class="res-dropdown">
+        <button type="button" id="resDropdownBtn" aria-haspopup="true" aria-expanded="false">Alle ▾</button>
+        <div id="resDropdown" class="res-panel hidden" role="menu">
+          <label><input type="checkbox" data-bucket="4k"> 4K (2160p+)</label>
+          <label><input type="checkbox" data-bucket="2k"> 2K (1440p)</label>
+          <label><input type="checkbox" data-bucket="1080p"> 1080p</label>
+          <label><input type="checkbox" data-bucket="720p"> 720p</label>
+          <label><input type="checkbox" data-bucket="576p"> 576p</label>
+          <label><input type="checkbox" data-bucket="540p"> 540p</label>
+          <label><input type="checkbox" data-bucket="480p"> 480p</label>
+          <label><input type="checkbox" data-bucket="360p"> ≤ 360p</label>
+        </div>
+      </span>
+    </label>
+    <button id="flatViewBtn" title="Flache Ansicht ohne Ordner" class="toggle-btn">📂 Flach</button>
+    <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
+    <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
+    <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
+    <span class="btn-group">
+      <button id="scanBtn" title="Bibliothek scannen (inkrementell)">⟳ Scan</button>
+      <button id="scanMenuBtn" title="Weitere Scan-Optionen" aria-haspopup="true">▾</button>
+    </span>
+    <div id="scanMenu" class="dropdown hidden">
+      <button data-scan="folder" data-scope="folder">Aktueller Ordner (inkrementell)</button>
+      <button data-scan="folder-force" data-scope="folder">Aktueller Ordner (force)</button>
+      <button data-scan="incremental">Ganze Bibliothek (inkrementell)</button>
+      <button data-scan="force">Ganze Bibliothek (force)</button>
+      <button data-scan="all">Alle Bibliotheken (inkrementell)</button>
+      <button data-scan="all-force">Alle Bibliotheken (force)</button>
+    </div>
+  </div>
+  <div class="topbar-corner">
+    <span id="userMenu" class="user-menu"></span>
+    <span class="btn-group">
+      <button id="settingsBtn" title="Einstellungen">⚙︎</button>
+    </span>
+    <div id="settingsMenu" class="dropdown hidden">
+      <button data-action="settings">⚙︎  Einstellungen</button>
+      <button data-action="libraries">📁  Bibliotheken</button>
+      <button data-action="users" id="settingsMenuUsers">👥  Benutzer</button>
+      <button data-action="trickplay" id="settingsMenuTrickplay">🎞  Trickplay verwalten</button>
+      <button data-action="missing" id="settingsMenuMissing">📥  Fehlende Inhalte</button>
+      <button data-action="refreshallmeta" id="settingsMenuRefreshAllMeta">↻  Metadaten neu laden (alle)</button>
+      <button data-action="pathsearch" id="settingsMenuPathSearch">🔍  Datei/Ordner suchen</button>
+    </div>
+  </div>
+</header>
+
+<nav id="libNav" class="lib-nav" role="navigation" aria-label="Bibliotheken"></nav>
+<aside id="alphaSidebar" class="alpha-sidebar hidden" aria-label="Zu Buchstaben springen"></aside>
+<nav id="breadcrumb" class="breadcrumb"></nav>
+<div id="bulkBar" class="bulk-bar hidden">
+  <span id="bulkCount" class="bulk-count"></span>
+  <button id="bulkSelectAll" title="Alle auswählen">Alle</button>
+  <button id="bulkSelectNone" title="Auswahl aufheben">Keine</button>
+  <span class="bulk-spacer"></span>
+  <button id="bulkFavorite" title="Als Favorit markieren">♡ Favorit</button>
+  <button id="bulkWatched" title="Als gesehen markieren">✓ Gesehen</button>
+  <button id="bulkPlaylist" title="Zu Playlist hinzufügen">📋 Playlist</button>
+  <button id="bulkDownload" title="Alle herunterladen">⬇ Download</button>
+  <button id="bulkDelete" class="danger" title="Dateien löschen">🗑 Löschen</button>
+</div>
+<main id="grid" class="grid" aria-live="polite"></main>
+
+<div id="scanStatus" class="scanbar hidden"></div>
+<div id="trickplayStatus" class="scanbar trickbar hidden"></div>
+
+<!-- Player -->
+<dialog id="playerDialog" class="player-dialog">
+  <div class="player-wrap">
+    <header class="player-head">
+      <div id="playerTitle" class="player-title"></div>
+      <div class="player-modeswitch">
+        <label>Modus
+          <select id="modeSelect">
+            <option value="auto">Auto</option>
+            <option value="direct">Direct Play</option>
+            <option value="transcode">Transcode</option>
+          </select>
+        </label>
+        <label id="profileWrap">Profil
+          <select id="profileSelect"></select>
+        </label>
+        <label id="audioWrap">Tonspur
+          <select id="audioSelect"></select>
+        </label>
+        <label id="subWrap">Untertitel
+          <select id="subSelect"></select>
+        </label>
+        <label id="deinterlaceWrap">Deinterlace
+          <select id="deinterlaceSelect">
+            <option value="auto">Auto</option>
+            <option value="off">Aus</option>
+            <option value="on">Ein</option>
+          </select>
+        </label>
+      </div>
+      <button id="playerClose" class="player-close" title="Schließen">✕</button>
+    </header>
+    <div class="video-stage">
+      <video id="video" class="video-js vjs-big-play-centered" controls playsinline preload="auto"></video>
+      <div id="prebufferOverlay" class="prebuffer-overlay hidden">
+        <div class="prebuffer-title">Startvorlauf wird geladen…</div>
+        <div class="prebuffer-progress"><div class="prebuffer-bar" style="width:0%"></div></div>
+        <div class="prebuffer-text">0 / 0 s</div>
+        <button type="button" id="prebufferSkip">Jetzt starten</button>
+      </div>
+    </div>
+    <!-- Overlay außerhalb .video-stage: im eingebetteten Modus sitzt es hier
+         als schmaler Streifen unter dem Bild. Im Fullscreen wird es per JS in
+         den Video.js-Root verschoben und als floating Layer oben rechts
+         positioniert (mit Titelzeile). -->
+    <div id="transcodeAhead" class="transcode-ahead transcode-ahead--docked hidden">
+      <div class="ta-title"></div>
+      <div class="ta-stats"></div>
+    </div>
+    <footer id="playerMeta" class="player-meta"></footer>
+  </div>
+</dialog>
+
+<!-- Manage playlists -->
+<dialog id="playlistsDialog" class="modal">
+  <h2>Playlists</h2>
+  <ul id="playlistsList"></ul>
+  <h3>Neue Playlist</h3>
+  <form id="playlistForm" class="form">
+    <label>Name <input name="name" required /></label>
+    <div class="row">
+      <button type="submit" class="primary">Anlegen</button>
+      <button type="button" data-close>Schließen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Add to playlist (aus Detail-Dialog) -->
+<dialog id="addToPlaylistDialog" class="modal">
+  <h2>Zu Playlist hinzufügen</h2>
+  <ul id="addToPlaylistList" class="browse-list"></ul>
+  <form id="quickCreatePlaylistForm" class="form" style="margin-top:10px">
+    <label>Neue Playlist erstellen <input name="name" required /></label>
+    <div class="row">
+      <button type="submit" class="primary">Erstellen + hinzufügen</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Manage libraries -->
+<dialog id="manageDialog" class="modal">
+  <h2>Bibliotheken</h2>
+  <ul id="libList"></ul>
+  <h3>Neue Bibliothek</h3>
+  <form id="libForm" class="form">
+    <label>Name <input name="name" required /></label>
+    <label>Typ
+      <select name="kind" id="libKindInput">
+        <option value="movies">Filme (TMDB-Anreicherung)</option>
+        <option value="tv">Serien (TMDB-Anreicherung)</option>
+        <option value="private" selected>Privatvideos (ohne Anreicherung)</option>
+      </select>
+    </label>
+    <label>Pfad im Container
+      <div class="path-input">
+        <input id="libPathInput" name="path" required placeholder="/media/Video/Filme" />
+        <button type="button" id="browseBtn">Durchsuchen…</button>
+      </div>
+    </label>
+    <div class="row">
+      <button type="submit" class="primary">Hinzufügen</button>
+      <button type="button" data-close>Schließen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Path browser -->
+<dialog id="browseDialog" class="modal">
+  <h2>Ordner wählen</h2>
+  <div id="browsePath" class="crumbs"></div>
+  <ul id="browseList" class="browse-list"></ul>
+  <div class="row">
+    <button type="button" id="browseChoose" class="primary">Diesen Ordner verwenden</button>
+    <button type="button" data-close>Abbrechen</button>
+  </div>
+</dialog>
+
+<!-- Detail-Ansicht -->
+<dialog id="detailDialog" class="modal detail-modal">
+  <div id="detailContent"></div>
+  <div class="row icon-row">
+    <button type="button" id="detailPlay" class="icon-btn primary" title="Abspielen" aria-label="Abspielen">▶</button>
+    <button type="button" id="detailFavorite" class="icon-btn" title="Favorit" aria-label="Favorit">♡</button>
+    <button type="button" id="detailWatched" class="icon-btn" title="Als gesehen markieren" aria-label="Gesehen">✓</button>
+    <button type="button" id="detailDownload" class="icon-btn" title="Download" aria-label="Download">⬇</button>
+    <button type="button" id="detailAddPlaylist" class="icon-btn" title="Zu Playlist hinzufügen" aria-label="Zu Playlist">📋</button>
+    <button type="button" id="detailMatch" class="icon-btn" title="Manuell zuordnen" aria-label="Manuell zuordnen">🔍</button>
+    <button type="button" id="detailRefreshMeta" class="icon-btn" title="Metadaten neu laden (TMDB + OMDb-Fallback)" aria-label="Metadaten neu laden">↻</button>
+    <button type="button" id="detailEditMeta" class="icon-btn" title="Metadaten bearbeiten" aria-label="Metadaten bearbeiten">✎</button>
+    <button type="button" id="detailConfirm" class="icon-btn" title="Zuordnung bestätigen" aria-label="Zuordnung bestätigen">✅</button>
+    <button type="button" id="detailNFO" class="icon-btn hidden" title="NFO aktualisieren (wird beim ✅ automatisch geschrieben)" aria-label="NFO aktualisieren">💾</button>
+    <button type="button" id="detailDelete" class="icon-btn danger" title="Datei löschen" aria-label="Löschen">🗑</button>
+    <button type="button" class="icon-btn" data-close title="Schließen" aria-label="Schließen">✕</button>
+  </div>
+</dialog>
+
+<!-- Manuelles Match -->
+<dialog id="matchDialog" class="modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2 id="matchTitle">TMDB suchen</h2>
+  <form id="matchForm" class="form">
+    <label>Suchbegriff
+      <input id="matchQuery" type="text" />
+    </label>
+    <label>Jahr (optional)
+      <input id="matchYear" type="number" min="1900" max="2100" />
+    </label>
+    <div id="matchEpisodeWrap" class="row hidden" style="justify-content:flex-start;gap:12px">
+      <label style="flex:1">Staffel
+        <input id="matchSeason" type="number" min="0" max="99" step="1" />
+      </label>
+      <label style="flex:1">Episode
+        <input id="matchEpisode" type="number" min="0" max="999" step="1" />
+      </label>
+    </div>
+    <div class="hint" id="matchEpisodeHint" style="display:none">
+      Bei Episode-Match: Staffel/Episode-Nummern aus dem Dateinamen vorbefüllt — bei
+      „nicht gefunden" hier korrigieren (z. B. wenn TMDB anders zählt).
+    </div>
+    <div class="row" style="justify-content:flex-start">
+      <button type="submit" class="primary">Titel-Suche</button>
+    </div>
+  </form>
+  <div class="hint" style="margin-top:8px">— oder direkt per IMDb-ID zuordnen:</div>
+  <form id="matchImdbForm" class="form" style="margin-top:6px">
+    <label>
+      <span>IMDb-ID (z. B. <code>tt0133093</code>)</span>
+      <input id="matchImdb" type="text" pattern="tt\d+" placeholder="tt0133093" />
+    </label>
+    <div class="row" style="justify-content:flex-start">
+      <button type="submit">Zuordnen</button>
+    </div>
+  </form>
+  <ul id="matchResults" class="match-results"></ul>
+  <div class="row" style="margin-top:10px">
+    <button type="button" data-close>Schließen</button>
+  </div>
+</dialog>
+
+<!-- Poster wählen / hochladen -->
+<dialog id="posterPickerDialog" class="modal poster-picker-modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>🖼 Poster ändern</h2>
+  <div id="posterPickerStatus" class="hint">Lade TMDB-Poster…</div>
+  <div id="posterPickerGrid" class="poster-picker-grid"></div>
+  <h3 style="margin-top:14px;font-size:14px">Eigenes Poster hochladen</h3>
+  <form id="posterUploadForm" class="form" style="margin-top:6px">
+    <p class="hint">Empfohlen: 2:3-Format, mindestens 500×750 px, max 8 MiB.</p>
+    <input type="file" name="file" accept="image/*" required />
+    <div class="row" style="margin-top:8px">
+      <button type="submit" class="primary">⬆ Hochladen</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Metadaten manuell bearbeiten (Admin) -->
+<dialog id="editMetaDialog" class="modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>Metadaten bearbeiten</h2>
+  <form id="editMetaForm" class="form">
+    <label>Titel <input name="title" type="text" required /></label>
+    <label>Originaltitel <input name="originalTitle" type="text" /></label>
+    <div class="row" style="gap:8px">
+      <label style="flex:1">Jahr <input name="year" type="number" min="1900" max="2099" step="1" /></label>
+      <label style="flex:2">Veröffentlichung <input name="releaseDate" type="date" /></label>
+    </div>
+    <label>Beschreibung <textarea name="overview" rows="4"></textarea></label>
+    <div class="row" style="gap:8px">
+      <label style="flex:1">TMDB-Rating <input name="rating" type="number" min="0" max="10" step="0.1" /></label>
+      <label style="flex:1">Laufzeit (min) <input name="runtimeMin" type="number" min="0" step="1" /></label>
+    </div>
+    <label>Altersfreigabe (FSK)
+      <select name="ageRating">
+        <option value="">– nicht gesetzt –</option>
+        <option value="0">FSK 0 (ohne Altersbeschränkung)</option>
+        <option value="6">FSK 6</option>
+        <option value="12">FSK 12</option>
+        <option value="16">FSK 16</option>
+        <option value="18">FSK 18</option>
+      </select>
+    </label>
+    <label>Genres (JSON-Array oder komma-separiert)
+      <input name="genres" type="text" placeholder='["Action","Drama"]' />
+    </label>
+    <div class="row" style="margin-top:10px">
+      <button type="button" id="editMetaPoster">🖼 Poster ändern…</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button type="submit" class="primary">Speichern</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Scan-Abschluss-Bericht -->
+<dialog id="scanSummaryDialog" class="modal scan-summary-modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>⟳ Scan abgeschlossen</h2>
+  <div id="scanSummaryHead" class="scan-summary-head"></div>
+  <div id="scanSummaryStats" class="scan-summary-stats"></div>
+  <div id="scanSummaryDetail" class="scan-summary-detail hidden"></div>
+  <h3 style="margin-top:14px;font-size:14px">Pro Ordner</h3>
+  <div id="scanSummaryFolders" class="scan-summary-folders"></div>
+  <div class="row" style="margin-top:14px"><button type="button" data-close class="primary">OK</button></div>
+</dialog>
+
+<!-- Fehlende Inhalte (Admin) — Export für Radarr/Sonarr -->
+<dialog id="missingDialog" class="modal missing-modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>📥 Fehlende Inhalte</h2>
+  <p class="hint">Listen mit TMDB-IDs zum Import in Radarr / Sonarr o. ä. Tools.
+    CSV-Trennzeichen ist Semikolon (Excel-DE-kompatibel). Radarr/Sonarr können
+    TMDB-IDs direkt importieren.</p>
+
+  <div class="missing-section">
+    <h3>🎬 Filme (aus Sammlungen, nicht ausgeblendet)</h3>
+    <div id="missingMoviesStatus" class="hint">Wird geladen…</div>
+    <div id="missingMoviesPreview" class="missing-preview"></div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="missingMoviesCsv" class="primary">⬇ CSV-Download</button>
+      <button type="button" id="missingMoviesCopy">📋 TMDB-IDs kopieren</button>
+    </div>
+  </div>
+
+  <div class="missing-section">
+    <h3>📺 Folgen (pro TV-Bibliothek)</h3>
+    <p class="hint">Erfordert TMDB-Calls — kann ein paar Sekunden dauern.</p>
+    <div class="row">
+      <select id="missingEpLib"></select>
+      <button type="button" id="missingEpRun">Jetzt prüfen</button>
+    </div>
+    <div id="missingEpStatus" class="hint" style="margin-top:8px"></div>
+    <div id="missingEpPreview" class="missing-preview"></div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="missingEpCsv" disabled>⬇ CSV-Download</button>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px"><button type="button" data-close>Schließen</button></div>
+</dialog>
+
+<!-- Users (admin) -->
+<dialog id="usersDialog" class="modal users-modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>👥 Benutzer</h2>
+  <div id="usersList" class="users-list"></div>
+  <details class="users-new-details">
+    <summary>+ Neuen Benutzer anlegen</summary>
+    <form id="userForm" class="form users-new-form">
+      <div class="row" style="gap:8px">
+        <label style="flex:1">Benutzername <input name="username" required /></label>
+        <label style="flex:1">Passwort (min. 6 Zeichen) <input name="password" type="password" minlength="6" required /></label>
+      </div>
+      <label class="checkbox-row"><input name="isAdmin" type="checkbox" /> Administrator-Rechte</label>
+      <div class="row" style="margin-top:8px">
+        <button type="submit" class="primary">Anlegen</button>
+      </div>
+    </form>
+  </details>
+</dialog>
+
+<!-- Trickplay verwalten -->
+<dialog id="trickplayDialog" class="modal trickplay-modal">
+  <h2>🎞 Trickplay verwalten</h2>
+  <div id="trickplayStats" class="trickplay-stats"></div>
+  <div class="row" style="margin:8px 0">
+    <button type="button" data-tp-tab="done" class="tp-tab primary">Erfolgreich</button>
+    <button type="button" data-tp-tab="failed" class="tp-tab">Fehler</button>
+    <button type="button" data-tp-tab="pending" class="tp-tab">Wartend</button>
+  </div>
+  <div id="trickplayLog" class="trickplay-log"></div>
+  <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+    <button type="button" id="tpRetryFailed">↻ Fehler erneut versuchen</button>
+    <button type="button" id="tpDeleteAll" class="danger">🗑 Alle Trickplay-Dateien löschen</button>
+    <button type="button" data-close>Schließen</button>
+  </div>
+</dialog>
+
+<!-- Generisches App-Dialog-Fenster (ersetzt alert/confirm/prompt) -->
+<dialog id="appDialog" class="modal app-dialog">
+  <h2 id="appDialogTitle" class="app-dialog-title"></h2>
+  <div id="appDialogBody" class="app-dialog-body"></div>
+  <div id="appDialogInputRow" class="app-dialog-input-row hidden">
+    <input id="appDialogInput" type="text" />
+  </div>
+  <div class="row app-dialog-row" style="margin-top:12px">
+    <button type="button" id="appDialogCancel" class="app-dialog-cancel hidden">Abbrechen</button>
+    <button type="button" id="appDialogOk" class="primary">OK</button>
+  </div>
+</dialog>
+
+<!-- Datei/Ordner-Suche (admin-only Diagnose) -->
+<dialog id="pathSearchDialog" class="modal pathsearch-modal">
+  <h2>🔍 Datei/Ordner suchen</h2>
+  <p class="hint">Sucht in Dateinamen und Pfaden. Nützlich um falsch zugeordnete Items zu finden (z. B. „Bad Boys Ride or Die" steht im Pfad aber das TMDB-Match ist ein anderer Film).</p>
+  <input id="pathSearchInput" type="search" placeholder="Teil des Dateinamens oder Ordners…" autofocus />
+  <div id="pathSearchResults" class="pathsearch-results"></div>
+  <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+    <button type="button" data-close>Schließen</button>
+  </div>
+</dialog>
+
+<!-- Resume-Dialog (Wiedergabe fortsetzen?) -->
+<dialog id="resumeDialog" class="modal resume-modal">
+  <h2>Wiedergabe fortsetzen?</h2>
+  <p class="resume-text">Du hast diesen Titel zuletzt bei <strong id="resumeTime">–</strong> pausiert.</p>
+  <div class="row">
+    <button type="button" id="resumeContinueBtn" class="primary">▶ Fortsetzen</button>
+    <button type="button" id="resumeRestartBtn">⟲ Von Anfang</button>
+    <button type="button" id="resumeCancelBtn">Abbrechen</button>
+  </div>
+</dialog>
+
+<!-- Passwort ändern -->
+<dialog id="passwordDialog" class="modal">
+  <h2>Passwort ändern</h2>
+  <form id="passwordForm" class="form">
+    <label>Aktuelles Passwort <input name="oldPassword" type="password" required /></label>
+    <label>Neues Passwort (min. 6 Zeichen) <input name="newPassword" type="password" minlength="6" required /></label>
+    <div class="row">
+      <button type="submit" class="primary">Speichern</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Library-Access für User -->
+<dialog id="userAclDialog" class="modal">
+  <h2 id="userAclTitle">Bibliothek-Zugriff</h2>
+  <div id="userAclList" style="display:flex;flex-direction:column;gap:6px;margin:10px 0"></div>
+  <div class="row">
+    <button type="button" id="userAclSave" class="primary">Speichern</button>
+    <button type="button" data-close>Abbrechen</button>
+  </div>
+</dialog>
+
+<!-- Settings -->
+<dialog id="settingsDialog" class="modal">
+  <h2>Einstellungen</h2>
+  <form id="settingsForm" class="form">
+    <label>
+      Puffer (Sekunden): <span id="bufVal">30</span>
+      <input id="bufRange" type="range" min="5" max="180" step="5" value="30" />
+    </label>
+    <p class="hint">Wie viele Sekunden der Player im Voraus lädt. Höhere Werte helfen bei langsamer Verbindung, brauchen aber mehr Speicher.</p>
+
+    <label>
+      Startpuffer (Sekunden): <span id="startBufVal">0</span>
+      <input id="startBufRange" type="range" min="0" max="60" step="1" value="0" />
+    </label>
+    <p class="hint">Minimaler Vorpuffer, bevor die Wiedergabe startet. 0 = sofort spielen. Der Player hält zu Beginn an, bis so viele Sekunden gepuffert sind. Wert wird auf den Haupt-Puffer (oben) gecapt — für höheren Startpuffer erst dort erhöhen.</p>
+
+    <label>
+      Trickplay-Intervall (Sekunden): <span id="tpIntervalVal">10</span>
+      <input id="tpInterval" type="range" min="2" max="60" step="1" value="10" />
+    </label>
+    <p class="hint">Alle wieviele Sekunden ein Vorschau-Thumbnail erzeugt wird. Gilt für <em>neu</em> generierte Trickplay-Daten — bestehende bleiben wie sie sind.</p>
+
+    <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">TMDB-Anreicherung</h3>
+    <label>
+      TMDB-Key <small class="hint" style="margin:0">(<a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org</a> → API v3)</small>
+      <input id="tmdbKeyInput" type="text" placeholder="leer lassen, um nicht zu ändern" autocomplete="off" />
+    </label>
+    <div id="tmdbStatus" class="hint"></div>
+    <label>
+      OMDb-Key <small class="hint" style="margin:0">(<a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">omdbapi.com</a>, FREE-Tier) — Fallback wenn TMDB nichts findet</small>
+      <input id="omdbKeyInput" type="text" placeholder="leer lassen, um nicht zu ändern" autocomplete="off" />
+    </label>
+    <div id="omdbStatus" class="hint"></div>
+    <div id="enrichStatus" class="hint"></div>
+    <div class="row" style="justify-content:flex-start">
+      <button type="button" id="tmdbRunBtn">Jetzt anreichern</button>
+      <button type="button" id="tmdbClearBtn" class="danger">TMDB-Key löschen</button>
+      <button type="button" id="omdbClearBtn" class="danger">OMDb-Key löschen</button>
+    </div>
+
+    <label>
+      Hardware-Beschleunigung
+      <select id="hwaccelMode">
+        <option value="auto">Automatisch (empfohlen)</option>
+        <option value="vaapi">Intel/AMD VAAPI</option>
+        <option value="nvenc">NVIDIA NVENC</option>
+        <option value="software">Software (CPU)</option>
+      </select>
+      <small class="hint" style="margin:0">
+        Für NVIDIA muss auf Unraid das <strong>NVIDIA-Plugin</strong> installiert sein und der Container mit
+        <code>runtime: nvidia</code> laufen (übernimmt das Compose-Template).
+      </small>
+    </label>
+    <div id="hwaccelInfo" class="hint"></div>
+    <details class="hint">
+      <summary>Direct Play vs. Transcode</summary>
+      <p><strong>Direct Play:</strong> Originaldatei unverändert streamen. Null CPU-Last, beste Qualität.
+      Nur möglich, wenn Browser + Datei-Codec zueinander passen (z.&nbsp;B. mp4/h264/aac).</p>
+      <p><strong>Transcode:</strong> Server wandelt das Video live in browser-kompatibles H.264/HLS um.
+      Vorteile: Kompatibilität (AVI/WMV/MKV), geringere Bandbreite (siehe Profile), Audio-Downmix.
+      Nachteil: GPU/CPU-Last.</p>
+    </details>
+    <div class="row">
+      <button type="submit" class="primary">Speichern</button>
+      <button type="button" data-close>Schließen</button>
+    </div>
+    <div class="tmdb-attribution">
+      <a href="https://www.themoviedb.org/" target="_blank" rel="noopener" aria-label="The Movie Database">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 185.04 133.4" height="18" style="vertical-align:middle">
+          <defs><linearGradient id="tmdbLg" x1="0" y1="66.7" x2="185.04" y2="66.7" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#90cea1"/><stop offset="0.56" stop-color="#3cbec9"/><stop offset="1" stop-color="#00b3e5"/></linearGradient></defs>
+          <path fill="url(#tmdbLg)" d="M51.06 66.7h82.93a20.24 20.24 0 0 0 20.24-20.24v-6.28a20.24 20.24 0 0 0-20.24-20.24H51.06a20.24 20.24 0 0 0-20.24 20.24v6.28A20.24 20.24 0 0 0 51.06 66.7zm0 46.76h82.93a20.24 20.24 0 0 0 20.24-20.24V86.94a20.24 20.24 0 0 0-20.24-20.24H51.06a20.24 20.24 0 0 0-20.24 20.24v6.28a20.24 20.24 0 0 0 20.24 20.24z"/>
+        </svg>
+      </a>
+      Metadaten + Poster stammen von <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">The Movie Database</a>. Dieses Produkt nutzt die TMDB-API, ist aber nicht von TMDB unterstützt oder zertifiziert.
+    </div>
+  </form>
+</dialog>
+
+<script src="/app.js" defer></script>
+</body>
+</html>

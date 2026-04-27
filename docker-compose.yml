@@ -1,0 +1,31 @@
+services:
+  goldfish:
+    build: .
+    image: goldfish:latest
+    container_name: goldfish
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    devices:
+      # Intel/AMD iGPU passthrough for VAAPI (transcoding + trickplay).
+      # Remove if you have no iGPU — the server falls back to software encoding.
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - "107"  # render group on most Linux distros
+    # NVIDIA passthrough — uncomment runtime + env block on hosts with the
+    # NVIDIA Container Runtime + a CUDA-capable GPU. On Unraid: install the
+    # NVIDIA Driver plugin first. The image already ships with NVENC support;
+    # selecting "NVIDIA NVENC" in Settings → Hardware will then use the GPU.
+    # runtime: nvidia
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    #   - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+    volumes:
+      - ./config:/config
+      # Point this at your media root (read-only). Goldfish can manage many
+      # libraries under this mount.
+      - /mnt/media:/media:ro
+    environment:
+      - VP_LISTEN=:8096
+      - VP_CONFIG_DIR=/config
+      - TZ=Europe/Berlin

@@ -1,0 +1,402 @@
+package store
+
+import (
+	"crypto/rand"
+	"database/sql"
+	"encoding/base64"
+	"errors"
+	"time"
+
+	"github.com/boernie77/goldfish/internal/model"
+	"golang.org/x/crypto/bcrypt"
+)
+
+// --- Users ---
+
+func (s *Store) CountUsers() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
+	return n, err
+}
+
+func (s *Store) ListUsers() ([]model.User, error) {
+	rows, err := s.db.Query(`
+		SELECT id, username, is_admin, max_age_rating, created_at
+		FROM users ORDER BY username COLLATE NOCASE
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []model.User{}
+	for rows.Next() {
+		var u model.User
+		var isAdmin int
+		var maxAge sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		u.IsAdmin = isAdmin == 1
+		if maxAge.Valid {
+			v := int(maxAge.Int64)
+			u.MaxAgeRating = &v
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetUser(id int64) (*model.User, error) {
+	var u model.User
+	var isAdmin int
+	var maxAge sql.NullInt64
+	err := s.db.QueryRow(
+		`SELECT id, username, is_admin, max_age_rating, created_at FROM users WHERE id = ?`, id,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	u.IsAdmin = isAdmin == 1
+	if maxAge.Valid {
+		v := int(maxAge.Int64)
+		u.MaxAgeRating = &v
+	}
+	return &u, nil
+}
+
+func (s *Store) GetUserByName(username string) (*model.User, string, error) {
+	var u model.User
+	var isAdmin int
+	var maxAge sql.NullInt64
+	var hash string
+	err := s.db.QueryRow(
+		`SELECT id, username, is_admin, max_age_rating, created_at, password_hash FROM users WHERE username = ?`,
+		username,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt, &hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, "", nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	u.IsAdmin = isAdmin == 1
+	if maxAge.Valid {
+		v := int(maxAge.Int64)
+		u.MaxAgeRating = &v
+	}
+	return &u, hash, nil
+}
+
+// SetUserMaxAgeRating setzt die Altersbeschränkung. nil = keine Beschränkung.
+func (s *Store) SetUserMaxAgeRating(userID int64, max *int) error {
+	if max == nil {
+		_, err := s.db.Exec(`UPDATE users SET max_age_rating = NULL WHERE id = ?`, userID)
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE users SET max_age_rating = ? WHERE id = ?`, *max, userID)
+	return err
+}
+
+func (s *Store) CreateUser(username, password string, isAdmin bool) (int64, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return 0, err
+	}
+	flag := 0
+	if isAdmin {
+		flag = 1
+	}
+	res, err := s.db.Exec(
+		`INSERT INTO users(username, password_hash, is_admin) VALUES(?, ?, ?)`,
+		username, string(hash), flag)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (s *Store) SetUserPassword(userID int64, newPassword string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, string(hash), userID)
+	return err
+}
+
+func (s *Store) SetUserAdmin(userID int64, isAdmin bool) error {
+	flag := 0
+	if isAdmin {
+		flag = 1
+	}
+	_, err := s.db.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, flag, userID)
+	return err
+}
+
+func (s *Store) DeleteUser(userID int64) error {
+	_, err := s.db.Exec(`DELETE FROM users WHERE id = ?`, userID)
+	return err
+}
+
+// VerifyPassword vergleicht ein Passwort mit dem gespeicherten Hash.
+func VerifyPassword(hash, password string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+// --- Sessions ---
+
+// NewSessionToken erzeugt einen 32-Byte zufälligen Token, URL-sicher kodiert.
+func NewSessionToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func (s *Store) CreateSession(userID int64, ttl time.Duration) (model.Session, error) {
+	token, err := NewSessionToken()
+	if err != nil {
+		return model.Session{}, err
+	}
+	expires := time.Now().Add(ttl)
+	if _, err := s.db.Exec(
+		`INSERT INTO sessions(token, user_id, expires_at) VALUES(?, ?, ?)`,
+		token, userID, expires,
+	); err != nil {
+		return model.Session{}, err
+	}
+	return model.Session{Token: token, UserID: userID, ExpiresAt: expires}, nil
+}
+
+// GetSession gibt User zurück, falls Token gültig und nicht abgelaufen.
+func (s *Store) GetSession(token string) (*model.User, error) {
+	if token == "" {
+		return nil, nil
+	}
+	var u model.User
+	var isAdmin int
+	var expires time.Time
+	err := s.db.QueryRow(`
+		SELECT u.id, u.username, u.is_admin, u.created_at, s.expires_at
+		FROM sessions s JOIN users u ON u.id = s.user_id
+		WHERE s.token = ?`, token,
+	).Scan(&u.ID, &u.Username, &isAdmin, &u.CreatedAt, &expires)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if time.Now().After(expires) {
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+		return nil, nil
+	}
+	u.IsAdmin = isAdmin == 1
+	return &u, nil
+}
+
+func (s *Store) DeleteSession(token string) error {
+	_, err := s.db.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+	return err
+}
+
+// GCSessions löscht abgelaufene Sessions.
+func (s *Store) GCSessions() error {
+	_, err := s.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now())
+	return err
+}
+
+// --- Library Access ---
+
+func (s *Store) UserLibraryAccess(userID int64) ([]int64, error) {
+	rows, err := s.db.Query(
+		`SELECT library_id FROM user_library_access WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// SetUserLibraryAccess setzt die Access-Liste für einen User (ersetzt bestehende).
+func (s *Store) SetUserLibraryAccess(userID int64, libIDs []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DELETE FROM user_library_access WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	for _, lid := range libIDs {
+		if _, err := tx.Exec(
+			`INSERT INTO user_library_access(user_id, library_id) VALUES(?, ?)`,
+			userID, lid); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// UserHasLibraryAccess: Admins haben immer Zugriff, sonst nur über ACL.
+func (s *Store) UserHasLibraryAccess(userID, libID int64, isAdmin bool) (bool, error) {
+	if isAdmin {
+		return true, nil
+	}
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM user_library_access WHERE user_id = ? AND library_id = ?`,
+		userID, libID).Scan(&n)
+	return n > 0, err
+}
+
+// --- Per-User Watched/Favorite ---
+
+func (s *Store) SetWatchedFor(userID, itemID int64, watched bool) error {
+	if watched {
+		_, err := s.db.Exec(`
+			INSERT INTO user_item_state(user_id, item_id, watched, watched_at)
+			VALUES(?, ?, 1, ?)
+			ON CONFLICT(user_id, item_id) DO UPDATE SET watched=1, watched_at=excluded.watched_at
+		`, userID, itemID, time.Now())
+		return err
+	}
+	// Gesehen wieder entfernen → kompletter Reset: Resume-Position mit
+	// rausnehmen, damit der Film nicht wieder in der „Fortsetzen"-Spalte
+	// auftaucht. Entspricht der UX-Erwartung: einmal Gesehen markiert und
+	// wieder entfernt = auf Werkszustand.
+	_, err := s.db.Exec(`
+		INSERT INTO user_item_state(user_id, item_id, watched, watched_at, resume_pos_sec, last_played_at)
+		VALUES(?, ?, 0, NULL, NULL, NULL)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET
+			watched=0,
+			watched_at=NULL,
+			resume_pos_sec=NULL,
+			last_played_at=NULL
+	`, userID, itemID)
+	return err
+}
+
+// SetResumePosition speichert die aktuelle Wiedergabe-Position für späteres
+// „Fortsetzen ab …". 0 oder Werte < 30s werden als „von vorne" interpretiert
+// und löschen den Marker.
+func (s *Store) SetResumePosition(userID, itemID int64, posSec float64) error {
+	if posSec < 5 {
+		_, err := s.db.Exec(`
+			INSERT INTO user_item_state(user_id, item_id, resume_pos_sec)
+			VALUES(?, ?, NULL)
+			ON CONFLICT(user_id, item_id) DO UPDATE SET resume_pos_sec=NULL
+		`, userID, itemID)
+		return err
+	}
+	_, err := s.db.Exec(`
+		INSERT INTO user_item_state(user_id, item_id, resume_pos_sec)
+		VALUES(?, ?, ?)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET resume_pos_sec=excluded.resume_pos_sec
+	`, userID, itemID, posSec)
+	return err
+}
+
+// GetResumePosition liefert die gespeicherte Wiedergabe-Position (0 = keine).
+func (s *Store) GetResumePosition(userID, itemID int64) (float64, error) {
+	var p sql.NullFloat64
+	err := s.db.QueryRow(
+		`SELECT resume_pos_sec FROM user_item_state WHERE user_id = ? AND item_id = ?`,
+		userID, itemID).Scan(&p)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !p.Valid {
+		return 0, nil
+	}
+	return p.Float64, nil
+}
+
+// TouchLastPlayed setzt user_item_state.last_played_at = now. Erstellt den
+// Per-User-Zustand bei Bedarf. Wird beim Öffnen des Players aufgerufen.
+func (s *Store) TouchLastPlayed(userID, itemID int64) error {
+	_, err := s.db.Exec(`
+		INSERT INTO user_item_state(user_id, item_id, last_played_at)
+		VALUES(?, ?, ?)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET last_played_at=excluded.last_played_at
+	`, userID, itemID, time.Now())
+	return err
+}
+
+func (s *Store) SetFavoriteFor(userID, itemID int64, favorite bool) error {
+	if favorite {
+		_, err := s.db.Exec(`
+			INSERT INTO user_item_state(user_id, item_id, favorite, favorited_at)
+			VALUES(?, ?, 1, ?)
+			ON CONFLICT(user_id, item_id) DO UPDATE SET favorite=1, favorited_at=excluded.favorited_at
+		`, userID, itemID, time.Now())
+		return err
+	}
+	_, err := s.db.Exec(`
+		INSERT INTO user_item_state(user_id, item_id, favorite, favorited_at)
+		VALUES(?, ?, 0, NULL)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET favorite=0, favorited_at=NULL
+	`, userID, itemID)
+	return err
+}
+
+// MigrateLegacyPlaylistOwners setzt user_id auf allen Playlists ohne Besitzer.
+func (s *Store) MigrateLegacyPlaylistOwners(userID int64) error {
+	_, err := s.db.Exec(`UPDATE playlists SET user_id = ? WHERE user_id IS NULL`, userID)
+	return err
+}
+
+// MigrateLegacyItemStateToUser: beim ersten Setup werden die globalen items.watched/favorite
+// auf den Initial-Admin übertragen, damit keine History verloren geht.
+func (s *Store) MigrateLegacyItemStateToUser(userID int64) error {
+	_, err := s.db.Exec(`
+		INSERT OR IGNORE INTO user_item_state(user_id, item_id, watched, watched_at, favorite, favorited_at)
+		SELECT ?, id, watched, watched_at, favorite, favorited_at FROM items
+		WHERE watched = 1 OR favorite = 1
+	`, userID)
+	return err
+}
+
+// ListLibrariesForUser filtert Libraries basierend auf ACL.
+func (s *Store) ListLibrariesForUser(userID int64, isAdmin bool) ([]model.Library, error) {
+	if isAdmin {
+		return s.ListLibraries()
+	}
+	rows, err := s.db.Query(`
+		SELECT l.id, l.name, l.path, l.kind, l.created_at
+		FROM libraries l
+		JOIN user_library_access a ON a.library_id = l.id
+		WHERE a.user_id = ?
+		ORDER BY l.name
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []model.Library{}
+	for rows.Next() {
+		var l model.Library
+		var kind string
+		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		l.Kind = model.LibraryKind(kind)
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}

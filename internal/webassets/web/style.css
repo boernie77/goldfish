@@ -1,0 +1,2426 @@
+:root {
+  --bg: #10141c;
+  --bg-2: #1a202c;
+  --card: #1f2937;
+  --card-2: #283243;
+  --text: #e5e7eb;
+  --text-dim: #9ca3af;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --border: #2d3748;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.hidden { display: none !important; }
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+/* Content unter der fixed Topbar + fixed Lib-Nav nachrücken. --topbar-h und
+   --lib-nav-h werden von JS per ResizeObserver gesetzt, damit auch bei
+   Wrapping die Höhen stimmen. */
+body { padding-top: calc(var(--topbar-h, 60px) + var(--lib-nav-h, 0px)); }
+/* Rechte Topbar-Ecke: Playlists/Username/Zahnrad. Durch margin-left:auto
+   immer am rechten Rand; flex-shrink:0 schützt vor Platzwegnahme durch
+   wrappende Controls. */
+.topbar-corner {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+  z-index: 11;
+}
+.topbar-corner .dropdown {
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+}
+/* Controls füllen den verfügbaren Platz zwischen Brand und Corner, dürfen auf
+   mehrere Zeilen umbrechen, ohne Corner-Buttons zu verdrängen. */
+.controls {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #f97316;
+  letter-spacing: 0.3px;
+  margin-right: 28px;
+}
+.brand-icon {
+  width: 42px;
+  height: 42px;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Label horizontal neben dem Select — damit passen alle Controls auf eine Zeile */
+.field-label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.field-label select {
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+}
+
+.search-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.search-wrap input[type="search"] {
+  padding-right: 28px;
+}
+/* Eingebautes Clear-Kreuz einiger Browser ausblenden — wir nutzen unser eigenes */
+.search-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
+.search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+}
+.search-clear:hover {
+  color: var(--text);
+  background: var(--card-2);
+}
+
+input, select, button {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+}
+button { cursor: pointer; }
+button:hover { background: var(--card-2); }
+button.primary { background: var(--accent); border-color: var(--accent); }
+button.primary:hover { background: var(--accent-hover); }
+
+/* ---- Lib-Nav: zentrierte, fixe Buttons-Leiste mit allen Quellen ----------- */
+.lib-nav {
+  position: fixed;
+  top: var(--topbar-h, 60px);
+  left: 0;
+  right: 0;
+  z-index: 9;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+.lib-nav-btn {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s, transform .1s;
+}
+.lib-nav-btn:hover {
+  background: var(--card-2, #2a2a2a);
+  border-color: var(--text-dim);
+}
+.lib-nav-btn:active { transform: translateY(1px); }
+.lib-nav-btn.is-active {
+  background: var(--accent, #f97316);
+  color: #fff;
+  border-color: var(--accent, #f97316);
+  font-weight: 700;
+}
+.lib-nav-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+.hidden-select { display: none !important; }
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 4px;
+  font-size: 20px;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.breadcrumb a {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb .sep { color: var(--text-dim); }
+.breadcrumb .current { color: var(--text); font-weight: 600; }
+.breadcrumb .count {
+  color: var(--text-dim);
+  font-weight: 400;
+  font-size: 14px;
+  margin-left: 6px;
+}
+.breadcrumb .back-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--text);
+  padding: 0;
+  margin-right: 4px;
+  transition: background .15s;
+}
+.breadcrumb .back-btn:hover { background: var(--card-2); border-color: var(--accent); }
+.breadcrumb .toolbar {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.breadcrumb .toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.breadcrumb .toolbar .status {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.breadcrumb .toolbar .status .progress {
+  display: inline-block;
+  width: 60px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  overflow: hidden;
+}
+.breadcrumb .toolbar .status .progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width .3s;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+/* Sub-Ansichten (Playlists, Sammlungen) mit eigener Toolbar + Grid */
+.subview-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 0 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.subview-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+/* Section-Heading im Person-Filter (🎬 Filme · N / 📺 Serien · N). */
+.person-section-title {
+  grid-column: 1 / -1;
+  margin: 16px 4px 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.person-section-title:first-of-type { margin-top: 4px; }
+
+/* ---- Poster-Picker-Dialog ----------------------------------------------- */
+.poster-picker-modal {
+  min-width: min(720px, 92vw);
+  max-width: 900px;
+}
+.poster-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.poster-picker-tile {
+  border: 2px solid transparent;
+  background: var(--card);
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .15s, transform .1s;
+  display: flex;
+  flex-direction: column;
+}
+.poster-picker-tile:hover {
+  border-color: var(--accent);
+  transform: scale(1.02);
+}
+.poster-picker-tile img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+  background: #111;
+}
+.poster-picker-meta {
+  font-size: 11px;
+  padding: 4px 6px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: var(--card-2);
+  color: var(--text-dim);
+}
+.poster-picker-meta .poster-lang {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---- Scan-Summary-Dialog ------------------------------------------------ */
+.scan-summary-modal {
+  min-width: min(620px, 92vw);
+  max-width: 720px;
+}
+.scan-summary-head { font-size: 14px; margin-bottom: 12px; color: var(--text-dim); }
+.scan-summary-head strong { color: var(--text); }
+.scan-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.scan-stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.scan-stat-num { font-size: 22px; font-weight: 700; color: var(--text); }
+.scan-stat-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.scan-stat.stat-new .scan-stat-num   { color: #22c55e; }
+.scan-stat.stat-upd .scan-stat-num   { color: #3b82f6; }
+.scan-stat.stat-skip .scan-stat-num  { color: var(--text-dim); }
+.scan-stat.stat-del .scan-stat-num   { color: #ef4444; }
+.scan-summary-folders { max-height: 300px; overflow-y: auto; }
+.scan-folder-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.scan-folder-table th, .scan-folder-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.scan-folder-table th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.scan-folder-table td:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+
+.scan-stat.is-clickable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.scan-stat.is-clickable:hover {
+  background: var(--card-hover, #2a2a2a);
+  border-color: var(--accent, #3b82f6);
+  transform: translateY(-1px);
+}
+.scan-stat.is-clickable:active { transform: translateY(0); }
+
+.scan-cell.clickable {
+  cursor: pointer;
+  color: var(--text);
+  text-decoration: underline dotted transparent;
+  transition: text-decoration-color 0.15s, color 0.15s;
+}
+.scan-cell.clickable:hover {
+  text-decoration-color: var(--accent, #3b82f6);
+  color: var(--accent, #3b82f6);
+}
+.scan-cell.zero { color: var(--text-dim); }
+
+.scan-summary-detail {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 10px 12px;
+}
+.scan-summary-detail.hidden { display: none; }
+.scan-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.scan-detail-head strong { color: var(--text); }
+.scan-detail-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.scan-detail-close:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+.scan-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.scan-detail-list li {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  word-break: break-all;
+}
+.scan-detail-list li:last-child { border-bottom: none; }
+.scan-detail-list li.scan-detail-more {
+  color: var(--text-dim);
+  font-style: italic;
+  font-family: inherit;
+}
+.scan-detail-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 6px;
+  font-size: 12px;
+}
+
+/* ---- Missing-Dialog (Export für Radarr/Sonarr) -------------------------- */
+.missing-modal {
+  min-width: min(680px, 92vw);
+  max-width: 760px;
+}
+.missing-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--card);
+}
+.missing-section h3 { margin: 0 0 8px; font-size: 14px; }
+.missing-preview { margin-top: 8px; }
+.missing-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.missing-list li {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.missing-list li:last-child { border-bottom: none; }
+.missing-list .missing-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+/* ---- Benutzer-Verwaltung (Admin-Dialog) ---------------------------------
+   Clean Karten-Layout statt reihenweise Text + Buttons. */
+.users-modal {
+  min-width: min(640px, 92vw);
+  max-width: 720px;
+}
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.user-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.user-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.user-card-title { flex: 1; min-width: 0; }
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.user-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.user-self-badge {
+  background: #0f766e;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.user-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-field {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.user-field > label {
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.user-field .user-age-select {
+  width: 100%;
+  max-width: 260px;
+}
+.user-actions > label { align-self: start; padding-top: 6px; }
+.user-action-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.user-btn {
+  padding: 5px 10px;
+  font-size: 13px;
+  border-radius: 4px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  transition: background .15s, border-color .15s;
+}
+.user-btn:hover { background: var(--bg-2); border-color: var(--accent); }
+.user-btn.danger { color: #fca5a5; border-color: #7f1d1d; }
+.user-btn.danger:hover { background: #7f1d1d; color: #fff; border-color: #ef4444; }
+.users-new-details {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.users-new-details summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 4px 0;
+  list-style: none;
+}
+.users-new-details summary::-webkit-details-marker { display: none; }
+.users-new-form { margin-top: 10px; }
+.users-new-form .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+@media (max-width: 520px) {
+  .user-field {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* FSK-Badge im Detail-Dialog — farbcodierte Altersfreigabe. */
+.fsk-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  background: #6b7280;
+  color: #fff;
+}
+.fsk-badge.fsk-0  { background: #16a34a; }  /* grün */
+.fsk-badge.fsk-6  { background: #eab308; color: #111; }  /* gelb */
+.fsk-badge.fsk-12 { background: #f97316; }  /* orange */
+.fsk-badge.fsk-16 { background: #ef4444; }  /* rot */
+.fsk-badge.fsk-18 { background: #000; border: 1px solid #fff; }  /* schwarz */
+
+/* „Komplett"-Badge auf der Sammlungs-Kachel — oben links, dezent grün. */
+.collection-complete {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(22, 163, 74, 0.92);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+/* Playlist-Kachel: Standard-Thumb wenn Item-Poster verfügbar,
+   sonst blauer Verlauf + großes 📋-Icon als Fallback */
+.playlist-card .thumb:has(.playlist-thumb-icon) {
+  background: linear-gradient(135deg, #1e3a8a, #312e81);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.playlist-thumb-icon {
+  font-size: 56px;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+/* Folder tile */
+.card.folder .thumb {
+  position: relative;
+  background-color: var(--card-2);
+}
+.card.folder .folder-gear {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity .15s, background .15s;
+}
+.card.folder:hover .folder-gear,
+.card.folder:focus-within .folder-gear {
+  opacity: 1;
+}
+.card.folder .folder-gear:hover { background: var(--accent); }
+
+.card.folder .drilldown-indicator {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: rgba(59, 130, 246, 0.9);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.card.folder .folder-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 54px;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+.card.folder .folder-count {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+  border: 1px solid var(--border);
+  /* Natives Virtual-Scrolling: Browser rendert nur sichtbare Kacheln.
+     intrinsic-size ist eine Schätzung für nicht-sichtbare Kacheln, damit die
+     Scrollbar-Höhe stimmt. */
+  content-visibility: auto;
+  contain-intrinsic-size: 200px 260px;
+}
+.card.card--poster {
+  contain-intrinsic-size: 200px 380px;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  border-color: var(--accent);
+}
+
+.thumb {
+  aspect-ratio: 16 / 9;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+.thumb .thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Bei Movies/TV-Libs sind die Bilder TMDB-Poster (2:3) — Kachelformat entsprechend */
+.card.card--poster .thumb {
+  aspect-ratio: 2 / 3;
+}
+.thumb .badge {
+  position: absolute;
+  top: 6px;
+  left: 38px;       /* rechts neben dem Watched-Toggle (der bei 6px sitzt, 24px breit) */
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.thumb .duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.thumb .res-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+.thumb .variant-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(59, 130, 246, 0.9);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.rating + .variant-badge,
+.variant-badge + .rating {
+  /* Falls beide oben-rechts sind, Rating nach links schieben */
+  right: 44px;
+}
+.variant-row {
+  margin: 10px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.variant-row label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.variant-row select {
+  padding: 4px 8px;
+  font-size: 12px;
+  max-width: 360px;
+}
+
+.card-body { padding: 8px 10px 10px; }
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 8px;
+}
+/* Dateiname unter der Meta-Zeile — wichtig für Release-spezifische Unterscheidung */
+.card-filename {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.75;
+}
+/* Episoden-Code (S01E01) auf Serien-Kacheln prominenter hervorheben */
+.card .card-body .card-meta .episode-code,
+.card-meta .episode-code {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: var(--text) !important;
+  letter-spacing: .4px;
+  margin-right: 2px;
+}
+
+.scanbar {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  max-width: 420px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.scanbar .bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.scanbar .bar > div {
+  height: 100%;
+  background: var(--accent);
+  width: 0;
+  transition: width .3s;
+}
+.scanbar.trickbar { bottom: 90px; }
+.scanbar.trickbar .bar > div { background: #f59e0b; }
+
+/* Dialogs */
+dialog {
+  border: none;
+  color: var(--text);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 0;
+  max-width: 90vw;
+}
+dialog::backdrop { background: rgba(0,0,0,0.6); }
+
+/* position bewusst NICHT setzen — das UA-Default für modales <dialog> ist
+   `position: fixed; margin: auto; inset: 0` was den Dialog viewport-zentriert.
+   Unser früheres `position: relative` hat das überschrieben und den Dialog an
+   den oberen Dokumentrand gesetzt. */
+.modal {
+  padding: 20px 24px 18px;
+  min-width: 360px;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow: auto;
+}
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-close:hover { color: var(--text); background: var(--card-2); }
+.modal h2 { margin: 0 0 8px; }
+.modal h3 { margin: 14px 0 8px; font-size: 14px; color: var(--text-dim); }
+
+.form { display: flex; flex-direction: column; gap: 10px; }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.form input, .form select { width: 100%; }
+.form .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.hint { color: var(--text-dim); font-size: 12px; margin: 4px 0 0; }
+.item-id-tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text-dim);
+  cursor: text;
+  user-select: all;
+}
+
+#libList { list-style: none; margin: 0; padding: 0; }
+#libList li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+#libList li:last-child { border-bottom: 0; }
+.lib-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.lib-paths {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lib-path-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.lib-path-row code {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
+/* Player dialog — größenveränderbar, Video füllt den gesamten verfügbaren Platz.
+   display:flex NUR bei [open], damit der native <dialog>-Default (display:none im
+   geschlossenen Zustand) nicht überschrieben wird. */
+.player-dialog {
+  width: min(1200px, 95vw);
+  height: 80vh;
+  min-width: 640px;
+  min-height: 400px;
+  max-width: 98vw;
+  max-height: 96vh;
+  background: #000;
+  resize: both;
+  overflow: hidden;
+  padding: 0;
+}
+.player-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.player-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.video-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.player-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: #111;
+  color: var(--text);
+  cursor: grab;           /* Header als Drag-Griff */
+  user-select: none;
+}
+.player-head:active { cursor: grabbing; }
+.player-head select,
+.player-head input,
+.player-head button,
+.player-head label { cursor: default; }
+.player-title { font-weight: 600; }
+.player-close {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: 18px;
+}
+.video-stage { position: relative; }
+#video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  background: #000;
+  display: block;
+}
+/* Video.js-Wrapper + interne Tech ebenfalls Vollgröße.
+   Wichtig: .vjs-tech (das eigentliche <video>-Element) hat per Video.js-Default
+   absolute 100%, aber manchmal setzt Video.js inline-Height basierend auf
+   Aspect-Ratio. Mit `object-fit: contain` skaliert das Frame-Bild sauber in
+   den verfügbaren Raum und zentriert sich mit Letterbox. */
+.video-stage .video-js {
+  width: 100% !important;
+  height: 100% !important;
+}
+.video-stage .video-js .vjs-tech {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+}
+.video-stage .video-js video {
+  object-fit: contain;
+}
+.transcode-ahead {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #60a5fa;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: .3px;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 1;
+  transition: opacity 1s ease;
+  max-width: min(60vw, 600px);
+}
+/* Das Buffer-/Titel-Overlay synchronisiert seine Sichtbarkeit mit der
+   Video.js-Control-Bar: wenn der Player user-inactive + playing ist, faden
+   beide gemeinsam aus. Bei Pause, Hover oder Keyboard-Input sind beide wieder
+   da — genauso wie die Standard-Progress-Bar. */
+.video-js.vjs-user-inactive.vjs-playing .transcode-ahead {
+  opacity: 0;
+}
+.transcode-ahead .ta-title {
+  color: #e5e7eb;
+  font-weight: 500;
+  font-size: 12px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.transcode-ahead .ta-stats { font-weight: 600; }
+.transcode-ahead.is-active { opacity: 1; }
+.transcode-ahead.hidden { display: none; }
+.transcode-ahead.low .ta-stats { color: #fbbf24; }
+.transcode-ahead.behind .ta-stats { color: #ef4444; }
+
+/* Docked-Variante: Overlay sitzt als schmaler Streifen unter dem Videobild
+   (zwischen .video-stage und .player-meta), nicht als Layer ÜBER dem Bild.
+   Titel wird unterdrückt — steht ohnehin im Header. Im Fullscreen wird
+   `--docked` per JS entfernt → zurück zum floating Layer oben rechts. */
+.transcode-ahead.transcode-ahead--docked {
+  position: static;
+  background: #111;
+  padding: 6px 14px;
+  border-radius: 0;
+  max-width: none;
+  opacity: 1 !important;  /* im Docked-Modus immer sichtbar */
+  color: #60a5fa;
+  transition: none;
+  border-top: 1px solid #1f2937;
+}
+.transcode-ahead.transcode-ahead--docked .ta-title { display: none; }
+.transcode-ahead.transcode-ahead--docked .ta-stats {
+  white-space: nowrap;
+  color: #60a5fa;
+}
+.player-meta {
+  padding: 10px 14px;
+  background: #111;
+  color: var(--text-dim);
+  font-size: 12px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.player-meta strong { color: var(--text); }
+
+.empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 60px 20px;
+  grid-column: 1 / -1;
+}
+
+/* Path input + browse dialog */
+.path-input { display: flex; gap: 6px; }
+.path-input input { flex: 1; }
+
+.crumbs {
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+
+.browse-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.browse-list li {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.browse-list li:last-child { border-bottom: none; }
+.browse-list li:hover { background: var(--card-2); }
+.browse-list li.up { color: var(--text-dim); }
+
+/* Player mode switch */
+.player-modeswitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-left: auto;
+  margin-right: 44px;   /* Platz für den Schließen-Button */
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 12px;
+  color: var(--text-dim);
+  max-width: 100%;
+  min-width: 0;
+}
+.player-modeswitch label {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+}
+.player-modeswitch select {
+  padding: 4px 6px;
+  font-size: 12px;
+  max-width: 170px;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.player-head { flex-wrap: wrap; gap: 8px; }
+.player-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+}
+.player-head { position: relative; padding-right: 44px; }
+/* ---- Custom-Player-Buttons einheitlich ---------------------------------
+   Favorit, Playlist, Delete, Shuffle — und implizit auch der native
+   FullscreenToggle. Gleiche Metrik damit alle vertikal zentriert sind und
+   gleich groß aussehen. font-size 1.6em matcht visuell den Icon-Font der
+   nativen Video.js-Buttons; line-height 2.2 = Control-Bar-Höhe, damit die
+   Glyphen exakt auf der Mittelachse sitzen. */
+.video-js .vjs-shuffle-prev .vjs-icon-placeholder::before,
+.video-js .vjs-shuffle-next .vjs-icon-placeholder::before,
+.video-js .vjs-favorite .vjs-icon-placeholder::before,
+.video-js .vjs-addplaylist .vjs-icon-placeholder::before,
+.video-js .vjs-delete .vjs-icon-placeholder::before {
+  font-family: inherit;
+  font-size: 1.6em;
+  line-height: 2.2;
+}
+/* Dezenter Delete-Button: grau im Idle, rötlich bei Hover. */
+.video-js .vjs-delete .vjs-icon-placeholder::before {
+  content: "🗑";
+  opacity: 0.65;
+}
+.video-js .vjs-delete:hover .vjs-icon-placeholder::before {
+  opacity: 1;
+  color: #ef4444;
+}
+/* Progress-Bar auch erzwingen, wenn Video.js einen Stream fälschlich als Live
+   erkennt (unser progressiver HLS-Transcode hat nie ENDLIST → wird als live
+   gedeutet). Playback bleibt HLS-VOD-funktional; wir wollen nur die UI-Elemente
+   nicht verlieren. */
+.video-js.vjs-live .vjs-progress-control,
+.video-js.vjs-liveui .vjs-progress-control,
+.video-js .vjs-progress-control { display: flex !important; }
+.video-js.vjs-live .vjs-time-control,
+.video-js.vjs-liveui .vjs-time-control,
+.video-js .vjs-time-control { display: block !important; }
+.video-js .vjs-live-control,
+.video-js .vjs-seek-to-live-control { display: none !important; }
+
+/* Button-spezifische Inhalte (Metrik kommt aus dem Block oben) */
+.video-js .vjs-shuffle-prev .vjs-icon-placeholder::before { content: "⏮"; }
+.video-js .vjs-shuffle-next .vjs-icon-placeholder::before { content: "⏭"; }
+.video-js .vjs-shuffle-prev.vjs-disabled,
+.video-js .vjs-shuffle-next.vjs-disabled { opacity: 0.3; cursor: default; }
+
+.video-js .vjs-favorite .vjs-icon-placeholder::before { content: "♡"; }
+.video-js .vjs-favorite.vjs-favorite--on .vjs-icon-placeholder::before {
+  content: "♥";
+  color: #ef4444;
+}
+
+.video-js .vjs-addplaylist .vjs-icon-placeholder::before { content: "📋"; }
+
+details.hint summary { cursor: pointer; color: var(--text); font-weight: 500; }
+details.hint[open] { color: var(--text-dim); }
+details.hint p { margin: 6px 0; }
+
+/* Kompaktes Auflösungs-Dropdown mit Mehrfach-Auswahl (Checkboxen im Popup) */
+.res-dropdown { position: relative; display: inline-block; }
+#resDropdownBtn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  min-width: 110px;
+  text-align: left;
+}
+.res-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.res-panel.hidden { display: none; }
+.res-panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 3px;
+}
+.res-panel label:hover { background: var(--card-2); }
+.res-panel input[type="checkbox"] { cursor: pointer; }
+
+/* Sort-Richtung-Toggle neben dem Sort-Select */
+.sort-wrap { display: inline-flex; gap: 4px; align-items: center; }
+.sort-dir {
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* Flat-View + Selection-Mode Toggles */
+.toggle-btn.active {
+  background: #1e3a8a;
+  color: #fff;
+  border-color: #3b82f6;
+}
+
+/* Topbar-Navigation: Home, Sammlungen, Playlists — drei gleich große
+   Icon-Only-Buttons. Fixe Breite damit unterschiedliche Emoji-Glyph-Breiten
+   nicht zu optisch verschieden großen Kästchen führen. */
+.nav-icon-btn {
+  width: 38px;
+  min-width: 38px;
+  padding: 6px 0;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Auswahl-Modus: Checkbox-Overlay pro Kachel */
+.card {
+  position: relative;
+  /* Browser-Optimierung: off-screen Cards werden nicht gerendert. Gibt
+     massiven Performance-Gewinn bei Grids mit >200 Items, ohne eigene
+     Virtualisierung. Intrinsic-Size entspricht der ungefähren Kachelgröße. */
+  content-visibility: auto;
+  contain-intrinsic-size: 220px 320px;
+}
+.card-select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 2px solid #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+body.selection-mode .card-select { display: flex; }
+body.selection-mode .card { cursor: pointer; }
+.card.selected { outline: 3px solid #3b82f6; outline-offset: -3px; }
+.card.selected .card-select { background: #3b82f6; border-color: #3b82f6; }
+
+/* Sticky Bulk-Action-Bar */
+.bulk-bar {
+  position: sticky;
+  top: 60px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(17, 24, 39, 0.95);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+}
+.bulk-bar.hidden { display: none; }
+.bulk-count {
+  font-weight: 600;
+  color: #60a5fa;
+  min-width: 110px;
+}
+.bulk-spacer { flex: 1; }
+.bulk-bar button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.bulk-bar button.danger {
+  background: #991b1b;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+/* Status-Bar Abbrechen-Button (Scan / Trickplay) */
+.statusbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.statusbar-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar-cancel {
+  padding: 2px 8px;
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.statusbar-cancel:hover { background: rgba(239, 68, 68, 1); }
+
+/* Trickplay-Verwalten-Dialog */
+.trickplay-modal { min-width: 720px; max-width: 900px; }
+
+/* App-Dialog — Ersatz für alert/confirm/prompt */
+.app-dialog { min-width: 340px; max-width: 520px; }
+.app-dialog-title { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+.app-dialog-title.hidden { display: none; }
+.app-dialog-body {
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 14px;
+  margin-bottom: 4px;
+  white-space: normal;
+}
+.app-dialog-input-row { margin-top: 10px; }
+.app-dialog-input-row input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: var(--bg-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.app-dialog-row { justify-content: flex-end; gap: 8px; }
+
+/* Confirm-Button im Detail-Dialog: grün wenn Zuordnung bestätigt */
+.icon-btn--on-confirmed { color: #22c55e; background: rgba(34, 197, 94, 0.15); }
+
+/* Show-Header oberhalb der Staffel-Kacheln — Poster + Text + Cast */
+.show-header {
+  grid-column: 1 / -1;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: rgba(17, 24, 39, 0.5);
+  border-radius: 8px;
+}
+.show-header.detail-wrap { display: flex; gap: 20px; }
+.show-header .detail-poster {
+  flex: 0 0 180px;
+  min-height: 270px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 4px;
+}
+.show-header .detail-body { flex: 1; min-width: 0; }
+.show-header h2 { margin: 0 0 8px; font-size: 22px; }
+.show-header .sub { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
+.show-header .overview { margin: 8px 0 16px; line-height: 1.5; color: var(--text); font-size: 14px; }
+
+/* Startseite */
+.home-view {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  padding: 8px 0 24px;
+}
+.home-lib-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.home-lib-title {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  user-select: none;
+}
+.home-lib-title:hover { color: #60a5fa; }
+.home-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.home-section-title {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+/* Card-Titel als Link stylen, wenn er eine Serie referenziert */
+.card-title.is-show-link { cursor: pointer; }
+.card-title.is-show-link:hover { color: #60a5fa; text-decoration: underline; }
+.lib-on-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.lib-on-home input { margin: 0; }
+.home-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 180px;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  padding: 4px 4px 8px;
+}
+.home-strip::-webkit-scrollbar { height: 8px; }
+.home-strip::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.home-strip .home-card {
+  scroll-snap-align: start;
+  /* Standard-Kachel-Breite, sonst platzen sie im Grid-Layout */
+  width: 180px;
+}
+
+/* TMDB-Attribution im Settings-Dialog (Lizenz-Pflicht) */
+.tmdb-attribution {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.tmdb-attribution a { color: #60a5fa; text-decoration: none; }
+.tmdb-attribution a:hover { text-decoration: underline; }
+.tmdb-attribution svg { margin-right: 8px; }
+
+/* Datei/Pfad-Suche (Diagnose) */
+.pathsearch-modal { min-width: 600px; max-width: 800px; }
+.pathsearch-modal h2 { margin: 0 0 6px; font-size: 18px; }
+.pathsearch-modal .hint { color: var(--text-dim); font-size: 12px; margin: 6px 0; }
+.pathsearch-modal #pathSearchInput {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 14px;
+  margin: 8px 0;
+  background: var(--bg-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.pathsearch-results {
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.pathsearch-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--text);
+}
+.pathsearch-row:last-child { border-bottom: 0; }
+.pathsearch-row:hover { background: rgba(96, 165, 250, 0.1); }
+.ps-path {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+.ps-meta { font-size: 12px; margin-top: 3px; }
+.ps-match { color: #60a5fa; }
+.ps-unmatched { color: #ef4444; font-weight: 600; }
+.ps-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+.ps-dup {
+  display: inline-block;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.pathsearch-row--dup {
+  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+/* Resume-Dialog: „Wiedergabe fortsetzen?" */
+.resume-modal { min-width: 420px; max-width: 520px; }
+.resume-modal h2 { margin: 0 0 10px; font-size: 18px; }
+.resume-modal .resume-text { margin: 0 0 16px; color: var(--text-dim); }
+.resume-modal .resume-text strong { color: var(--text); font-family: ui-monospace, Menlo, monospace; }
+.resume-modal .row { justify-content: flex-end; gap: 8px; }
+
+/* Alphabet-Sidebar rechts — Sprung zu Anfangsbuchstaben */
+.alpha-sidebar {
+  position: fixed;
+  right: 4px;
+  top: 110px;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  z-index: 5;
+  font-size: 11px;
+  padding: 4px 2px;
+  background: rgba(17, 24, 39, 0.7);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  width: 26px;
+}
+.alpha-sidebar.hidden { display: none; }
+/* Wenn Sidebar sichtbar ist, reservieren wir rechten Rand im Grid,
+   damit keine Kacheln darunterliegen. */
+body.has-alpha-sidebar main.grid,
+body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
+.alpha-sidebar button {
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-weight: 600;
+  line-height: 1;
+}
+.alpha-sidebar button:hover { color: #60a5fa; }
+.alpha-sidebar button:disabled {
+  color: rgba(148, 163, 184, 0.3);
+  cursor: default;
+}
+
+/* Collection-Part: fehlende Filme gedimmt, Badge "Fehlt" über dem Thumb */
+.collection-part.is-missing .thumb { opacity: 0.5; filter: grayscale(0.6); }
+.collection-part.is-missing .card-title { color: var(--text-dim); }
+.collection-part.is-missing { cursor: pointer; }
+.missing-tag {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  margin-left: 10px;
+  vertical-align: middle;
+  font-weight: 600;
+}
+.collection-part.is-missing .card-meta span:last-child { color: #ef4444 !important; font-weight: 600; }
+/* Ausblenden-Button in der rechten oberen Ecke jeder Sammlungs-Kachel */
+.collection-part { position: relative; }
+/* Bei ausgeblendeten Parts nur Thumb + Text dimmen, NICHT den Restore-Button
+   — sonst ist er kaum sichtbar. */
+.collection-part.is-hidden-part .thumb,
+.collection-part.is-hidden-part .card-body { opacity: 0.35; }
+.part-hide-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  z-index: 3;
+}
+.collection-part:hover .part-hide-btn { opacity: 1; }
+/* Bei ausgeblendetem Part immer sichtbar (grüner Ring) — sonst findet man den
+   Button nicht mehr zum Wiederherstellen. */
+.collection-part.is-hidden-part .part-hide-btn {
+  opacity: 1;
+  background: rgba(34, 197, 94, 0.85);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.4);
+  font-size: 16px;
+}
+.part-hide-btn:hover { background: rgba(239, 68, 68, 0.9); }
+.collection-part.is-hidden-part .part-hide-btn:hover {
+  background: rgba(34, 197, 94, 1);
+}
+/* Footer-Link unter dem Grid, wenn Parts ausgeblendet sind */
+.collection-hidden-footer {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 12px 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.link-btn {
+  background: transparent;
+  border: 0;
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: inherit;
+  text-decoration: underline;
+  padding: 4px 8px;
+}
+.link-btn:hover { color: #93c5fd; }
+.missing-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(220, 38, 38, 0.92);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  z-index: 3;
+}
+.trickplay-stats {
+  display: flex;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+.trickplay-stats span strong { margin-right: 4px; }
+.tp-tab {
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tp-tab.primary { background: #1e3a8a; border-color: #3b82f6; color: #fff; }
+.trickplay-log {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.trickplay-log-entry {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  word-break: break-all;
+}
+.trickplay-log-entry:last-child { border-bottom: none; }
+.trickplay-log-entry.failed { background: rgba(239, 68, 68, 0.1); }
+.trickplay-log-entry .err {
+  color: #fca5a5;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* Icon-Buttons im Detail-Dialog (kompakte Reihe) */
+.icon-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.icon-btn:hover { filter: brightness(1.2); }
+.icon-btn--on-fav { color: #ef4444; }
+.icon-btn--on-watched { color: #22c55e; }
+
+/* Schauspieler-Strip im Detail-Dialog */
+.cast-strip { margin-top: 12px; }
+.cast-strip.hidden { display: none; }
+.cast-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.cast-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  max-width: 100%;
+  scrollbar-width: thin;
+}
+.cast-card {
+  flex: 0 0 auto;
+  width: 92px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: center;
+  cursor: pointer;
+  color: var(--text);
+}
+.cast-card:hover .cast-photo { transform: scale(1.04); box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+.cast-card:hover .cast-name { color: #60a5fa; }
+.cast-photo {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: #1f2937 center/cover no-repeat;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.cast-name {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cast-role {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cast-guest {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #374151;
+  color: #fbbf24;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* TMDB / Ratings / Detail */
+.rating {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.75);
+  color: #fbbf24;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Klickbarer Watched-Toggle auf der Kachel (ersetzt das statische watched-badge) */
+.watched-toggle {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.55);
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity .15s, background-color .15s, color .15s, border-color .15s;
+  z-index: 3;
+}
+.card:hover .watched-toggle { opacity: 1; }
+.watched-toggle.is-on {
+  opacity: 1;
+  background: rgba(34, 197, 94, 0.9);
+  border-color: rgba(34, 197, 94, 1);
+  color: #fff;
+}
+
+/* „Zuordnung bestätigen"-Button auf der Kachel. Nur sichtbar, wenn das
+   Sort-Dropdown auf „Duplikate" oder „Verdächtige Zuordnungen" steht.
+   Sitzt UNTER dem Watched-Haken oben-links — nicht rechts daneben, weil
+   dort der Format-Badge (MKV, MP4 …) liegt. */
+.confirm-toggle {
+  position: absolute;
+  top: 36px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(59, 130, 246, 0.85);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+  transition: opacity .15s, background-color .15s, transform .1s;
+}
+.confirm-toggle:hover {
+  opacity: 1;
+  background: rgba(34, 197, 94, 0.95);
+  transform: scale(1.08);
+}
+
+.watched-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(34, 197, 94, 0.9);
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.fav-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 60px;            /* direkt rechts neben .res-badge (bottom-left) */
+  color: #ef4444;
+  font-size: 18px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  line-height: 1;
+}
+
+/* Klickbarer Favoriten-Toggle — direkt rechts neben dem Auflösungs-Badge
+   (bottom-left). Symmetrisch zur Duration-Anzeige auf der rechten Seite,
+   beide unten ausgerichtet. Der Container-Badge (MKV/MP4) liegt oben links
+   neben dem Watched-Toggle, das Rating oben rechts. */
+.fav-toggle {
+  position: absolute;
+  bottom: 4px;
+  left: 62px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.7);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity .15s, background-color .15s, color .15s, border-color .15s;
+  z-index: 3;
+}
+.card:hover .fav-toggle { opacity: 1; }
+.fav-toggle.is-on {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.9);
+  border-color: rgba(239, 68, 68, 1);
+  color: #fff;
+}
+
+.tp-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 66px;      /* links der duration-Badge (collidet nicht mit res/fav unten-links) */
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.3;
+}
+.tp-pending { background: rgba(234, 88, 12, 0.85); }
+.tp-failed  { background: rgba(220, 38, 38, 0.9); font-weight: 600; }
+
+.card.watched .thumb { opacity: 0.6; }
+.card.watched .card-title { color: var(--text-dim); }
+
+button.danger { background: #7f1d1d; border-color: #7f1d1d; }
+button.danger:hover { background: #991b1b; }
+
+.btn-group {
+  display: inline-flex;
+  align-items: stretch;
+}
+.btn-group button { border-radius: 6px; }
+.btn-group > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 0;
+}
+.btn-group > button:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 6px 8px;
+}
+
+.dropdown {
+  position: absolute;
+  top: 52px;
+  right: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+  padding: 4px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+}
+.dropdown button {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 4px;
+  color: var(--text);
+}
+.dropdown button:hover { background: var(--card-2); }
+
+.detail-modal { min-width: 900px; max-width: 1200px; padding: 0; }
+.detail-wrap {
+  display: grid;
+  /* minmax(0, 1fr) erlaubt der rechten Spalte zu shrinken — sonst sprengen
+     breite Cast-Strip-Inhalte den Dialog in die horizontale Richtung. */
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px;
+  min-width: 0;
+}
+.detail-body { min-width: 0; }
+.detail-poster {
+  width: 240px;
+  aspect-ratio: 2/3;
+  background: var(--card-2) center/cover no-repeat;
+  border-radius: 8px;
+}
+.detail-body h2 { margin: 0 0 4px; font-size: 20px; }
+.detail-body .sub {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.detail-body .sub .rating-pill {
+  color: #fbbf24;
+  font-weight: 600;
+}
+.detail-body .overview { line-height: 1.5; }
+.detail-modal .row { padding: 12px 20px 16px; margin: 0; border-top: 1px solid var(--border); }
+
+.match-results {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.match-results li {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 10px;
+  padding: 10px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+.match-results li:hover { background: var(--card-2); }
+.match-results .mini {
+  width: 60px;
+  aspect-ratio: 2/3;
+  background: var(--bg-2) center/cover no-repeat;
+  border-radius: 4px;
+}
+.match-results .meta { font-size: 12px; }
+.match-results .meta strong { font-size: 13px; }
+.match-results .meta p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.lib-kind {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+
+.user-menu {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.user-menu strong { color: var(--text); }
+.user-menu button {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.admin-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+/* Prebuffer-Overlay: zentriert über dem Videobild, zeigt Fortschritt des
+   Startvorlaufs und erlaubt dem User via Skip-Button die Wiedergabe sofort
+   zu starten. */
+.prebuffer-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #e5e7eb;
+  pointer-events: auto;
+}
+.prebuffer-overlay.hidden { display: none; }
+.prebuffer-title { font-size: 16px; font-weight: 600; }
+.prebuffer-progress {
+  width: 60%;
+  max-width: 400px;
+  height: 8px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.prebuffer-bar {
+  height: 100%;
+  background: #3b82f6;
+  transition: width .25s ease;
+}
+.prebuffer-text { font-size: 13px; color: #9ca3af; font-variant-numeric: tabular-nums; }
+#prebufferSkip {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #e5e7eb;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+#prebufferSkip:hover { background: rgba(255,255,255,0.2); }
+
+/* Toast-Benachrichtigungen (rechts unten, kurz sichtbar, nicht-modal). */
+#toastRoot {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10000;
+  pointer-events: none;
+}
+.toast {
+  background: #111827;
+  color: #e5e7eb;
+  padding: 10px 14px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  font-size: 13px;
+  max-width: 320px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .25s ease, transform .25s ease;
+  pointer-events: auto;
+  border-left: 3px solid #60a5fa;
+}
+.toast--shown { opacity: 1; transform: none; }
+.toast--error { border-left-color: #ef4444; }
+.toast--success { border-left-color: #16a34a; }
+
+/* ====================================================================== */
+/*  Mobile Ansicht — Phones < 768px                                         */
+/* ====================================================================== */
+
+@media (max-width: 768px) {
+  /* Topbar: kompakte Spaltenanordnung. Brand + Corner in einer Zeile,
+     Controls darunter mit Wrapping. */
+  .topbar {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .brand {
+    font-size: 18px;
+    margin-right: 0;
+    flex-shrink: 0;
+  }
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .topbar-corner {
+    margin-left: auto;
+    gap: 6px;
+  }
+  .controls {
+    order: 3;
+    flex-basis: 100%;
+    gap: 6px;
+  }
+  /* Field-Labels sehr klein machen — Filter-Bezeichnungen sparen Platz */
+  .field-label {
+    font-size: 9px;
+    gap: 4px;
+  }
+  .field-label select {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+  /* Suchfeld nimmt komplette Breite, damit zumindest dieser Filter
+     auf einer eigenen Zeile vollwertig nutzbar ist. */
+  .search-wrap {
+    flex: 1 1 100%;
+  }
+  .search-wrap input[type="search"] {
+    width: 100%;
+    font-size: 14px;
+    padding: 8px 28px 8px 10px;
+  }
+  .toggle-btn,
+  .controls button,
+  .controls select {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
+  /* Pinned Lib-Nav: horizontal scrollbar Slider — eine Zeile, ohne Wrap,
+     Touch-Wischen funktioniert nativ. */
+  .lib-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    padding: 6px 10px;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .lib-nav::-webkit-scrollbar { height: 4px; }
+  .lib-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .lib-nav-btn {
+    font-size: 14px;
+    padding: 4px 10px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .lib-nav-sep { margin: 0 2px; }
+
+  /* Breadcrumb: kompaktere Schrift + Wrap erlauben */
+  .breadcrumb {
+    font-size: 16px;
+    padding: 10px 12px 4px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .breadcrumb .back-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .breadcrumb .toolbar {
+    flex-basis: 100%;
+    margin-left: 0;
+    margin-top: 4px;
+  }
+
+  /* Grid: kleinere Kacheln, tighter Spacing — auf 360 px Smartphones
+     passen so 2 Kacheln in eine Zeile. */
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+  .card-title { font-size: 13px; }
+  .card-meta { font-size: 11px; }
+  .card-body { padding: 6px 8px 8px; }
+  .badge,
+  .res-badge,
+  .duration,
+  .rating {
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+
+  /* Alphabet-Sidebar auf Mobile ausblenden — wenig Platz, Touch-Scrollen
+     reicht zum Navigieren. */
+  .alpha-sidebar { display: none !important; }
+  body.has-alpha-sidebar { /* kein margin-right reservieren */ }
+
+  /* Player + alle modalen Dialoge auf voller Breite, leichter Padding. */
+  dialog.modal,
+  dialog#playerDialog {
+    width: 96vw;
+    max-width: 96vw;
+    margin: 8px auto;
+    padding: 12px;
+  }
+  dialog.modal[open] { max-height: 92vh; }
+  .player-wrap, .video-stage { width: 100%; }
+
+  /* Bulk-Bar auf einer Zeile, scrollbar */
+  .bulk-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 6px 8px;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .bulk-bar button { flex-shrink: 0; padding: 6px 8px; font-size: 12px; }
+
+  /* Resolution-Dropdown im engen Topbar-Kontext */
+  .res-dropdown #resDropdownBtn { padding: 4px 8px; font-size: 12px; }
+  .res-panel { right: 0; left: auto; }
+}
+
+/* Sehr schmale Smartphones (≤ 480px) — noch dichter packen */
+@media (max-width: 480px) {
+  .brand span { display: none; }   /* nur das Goldfish-Icon zeigen */
+  .brand { gap: 0; }
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+  .breadcrumb { font-size: 15px; }
+  .lib-nav-btn { font-size: 13px; padding: 4px 8px; }
+}

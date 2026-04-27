@@ -1,0 +1,104 @@
+name: Build & Deploy to Unraid
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Der Portainer auf Unraid hört nur im LAN (<UNRAID-LAN-IP>:9000). GitHub-
+      # Runner kommen via Tailscale rein. Voraussetzung: ein OAuth-Client im
+      # Tailscale-Admin-Panel, dessen ID/Secret als GH-Secrets hinterlegt sind.
+      - name: Tailscale connect
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Bundle source as tarball
+        run: |
+          # macOS-xattrs-Schutz weglassen — der Runner ist Linux. Nur die für
+          # das Image relevanten Dateien rein, kein .git-Müll.
+          tar --exclude='.git' --exclude='config' --exclude='cache' \
+              --exclude='.github' --exclude='*.db' --exclude='.DS_Store' \
+              -cf /tmp/goldfish-src.tar -C . .
+
+      - name: Authenticate at Portainer
+        id: portainer-auth
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -sS --max-time 15 -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${{ secrets.PORTAINER_USERNAME }}\",\"password\":\"${{ secrets.PORTAINER_PASSWORD }}\"}" \
+            | jq -r '.jwt')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Portainer-Login fehlgeschlagen" >&2
+            exit 1
+          fi
+          # Token via masked output ans nächste Step weitergeben.
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Build image via Portainer Docker proxy
+        env:
+          TOKEN: ${{ steps.portainer-auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -sS --max-time 600 -X POST \
+            "${{ secrets.PORTAINER_URL }}/api/endpoints/${{ secrets.PORTAINER_ENDPOINT_ID }}/docker/build?t=${{ secrets.IMAGE_TAG }}" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/x-tar" \
+            --data-binary @/tmp/goldfish-src.tar \
+            -o /tmp/build.log
+          echo "----- letzte 30 Zeilen Build-Log -----"
+          tail -n 30 /tmp/build.log
+          if grep -q '"errorDetail"' /tmp/build.log; then
+            echo "Build-Fehler erkannt" >&2
+            exit 1
+          fi
+
+      - name: Redeploy stack
+        env:
+          TOKEN: ${{ steps.portainer-auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          # Aktuellen Stack-Compose-Inhalt holen, damit der Stack genau mit
+          # seinem produktiven Setup neu deployed wird (Volumes, Devices,
+          # group_add, runtime: nvidia, …).
+          STACK_FILE=$(curl -sS --max-time 15 \
+            "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/file" \
+            -H "Authorization: Bearer $TOKEN" | jq -r '.StackFileContent')
+          if [ -z "$STACK_FILE" ] || [ "$STACK_FILE" = "null" ]; then
+            echo "Konnte Stack-Compose nicht lesen" >&2
+            exit 1
+          fi
+          PAYLOAD=$(jq -n --arg sf "$STACK_FILE" '{stackFileContent: $sf, prune: false, pullImage: false}')
+          curl -sS --max-time 60 -X PUT \
+            "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            -o /tmp/redeploy.log -w "HTTP=%{http_code}\n"
+          tail -n 20 /tmp/redeploy.log
+
+      - name: Health check
+        run: |
+          set -euo pipefail
+          # Container braucht ein paar Sekunden für Migrationen + Worker-Start.
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 5 "${{ secrets.GOLDFISH_HEALTH_URL }}" > /dev/null; then
+              echo "Goldfish-Health OK nach ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Health-Check Timeout nach 60s" >&2
+          exit 1
