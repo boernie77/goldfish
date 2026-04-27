@@ -26,10 +26,18 @@ type Profile struct {
 
 var Profiles = []Profile{
 	{ID: "orig", Label: "Original (Qualität)", MaxHeight: 0, VideoKbps: 0, AudioKbps: 192},
-	{ID: "1080p", Label: "1080p @ 5 Mbps", MaxHeight: 1080, VideoKbps: 5000, AudioKbps: 160},
-	{ID: "720p", Label: "720p @ 2,5 Mbps", MaxHeight: 720, VideoKbps: 2500, AudioKbps: 128},
-	{ID: "480p", Label: "480p @ 1 Mbps", MaxHeight: 480, VideoKbps: 1000, AudioKbps: 96},
-	{ID: "360p", Label: "360p @ 700 kbps", MaxHeight: 360, VideoKbps: 700, AudioKbps: 96},
+	// 1080p — drei Bitratenstufen für unterschiedliche Bandbreiten.
+	{ID: "1080p-hq", Label: "1080p · 8 Mbps (hoch)", MaxHeight: 1080, VideoKbps: 8000, AudioKbps: 192},
+	{ID: "1080p", Label: "1080p · 5 Mbps (mittel)", MaxHeight: 1080, VideoKbps: 5000, AudioKbps: 160},
+	{ID: "1080p-lq", Label: "1080p · 3 Mbps (niedrig)", MaxHeight: 1080, VideoKbps: 3000, AudioKbps: 128},
+	// 720p
+	{ID: "720p-hq", Label: "720p · 4 Mbps (hoch)", MaxHeight: 720, VideoKbps: 4000, AudioKbps: 160},
+	{ID: "720p", Label: "720p · 2,5 Mbps (mittel)", MaxHeight: 720, VideoKbps: 2500, AudioKbps: 128},
+	{ID: "720p-lq", Label: "720p · 1,5 Mbps (niedrig)", MaxHeight: 720, VideoKbps: 1500, AudioKbps: 96},
+	// 480p
+	{ID: "480p-hq", Label: "480p · 2 Mbps (hoch)", MaxHeight: 480, VideoKbps: 2000, AudioKbps: 128},
+	{ID: "480p", Label: "480p · 1 Mbps (mittel)", MaxHeight: 480, VideoKbps: 1000, AudioKbps: 96},
+	{ID: "480p-lq", Label: "480p · 600 kbps (niedrig)", MaxHeight: 480, VideoKbps: 600, AudioKbps: 96},
 }
 
 func ProfileByID(id string) Profile {
