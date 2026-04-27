@@ -89,8 +89,21 @@ func (s *Store) ListCollections(userID int64) ([]Collection, error) {
 			c.parts_fetched_at IS NULL
 			OR (SELECT COUNT(*) FROM collection_parts cp WHERE cp.collection_id = c.id) >= 2
 		)
+		-- Mindestens 2 owned Filme nach Abzug der vom User ausgeblendeten
+		-- Parts. Wer eine Sammlung so weit ausblendet, dass nur noch 1 eigener
+		-- Film übrig bleibt, sieht keine „Sammlung" mehr — der Film taucht in
+		-- der normalen Movie-Library eh einzeln auf.
+		AND (
+			SELECT COUNT(DISTINCT m.id) FROM items i
+			JOIN metadata m ON m.id = i.metadata_id
+			WHERE m.collection_id = c.id
+			  AND m.tmdb_id NOT IN (
+				SELECT hcp.tmdb_movie_id FROM hidden_collection_parts hcp
+				WHERE hcp.collection_id = c.id AND hcp.user_id = ?
+			)
+		) >= 2
 		ORDER BY c.name COLLATE NOCASE
-	`, userID)
+	`, userID, userID)
 	if err != nil {
 		return nil, err
 	}
