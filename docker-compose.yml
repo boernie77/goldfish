@@ -29,3 +29,8 @@ services:
       - VP_LISTEN=:8096
       - VP_CONFIG_DIR=/config
       - TZ=Europe/Berlin
+      # OIDC SSO via Authentik (optional — leer lassen, um SSO-Button auszublenden)
+      - OIDC_ISSUER_URL=${OIDC_ISSUER_URL:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL:-}

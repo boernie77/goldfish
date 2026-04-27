@@ -146,6 +146,58 @@ func VerifyPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
+// GetUserByOIDCSubject sucht den User der mit diesem OIDC-Subject verknüpft ist.
+// Liefert (nil, nil) wenn keiner verknüpft ist.
+func (s *Store) GetUserByOIDCSubject(sub string) (*model.User, error) {
+	var u model.User
+	var isAdmin int
+	var maxAge sql.NullInt64
+	err := s.db.QueryRow(
+		`SELECT id, username, is_admin, max_age_rating, created_at FROM users WHERE oidc_subject = ?`, sub,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	u.IsAdmin = isAdmin == 1
+	if maxAge.Valid {
+		v := int(maxAge.Int64)
+		u.MaxAgeRating = &v
+	}
+	return &u, nil
+}
+
+// GetUserByNameCI: case-insensitive username-Lookup. Wird beim ersten OIDC-Login
+// als Fallback genutzt, wenn noch keine Verknüpfung existiert.
+func (s *Store) GetUserByNameCI(username string) (*model.User, error) {
+	var u model.User
+	var isAdmin int
+	var maxAge sql.NullInt64
+	err := s.db.QueryRow(
+		`SELECT id, username, is_admin, max_age_rating, created_at FROM users WHERE username = ? COLLATE NOCASE`, username,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	u.IsAdmin = isAdmin == 1
+	if maxAge.Valid {
+		v := int(maxAge.Int64)
+		u.MaxAgeRating = &v
+	}
+	return &u, nil
+}
+
+// SetUserOIDCSubject verknüpft einen Goldfish-User mit einem OIDC-Subject.
+func (s *Store) SetUserOIDCSubject(userID int64, sub string) error {
+	_, err := s.db.Exec(`UPDATE users SET oidc_subject = ? WHERE id = ?`, sub, userID)
+	return err
+}
+
 // --- Sessions ---
 
 // NewSessionToken erzeugt einen 32-Byte zufälligen Token, URL-sicher kodiert.

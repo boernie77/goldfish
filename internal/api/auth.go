@@ -35,6 +35,7 @@ func withUser(ctx context.Context, u *model.User) context.Context {
 func isPublicPath(path string) bool {
 	if path == "/api/auth/login" || path == "/api/auth/logout" ||
 		path == "/api/auth/status" || path == "/api/auth/setup" ||
+		path == "/api/auth/oidc/login" || path == "/api/auth/oidc/callback" ||
 		path == "/api/health" {
 		return true
 	}

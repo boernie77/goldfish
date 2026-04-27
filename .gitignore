@@ -1,27 +1,24 @@
-# Runtime data
-config/
-cache/
-tmp/
-dist/
-*.db
-*.db-*
+# Build artefacts
+/dist/
+/out/
+*.exe
 
-# OS / tooling
+# Local config / runtime data
+/config/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment / secrets
+.env
+.env.local
+
+# Editors
+.idea/
+.vscode/
 .DS_Store
 *.swp
-.vscode/
 
-# Secrets (never commit)
-*.env
-.env*
-*.pem
-*.key
-
-# Personal / internal notes that should not be public
-CLAUDE.md
-
-# Video.js is downloaded into webassets at build time
-internal/webassets/web/video.min.js
-internal/webassets/web/video-js.min.css
-internal/webassets/web/videojs-vtt-thumbnails.js
-internal/webassets/web/videojs-vtt-thumbnails.css
+# Test artifacts
+/coverage.out
+/cmd/test*

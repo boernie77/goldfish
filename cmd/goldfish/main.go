@@ -76,6 +76,18 @@ func main() {
 		trickplayWorker.Trigger()
 	})
 
+	oidcCfg := api.OIDCConfig{
+		IssuerURL:    env("OIDC_ISSUER_URL", ""),
+		ClientID:     env("OIDC_CLIENT_ID", ""),
+		ClientSecret: env("OIDC_CLIENT_SECRET", ""),
+		RedirectURL:  env("OIDC_REDIRECT_URL", ""),
+	}
+	if oidcCfg.Enabled() {
+		log.Printf("[oidc] aktiviert: issuer=%s redirect=%s", oidcCfg.IssuerURL, oidcCfg.RedirectURL)
+	} else {
+		log.Printf("[oidc] deaktiviert (OIDC_*-Env nicht vollständig)")
+	}
+
 	srv := &api.Server{
 		Store:     db,
 		Scanner:   sc,
@@ -86,6 +98,7 @@ func main() {
 		SubsDir:   filepath.Join(configDir, "subs"),
 		PosterDir: filepath.Join(configDir, "posters"),
 		WebFS:     webassets.FS(),
+		OIDC:      api.NewOIDCRuntime(oidcCfg),
 	}
 
 	httpSrv := &http.Server{

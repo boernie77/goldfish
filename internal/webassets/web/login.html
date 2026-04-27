@@ -58,6 +58,14 @@ body { display: flex; min-height: 100vh; align-items: center; justify-content: c
     <div class="err" id="loginErr"></div>
     <button type="submit" class="primary">Anmelden</button>
   </form>
+  <div id="ssoBlock" style="display:none; margin-top:14px;">
+    <div style="display:flex; align-items:center; gap:8px; margin:10px 0; color:#777; font-size:12px;">
+      <div style="flex:1; height:1px; background:var(--border);"></div>
+      <span>oder</span>
+      <div style="flex:1; height:1px; background:var(--border);"></div>
+    </div>
+    <button type="button" id="ssoBtn" style="width:100%; padding:9px; font-size:15px;">Mit Authentik anmelden</button>
+  </div>
   <p class="hint" id="setupHint" style="display:none">
     Noch kein Benutzer vorhanden. Der erste Benutzer wird Administrator.
   </p>
@@ -72,11 +80,29 @@ async function check() {
       document.getElementById("loginForm").querySelector("button").textContent = "Admin-Konto anlegen";
       document.getElementById("setupHint").style.display = "block";
       document.getElementById("loginForm").dataset.mode = "setup";
+    } else {
+      // SSO-Block nur sichtbar wenn schon User existieren (Setup nicht mehr nötig)
+      document.getElementById("ssoBlock").style.display = "block";
     }
     if (d.loggedIn) location.href = "/";
   } catch {}
 }
 check();
+
+// SSO error from backend redirect (?sso_error=...)
+(function () {
+  const u = new URL(window.location.href);
+  const err = u.searchParams.get("sso_error");
+  if (err) {
+    document.getElementById("loginErr").textContent = err;
+    u.searchParams.delete("sso_error");
+    window.history.replaceState(null, "", u.pathname + (u.search || ""));
+  }
+})();
+
+document.getElementById("ssoBtn").addEventListener("click", () => {
+  window.location.href = "/api/auth/oidc/login";
+});
 
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();

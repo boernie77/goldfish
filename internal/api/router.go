@@ -25,6 +25,7 @@ type Server struct {
 	SubsDir   string // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
 	PosterDir string // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
 	WebFS     fs.FS
+	OIDC      *OIDCRuntime // optional, nil/disabled wenn OIDC_*-Env nicht gesetzt
 }
 
 func (s *Server) Router() http.Handler {
@@ -49,6 +50,10 @@ func (s *Server) Router() http.Handler {
 		r.Post("/auth/logout", s.authLogout)
 		r.Post("/auth/setup", s.authSetup)
 		r.Put("/auth/password", s.changeMyPassword)
+
+		// OIDC-SSO via Authentik (optional — nur aktiv wenn OIDC_*-Env gesetzt)
+		r.Get("/auth/oidc/login", s.oidcLogin)
+		r.Get("/auth/oidc/callback", s.oidcCallback)
 
 		// User-Verwaltung (admin-only)
 		r.Get("/users", requireAdmin(s.listUsers))

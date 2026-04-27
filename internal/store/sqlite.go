@@ -313,6 +313,14 @@ func (s *Store) migrate() error {
 	if err := addCol("users", "max_age_rating", "INTEGER"); err != nil {
 		return err
 	}
+	// OIDC-Subject-Claim (z.B. Email aus Authentik). Nullable, partial-unique:
+	// nur gesetzte Werte müssen unique sein, NULL bleibt für lokale Logins.
+	if err := addCol("users", "oidc_subject", "TEXT"); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc_subject ON users(oidc_subject) WHERE oidc_subject IS NOT NULL`); err != nil {
+		return err
+	}
 	// field_order pro Video-Stream — leer/„progressive" = Bild ok, sonst
 	// interlaced (tt/bb/tb/bt). Wird vom Detail-Dialog als „🪤 Interlaced"-
 	// Hinweis genutzt; künftiger Deinterlace-Filter im Transcode-Pfad liest
