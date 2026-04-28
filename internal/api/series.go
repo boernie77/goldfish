@@ -378,6 +378,12 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				so.OwnedCount++
 			}
 		}
+		// Episoden nach Nummer sortieren — sonst landen Bonus-Slots (z. B. eine
+		// separate S03E02-Datei, wenn TMDB E1 als "Part 1+2" zusammenfasst) am
+		// Ende der Staffel statt zwischen E1 und E3.
+		sort.Slice(so.Episodes, func(i, j int) bool {
+			return so.Episodes[i].Episode < so.Episodes[j].Episode
+		})
 		seasons = append(seasons, so)
 	}
 	writeJSON(w, 200, map[string]any{
