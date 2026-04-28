@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -304,6 +305,37 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 			so.Episodes = append(so.Episodes, out)
 			so.Total++
 			if slot.ItemID > 0 {
+				so.OwnedCount++
+			}
+		}
+		// Owned-Episoden mit Nummern jenseits der TMDB-Staffel als zusätzliche
+		// Slots anhängen — z. B. deutsche Hallmark-/Netflix-Releases, die TV-
+		// Movie-Specials als E11/E12 in die Regulär-Staffel einnumerieren,
+		// während TMDB sie unter Season 0 ablegt. Sonst wären die User-Files
+		// im Counter „verloren" und die Staffel-Ansicht zeigt sie nicht.
+		addedEps := map[int]bool{}
+		for _, e := range so.Episodes {
+			addedEps[e.Episode] = true
+		}
+		if owned := ownedLookup[season.SeasonNumber]; owned != nil {
+			var extraNums []int
+			for epNum := range owned {
+				if !addedEps[epNum] {
+					extraNums = append(extraNums, epNum)
+				}
+			}
+			sort.Ints(extraNums)
+			for _, epNum := range extraNums {
+				slot := owned[epNum]
+				so.Episodes = append(so.Episodes, episodeOut{
+					Season:     season.SeasonNumber,
+					Episode:    epNum,
+					Owned:      true,
+					ItemID:     slot.ItemID,
+					ItemIDs:    slot.ItemIDs,
+					EpisodeEnd: slot.EpisodeEnd,
+				})
+				so.Total++
 				so.OwnedCount++
 			}
 		}
