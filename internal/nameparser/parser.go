@@ -23,9 +23,9 @@ var (
 	// separat als EpisodeEnd gecaptured, Episode bleibt die ERSTE Nummer.
 	// Kein `\b` am Anfang: erlaubt "The MiddleS1E01" (ohne Trenner) zu matchen.
 	// `\d{1,2}` + `E\d{1,3}` reicht als Anker, damit wir nicht in Wörtern false-positiv matchen.
-	reSxxExx = regexp.MustCompile(`(?i)S(\d{1,2})\s*E(\d{1,3})(?:\s*-?\s*E(\d{1,3}))?(?:\s*-?\s*E\d{1,3})*\b`)
-	// 1x01
-	reNxN = regexp.MustCompile(`(?i)\b(\d{1,2})x(\d{1,3})\b`)
+	reSxxExx = regexp.MustCompile(`(?i)S(\d{1,2})\s*E(\d{1,3})(?:\s*[-&]?\s*E(\d{1,3}))?(?:\s*[-&]?\s*E\d{1,3})*\b`)
+	// 1x01, optional Range "2x01 & 2x02", "2x01-2x02", "2x01-02"
+	reNxN = regexp.MustCompile(`(?i)\b(\d{1,2})x(\d{1,3})(?:\s*[-&]\s*(?:\d{1,2}x)?(\d{1,3}))?\b`)
 	// Episode-only (E01, E42) ohne Season — Fallback für flach strukturierte Shows
 	// wie "Der Bulle von Tölz/E01 - Titel.avi". Wird als Season 1 interpretiert.
 	reEonly = regexp.MustCompile(`(?i)\bE(\d{1,3})\b`)
@@ -163,6 +163,12 @@ func parseString(raw string, allowNumericEpisode bool) Parsed {
 		// akzeptieren nur wenn Season <= 50 und kein Jahr-Match (z.B. 2024)
 		if s <= 50 && e <= 999 {
 			p.Season, p.Episode, p.IsEpisode = s, e, true
+			// Doppelfolge-Range: "2x01 & 2x02", "2x01-2x02", "2x01-02"
+			if m[6] >= 0 && m[7] > m[6] {
+				if e2, err := strconv.Atoi(work[m[6]:m[7]]); err == nil && e2 > e && e2-e <= 10 {
+					p.EpisodeEnd = e2
+				}
+			}
 			work = work[:m[0]]
 		}
 	}

@@ -135,10 +135,12 @@ func env(key, def string) string {
 // Dateinamen aller gematchten Episoden-Items, die noch nicht auf Doppelfolgen-
 // Ranges geprüft wurden (episode_end=0 + mind. zwei 'E' im Pfad). Erkannte
 // Ranges (S07E23E24) werden in items.episode_end geschrieben.
-// Abgeschlossene Runs werden über settings.episode_range_backfill_v1 markiert,
-// damit der Backfill bei Restart nicht erneut läuft.
+// Abgeschlossene Runs werden über settings.episode_range_backfill_v2 markiert,
+// damit der Backfill bei Restart nicht erneut läuft. v2 erfasst zusätzlich
+// NxN-Pattern mit "&"-Separator (z. B. "Matlock - 2x01 & 2x02"), die der
+// alte Parser ignoriert hat.
 func backfillEpisodeRanges(db *store.Store) {
-	done, _ := db.GetSetting("episode_range_backfill_v1", "")
+	done, _ := db.GetSetting("episode_range_backfill_v2", "")
 	if done == "1" {
 		return
 	}
@@ -156,7 +158,7 @@ func backfillEpisodeRanges(db *store.Store) {
 			}
 		}
 	}
-	_ = db.SetSetting("episode_range_backfill_v1", "1")
+	_ = db.SetSetting("episode_range_backfill_v2", "1")
 	if updated > 0 {
 		log.Printf("[backfill] %d Doppelfolgen-Items mit episode_end befüllt (von %d Kandidaten)", updated, len(rows))
 	} else {
