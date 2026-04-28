@@ -52,6 +52,7 @@ func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
 		return nil, err
 	}
 	s.attachMetadata(out)
+	s.attachVariantCounts(out)
 	return out, nil
 }
 
