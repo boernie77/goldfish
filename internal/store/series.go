@@ -50,6 +50,39 @@ func (s *Store) SeriesOwnedEpisodes(libraryID int64, folder string) ([]SeriesOwn
 	return out, showID, rows.Err()
 }
 
+// UnmatchedEpisodeFiles liefert alle Items eines Top-Level-Ordners ohne
+// TMDB-Metadata (metadata_id IS NULL) mit ihrem Pfad — der Caller parst
+// daraus on-the-fly Season/Episode aus dem Dateinamen. Wird vom
+// Staffel-View-Handler genutzt, damit z. B. deutsche Hallmark-Specials,
+// die als S04E11/E12 nummeriert sind aber bei TMDB nur unter Season 0
+// liegen, trotzdem als Owned-Slots in der Staffel erscheinen.
+type UnmatchedEpisodeFile struct {
+	ItemID  int64
+	RelPath string
+}
+
+func (s *Store) UnmatchedEpisodeFiles(libraryID int64, folder string) ([]UnmatchedEpisodeFile, error) {
+	rows, err := s.db.Query(`
+		SELECT id, rel_path FROM items
+		WHERE library_id = ?
+		  AND metadata_id IS NULL
+		  AND rel_path LIKE ? ESCAPE '\'
+	`, libraryID, escapeLike(folder)+"/%")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []UnmatchedEpisodeFile
+	for rows.Next() {
+		var u UnmatchedEpisodeFile
+		if err := rows.Scan(&u.ItemID, &u.RelPath); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // ShowTMDBForFolder sucht die TMDB-ID der Show, die einem Top-Level-Ordner
 // einer TV-Library via folder_metadata oder einer Episode via parent-Metadata
 // zugeordnet ist.

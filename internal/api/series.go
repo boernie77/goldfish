@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/boernie77/goldfish/internal/nameparser"
 	"github.com/boernie77/goldfish/internal/tmdb"
 )
 
@@ -121,6 +122,44 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				slot.EpisodeEnd = e.EpisodeEnd
 			}
 			ownedLookup[e.Season][ep] = slot
+		}
+	}
+	// Auch unmatched Items im Folder berücksichtigen — z. B. deutsche Hallmark-
+	// Specials, die als S04E11/E12 nummeriert sind, aber bei TMDB nur unter
+	// Season 0 liegen und daher kein Episoden-Match haben. Pfad parsen, S/E
+	// extrahieren, in ownedLookup eintragen — der Bonus-Slots-Pass weiter unten
+	// hängt sie dann als zusätzliche Slots an die passende Staffel.
+	if unmatched, err := s.Store.UnmatchedEpisodeFiles(libID, folder); err == nil {
+		for _, u := range unmatched {
+			p := nameparser.ParseEpisodeFile(u.RelPath)
+			if !p.IsEpisode || p.Season == 0 || p.Episode == 0 {
+				continue
+			}
+			if p.Season > maxSeason {
+				maxSeason = p.Season
+			}
+			haveSeasons[p.Season] = struct{}{}
+			if _, ok := ownedLookup[p.Season]; !ok {
+				ownedLookup[p.Season] = map[int]ownedSlot{}
+			}
+			end := p.Episode
+			if p.EpisodeEnd > p.Episode {
+				end = p.EpisodeEnd
+			}
+			for ep := p.Episode; ep <= end; ep++ {
+				if existing, exists := ownedLookup[p.Season][ep]; exists {
+					if u.ItemID != existing.ItemID {
+						existing.ItemIDs = append(existing.ItemIDs, u.ItemID)
+						ownedLookup[p.Season][ep] = existing
+					}
+					continue
+				}
+				slot := ownedSlot{ItemID: u.ItemID, ItemIDs: []int64{u.ItemID}}
+				if p.EpisodeEnd > p.Episode {
+					slot.EpisodeEnd = p.EpisodeEnd
+				}
+				ownedLookup[p.Season][ep] = slot
+			}
 		}
 	}
 	if maxSeason == 0 {

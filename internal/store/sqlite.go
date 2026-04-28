@@ -1194,18 +1194,15 @@ func (s *Store) TopLevelFolders(libraryID int64) ([]Folder, error) {
 	return s.topLevelFolders(libraryID, false)
 }
 
-// topLevelFolders mit optionalem „nur unmatched"-Filter: liefert Folder, die
-// in mindestens einer der folgenden Hinsichten ohne TMDB-Zuordnung sind:
-//  1. mindestens ein Item im Folder hat metadata_id IS NULL
-//  2. der Folder selbst hat keinen folder_metadata-Eintrag (= keine Show-
-//     Konsolidierung, häufig wenn Episoden auto-gematcht aber die Serie nie
-//     als Ganzes zugeordnet wurde — z. B. „The Good Witch")
-// Wird vom Filter „Ohne TMDB-Zuordnung" für TV-Libraries genutzt, damit
-// solche Serien als Folder-Kachel im Library-Root auftauchen.
+// topLevelFolders mit optionalem „nur unmatched"-Filter: liefert Folder, in
+// denen mindestens ein Item metadata_id IS NULL hat. Wird vom Filter „Ohne
+// TMDB-Zuordnung" genutzt. Folder ohne folder_metadata-Eintrag, deren
+// Episoden alle via Auto-Match gemappt wurden (z. B. Columbo, Downton Abbey),
+// sind aus User-Sicht „fertig" und tauchen hier nicht auf.
 func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, error) {
 	postFilter := ""
 	if onlyUnmatched {
-		postFilter = " WHERE (f.unmatched_cnt > 0 OR fm.metadata_id IS NULL)"
+		postFilter = " WHERE f.unmatched_cnt > 0"
 	}
 	// Wichtig: erst aggregieren, dann mit folder_metadata joinen — sonst führt der LEFT JOIN
 	// vor dem GROUP BY zu Ambiguität beim "folder"-Alias in SQLite und alle Items landen
