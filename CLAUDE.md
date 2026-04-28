@@ -903,6 +903,43 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ „Ohne TMDB-Zuordnung"-Filter zeigt Serien, in denen man nichts findet
+- **Symptom:** Im TV-Library-Root mit Sort=„Ohne TMDB-Zuordnung" erscheinen
+  Serien wie Blacklist oder Alias als Folder-Kacheln, obwohl sie aus User-
+  Sicht vollständig gemappt sind. Beim Reinklicken sind alle Episoden mit
+  Poster da, kein Hinweis auf eine unmatched Datei. User reportet „ich finde
+  nichts".
+- **Ursachen (zwei kompoundiert):**
+  1. Der Filter sitzt im Sort-Dropdown (`unmatched` ist eine Pseudo-
+     Sortierung, semantisch aber globaler Filter). `loadItems()` ruft beim
+     Folder-Wechsel `restoreSortForContext()` auf, das pro-Folder gespeicherte
+     Sort-Einstellungen aus localStorage lädt — und überschreibt damit die
+     `unmatched`-Auswahl. Folge: Filter ist beim Eintritt weg, Grid zeigt
+     ALLE Episoden inkl. der gemappten.
+  2. Falls Staffel-Ansicht aktiv ist (per-Library-Default oder per-Folder-
+     Override), springt `loadItems()` früh in den Seasons-API-Branch und
+     ignoriert `match=unmatched` komplett. `series.go` zieht zwar unmatched
+     Items in die Owned-Map, aber NUR wenn der Parser ein `SxxExx` aus dem
+     rel_path bekommt (`p.IsEpisode && p.Season > 0 && p.Episode > 0`). Eine
+     Datei wie `Blacklist/Behind The Scenes.mkv` oder `Blacklist/Extras/
+     Trailer.mkv` hat keine Episoden-Nummerierung und taucht in der Staffel-
+     Ansicht nirgends auf.
+- **Lösung (`internal/webassets/web/app.js`):**
+  1. Neuer Set `PSEUDO_FILTER_MODES = {unmatched, favorites, duplicates,
+     suspicious, interlaced}`. `persistSortForContext` speichert diese Modi
+     nicht mehr per-Folder (sind globale Filter, keine Sortierung).
+     `restoreSortForContext` returnt früh, wenn aktuell ein Pseudo-Modus
+     gewählt ist — der Filter bleibt beim Folder-Wechsel aktiv.
+  2. Vor dem Staffel-Ansicht-Branch wird `currentMatchMode()` einmal
+     berechnet (`matchMode`). Bei `matchMode === "unmatched"` wird der
+     Branch übersprungen, das normale flache Items-Grid rendert mit dem
+     Filter — unmatched Bonus-/Extras-Dateien sind sichtbar.
+- **Generelles Pattern:** UI-States, die im selben Widget wohnen aber
+  unterschiedliche Semantik haben (Sortierung vs. Filter), brauchen
+  getrennte Persistenz-Strategien. „Per-Folder gespeichert" ist nur für
+  echte Sortier-Vorlieben sinnvoll, nicht für Filter, die der User global
+  aktiviert hat.
+
 ### ✅ „Von Anfang" startet mitten im Film (HLS-Live-Edge + Server-Session-Carryover)
 - **Symptom:** User wählt „⟲ Von Anfang" im Resume-Dialog, Film startet aber
   mitten drin (manchmal Minuten voraus). Erster Versuch nach Container-Start
