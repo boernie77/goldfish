@@ -3348,6 +3348,18 @@ function renderCard(it, opts = {}) {
       episodeCode = `S${sn}E${ep}-${ee}`;
     }
     episodeName = it.metadata.title || "";
+  } else if (itLib && itLib.kind === "tv") {
+    // Unmatched TV-Item (z. B. Hallmark-Special, das TMDB unter Season 0
+    // hat): Show-Name aus rel_path[0], Episodencode aus dem Filename
+    // parsen — sonst zeigt die Kachel den Release-Junk-Filename als Titel.
+    const rel = (it.relPath || "").split("/");
+    const showName = rel.length > 1 ? rel[0] : "";
+    const m = (it.title || "").match(/[Ss](\d{1,2})[Ee](\d{1,3})/);
+    if (showName && m) {
+      title = showName;
+      episodeCode = `S${m[1].padStart(2, "0")}E${m[2].padStart(2, "0")}`;
+      episodeName = "(ohne TMDB-Zuordnung)";
+    }
   }
 
   if (it.metadata && it.metadata.posterPath) {
