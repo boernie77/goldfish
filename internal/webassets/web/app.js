@@ -3505,7 +3505,13 @@ function renderCard(it, opts = {}) {
     tp = `<span class="tp-badge tp-failed" title="Trickplay fehlgeschlagen">!</span>`;
   }
   const res = resLabel(it);
-  const vcount = (it._variants && it._variants.length > 1) ? it._variants.length : 0;
+  // ×N-Badge: bevorzugt aus dem clientseitigen _variants-Array (wenn der Merge
+  // schon im aktuellen Grid passiert ist), sonst aus dem serverseitigen
+  // variantCount (zeigt Geschwister-Files in anderen Libraries an, die im
+  // aktuellen Render gar nicht enthalten sind).
+  const localVariants = (it._variants && it._variants.length > 1) ? it._variants.length : 0;
+  const serverVariants = (typeof it.variantCount === "number" && it.variantCount > 1) ? it.variantCount : 0;
+  const vcount = Math.max(localVariants, serverVariants);
   const variantBadge = vcount ? `<span class="variant-badge" title="${vcount} Varianten verfügbar">×${vcount}</span>` : "";
   const selected = state.selection.has(it.id);
   if (selected) el.classList.add("selected");

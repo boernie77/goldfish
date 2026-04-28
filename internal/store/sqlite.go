@@ -1081,6 +1081,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		return nil, err
 	}
 	s.attachMetadata(out)
+	s.attachVariantCounts(out)
 	return out, nil
 }
 
@@ -1177,6 +1178,58 @@ func (s *Store) attachMetadata(items []model.Item) {
 		if items[i].MetadataID > 0 {
 			if m := byID[items[i].MetadataID]; m != nil {
 				items[i].Metadata = m
+			}
+		}
+	}
+}
+
+// attachVariantCounts setzt für jedes Item mit metadata_id die Anzahl aller
+// Items, die sich diese metadata_id teilen (= dieses Item + Geschwister).
+// Damit kann das Frontend den ×N-Badge auch dann anzeigen, wenn das
+// Geschwister in einer anderen Library liegt und im aktuellen Render nicht
+// vorkommt. Globale Zählung (kein ACL-Filter): für Admins exakt, für
+// non-Admin-User ggf. leicht überzählt — wird als weicher Hint akzeptiert,
+// die ACL-gefilterte Variants-Liste liefert ohnehin der Variants-Endpoint.
+// Items mit count<=1 bekommen 0 (Badge bleibt aus).
+func (s *Store) attachVariantCounts(items []model.Item) {
+	ids := map[int64]struct{}{}
+	for _, it := range items {
+		if it.MetadataID > 0 {
+			ids[it.MetadataID] = struct{}{}
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids))
+	for id := range ids {
+		placeholders = append(placeholders, "?")
+		args = append(args, id)
+	}
+	rows, err := s.db.Query(`
+		SELECT metadata_id, COUNT(*) FROM items
+		WHERE metadata_id IN (`+strings.Join(placeholders, ",")+`)
+		GROUP BY metadata_id`, args...)
+	if err != nil {
+		return
+	}
+	defer func() { _ = rows.Close() }()
+	counts := map[int64]int{}
+	for rows.Next() {
+		var mid int64
+		var n int
+		if err := rows.Scan(&mid, &n); err != nil {
+			continue
+		}
+		if n > 1 {
+			counts[mid] = n
+		}
+	}
+	for i := range items {
+		if items[i].MetadataID > 0 {
+			if n, ok := counts[items[i].MetadataID]; ok {
+				items[i].VariantCount = n
 			}
 		}
 	}
@@ -1352,6 +1405,9 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		if m, _ := s.GetMetadata(it.MetadataID); m != nil {
 			it.Metadata = m
 		}
+		single := []model.Item{it}
+		s.attachVariantCounts(single)
+		it.VariantCount = single[0].VariantCount
 	}
 	// Streams mitliefern — UI braucht u.a. das field_order der Video-Streams,
 	// um den 🪤-Interlaced-Hinweis im Detail-Dialog zu zeigen, und das Player-

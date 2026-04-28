@@ -125,6 +125,12 @@ type Item struct {
 	FavoritedAt  time.Time `json:"favoritedAt,omitempty"`
 	TrickplayStatus string       `json:"trickplayStatus,omitempty"` // "" | "pending" | "done" | "failed"
 	Streams         []ItemStream `json:"streams,omitempty"`
+	// VariantCount: wieviele Items insgesamt dieselbe metadata_id haben (= dieses
+	// Item + Geschwister). 0/1 bedeutet „keine Geschwister". Wird im Server
+	// per attachVariantCounts gesetzt — die Kachel kann so den ×N-Badge auch
+	// dann anzeigen, wenn das Geschwister in einer anderen Library liegt und
+	// im aktuellen Grid-Render nicht enthalten ist.
+	VariantCount int `json:"variantCount,omitempty"`
 }
 
 
