@@ -2096,6 +2096,15 @@ button.danger:hover { background: #991b1b; }
   flex-direction: column;
   min-width: 260px;
 }
+/* Scan-Dropdown: positioniert sich relativ zum Scan-Button-Group statt
+   global rechts oben — sonst landet das Menü auf der rechten Bildschirm-
+   leiste, weit weg vom Trigger. */
+.btn-group.scan-group { position: relative; }
+.dropdown.scan-dropdown {
+  top: calc(100% + 4px);
+  right: auto;
+  left: 0;
+}
 .dropdown button {
   background: transparent;
   border: none;

@@ -68,18 +68,18 @@
     <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
     <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
-    <span class="btn-group">
+    <span class="btn-group scan-group">
       <button id="scanBtn" title="Bibliothek scannen (inkrementell)">⟳ Scan</button>
       <button id="scanMenuBtn" title="Weitere Scan-Optionen" aria-haspopup="true">▾</button>
+      <div id="scanMenu" class="dropdown scan-dropdown hidden">
+        <button data-scan="folder" data-scope="folder">Aktueller Ordner (inkrementell)</button>
+        <button data-scan="folder-force" data-scope="folder">Aktueller Ordner (force)</button>
+        <button data-scan="incremental">Ganze Bibliothek (inkrementell)</button>
+        <button data-scan="force">Ganze Bibliothek (force)</button>
+        <button data-scan="all">Alle Bibliotheken (inkrementell)</button>
+        <button data-scan="all-force">Alle Bibliotheken (force)</button>
+      </div>
     </span>
-    <div id="scanMenu" class="dropdown hidden">
-      <button data-scan="folder" data-scope="folder">Aktueller Ordner (inkrementell)</button>
-      <button data-scan="folder-force" data-scope="folder">Aktueller Ordner (force)</button>
-      <button data-scan="incremental">Ganze Bibliothek (inkrementell)</button>
-      <button data-scan="force">Ganze Bibliothek (force)</button>
-      <button data-scan="all">Alle Bibliotheken (inkrementell)</button>
-      <button data-scan="all-force">Alle Bibliotheken (force)</button>
-    </div>
   </div>
   <div class="topbar-corner">
     <span id="userMenu" class="user-menu"></span>

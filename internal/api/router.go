@@ -208,7 +208,7 @@ func (s *Server) Router() http.Handler {
 // buildTag wird bei jedem Code-Push aktualisiert und ist im /api/health
 // sichtbar — schneller Smoke-Test, ob der laufende Container die aktuelle
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
-const buildTag = "2026-04-28T14:13Z"
+const buildTag = "2026-04-28T15:33Z"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{
