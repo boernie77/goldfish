@@ -876,10 +876,16 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		args = append(args, f.TrickplayStatus)
 	}
 	if f.DupesOnly {
-		// Nur Items, deren metadata_id in der gleichen Library mehrfach vorkommt.
+		// Items, deren metadata_id global (über alle Libraries hinweg) mehrfach
+		// vorkommt — konsistent zum globalen ×N-Badge aus attachVariantCounts.
+		// Vorher war die Subquery library-scoped, dadurch wurden Filme NICHT
+		// als Duplikat erkannt, deren zweite Version in einer anderen Library
+		// lag (typisch: Bluray + Filme parallel) — obwohl die Kachel im
+		// Standard-View ×2 zeigte. Library-Filter passiert weiterhin im
+		// äußeren WHERE (libraryId), nur die Duplikat-Erkennung ist global.
 		q += ` AND i.metadata_id IS NOT NULL AND i.metadata_id IN (
 			SELECT metadata_id FROM items
-			WHERE library_id = i.library_id AND metadata_id IS NOT NULL
+			WHERE metadata_id IS NOT NULL
 			GROUP BY metadata_id HAVING COUNT(*) > 1
 		)`
 	}
