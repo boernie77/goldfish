@@ -1888,10 +1888,14 @@ async function loadItemsBody() {
       sort: "title",
       dir: "asc",
     });
+    // In Duplikate-Modus bewusst NICHT die anderen Filter mitsenden:
+    // Wer nach Duplikaten sucht, will immer ALLE Versionen sehen — auch wenn
+    // eine Version nur in 4K vorliegt während der Resolution-Filter auf 1080p
+    // steht, oder wenn beide Versionen schon gesehen sind während der
+    // Watched-Filter „nur ungesehen" lautet. Sonst verschwinden Filme aus dem
+    // Vergleichs-View, von denen der User WEISS, dass er Duplikate hat.
+    // Suche bleibt aktiv, damit man gezielt einen Titel suchen kann.
     if (searchQ) p.set("search", searchQ);
-    const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
-    const fav = currentFavoriteMode(); if (fav) p.set("favorite", fav);
-    applyResolutionFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
     try { items = await apiGetCached(`/api/items?${p}`); }
