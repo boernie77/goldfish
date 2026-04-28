@@ -188,7 +188,16 @@ func (s *Server) libraryStats(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]int{"totalItems": total})
+	resp := map[string]int{"totalItems": total}
+	// Auf Library-Root: Anzahl Top-Level-Folder mitliefern. Für TV-Libs ist
+	// das die Serien-Anzahl, für Movies-Libs die Genre-/Sub-Folder. Frontend
+	// entscheidet pro Library-Kind, wie es das Label formatiert.
+	if folder == "" {
+		if folders, err := s.Store.TopLevelFolders(id); err == nil {
+			resp["folderCount"] = len(folders)
+		}
+	}
+	writeJSON(w, 200, resp)
 }
 
 func (s *Server) deleteLibrary(w http.ResponseWriter, r *http.Request) {

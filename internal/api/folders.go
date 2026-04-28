@@ -44,7 +44,8 @@ func (s *Server) listFolders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parent := r.URL.Query().Get("parent")
-	folders, err := s.Store.SubfoldersAt(id, parent)
+	onlyUnmatched := r.URL.Query().Get("match") == "unmatched"
+	folders, err := s.Store.SubfoldersAtFiltered(id, parent, onlyUnmatched)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

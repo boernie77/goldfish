@@ -1191,6 +1191,18 @@ type Folder struct {
 // TopLevelFolders liefert alle direkten Unterordner einer Bibliothek mit Item-Zählung.
 // Bei TV-Bibliotheken wird zusätzlich die Show-Metadata aus folder_metadata angehängt.
 func (s *Store) TopLevelFolders(libraryID int64) ([]Folder, error) {
+	return s.topLevelFolders(libraryID, false)
+}
+
+// topLevelFolders mit optionalem „nur unmatched"-Filter: zählt nur Items mit
+// metadata_id IS NULL und liefert nur Folder, die mindestens ein solches Item
+// enthalten. Wird vom Filter „Ohne TMDB-Zuordnung" für TV-Libraries genutzt,
+// damit komplett ungemappte Serien als Folder-Kachel auftauchen.
+func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, error) {
+	itemFilter := ""
+	if onlyUnmatched {
+		itemFilter = " AND metadata_id IS NULL"
+	}
 	// Wichtig: erst aggregieren, dann mit folder_metadata joinen — sonst führt der LEFT JOIN
 	// vor dem GROUP BY zu Ambiguität beim "folder"-Alias in SQLite und alle Items landen
 	// im selben Bucket.
@@ -1203,7 +1215,7 @@ func (s *Store) TopLevelFolders(libraryID int64) ([]Folder, error) {
 				COUNT(*) AS cnt,
 				MIN(CASE WHEN has_thumb=1 THEN id ELSE NULL END) AS thumb_id
 			FROM items
-			WHERE library_id = ? AND INSTR(rel_path, '/') > 0
+			WHERE library_id = ? AND INSTR(rel_path, '/') > 0`+itemFilter+`
 			GROUP BY folder
 		) f
 		LEFT JOIN folder_metadata fm

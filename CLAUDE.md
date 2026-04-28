@@ -903,10 +903,12 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
-### ✅ „Von Anfang" startet mitten im Film (HLS-Live-Edge)
+### ✅ „Von Anfang" startet mitten im Film (HLS-Live-Edge + Server-Session-Carryover)
 - **Symptom:** User wählt „⟲ Von Anfang" im Resume-Dialog, Film startet aber
-  mitten drin (manchmal Minuten voraus). Bei Direct Play gelegentlich ähnlich.
-- **Ursachen (kumulativ):**
+  mitten drin (manchmal Minuten voraus). Erster Versuch nach Container-Start
+  klappt oft, jeder weitere springt immer weiter rein. Bei Direct Play
+  gelegentlich ähnlich.
+- **Ursachen (mehrere Schichten, alle aufgesetzt):**
   1. HLS-Playlist ohne `#EXT-X-PLAYLIST-TYPE` → VHS erkennt sie als Live-
      Stream und snappt beim `play()` zur Live-Edge.
   2. ffmpeg `-hls_flags append_list` schreibt `#EXT-X-DISCONTINUITY` vor das
@@ -915,14 +917,42 @@ volumes:
      aber bei manchen Szenarien bleibt die alte Position hängen.
   4. Kein expliziter `currentTime(0)`-Call bei Direct-Play-„Von Anfang" —
      browser startet bei undefined position.
-- **Lösung (Kombi):**
+  5. **Root-Cause für die zweiten/dritten Versuche (2026-04-27):**
+     `Manager.StartOrGet` cached Sessions per `(itemID, profile, audio,
+     startSec, deinterlace)`. Eine Session bei `startSec=0` lebt nach
+     Player-Close noch 5 Min weiter (Idle-GC) und transkodiert in der Zeit
+     ungefragt weiter — Material akkumuliert. Beim zweiten „Von Anfang"-
+     Klick matched StartOrGet die alte Session mit der bereits langen
+     Playlist. Browser bekommt eine Playlist mit z. B. 530 s Material,
+     VHS springt da rein.
+- **Lösung (alle 5 Punkte zusammen, jeder einzelne reicht NICHT):**
   1. ffmpeg-Args: `-hls_playlist_type event` + `-hls_flags independent_segments`
      (append_list raus, EVENT-Type rein).
   2. Playlist-Rewriter strippt eine leading `#EXT-X-DISCONTINUITY`.
-  3. Direct Play: `vjs.one("loadedmetadata", () => currentTime(resumeForDirectPlay || 0))`
-     wird IMMER registriert, nicht nur bei Resume > 0.
+  3. Direct Play UND Transcode: `vjs.one("loadedmetadata", () => currentTime(localStart))`
+     wird IMMER registriert in beiden Branches (Reuse + Neu) — `localStart=0`
+     bei Transcode (Resume-Offset steckt in der URL), bei Direct Play =
+     resumeForDirectPlay.
   4. Beim „Von Anfang"-Klick im Resume-Dialog: sofort `PUT /api/items/:id/resume`
      mit `{positionSec: 0}` um die alte DB-Position zu clearen.
+  5. **Server-Session-Reset bei „Von Anfang":** Frontend hängt `&fresh=1`
+     an die Transcode-URL wenn `resumeSec===0`. Server liest den Param,
+     ruft `Manager.StopSession(...)` BEVOR `StartOrGet` — alte Session wird
+     beendet, `cleanDir` löscht den Cache-Ordner, ffmpeg startet komplett
+     neu mit leerer Playlist. Plus `_t=<timestamp>` Cache-Bust an der URL
+     verhindert dass VHS bei identischer URL eine alte Source-Position aus
+     dem Browser-Memory wiederverwendet.
+- **NICHT-Funktioniert (vermeiden, schon probiert):**
+  - Nur `currentTime(0)` im Frontend setzen — half nicht, weil Server immer noch
+    fortgeschrittene Playlist liefert und VHS dort irgendwo landet.
+  - Nur `_t=<timestamp>` Cache-Bust — half nicht, weil Server-Side bei
+    `start=0` die exakt gleiche Session matched (`_t` ist nur URL-Cosmetics).
+  - `currentTime(0)` aggressiv im Buffer-Gate-Polling setzen — VHS' Segment-
+    Loader gerät dadurch in einen Seek-Loop, Buffer wächst nicht.
+  - Den Reuse-Pfad komplett vermeiden (`disposePlayer` immer) — kostet
+    Vollbild-Modus beim Shuffle-Next, der User hat das beim Test gemerkt.
+  - Lösung steht und fällt mit Punkt 5: ohne Server-Side-Reset gibt es
+    keinen verlässlichen Weg, die alte Session-Position auf 0 zu zwingen.
 
 ### ✅ Buffer-Overlay ignoriert Docked-Position
 - **Symptom:** Nach Einführung der Docked-Darstellung (Streifen unter Bild im

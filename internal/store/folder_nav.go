@@ -58,19 +58,28 @@ func (s *Store) drilldownMap(libraryID int64) (map[string]bool, error) {
 // Die zurückgegebenen Folder haben jeweils den vollen Pfad im Name-Feld
 // (z.B. "a/Siterips/KanalX") plus Drilldown-Flag.
 func (s *Store) SubfoldersAt(libraryID int64, parent string) ([]Folder, error) {
+	return s.SubfoldersAtFiltered(libraryID, parent, false)
+}
+
+// SubfoldersAtFiltered wie SubfoldersAt, listet bei onlyUnmatched=true nur
+// Folder, in denen mindestens ein Item mit metadata_id IS NULL liegt. Greift
+// der Filter „Ohne TMDB-Zuordnung" auf TV-Libraries: komplett ungemappte
+// Serien-Folder werden so im Library-Root sichtbar.
+func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatched bool) ([]Folder, error) {
 	if parent == "" {
-		// Top-Level wie bisher, aber zusätzlich Drilldown-Flag anhängen
-		folders, err := s.TopLevelFolders(libraryID)
+		folders, err := s.topLevelFolders(libraryID, onlyUnmatched)
 		if err != nil {
 			return nil, err
 		}
 		return s.annotateDrilldown(libraryID, folders)
 	}
 	prefix := parent + "/"
-	rows, err := s.db.Query(
-		`SELECT rel_path, id, has_thumb FROM items
-		 WHERE library_id = ? AND rel_path LIKE ? ESCAPE '\'`,
-		libraryID, escapeLike(prefix)+"%")
+	q := `SELECT rel_path, id, has_thumb FROM items
+		 WHERE library_id = ? AND rel_path LIKE ? ESCAPE '\'`
+	if onlyUnmatched {
+		q += ` AND metadata_id IS NULL`
+	}
+	rows, err := s.db.Query(q, libraryID, escapeLike(prefix)+"%")
 	if err != nil {
 		return nil, err
 	}

@@ -1982,15 +1982,21 @@ async function loadItemsBody() {
   } else if (state.currentFolder === null) {
     // Library-Root: Folders + Root-Items
     params.set("folder", "/");
+    // Bei aktivem „Ohne TMDB-Zuordnung"-Filter: nur Folder mit ≥1 unmatched
+    // Item zurückgeben (siehe SubfoldersAtFiltered im Store). Sonst werden im
+    // TV-Library-Root komplett ungemappte Serien überhaupt nicht sichtbar,
+    // weil die Episoden in Subfoldern liegen und der Items-Filter dort nicht greift.
+    const folderQS = match ? `?match=${match}` : "";
     [folders, items] = await Promise.all([
-      api(`/api/libraries/${state.currentLibrary}/folders`),
+      api(`/api/libraries/${state.currentLibrary}/folders${folderQS}`),
       api(`/api/items?${params}`),
     ]);
   } else if (state.currentFolderDrilldown) {
     // Subfolder mit aktiviertem Drilldown: zeige seine direkten Unterordner + Items direkt in diesem Ordner
     const dpath = state.currentFolder;
+    const ddMatchQS = match ? `&match=${match}` : "";
     [folders, items] = await Promise.all([
-      api(`/api/libraries/${state.currentLibrary}/folders?parent=${encodeURIComponent(dpath)}`),
+      api(`/api/libraries/${state.currentLibrary}/folders?parent=${encodeURIComponent(dpath)}${ddMatchQS}`),
       (async () => {
         // Items direkt in currentFolder (nicht rekursiv durch Subfolder):
         // Dazu holen wir alle Items unter dem Pfad und filtern client-seitig auf direkte Children.
@@ -2539,7 +2545,17 @@ async function loadCount(el, libId, folder) {
     const q = folder ? `?folder=${encodeURIComponent(folder)}` : "";
     const data = await api(`/api/libraries/${libId}/stats${q}`);
     const n = data.totalItems;
-    el.textContent = `(${n.toLocaleString("de-DE")} Video${n === 1 ? "" : "s"})`;
+    const lib = state.libraries.find(l => l.id == libId);
+    const isTV = lib && lib.kind === "tv";
+    // Im TV-Library-Root: „N Folgen · M Serien". In Subfoldern (oder Movies/
+    // Privat) bleibt das alte „N Videos"-Label.
+    if (isTV && !folder && typeof data.folderCount === "number") {
+      const showWord = data.folderCount === 1 ? "Serie" : "Serien";
+      const epWord = n === 1 ? "Folge" : "Folgen";
+      el.textContent = `(${n.toLocaleString("de-DE")} ${epWord} · ${data.folderCount.toLocaleString("de-DE")} ${showWord})`;
+    } else {
+      el.textContent = `(${n.toLocaleString("de-DE")} Video${n === 1 ? "" : "s"})`;
+    }
   } catch { el.textContent = ""; }
 }
 
