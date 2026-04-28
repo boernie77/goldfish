@@ -488,6 +488,85 @@ func (s *Server) updateMetadata(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// createCustomMetadata legt für ein Item ohne TMDB-Match einen manuellen
+// Metadata-Eintrag an (tmdb_type="custom", tmdb_id=-itemID für Uniqueness)
+// und bindet das Item daran. Wird vom Detail-Dialog genutzt, wenn TMDB die
+// Folge nicht kennt — etwa Hallmark-Specials, die als S04E11/E12 nummeriert
+// sind, in TMDB aber unter Season 0 liegen.
+func (s *Server) createCustomMetadata(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		Title         string  `json:"title"`
+		OriginalTitle string  `json:"originalTitle"`
+		Year          int     `json:"year"`
+		ReleaseDate   string  `json:"releaseDate"`
+		Overview      string  `json:"overview"`
+		Rating        float64 `json:"rating"`
+		RuntimeMin    int     `json:"runtimeMin"`
+		Genres        string  `json:"genres"`
+		AgeRating     string  `json:"ageRating"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if strings.TrimSpace(body.Title) == "" {
+		writeError(w, 400, "Titel darf nicht leer sein")
+		return
+	}
+	if !validAgeRating[body.AgeRating] {
+		writeError(w, 400, "ageRating muss leer oder 0/6/12/16/18 sein")
+		return
+	}
+	if body.Rating < 0 || body.Rating > 10 {
+		writeError(w, 400, "rating muss zwischen 0 und 10 liegen")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil || it == nil {
+		writeError(w, 404, "Item nicht gefunden")
+		return
+	}
+	if it.MetadataID != 0 {
+		writeError(w, 400, "Item hat bereits eine Metadata-Zuordnung — Bearbeitung über PUT /api/metadata/{id}")
+		return
+	}
+	meta := &model.Metadata{
+		TMDBType:      "custom",
+		TMDBID:        -id, // negativ macht den Eintrag eindeutig pro Item
+		Title:         body.Title,
+		OriginalTitle: body.OriginalTitle,
+		Year:          body.Year,
+		Overview:      body.Overview,
+		Rating:        body.Rating,
+		RuntimeMin:    body.RuntimeMin,
+		Genres:        body.Genres,
+		AgeRating:     body.AgeRating,
+	}
+	if body.ReleaseDate != "" {
+		if t, err := time.Parse("2006-01-02", body.ReleaseDate); err == nil {
+			meta.ReleaseDate = t
+		}
+	}
+	metaID, err := s.Store.UpsertMetadata(meta)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if err := s.Store.ConfirmItemMatch(id, metaID); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if it2, _ := s.Store.GetItem(id); it2 != nil {
+		_, _ = s.writeNFOForItem(it2)
+	}
+	writeJSON(w, 200, map[string]any{"metadataId": metaID})
+}
+
 // backfillAgeRatings durchsucht alle Movie-/TV-Metadaten ohne age_rating und
 // holt sie aus TMDB nach (für TV: content_ratings, für Movies: release_dates).
 // Läuft als Hintergrund-Goroutine — der Endpoint kehrt sofort zurück.

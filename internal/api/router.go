@@ -123,6 +123,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/enrich/status", s.enrichStatus)
 		r.Get("/metadata/search", requireAdmin(s.searchMetadata))
 		r.Post("/items/{id}/metadata", requireAdmin(s.setItemMetadata))
+		r.Post("/items/{id}/metadata-manual", requireAdmin(s.createCustomMetadata))
 		r.Post("/items/{id}/refresh-metadata", requireAdmin(s.refreshItemMetadata))
 		r.Post("/enrich/refresh-all-metadata", requireAdmin(s.startRefreshAllMetadata))
 		r.Get("/enrich/refresh-all-status", s.refreshAllMetadataStatus)
@@ -207,7 +208,7 @@ func (s *Server) Router() http.Handler {
 // buildTag wird bei jedem Code-Push aktualisiert und ist im /api/health
 // sichtbar — schneller Smoke-Test, ob der laufende Container die aktuelle
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
-const buildTag = "2026-04-28T11:39Z"
+const buildTag = "2026-04-28T11:50Z"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

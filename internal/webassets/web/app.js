@@ -3659,10 +3659,12 @@ async function openDetail(item) {
   $("#detailRefreshMeta").style.display = ((state.me && state.me.isAdmin) && item.metadataId && !(itemLib && itemLib.kind === "private")) ? "" : "none";
   // Delete nur für Admins
   $("#detailDelete").style.display = (state.me && state.me.isAdmin) ? "" : "none";
-  // Metadaten-Edit nur für Admins und nur wenn bereits eine Zuordnung
-  // existiert (vorher „Manuell zuordnen" nutzen).
-  const canEditMeta = (state.me && state.me.isAdmin) && !!item.metadataId && !(itemLib && itemLib.kind === "private");
+  // Metadaten-Edit/Anlegen nur für Admins, in nicht-Private-Libs. Bei
+  // unmatched Items oeffnet der Pencil-Button die Maske leer und legt
+  // beim Speichern einen Custom-Metadata-Eintrag an (tmdb_type=custom).
+  const canEditMeta = (state.me && state.me.isAdmin) && !(itemLib && itemLib.kind === "private");
   $("#detailEditMeta").style.display = canEditMeta ? "" : "none";
+  $("#detailEditMeta").title = item.metadataId ? "Metadaten bearbeiten" : "Metadaten manuell anlegen";
   // Scroll-Position merken & nach showModal() wiederherstellen. Browser springt
   // sonst manchmal an den Seitenanfang, weil das Dialog-Element am DOM-Anfang
   // den Fokus zieht und/oder der Hintergrund-Scroll-Lock beim Öffnen kurz zurücksetzt.
@@ -6305,21 +6307,43 @@ async function updateEnrichStatus() {
 // für Non-Admins per JS ausgeblendet.
 function openEditMetaDialog() {
   const it = state.currentItem;
-  if (!it || !it.metadata || !it.metadataId) {
-    appAlert("Dieses Item hat noch keine Metadaten. Nutze zuerst die Funktion 'Manuell zuordnen' (🔍).");
-    return;
-  }
-  const m = it.metadata;
+  if (!it) return;
   const f = $("#editMetaForm");
-  f.title.value = m.title || "";
-  f.originalTitle.value = m.originalTitle || "";
-  f.year.value = m.year || "";
-  f.releaseDate.value = (m.releaseDate || "").slice(0, 10);
-  f.overview.value = m.overview || "";
-  f.rating.value = m.rating || 0;
-  f.runtimeMin.value = m.runtimeMin || 0;
-  f.genres.value = m.genres || "";
-  f.ageRating.value = m.ageRating || "";
+  const isNew = !it.metadataId;
+  if (isNew) {
+    // Manuelles Anlegen: Vorbefüllung aus dem Filename, damit der User nicht
+    // bei null anfangen muss. Show-Name aus rel_path[0], Titel = Filename
+    // ohne Release-Junk (Best-Effort), Episodencode bleibt im Beschreibungstext.
+    const rel = (it.relPath || "").split("/");
+    const showName = rel.length > 1 ? rel[0] : "";
+    const m = (it.title || "").match(/[Ss](\d{1,2})[Ee](\d{1,3})/);
+    f.title.value = showName || it.title || "";
+    f.originalTitle.value = "";
+    f.year.value = "";
+    f.releaseDate.value = "";
+    f.overview.value = m ? `S${m[1].padStart(2,"0")}E${m[2].padStart(2,"0")}` : "";
+    f.rating.value = 0;
+    f.runtimeMin.value = it.durationSec ? Math.round(it.durationSec / 60) : 0;
+    f.genres.value = "";
+    f.ageRating.value = "";
+    $("#editMetaDialog").querySelector("h2").textContent = "Metadaten manuell anlegen";
+  } else {
+    const m = it.metadata || {};
+    f.title.value = m.title || "";
+    f.originalTitle.value = m.originalTitle || "";
+    f.year.value = m.year || "";
+    f.releaseDate.value = (m.releaseDate || "").slice(0, 10);
+    f.overview.value = m.overview || "";
+    f.rating.value = m.rating || 0;
+    f.runtimeMin.value = m.runtimeMin || 0;
+    f.genres.value = m.genres || "";
+    f.ageRating.value = m.ageRating || "";
+    $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
+  }
+  // Poster-Button für ungematched Items ausblenden — Poster geht ueber metadata.id
+  // und braucht TMDB-Lookup, der bei custom-Metadata nichts liefert.
+  const posterBtn = $("#editMetaPoster");
+  if (posterBtn) posterBtn.style.display = isNew ? "none" : "";
   $("#editMetaDialog").showModal();
 }
 
@@ -6430,7 +6454,7 @@ async function handlePosterUpload(e) {
 async function handleEditMetaSubmit(e) {
   e.preventDefault();
   const it = state.currentItem;
-  if (!it || !it.metadataId) return;
+  if (!it) return;
   const f = e.target;
   const body = {
     title: f.title.value.trim(),
@@ -6444,10 +6468,17 @@ async function handleEditMetaSubmit(e) {
     ageRating: f.ageRating.value,
   };
   try {
-    await api(`/api/metadata/${it.metadataId}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    });
+    if (it.metadataId) {
+      await api(`/api/metadata/${it.metadataId}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+    } else {
+      await api(`/api/items/${it.id}/metadata-manual`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    }
     $("#editMetaDialog").close();
     invalidateItemsCache();
     // Frisch geladenes Item im Detail-Dialog anzeigen, damit die neuen Werte
