@@ -2206,6 +2206,13 @@ button.danger:hover { background: #991b1b; }
   text-transform: uppercase;
 }
 
+/* Video.js' eigener Big-Play-Button (vjs-big-play-button) wird komplett
+   ausgeblendet — der Player wird per applyPlayback automatisch gestartet,
+   und falls der Browser-Autoplay blockt, gibt's die Play-Taste in der
+   Control-Bar. Sonst hätte der User bei startBufferSeconds=0 einen
+   Riesen-Play-Knopf in der Bildmitte, obwohl er gerade Play gedrückt hat. */
+.video-js .vjs-big-play-button { display: none !important; }
+
 /* Prebuffer-Overlay: zentriert über dem Videobild, zeigt Fortschritt des
    Startvorlaufs und erlaubt dem User via Skip-Button die Wiedergabe sofort
    zu starten. */
