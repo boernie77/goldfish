@@ -964,10 +964,21 @@ function sortStorageKey() {
   return "";
 }
 
+// Pseudo-Filter-Modi (im Sort-Dropdown technisch ein "Sort", semantisch
+// aber globale Filter): nicht per-Folder persistieren — sonst bekommt der
+// User beim erneuten Öffnen des Ordners überraschend „Nur unmatched".
+// Gleichzeitig sollen sie beim Folder-Wechsel NICHT durch die per-Folder-
+// Default-Sortierung ersetzt werden — sonst verliert man den Filter sofort
+// beim Reingehen und sieht alle Items, statt der unmatched/duplicates/etc.
+const PSEUDO_FILTER_MODES = new Set([
+  "unmatched", "favorites", "duplicates", "suspicious", "interlaced",
+]);
+
 function persistSortForContext() {
   const key = sortStorageKey();
   if (!key) return;
   const s = $("#sortSelect").value;
+  if (PSEUDO_FILTER_MODES.has(s)) return;
   const d = state.sortDir;
   try {
     if (!s && !d) localStorage.removeItem(key);
@@ -976,6 +987,8 @@ function persistSortForContext() {
 }
 
 function restoreSortForContext() {
+  // Aktiven Pseudo-Filter beibehalten — global gedacht, nicht per-Folder.
+  if (PSEUDO_FILTER_MODES.has($("#sortSelect").value)) return;
   const key = sortStorageKey();
   if (!key) return;
   try {
@@ -1987,7 +2000,11 @@ async function loadItemsBody() {
   // Staffel-Ansicht: Toggle aktiv + TV-Lib + Show-Ordner. Zwei Modi:
   //  (a) state.currentSeason === null → Staffel-Kacheln (Drilldown-Eintritt)
   //  (b) state.currentSeason === N    → flache Folgen-Liste der Staffel
-  if (state.seasonView && lib && lib.kind === "tv" && state.currentFolder) {
+  // Bei aktivem „Ohne TMDB-Zuordnung"-Filter muss die Staffel-Ansicht jedoch
+  // weichen — die Seasons-API kennt nur Items mit erkennbarem SxxExx im Pfad,
+  // unmatched Bonus-/Extras-/Behind-the-Scenes-Dateien wären sonst unsichtbar.
+  const matchMode = currentMatchMode();
+  if (state.seasonView && lib && lib.kind === "tv" && state.currentFolder && matchMode !== "unmatched") {
     let data;
     try {
       data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
@@ -2012,7 +2029,7 @@ async function loadItemsBody() {
   if (watched) params.set("watched", watched);
   const fav = currentFavoriteMode();
   if (fav) params.set("favorite", fav);
-  const match = currentMatchMode();
+  const match = matchMode;
   if (match) params.set("match", match);
   applyResolutionFilter(params);
   // Clear-X nur sichtbar bei nicht-leerem Suchfeld
