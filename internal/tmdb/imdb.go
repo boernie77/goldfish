@@ -2,6 +2,7 @@ package tmdb
 
 import (
 	"context"
+	"log"
 	"net/url"
 )
 
@@ -38,6 +39,10 @@ func (c *Client) FindByIMDb(ctx context.Context, imdbID string) (*SearchResult, 
 			EpisodeNumber int    `json:"episode_number"`
 			Name          string `json:"name"`
 		} `json:"tv_episode_results"`
+		TVSeasonResults []struct {
+			ShowID       int64 `json:"show_id"`
+			SeasonNumber int   `json:"season_number"`
+		} `json:"tv_season_results"`
 	}
 	var r resp
 	params := url.Values{}
@@ -45,6 +50,8 @@ func (c *Client) FindByIMDb(ctx context.Context, imdbID string) (*SearchResult, 
 	if err := c.get(ctx, "/find/"+imdbID, params, &r); err != nil {
 		return nil, err
 	}
+	log.Printf("[tmdb.FindByIMDb] %s -> movies=%d tv=%d episodes=%d seasons=%d",
+		imdbID, len(r.MovieResults), len(r.TVResults), len(r.TVEpisodeResults), len(r.TVSeasonResults))
 	if len(r.MovieResults) > 0 {
 		m := r.MovieResults[0]
 		return &SearchResult{
@@ -69,6 +76,10 @@ func (c *Client) FindByIMDb(ctx context.Context, imdbID string) (*SearchResult, 
 	if len(r.TVEpisodeResults) > 0 {
 		e := r.TVEpisodeResults[0]
 		return &SearchResult{TMDBType: "tv", ID: e.ShowID}, nil
+	}
+	if len(r.TVSeasonResults) > 0 {
+		s := r.TVSeasonResults[0]
+		return &SearchResult{TMDBType: "tv", ID: s.ShowID}, nil
 	}
 	return nil, nil
 }

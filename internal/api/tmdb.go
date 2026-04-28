@@ -374,8 +374,12 @@ func (s *Server) setFolderMetadata(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 502, "IMDb-Lookup: "+err.Error())
 			return
 		}
-		if res == nil || res.TMDBType != "tv" {
-			writeError(w, 404, "IMDb-ID gibt keine Serie bei TMDB zurück")
+		if res == nil {
+			writeError(w, 404, "TMDB kennt diese IMDb-ID nicht (weder Serie/Episode noch Film). Prüfe auf themoviedb.org, ob die ID dort als External-ID hinterlegt ist.")
+			return
+		}
+		if res.TMDBType != "tv" {
+			writeError(w, 404, "IMDb-ID liefert "+res.TMDBType+", keine Serie. Falls die Reihe aus einzelnen TV-Filmen besteht, leg die Library als „Filme" an und matche die Dateien einzeln.")
 			return
 		}
 		body.TMDBID = res.ID
