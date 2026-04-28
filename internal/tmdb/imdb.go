@@ -61,5 +61,14 @@ func (c *Client) FindByIMDb(ctx context.Context, imdbID string) (*SearchResult, 
 			PosterPath: t.PosterPath, BackdropPath: t.BackdropPath,
 		}, nil
 	}
+	// Bei Episoden-IDs (z. B. TV-Reihen, deren einzelne Folgen je eine eigene
+	// IMDb-tt-Nummer haben) liefert TMDB den Treffer unter tv_episode_results
+	// mit show_id. Wir mappen das auf die Parent-Show — der Folder-Match-
+	// Workflow lädt sich danach via GetTV(showID) den Rest, und der
+	// Episoden-Enrichment-Pass matcht die einzelnen Folgen anschließend.
+	if len(r.TVEpisodeResults) > 0 {
+		e := r.TVEpisodeResults[0]
+		return &SearchResult{TMDBType: "tv", ID: e.ShowID}, nil
+	}
 	return nil, nil
 }
