@@ -558,6 +558,49 @@ async function retryFailedTrickplay() {
   } catch (e) { appAlert(e.message); }
 }
 
+// Wechsel vom Trickplay-Manager-Dialog in eine flache Grid-Ansicht aller
+// Items mit trickplay_status=failed. Vorherige Nav (Library/Folder/Home/…)
+// wird gemerkt; das ✕ im Breadcrumb stellt sie wieder her und öffnet den
+// Dialog erneut.
+function openTrickplayFailedView() {
+  state.tpFailedReturnNav = {
+    currentLibrary: state.currentLibrary,
+    currentFolder: state.currentFolder,
+    currentSeason: state.currentSeason,
+    currentFolderDrilldown: state.currentFolderDrilldown,
+    homeView: state.homeView,
+    collectionsView: state.collectionsView,
+    currentCollection: state.currentCollection,
+    personFilter: state.personFilter,
+    playlistsView: state.playlistsView,
+    currentPlaylist: state.currentPlaylist,
+  };
+  $("#trickplayDialog").close();
+  state.tpFailedView = true;
+  loadItems();
+}
+
+function exitTrickplayFailedView() {
+  const nav = state.tpFailedReturnNav;
+  state.tpFailedView = false;
+  state.tpFailedReturnNav = null;
+  if (nav) {
+    state.currentLibrary = nav.currentLibrary;
+    state.currentFolder = nav.currentFolder;
+    state.currentSeason = nav.currentSeason;
+    state.currentFolderDrilldown = nav.currentFolderDrilldown;
+    state.homeView = nav.homeView;
+    state.collectionsView = nav.collectionsView;
+    state.currentCollection = nav.currentCollection;
+    state.personFilter = nav.personFilter;
+    state.playlistsView = nav.playlistsView;
+    state.currentPlaylist = nav.currentPlaylist;
+  }
+  loadItems();
+  // Dialog wieder öffnen — der bleibt der natürliche Anker für diese Diagnose.
+  openTrickplayManager();
+}
+
 async function deleteAllTrickplay() {
   if (!(await appConfirm("Alle generierten Trickplay-Dateien löschen? Items bleiben erhalten, müssen aber bei aktivierten Ordnern neu generiert werden."))) return;
   try {
@@ -1442,6 +1485,29 @@ async function loadItemsBody() {
       // Kein Show-Folder offen oder Toggle deaktiviert → Season zurücksetzen
       if (!state.currentFolder || !state.seasonView) state.currentSeason = null;
     }
+  }
+
+  // Trickplay-Fehler-View (aus dem Trickplay-Manager-Dialog ausgelöst):
+  // flache Library-übergreifende Liste aller Items mit trickplay_status=failed.
+  // ✕ im Breadcrumb öffnet den Trickplay-Manager-Dialog wieder.
+  if (state.tpFailedView) {
+    const params = new URLSearchParams({ trickplay: "failed", sort: "title", dir: "asc" });
+    let items = [];
+    try { items = await apiGetCached(`/api/items?${params}`); }
+    catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+    renderBreadcrumb({ tpFailedView: true, searchCount: items.length });
+    if (!items.length) {
+      grid.innerHTML = `<div class="empty">Keine Items mit Trickplay-Fehler.</div>`;
+      return;
+    }
+    const merged = groupVariants(items);
+    state.lastRenderedItems = merged;
+    grid.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    for (const it of merged) frag.appendChild(renderCard(it));
+    grid.appendChild(frag);
+    return;
   }
 
   // Startseite: bei aktiver Suche wird sie zu einer globalen Suche quer
@@ -2679,6 +2745,27 @@ function renderBreadcrumb(opts) {
       count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} ${label})`;
     }
     bc.appendChild(count);
+    return;
+  }
+
+  if (opts.tpFailedView) {
+    const cur = document.createElement("span");
+    cur.className = "current";
+    cur.textContent = "🎞 Trickplay-Fehler";
+    bc.appendChild(cur);
+    const count = document.createElement("span");
+    count.className = "count";
+    if (opts.searchCount !== undefined && opts.searchCount !== null) {
+      count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} Videos)`;
+    }
+    bc.appendChild(count);
+    const close = document.createElement("button");
+    close.className = "back-btn";
+    close.style.marginLeft = "auto";
+    close.title = "Schließen — zurück zu Trickplay verwalten";
+    close.textContent = "✕";
+    close.addEventListener("click", exitTrickplayFailedView);
+    bc.appendChild(close);
     return;
   }
 
@@ -6820,6 +6907,8 @@ function wire() {
   });
   $("#tpDeleteAll").addEventListener("click", deleteAllTrickplay);
   $("#tpRetryFailed").addEventListener("click", retryFailedTrickplay);
+  const tpShowFailed = $("#tpShowFailed");
+  if (tpShowFailed) tpShowFailed.addEventListener("click", openTrickplayFailedView);
   $("#shuffleBtn").addEventListener("click", playRandom);
   $("#scanBtn").addEventListener("click", () => {
     // Inside einem Ordner: Default ist ordner-gescopt. Am Library-Root: gesamte Library.

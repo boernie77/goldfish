@@ -303,6 +303,7 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		MatchState: q.Get("match"),
 		DupesOnly:  q.Get("duplicates") == "yes",
 		Interlaced: q.Get("interlaced") == "yes",
+		TrickplayStatus: q.Get("trickplay"),
 		UserID:     me.ID,
 	}
 	if v := q.Get("libraryId"); v != "" {

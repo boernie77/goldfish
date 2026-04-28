@@ -792,6 +792,7 @@ type ItemFilter struct {
 	MaxHeight  int   // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
 	ResBuckets []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
 	Interlaced bool  // true = nur Items, deren Video-Stream field_order ∉ {progressive, unknown, ""}
+	TrickplayStatus string // "" | "failed" | "pending" | "done" — Filter im Trickplay-Manager
 	UserID    int64 // 0 = ungesetzt (Worker-Kontext); sonst pro-User-Zustand laden
 	// MaxAgeRating: wenn > 0, werden Items mit metadata.age_rating > Max
 	// ausgeblendet. 0 = keine Beschränkung (Admin-Default).
@@ -864,6 +865,10 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	}
 	if f.MatchState == "unmatched" {
 		q += ` AND i.metadata_id IS NULL`
+	}
+	if f.TrickplayStatus != "" {
+		q += ` AND COALESCE(i.trickplay_status, '') = ?`
+		args = append(args, f.TrickplayStatus)
 	}
 	if f.DupesOnly {
 		// Nur Items, deren metadata_id in der gleichen Library mehrfach vorkommt.
