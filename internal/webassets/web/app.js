@@ -1882,11 +1882,16 @@ async function loadItemsBody() {
   // und ggf. löschen zu können.
   if ($("#sortSelect").value === "duplicates" && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
-    // Duplikate-Modus ist explizit library-ÜBERGREIFEND. Wer Duplikate
-    // vergleichen/löschen will, braucht ALLE Versionen — egal in welcher
-    // Library sie liegen. Daher: keine libraryId, keine watched/resolution-
-    // Filter mitsenden. Jede einzelne Datei eines duplizierten Films
-    // erscheint als eigene Kachel zum Vergleichen. Suche bleibt aktiv.
+    // Duplikate-Modus: zeige alle Versionen eines duplizierten Items als
+    // eigene Kachel — aber nur aus Bibliotheken mit demselben „kind" wie
+    // die gerade aktive (Bluray + Filme zusammen wenn beide movies, Serien
+    // separat, Private separat). Sonst würde z.B. in Bluray ein Episoden-
+    // Duplikat aus „Serien" mit auftauchen.
+    const currentLib = state.libraries.find(l => l.id == state.currentLibrary);
+    const currentKind = currentLib ? currentLib.kind : null;
+    const sameKindLibIds = new Set(
+      state.libraries.filter(l => l.kind === currentKind).map(l => l.id)
+    );
     const p = new URLSearchParams({
       duplicates: "yes",
       sort: "title",
@@ -1898,7 +1903,18 @@ async function loadItemsBody() {
     try { items = await apiGetCached(`/api/items?${p}`); }
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
-    renderBreadcrumb({ searchCount: items.length, duplicatesView: true });
+    // Filter auf Libraries gleichen Kinds (siehe Kommentar oben).
+    items = items.filter(it => sameKindLibIds.has(it.libraryId));
+    // Server zählt Duplikate global — wenn zwei Versionen library-übergreifend
+    // existieren aber durch den Kind-Filter rausfallen, ist eine ggf. allein.
+    // Solche „nicht-mehr-doppelten" Items entfernen, damit keine 1er-Kacheln
+    // im Duplikate-View landen.
+    {
+      const cnt = new Map();
+      for (const it of items) cnt.set(it.metadataId, (cnt.get(it.metadataId) || 0) + 1);
+      items = items.filter(it => (cnt.get(it.metadataId) || 0) >= 2);
+    }
+    renderBreadcrumb({ searchCount: items.length, duplicatesView: true, duplicatesKind: currentKind });
     if (!items.length) {
       grid.innerHTML = `<div class="empty">Keine Duplikate gefunden.</div>`;
       return;
@@ -2820,11 +2836,15 @@ function renderBreadcrumb(opts) {
   }
 
   if (opts.duplicatesView) {
-    // Duplikate-Modus ist library-übergreifend (siehe loadItems-Branch) —
-    // daher keinen Library-Namen mehr im Breadcrumb suggerieren.
+    // Duplikate-Modus ist library-übergreifend, aber begrenzt auf Bibliotheken
+    // mit demselben Kind wie die aktive (siehe loadItems-Branch).
+    const kindLabel = opts.duplicatesKind === "movies" ? "Filme"
+      : opts.duplicatesKind === "tv" ? "Serien"
+      : opts.duplicatesKind === "private" ? "Privatvideos"
+      : "Bibliotheken";
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = "⧉ Duplikate (alle Bibliotheken)";
+    cur.textContent = `⧉ Duplikate (alle ${kindLabel})`;
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
