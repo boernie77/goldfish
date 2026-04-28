@@ -3,16 +3,17 @@ package api
 import (
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/boernie77/goldfish/internal/tmdb"
 )
 
 // seriesSeasons liefert alle Staffeln + Folgen einer Serie, die in einem
 // TV-Ordner liegt, aus TMDB-Sicht angereichert um den Status "owned" (auf
-// Disk vorhanden) pro Episode. Episoden, die **nach** der zuletzt vorhandenen
-// Folge liegen (zukünftige oder unveröffentlichte), werden rausgefiltert —
-// wir wollen nichts als "Fehlt" markieren, das der User eh noch nicht haben
-// kann.
+// Disk vorhanden) pro Episode. Episoden ohne airDate oder mit airDate in der
+// Zukunft werden rausgefiltert — wir wollen nichts als "Fehlt" markieren,
+// das noch gar nicht ausgestrahlt ist. Owned-Items sind davon ausgenommen
+// (User hat die Datei → muss zählen, auch wenn TMDB-Datum komisch ist).
 //
 // Query:
 //   libraryId=<libID>
@@ -89,7 +90,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		ItemIDs    []int64 // alle Items, die diese Episode mappen (Duplikate / Varianten)
 		EpisodeEnd int     // >0 wenn Slot Teil einer Range ist, sonst 0
 	}
-	maxSeason, maxEpisode := 0, 0
+	maxSeason := 0
 	haveSeasons := map[int]struct{}{}
 	ownedLookup := map[int]map[int]ownedSlot{}
 	for _, e := range owned {
@@ -97,8 +98,8 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		if e.EpisodeEnd > e.Episode {
 			end = e.EpisodeEnd
 		}
-		if e.Season > maxSeason || (e.Season == maxSeason && end > maxEpisode) {
-			maxSeason, maxEpisode = e.Season, end
+		if e.Season > maxSeason {
+			maxSeason = e.Season
 		}
 		haveSeasons[e.Season] = struct{}{}
 		if _, ok := ownedLookup[e.Season]; !ok {
@@ -255,6 +256,13 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	}
 	seasonWG.Wait()
 
+	// Cap nach Air-Date statt nach „letzte vom User besessene Episode" — sonst
+	// zeigt eine fertige Staffel mit 14 ausgestrahlten Episoden, von denen der
+	// User nur 10 hat, „10/10" statt „10/14". Episoden ohne airDate oder mit
+	// airDate in der Zukunft werden rausgefiltert; das deckt sowohl
+	// unveröffentlichte Folgen laufender Shows als auch TMDB-Phantom-Einträge
+	// ohne Sendetermin ab.
+	now := time.Now()
 	var seasons []seasonOut
 	for _, res := range results {
 		if res.data == nil {
@@ -268,11 +276,18 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 			AirDate:      season.AirDate,
 		}
 		for _, ep := range season.Episodes {
-			// Episoden oberhalb maxEpisode in letzter Staffel abschneiden
-			if ep.SeasonNumber == maxSeason && ep.EpisodeNumber > maxEpisode {
-				continue
-			}
+			// Future-Episode-Filter: airDate leer ODER in der Zukunft → skip.
+			// Owned-Items sind davon ausgenommen (User hat die Datei, also
+			// soll sie auch zählen — TMDB-Datum ist evtl. einfach falsch).
 			slot := ownedLookup[ep.SeasonNumber][ep.EpisodeNumber]
+			if slot.ItemID == 0 {
+				if ep.AirDate == "" {
+					continue
+				}
+				if airTime, err := time.Parse("2006-01-02", ep.AirDate); err == nil && airTime.After(now) {
+					continue
+				}
+			}
 			out := episodeOut{
 				Season:     ep.SeasonNumber,
 				Episode:    ep.EpisodeNumber,
