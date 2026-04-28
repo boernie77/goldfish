@@ -4772,12 +4772,31 @@ function syncTranscodeDisplays(vjs) {
       c._patchedForTranscode = true;
     }
   }
-  // Belt-and-Suspenders: in ALLE matchenden Display-Spans schreiben — falls
-  // Video.js mehrere parallel rendert (z. B. Live-→VOD-Übergang), wird so
-  // jedes davon auf den aktuellen Wert gesetzt statt nur das erste.
+  // Display-Span-Update OHNE textContent — sonst loggt Video.js
+  // „TimeDisplay#updateTextnode_: Prevented replacement of text node element"
+  // und akkumuliert TextNodes nebeneinander („6:500:000:010:020:031:39…").
+  // Grund: Video.js' TimeDisplay hält eine interne Referenz auf den ersten
+  // Text-Node. textContent ersetzt alle Children → Referenz wird ungültig →
+  // beim nächsten Internal-Update macht Video.js appendChild statt
+  // replaceChild. Workaround: ersten TextNode behalten, dessen nodeValue
+  // setzen; alle weiteren TextNodes entfernen.
+  const setText = (el, text) => {
+    let first = null;
+    for (let i = el.childNodes.length - 1; i >= 0; i--) {
+      const c = el.childNodes[i];
+      if (c.nodeType !== Node.TEXT_NODE) continue;
+      if (first) el.removeChild(c);
+      else first = c;
+    }
+    if (first) {
+      if (first.nodeValue !== text) first.nodeValue = text;
+    } else {
+      el.appendChild(document.createTextNode(text));
+    }
+  };
   const setAll = (sel, text) => {
     const list = root.querySelectorAll(sel);
-    for (let i = 0; i < list.length; i++) list[i].textContent = text;
+    for (let i = 0; i < list.length; i++) setText(list[i], text);
   };
   let rafId = 0;
   const tick = () => {
