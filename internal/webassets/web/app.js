@@ -3653,6 +3653,21 @@ async function openDetail(item) {
     } catch (e) {
       console.warn("openDetail: konnte frisches Item nicht holen, nutze Cache-Stand", e);
     }
+    // Wenn der Aufrufer keine vorgemergten Variants mitgegeben hat (Path-
+    // Search-Dialog, Person-Filter, Direktlink, …) und das Item eine
+    // metadata_id hat, vom Server die Geschwister-Files nachladen. Erst dann
+    // erscheint im Detail-Dialog auch der Varianten-Dropdown — sonst wäre er
+    // nur sichtbar bei Klicks aus dem groupVariants-Grid.
+    if ((!item._variants || item._variants.length <= 1) && item.metadataId > 0) {
+      try {
+        const sibs = await api(`/api/items/${item.id}/variants`);
+        if (Array.isArray(sibs) && sibs.length > 1) {
+          item._variants = sibs;
+        }
+      } catch (e) {
+        console.warn("openDetail: Variants-Fetch fehlgeschlagen", e);
+      }
+    }
   }
   state.currentItem = item;
   const meta = item.metadata;

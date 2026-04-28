@@ -86,6 +86,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/items/search-path", requireAdmin(s.searchItemsByPath))
 		r.Get("/items/suspicious", s.suspiciousMatches)
 		r.Get("/items/{id}", s.getItem)
+		r.Get("/items/{id}/variants", s.getItemVariants)
 		r.Delete("/items/{id}", requireAdmin(s.deleteItem))
 		r.Get("/download/{id}", s.downloadItem)
 		r.Put("/items/{id}/watched", s.setWatched)
@@ -208,7 +209,7 @@ func (s *Server) Router() http.Handler {
 // buildTag wird bei jedem Code-Push aktualisiert und ist im /api/health
 // sichtbar — schneller Smoke-Test, ob der laufende Container die aktuelle
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
-const buildTag = "2026-04-28T15:33Z"
+const buildTag = "2026-04-28T16:50Z"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

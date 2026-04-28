@@ -426,3 +426,55 @@ func (s *Server) getItem(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, it)
 }
+
+// getItemVariants liefert alle Items mit derselben metadata_id wie das übergebene
+// Item — inklusive des Items selbst. Wird vom Frontend aufgerufen, wenn der
+// Detail-Dialog aus einem Kontext geöffnet wird, in dem das Frontend-Klebefeld
+// `_variants` nicht gesetzt war (z. B. Path-Search-Dialog, Person-Filter,
+// Direktlink). Geschwister in Libraries ohne ACL-Zugriff werden ausgefiltert,
+// damit der Endpoint die Existenz fremder Files nicht verrät.
+func (s *Server) getItemVariants(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	src, err := s.Store.GetItemFor(me.ID, id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if src == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, src.LibraryID) {
+		return
+	}
+	if src.MetadataID == 0 {
+		writeJSON(w, 200, []model.Item{*src})
+		return
+	}
+	all, err := s.Store.ListItems(store.ItemFilter{
+		MetadataID: src.MetadataID,
+		UserID:     me.ID,
+	})
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	out := make([]model.Item, 0, len(all))
+	for _, v := range all {
+		ok, _ := s.Store.UserHasLibraryAccess(me.ID, v.LibraryID, me.IsAdmin)
+		if !ok {
+			continue
+		}
+		out = append(out, v)
+	}
+	writeJSON(w, 200, out)
+}

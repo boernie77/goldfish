@@ -787,6 +787,7 @@ type ItemFilter struct {
 	Favorite  string
 	MatchState string
 	DupesOnly  bool  // true = nur Items mit mehrfach vergebener metadata_id
+	MetadataID int64 // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
 	PersonTMDB int64 // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
 	MinHeight  int   // 0 = aus; sonst nur Items mit height >= MinHeight
 	MaxHeight  int   // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
@@ -865,6 +866,10 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	}
 	if f.MatchState == "unmatched" {
 		q += ` AND i.metadata_id IS NULL`
+	}
+	if f.MetadataID > 0 {
+		q += ` AND i.metadata_id = ?`
+		args = append(args, f.MetadataID)
 	}
 	if f.TrickplayStatus != "" {
 		q += ` AND COALESCE(i.trickplay_status, '') = ?`
