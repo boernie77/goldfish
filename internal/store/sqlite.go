@@ -1194,14 +1194,18 @@ func (s *Store) TopLevelFolders(libraryID int64) ([]Folder, error) {
 	return s.topLevelFolders(libraryID, false)
 }
 
-// topLevelFolders mit optionalem „nur unmatched"-Filter: zählt nur Items mit
-// metadata_id IS NULL und liefert nur Folder, die mindestens ein solches Item
-// enthalten. Wird vom Filter „Ohne TMDB-Zuordnung" für TV-Libraries genutzt,
-// damit komplett ungemappte Serien als Folder-Kachel auftauchen.
+// topLevelFolders mit optionalem „nur unmatched"-Filter: liefert Folder, die
+// in mindestens einer der folgenden Hinsichten ohne TMDB-Zuordnung sind:
+//  1. mindestens ein Item im Folder hat metadata_id IS NULL
+//  2. der Folder selbst hat keinen folder_metadata-Eintrag (= keine Show-
+//     Konsolidierung, häufig wenn Episoden auto-gematcht aber die Serie nie
+//     als Ganzes zugeordnet wurde — z. B. „The Good Witch")
+// Wird vom Filter „Ohne TMDB-Zuordnung" für TV-Libraries genutzt, damit
+// solche Serien als Folder-Kachel im Library-Root auftauchen.
 func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, error) {
-	itemFilter := ""
+	postFilter := ""
 	if onlyUnmatched {
-		itemFilter = " AND metadata_id IS NULL"
+		postFilter = " WHERE (f.unmatched_cnt > 0 OR fm.metadata_id IS NULL)"
 	}
 	// Wichtig: erst aggregieren, dann mit folder_metadata joinen — sonst führt der LEFT JOIN
 	// vor dem GROUP BY zu Ambiguität beim "folder"-Alias in SQLite und alle Items landen
@@ -1213,13 +1217,14 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 				SUBSTR(rel_path, 1, INSTR(rel_path, '/')-1) AS folder,
 				library_id,
 				COUNT(*) AS cnt,
+				SUM(CASE WHEN metadata_id IS NULL THEN 1 ELSE 0 END) AS unmatched_cnt,
 				MIN(CASE WHEN has_thumb=1 THEN id ELSE NULL END) AS thumb_id
 			FROM items
-			WHERE library_id = ? AND INSTR(rel_path, '/') > 0`+itemFilter+`
+			WHERE library_id = ? AND INSTR(rel_path, '/') > 0
 			GROUP BY folder
 		) f
 		LEFT JOIN folder_metadata fm
-		  ON fm.library_id = f.library_id AND fm.folder = f.folder
+		  ON fm.library_id = f.library_id AND fm.folder = f.folder`+postFilter+`
 		ORDER BY f.folder COLLATE NOCASE
 	`, libraryID)
 	if err != nil {
