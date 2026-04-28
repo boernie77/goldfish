@@ -4748,6 +4748,13 @@ function disposePlayer() {
 // eigene SeekBar-Updates uns nicht ständig überschreiben.
 function syncTranscodeDisplays(vjs) {
   if (!vjs || !vjs.el) return;
+  // Re-Entry-Schutz: bei Player-Reuse (Shuffle-Next, restartTranscodeAt) ruft
+  // applyPlayback erneut auf — früher startete jedes Mal ein WEITERER RAF-
+  // Loop, alte liefen parallel weiter. Symptom: konkatenierte Zeit-Strings
+  // („6:500:000:010:020:031:39…") oder verschwundene Status-Leiste, weil
+  // mehrere Loops in dieselben (oder duplizierten) Display-Spans schreiben.
+  if (vjs._transcodeDisplaysActive) return;
+  vjs._transcodeDisplaysActive = true;
   const root = vjs.el();
   // Video.js' eigene TimeDisplay-Updates ausschalten, sobald wir im Transcode-
   // Modus sind — sonst schreiben Video.js und unser RAF-Loop abwechselnd Text
@@ -4765,9 +4772,17 @@ function syncTranscodeDisplays(vjs) {
       c._patchedForTranscode = true;
     }
   }
+  // Belt-and-Suspenders: in ALLE matchenden Display-Spans schreiben — falls
+  // Video.js mehrere parallel rendert (z. B. Live-→VOD-Übergang), wird so
+  // jedes davon auf den aktuellen Wert gesetzt statt nur das erste.
+  const setAll = (sel, text) => {
+    const list = root.querySelectorAll(sel);
+    for (let i = 0; i < list.length; i++) list[i].textContent = text;
+  };
   let rafId = 0;
   const tick = () => {
     if (!state.vjs || state.vjs !== vjs || (typeof vjs.isDisposed === "function" && vjs.isDisposed())) {
+      vjs._transcodeDisplaysActive = false;
       return; // Loop beendet sich selbst
     }
     if (state.playback && state.playback.mode === "transcode") {
@@ -4775,31 +4790,31 @@ function syncTranscodeDisplays(vjs) {
       const total = (state.currentItem && state.currentItem.durationSec) || 0;
       if (total > 0) {
         const absCur = Math.max(0, vjs.currentTime() + offset);
-        const curEl = root.querySelector(".vjs-current-time-display");
-        if (curEl) curEl.textContent = formatPlayerTime(absCur);
-        const durEl = root.querySelector(".vjs-duration-display");
-        if (durEl) durEl.textContent = formatPlayerTime(total);
-        const remEl = root.querySelector(".vjs-remaining-time-display");
-        if (remEl) remEl.textContent = "-" + formatPlayerTime(Math.max(0, total - absCur));
-        const prog = root.querySelector(".vjs-play-progress");
-        if (prog) {
-          prog.style.width = Math.min(100, (absCur / total) * 100) + "%";
-          const tt = prog.querySelector(".vjs-time-tooltip");
+        setAll(".vjs-current-time-display", formatPlayerTime(absCur));
+        setAll(".vjs-duration-display", formatPlayerTime(total));
+        setAll(".vjs-remaining-time-display", "-" + formatPlayerTime(Math.max(0, total - absCur)));
+        const progs = root.querySelectorAll(".vjs-play-progress");
+        for (let i = 0; i < progs.length; i++) {
+          progs[i].style.width = Math.min(100, (absCur / total) * 100) + "%";
+          const tt = progs[i].querySelector(".vjs-time-tooltip");
           if (tt) tt.textContent = formatPlayerTime(absCur);
         }
-        const load = root.querySelector(".vjs-load-progress");
-        if (load) {
-          const seekable = vjs.seekable();
-          const seekableEnd = seekable && seekable.length ? seekable.end(0) : 0;
-          const absLoad = seekableEnd + offset;
-          load.style.width = Math.min(100, (absLoad / total) * 100) + "%";
+        const seekable = vjs.seekable();
+        const seekableEnd = seekable && seekable.length ? seekable.end(0) : 0;
+        const absLoad = seekableEnd + offset;
+        const loads = root.querySelectorAll(".vjs-load-progress");
+        for (let i = 0; i < loads.length; i++) {
+          loads[i].style.width = Math.min(100, (absLoad / total) * 100) + "%";
         }
       }
     }
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
-  vjs.on("dispose", () => { if (rafId) cancelAnimationFrame(rafId); });
+  vjs.on("dispose", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    vjs._transcodeDisplaysActive = false;
+  });
 }
 
 function formatPlayerTime(sec) {
