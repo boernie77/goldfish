@@ -1882,19 +1882,16 @@ async function loadItemsBody() {
   // und ggf. löschen zu können.
   if ($("#sortSelect").value === "duplicates" && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
+    // Duplikate-Modus ist explizit library-ÜBERGREIFEND. Wer Duplikate
+    // vergleichen/löschen will, braucht ALLE Versionen — egal in welcher
+    // Library sie liegen. Daher: keine libraryId, keine watched/resolution-
+    // Filter mitsenden. Jede einzelne Datei eines duplizierten Films
+    // erscheint als eigene Kachel zum Vergleichen. Suche bleibt aktiv.
     const p = new URLSearchParams({
-      libraryId: state.currentLibrary,
       duplicates: "yes",
       sort: "title",
       dir: "asc",
     });
-    // In Duplikate-Modus bewusst NICHT die anderen Filter mitsenden:
-    // Wer nach Duplikaten sucht, will immer ALLE Versionen sehen — auch wenn
-    // eine Version nur in 4K vorliegt während der Resolution-Filter auf 1080p
-    // steht, oder wenn beide Versionen schon gesehen sind während der
-    // Watched-Filter „nur ungesehen" lautet. Sonst verschwinden Filme aus dem
-    // Vergleichs-View, von denen der User WEISS, dass er Duplikate hat.
-    // Suche bleibt aktiv, damit man gezielt einen Titel suchen kann.
     if (searchQ) p.set("search", searchQ);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
@@ -1903,7 +1900,7 @@ async function loadItemsBody() {
     if (stale()) return;
     renderBreadcrumb({ searchCount: items.length, duplicatesView: true });
     if (!items.length) {
-      grid.innerHTML = `<div class="empty">Keine Duplikate in dieser Bibliothek.</div>`;
+      grid.innerHTML = `<div class="empty">Keine Duplikate gefunden.</div>`;
       return;
     }
     // Kein Merge — Gruppierung nach metadata_id für visuelle Bündelung,
@@ -2823,11 +2820,11 @@ function renderBreadcrumb(opts) {
   }
 
   if (opts.duplicatesView) {
-    const lib = state.libraries.find(l => l.id == state.currentLibrary);
-    const libName = lib ? lib.name : "";
+    // Duplikate-Modus ist library-übergreifend (siehe loadItems-Branch) —
+    // daher keinen Library-Namen mehr im Breadcrumb suggerieren.
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = libName ? `⧉ Duplikate in ${libIcon(lib)} ${libName}` : "⧉ Duplikate";
+    cur.textContent = "⧉ Duplikate (alle Bibliotheken)";
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
