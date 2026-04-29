@@ -1927,8 +1927,19 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
   cursor: pointer;
 }
 .icon-btn:hover { filter: brightness(1.2); }
-.icon-btn--on-fav { color: #ef4444; }
-.icon-btn--on-watched { color: #22c55e; }
+/* Aktiv-Zustände der Dialog-Buttons: Hintergrund + Farbe wie die Kachel-
+   Buttons. Vorher war nur die Schriftfarbe leicht eingefaerbt — visuell
+   so subtil, dass User dachten, der Klick haette nicht gewirkt; die
+   Kachel zeigt einen vollflaechig grünen/roten Kreis. Symmetrie zur
+   Kachel ist wichtig, damit Gesehen-/Favorit-Buttons "gleich aussehen". */
+.icon-btn--on-fav {
+  color: #fff;
+  background: rgba(239, 68, 68, 0.9);
+}
+.icon-btn--on-watched {
+  color: #fff;
+  background: rgba(34, 197, 94, 0.9);
+}
 
 /* Schauspieler-Strip im Detail-Dialog */
 .cast-strip { margin-top: 12px; }
