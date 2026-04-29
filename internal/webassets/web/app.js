@@ -4907,18 +4907,26 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     addAt("Skip30Back", skipBase);
     addAt("Skip30Forward", skipBase + 1);
     // Custom-Buttons rechts (vor FullscreenToggle) — am Ende der ControlBar.
+    // Counter statt fester Offsets: wenn ein optionaler Button uebersprungen
+    // wird (AirPlay nur bei Direct Play, Delete nur bei Admin), darf das
+    // KEIN „Loch" hinterlassen — sonst landen spaetere Buttons hinter
+    // FullscreenToggle und Vollbild ist nicht mehr ganz aussen rechts.
     const fsIdx = cb.children().findIndex(c => c.name_ === "FullscreenToggle");
     const insertAt = fsIdx >= 0 ? fsIdx : cb.children().length;
-    const addIfMissing = (name, offset) => {
-      if (!cb.getChild(name)) cb.addChild(name, {}, insertAt + offset);
+    let nextOffset = 0;
+    const addIfMissing = (name) => {
+      if (!cb.getChild(name)) {
+        cb.addChild(name, {}, insertAt + nextOffset);
+      }
+      nextOffset++;
     };
-    addIfMissing("ShufflePrev", 0);
-    addIfMissing("ShuffleNext", 1);
-    addIfMissing("FavoriteButton", 2);
-    addIfMissing("PlaylistButton", 3);
+    addIfMissing("ShufflePrev");
+    addIfMissing("ShuffleNext");
+    addIfMissing("FavoriteButton");
+    addIfMissing("PlaylistButton");
     // Cast-Button — bleibt unsichtbar, bis das Cast-Framework geladen ist
     // (initCastFramework markiert state.castReady und ruft btn.show()).
-    addIfMissing("CastButton", 4);
+    addIfMissing("CastButton");
     // AirPlay-Button NUR bei Direct Play hinzufügen. Bei Transcode (HLS via
     // VHS-MSE) zeigt Safari zwar den AirPlay-Picker, kann den Stream aber
     // nicht an den AppleTV weiterreichen — der Spinner dreht sich auf dem
@@ -4927,11 +4935,11 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     // (progressives MP4 = Direct Play). Bei Transcode-Items gibt's stattdessen
     // den Hinweis im UI: macOS-Bildschirmsynchronisierung verwenden.
     if ((info && info.mode) === "direct") {
-      addIfMissing("AirPlayButton", 5);
+      addIfMissing("AirPlayButton");
     }
-    // Löschbutton nur für Admins; liegt direkt neben PlaylistButton.
+    // Löschbutton nur für Admins; liegt direkt vor FullscreenToggle.
     if (state.me && state.me.isAdmin) {
-      addIfMissing("DeleteButton", 6);
+      addIfMissing("DeleteButton");
     }
   }
   updatePlayerButtons();
