@@ -39,7 +39,10 @@ var (
 	// Nur aktiv bei ParseEpisodeFile (TV-Kontext), nicht bei ParseFile (Movies).
 	reNumericEp = regexp.MustCompile(`\b(\d{3,4})\b`)
 	// typische Release-Tags, die vom Titel abgeschnitten werden
-	reTrash = regexp.MustCompile(`(?i)\b(480p|576p|720p|1080p|2160p|4k|uhd|hdr|hdr10|dv|hevc|x264|x265|h264|h265|blu[- ]?ray|bd|bdrip|brrip|web[- ]?dl|web|webrip|hdtv|dvdrip|dvd|tvrip|xvid|divx|aac|ac3|dd5?1?|dd\+?|ddp|dts|dts[- ]?hd|atmos|truehd|multi|multisub|dual|dubbed|german|deutsch|english|eng|ger|dl|fs|ws|ld|ml|proper|repack|remux|extended|uncut|directors?[- ]?cut|imax|unrated|custom|internal|retail|limited|complete|video|amazonhd|amzn|nf|hulu|dsnp|max|hmax|scene|t\d{2,}|cd\d+|disc\d+|part\d+|v\d{1,2})\b`)
+	// Hinweis: streaming-service-Tokens wie `max`, `nf`, `dv` sind zu generisch
+	// und kollidieren mit echten Titeln (z.B. „Mad MAX", „DV8") — bewusst raus.
+	// `hmax` und `dsnp` bleiben drin (zu spezifisch um zufaellig im Titel zu stehen).
+	reTrash = regexp.MustCompile(`(?i)\b(480p|576p|720p|1080p|2160p|4k|uhd|hdr|hdr10|hevc|x264|x265|h264|h265|blu[- ]?ray|bdrip|brrip|web[- ]?dl|web|webrip|hdtv|dvdrip|dvd|tvrip|xvid|divx|aac|ac3|dd5?1?|dd\+?|ddp|dts|dts[- ]?hd|atmos|truehd|multi|multisub|dual|dubbed|german|deutsch|english|eng|ger|dl|fs|ws|ld|ml|proper|repack|remux|extended|uncut|directors?[- ]?cut|imax|unrated|custom|internal|retail|limited|complete|video|amazonhd|amzn|hulu|dsnp|hmax|scene|t\d{2,}|cd\d+|disc\d+|part\d+|v\d{1,2})\b`)
 	// release-group suffix wie "-GROUP"
 	reGroupSuffix = regexp.MustCompile(`(?i)-[A-Z0-9]+$`)
 )
