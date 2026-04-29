@@ -43,25 +43,38 @@ func isPublicPath(path string) bool {
 	return !strings.HasPrefix(path, "/api/")
 }
 
-// authMiddleware prüft Cookie, attacht User zum Context. Bei Fehler 401 für /api/*.
+// resolveSessionToken: Cookie zuerst, dann Query-Param `?session=…` als
+// Fallback. Letzteres ist nötig, damit Cast-Receiver-Geräte (Chromecast,
+// FireTV, AirPlay-Targets) die Stream-URL ohne Browser-Cookie laden können.
+// Der Token ist derselbe wie im Cookie — wird beim Cast-Klick clientseitig
+// aus dem Cookie ausgelesen und an die URL gehängt.
+func resolveSessionToken(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookieName); err == nil && c.Value != "" {
+		return c.Value
+	}
+	return r.URL.Query().Get("session")
+}
+
+// authMiddleware prüft Cookie/Query-Token, attacht User zum Context.
+// Bei Fehler 401 für /api/*.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isPublicPath(r.URL.Path) {
 			// Trotzdem versuchen, User in den Context zu packen (z.B. für /api/auth/status)
-			if c, err := r.Cookie(sessionCookieName); err == nil {
-				if u, _ := s.Store.GetSession(c.Value); u != nil {
+			if tok := resolveSessionToken(r); tok != "" {
+				if u, _ := s.Store.GetSession(tok); u != nil {
 					r = r.WithContext(withUser(r.Context(), u))
 				}
 			}
 			next.ServeHTTP(w, r)
 			return
 		}
-		c, err := r.Cookie(sessionCookieName)
-		if err != nil {
+		tok := resolveSessionToken(r)
+		if tok == "" {
 			writeError(w, 401, "nicht angemeldet")
 			return
 		}
-		u, err := s.Store.GetSession(c.Value)
+		u, err := s.Store.GetSession(tok)
 		if err != nil {
 			writeError(w, 500, err.Error())
 			return
@@ -72,6 +85,28 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 		r = r.WithContext(withUser(r.Context(), u))
 		next.ServeHTTP(w, r)
+	})
+}
+
+// castToken erzeugt einen kurzlebigen Session-Token für Cast-Receiver-Geräte
+// (Chromecast, FireTV, …), die über `?session=<token>`-Query-Param
+// authentifizieren — sie haben keinen Cookie-Speicher und der reguläre
+// Session-Cookie ist HttpOnly (für JS unzugänglich, gut so). 4 h TTL reicht
+// für eine Cast-Sitzung; der Token läuft danach automatisch ab.
+func (s *Server) castToken(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	if u == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	sess, err := s.Store.CreateSession(u.ID, 4*time.Hour)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"token":     sess.Token,
+		"expiresAt": sess.ExpiresAt,
 	})
 }
 

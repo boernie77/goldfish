@@ -4224,6 +4224,20 @@ function ensurePlayerComponents() {
       }
     }
   }
+  // Cast-Button für Chromecast / FireTV / Smart-TVs mit Google Cast.
+  // Initialisierung des Cast-Frameworks läuft in initCastFramework() —
+  // wird einmal beim Browser-Start aufgerufen und setzt state.castReady,
+  // sobald das Framework verfügbar ist.
+  class CastButton extends Button {
+    constructor(player, options) {
+      super(player, options);
+      this.controlText("Auf Gerät streamen");
+      this.addClass("vjs-cast-button");
+      // Bis Cast-Framework bereit ist: Button ausblenden.
+      if (!state.castReady) this.hide();
+    }
+    handleClick() { startCastSession(); }
+  }
   if (!window.videojs.getComponent("ShufflePrev")) {
     window.videojs.registerComponent("Skip30Back", Skip30Back);
     window.videojs.registerComponent("Skip30Forward", Skip30Forward);
@@ -4232,8 +4246,102 @@ function ensurePlayerComponents() {
     window.videojs.registerComponent("FavoriteButton", FavoriteButton);
     window.videojs.registerComponent("PlaylistButton", PlaylistButton);
     window.videojs.registerComponent("DeleteButton", DeleteButton);
+    window.videojs.registerComponent("CastButton", CastButton);
   }
   state.playerComponentsRegistered = true;
+}
+
+// --- Google Cast Integration ---
+//
+// Das Cast-Framework lädt asynchron (Script in index.html). Sobald es
+// verfügbar ist, initialisieren wir es mit dem Default-Media-Receiver
+// (CC1AD845) — das ist Googles offizielle App, die direkte Stream-URLs
+// (HLS, MP4) abspielt. Eigener Receiver wäre möglich, aber unnötig: für
+// einfaches Streaming reicht der Default.
+function initCastFramework() {
+  // Hook, den die Cast-Bibliothek aufruft, sobald sie geladen ist.
+  window["__onGCastApiAvailable"] = (isAvailable) => {
+    if (!isAvailable || !window.cast || !window.cast.framework) return;
+    try {
+      const ctx = window.cast.framework.CastContext.getInstance();
+      ctx.setOptions({
+        receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+        autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+      });
+      state.castReady = true;
+      // Sichtbarkeit aller schon registrierten Cast-Buttons aktualisieren.
+      if (state.vjs) {
+        const cb = state.vjs.getChild("controlBar");
+        const btn = cb && cb.getChild("CastButton");
+        if (btn) btn.show();
+      }
+      console.log("[cast] framework ready");
+    } catch (e) {
+      console.warn("[cast] init failed", e);
+    }
+  };
+}
+
+// startCastSession: vom CastButton-Click. Holt einen Cast-Session-Token vom
+// Server (via /api/auth/cast-token, 4 h TTL), baut die Stream-URL mit
+// `?session=<token>` und startet die Cast-Session am Default-Receiver.
+async function startCastSession() {
+  if (!state.castReady || !window.cast || !state.currentItem) return;
+  const item = state.currentItem;
+  let token = "";
+  try {
+    const r = await api("/api/auth/cast-token", { method: "POST" });
+    token = r && r.token;
+  } catch (e) {
+    appAlert("Cast-Token konnte nicht erstellt werden: " + e.message);
+    return;
+  }
+  if (!token) return;
+  // Stream-URL: bei Direct Play unsere /api/stream/{id}-Route, bei Transcode
+  // die HLS-Playlist (Cast unterstützt HLS nativ via Default-Receiver).
+  const mode = (state.playback && state.playback.mode) || "direct";
+  const sep = (u) => u.includes("?") ? "&" : "?";
+  let url, contentType;
+  if (mode === "transcode") {
+    const profile = (state.playback && state.playback.profile) || "orig";
+    const audioIdx = state.playback && state.playback.audioIdx;
+    url = `${location.origin}/api/transcode/${item.id}/index.m3u8?profile=${encodeURIComponent(profile)}`;
+    if (typeof audioIdx === "number" && audioIdx >= 0) url += `&audio=${audioIdx}`;
+    url += `&session=${encodeURIComponent(token)}`;
+    contentType = "application/vnd.apple.mpegurl";
+  } else {
+    url = `${location.origin}/api/stream/${item.id}${sep(`/api/stream/${item.id}`)}session=${encodeURIComponent(token)}`;
+    contentType = "video/mp4";
+  }
+  try {
+    const ctx = window.cast.framework.CastContext.getInstance();
+    await ctx.requestSession();
+    const session = ctx.getCurrentSession();
+    if (!session) return;
+    const mediaInfo = new window.chrome.cast.media.MediaInfo(url, contentType);
+    mediaInfo.metadata = new window.chrome.cast.media.GenericMediaMetadata();
+    const md = item.metadata;
+    mediaInfo.metadata.title = (md && md.title) || item.title;
+    if (md && md.posterPath && item.metadataId) {
+      mediaInfo.metadata.images = [
+        new window.chrome.cast.Image(`${location.origin}/api/poster/metadata/${item.metadataId}`),
+      ];
+    }
+    const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
+    // Wenn der lokale Player bereits läuft: an aktueller Position weiterspielen.
+    if (state.vjs && typeof state.vjs.currentTime === "function") {
+      const cur = state.vjs.currentTime() || 0;
+      const offset = (state.playback && state.playback.virtualOffset) || 0;
+      request.currentTime = Math.max(0, cur + offset);
+      // Lokal pausieren — Cast übernimmt jetzt.
+      try { state.vjs.pause(); } catch {}
+    }
+    await session.loadMedia(request);
+    showToast("Cast gestartet — Wiedergabe läuft am gewählten Gerät", { kind: "success", duration: 3500 });
+  } catch (e) {
+    if (e && e.code === "cancel") return; // User hat das Geräte-Picker-Modal abgebrochen
+    appAlert("Cast-Fehler: " + (e && e.description || e && e.code || e));
+  }
 }
 
 function updatePlayerButtons() {
@@ -4711,9 +4819,12 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     addIfMissing("ShuffleNext", 1);
     addIfMissing("FavoriteButton", 2);
     addIfMissing("PlaylistButton", 3);
+    // Cast-Button — bleibt unsichtbar, bis das Cast-Framework geladen ist
+    // (initCastFramework markiert state.castReady und ruft btn.show()).
+    addIfMissing("CastButton", 4);
     // Löschbutton nur für Admins; liegt direkt neben PlaylistButton.
     if (state.me && state.me.isAdmin) {
-      addIfMissing("DeleteButton", 4);
+      addIfMissing("DeleteButton", 5);
     }
   }
   updatePlayerButtons();
@@ -4794,6 +4905,9 @@ function disposePlayer() {
     v.setAttribute("controls", "");
     v.setAttribute("playsinline", "");
     v.setAttribute("preload", "auto");
+    // AirPlay-Erlaubnis (Safari/iOS) — siehe index.html.
+    v.setAttribute("x-webkit-airplay", "allow");
+    v.setAttribute("airplay", "allow");
     stage.appendChild(v);
   }
   // Overlay zurück in die Docked-Position (.player-wrap). Falls es gerade im
@@ -7398,4 +7512,7 @@ async function checkAuth() {
   setInterval(checkScanActive, 30000);
   setInterval(checkTrickplayWorker, 30000);
   renderUserMenu();
+  // Google-Cast SDK initialisieren — registriert sich beim Cast-Framework
+  // sobald `cast_sender.js` geladen ist und der Receiver-Discovery startet.
+  initCastFramework();
 })();

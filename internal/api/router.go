@@ -50,6 +50,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/auth/logout", s.authLogout)
 		r.Post("/auth/setup", s.authSetup)
 		r.Put("/auth/password", s.changeMyPassword)
+		r.Post("/auth/cast-token", s.castToken)
 
 		// OIDC-SSO via Authentik (optional — nur aktiv wenn OIDC_*-Env gesetzt)
 		r.Get("/auth/oidc/login", s.oidcLogin)

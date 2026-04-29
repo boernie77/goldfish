@@ -9,6 +9,10 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/favicon.svg" />
 <script src="/video.min.js" defer></script>
+<!-- Google Cast Sender SDK (Chromecast, FireTV mit AirScreen, Smart-TVs mit Cast).
+     Lädt asynchron; bei Verfügbarkeit setzt Goldfish einen Cast-Button in der Player-
+     Control-Bar. Cast-Geräte authentifizieren via temporärem Token (?session=…). -->
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
 </head>
 <body>
 <header class="topbar">
@@ -155,7 +159,11 @@
       <button id="playerClose" class="player-close" title="Schließen">✕</button>
     </header>
     <div class="video-stage">
-      <video id="video" class="video-js" controls playsinline preload="auto"></video>
+      <!-- AirPlay-Erlaubnis: Safari/iOS zeigt einen nativen AirPlay-Button im
+           Player und kann das laufende Video aufs Apple TV werfen.
+           x-webkit-airplay = altes Safari-Attribut, airplay = HTML5-Standard. -->
+      <video id="video" class="video-js" controls playsinline preload="auto"
+             x-webkit-airplay="allow" airplay="allow"></video>
       <div id="prebufferOverlay" class="prebuffer-overlay hidden">
         <div class="prebuffer-title">Startvorlauf wird geladen…</div>
         <div class="prebuffer-progress"><div class="prebuffer-bar" style="width:0%"></div></div>
