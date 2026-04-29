@@ -201,8 +201,13 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 			startDir = scoped
 		}
 		err := filepath.WalkDir(startDir, func(path string, d fs.DirEntry, err error) error {
+			// Intentional: bei einzelnen Datei-Fehlern (Permission denied, mitten im
+			// Scan verschwundene Datei) den Walk fortsetzen statt abzubrechen. nil
+			// statt err returnen ist hier Programm — `filepath.SkipDir` waere zu
+			// aggressiv (uebergeht den ganzen Ordner), und das Bubblen des Errors
+			// wuerde den Library-Scan komplett scheitern lassen.
 			if err != nil {
-				return nil
+				return nil //nolint:nilerr
 			}
 			if d.IsDir() {
 				// Sample-Ordner komplett überspringen — die Teaser-Files sind redundant

@@ -1861,7 +1861,7 @@ func (s *Store) ListMetadataIDsForRefresh() ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []int64
 	for rows.Next() {
 		var id int64

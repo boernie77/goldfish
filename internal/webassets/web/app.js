@@ -120,7 +120,6 @@ const itemsCache = new Map(); // key → { ts, data }
 const ITEMS_CACHE_LIMIT = 5;
 const ITEMS_CACHE_TTL_MS = 30_000; // 30s
 
-function itemsCacheKey(path) { return path; }
 function itemsCacheGet(path) {
   const e = itemsCache.get(path);
   if (!e) return null;
@@ -967,38 +966,10 @@ async function bulkDelete() {
   loadItems();
 }
 
-// Manueller Duplikat-Merge: alle ausgewählten Items erhalten dieselbe
-// metadata_id wie das erste Item mit Zuordnung. Das Grid gruppiert sie
-// danach automatisch zu einer Kachel (groupVariants).
-async function bulkMerge() {
-  const ids = Array.from(state.selection);
-  if (ids.length < 2) { appAlert("Mindestens 2 Videos auswählen."); return; }
-  // Kleines Preview der Titel, damit der User sieht, was zusammengeführt wird.
-  const titles = ids.slice(0, 5)
-    .map(id => (state.lastRenderedItems || []).find(it => it.id === id))
-    .filter(Boolean)
-    .map(it => `• ${(it.metadata && it.metadata.title) || it.title}`)
-    .join("\n");
-  const extra = ids.length > 5 ? `\n… und ${ids.length - 5} weitere` : "";
-  if (!(await appConfirm(`Diese ${ids.length} Videos als Duplikate zusammenführen?\n\n${titles}${extra}\n\nAlle erhalten dieselbe TMDB-Zuordnung wie das erste bereits zugeordnete Item.`))) return;
-  try {
-    await api("/api/items/merge", { method: "POST", body: JSON.stringify({ ids }) });
-    setSelectionMode(false);
-    await loadItems();
-  } catch (e) { appAlert("Merge fehlgeschlagen: " + e.message); }
-}
-
-// Schlüssel für die pro-Ordner-Sortierung im localStorage.
 // Staffel-Ansicht-Einstellungen (3-stufig):
 //  - pro Serie:  seasonView:<libID>:<folder> = "1" / "0"  (setzt Default außer Kraft)
 //  - pro Library: seasonView:lib:<libID>         = "1" / "0"  (Default für alle Serien)
 // Effective = pro Serie if set, else library-Default, else false.
-function seasonViewKey() {
-  if (state.currentFolder) {
-    return `seasonView:${state.currentLibrary || 0}:${state.currentFolder}`;
-  }
-  return `seasonView:lib:${state.currentLibrary || 0}`;
-}
 function seasonViewEffective() {
   try {
     if (state.currentFolder) {
@@ -2646,36 +2617,6 @@ function renderRangeContinuationCard(it, ep) {
   return el;
 }
 
-function renderOwnedEpisodeStub(ep) {
-  const el = document.createElement("article");
-  el.className = "card";
-  el.tabIndex = 0;
-  el.setAttribute("role", "button");
-  el.dataset.itemId = String(ep.itemId);
-  const still = ep.stillPath
-    ? `https://image.tmdb.org/t/p/w342${ep.stillPath}`
-    : `/api/thumb/${ep.itemId}`;
-  const sxxexx = `S${String(ep.season).padStart(2,"0")}E${String(ep.episode).padStart(2,"0")}`;
-  el.innerHTML = `
-    <div class="thumb">
-      <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${still}">
-    </div>
-    <div class="card-body">
-      <div class="card-title" title="${escapeHTML(ep.title || "")}">${escapeHTML(ep.title || sxxexx)}</div>
-      <div class="card-meta">
-        <span class="episode-code">${sxxexx}</span>
-        ${ep.airDate ? `<span>${escapeHTML(ep.airDate.slice(0,10))}</span>` : ""}
-      </div>
-    </div>
-  `;
-  el.addEventListener("click", async () => {
-    try {
-      const it = await api(`/api/items/${ep.itemId}`);
-      openDetail(it);
-    } catch (e) { appAlert(e.message); }
-  });
-  return el;
-}
 
 function renderMissingEpisodeCard(ep) {
   const el = document.createElement("article");

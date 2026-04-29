@@ -158,10 +158,6 @@ func (s *Server) setMetadataPoster(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data = buf
-		ext = filepath.Ext(body.TMDBPath)
-		if ext == "" {
-			ext = ".jpg"
-		}
 		newPath = body.TMDBPath
 	}
 

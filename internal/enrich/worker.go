@@ -628,7 +628,7 @@ func (w *Worker) FetchEpisodeMetadata(ctx context.Context, showTMDBID int64, sea
 // metadata_confirmed nicht angefasst).
 func (w *Worker) RefreshItemMetadata(ctx context.Context, item *model.Item) (*model.Metadata, error) {
 	if item == nil || item.MetadataID == 0 {
-		return nil, errors.New("Item hat keine TMDB-Zuordnung")
+		return nil, errors.New("item hat keine TMDB-Zuordnung")
 	}
 	return w.refreshMetadataByID(ctx, item.MetadataID)
 }
@@ -642,7 +642,7 @@ func (w *Worker) refreshMetadataByID(ctx context.Context, metaID int64) (*model.
 		return nil, err
 	}
 	if cur == nil {
-		return nil, errors.New("Metadata nicht gefunden")
+		return nil, errors.New("metadata nicht gefunden")
 	}
 	if w.client == nil || !w.client.Enabled() {
 		return nil, errors.New("TMDB-Key nicht konfiguriert")
@@ -659,7 +659,7 @@ func (w *Worker) refreshMetadataByID(ctx context.Context, metaID int64) (*model.
 			parent, _ = w.store.GetMetadata(cur.ParentID)
 		}
 		if parent == nil {
-			return nil, errors.New("Episode hat keinen Parent-Show — manuell neu zuordnen")
+			return nil, errors.New("episode hat keinen Parent-Show — manuell neu zuordnen")
 		}
 		refreshed, err = w.FetchEpisodeMetadata(ctx, parent.TMDBID, cur.Season, cur.Episode)
 	default:

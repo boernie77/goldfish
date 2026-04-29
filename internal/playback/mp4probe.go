@@ -69,6 +69,11 @@ func IsMP4Streamable(path string) (bool, error) {
 		if size < uint64(headerLen) {
 			return false, fmt.Errorf("ungültige Atom-Größe %d in %s", size, atomType)
 		}
+		// Defensive Obergrenze gegen unsinnige 64-bit-Atom-Sizes (manipulierte
+		// MP4-Header). int64-Konversion unten waere sonst unsicher.
+		if size > 1<<62 {
+			return false, fmt.Errorf("unplausibel grosse Atom-Größe %d in %s", size, atomType)
+		}
 		switch atomType {
 		case "moov":
 			return true, nil // Header vor Daten → streamfähig
