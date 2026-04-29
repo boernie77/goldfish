@@ -1708,6 +1708,52 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
   color: rgba(148, 163, 184, 0.3);
   cursor: default;
 }
+.alpha-sidebar button.is-active {
+  color: #fff;
+  background: #2563eb;
+  border-radius: 4px;
+}
+
+/* Anfangsbuchstaben-Filter: Banner zwischen Breadcrumb und Grid + DOM-Filter
+   für die Karten. Klick auf einen Sidebar-Buchstaben blendet alle nicht
+   passenden Kacheln per .alpha-hidden aus, ✕ im Banner hebt's wieder auf. */
+.alpha-filter-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px;
+  padding: 6px 12px;
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  border-radius: 6px;
+  color: #bfdbfe;
+  font-size: 13px;
+}
+.alpha-filter-banner.hidden { display: none; }
+.alpha-filter-banner .afb-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.alpha-filter-banner .afb-close {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: #93c5fd;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.alpha-filter-banner .afb-close:hover { color: #fff; }
+
+.card.alpha-hidden { display: none !important; }
 
 /* Collection-Part: fehlende Filme gedimmt, Badge "Fehlt" über dem Thumb */
 .collection-part.is-missing .thumb { opacity: 0.5; filter: grayscale(0.6); }

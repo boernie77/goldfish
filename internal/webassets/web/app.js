@@ -40,6 +40,7 @@ const state = {
   startBufferTimer: null,   // setInterval-Handle für den Pre-Buffer-Gate
   scrollPositions: new Map(), // navKey → scrollY für Zurück-Navigation
   lastNavKey: null,            // navKey der zuletzt gerenderten Ansicht
+  alphaFilter: null,           // null oder "A".."Z"|"#" — Anfangsbuchstaben-Filter via Sidebar-Klick
 };
 
 // captureNavSnapshot: merkt sich die aktuelle Nav-Position (Library, Folder,
@@ -755,28 +756,59 @@ function updateAlphaSidebar() {
   bar.classList.remove("hidden");
 }
 
+// jumpToLetter: vom Sidebar-Klick aufgerufen. Setzt einen Anfangsbuchstaben-
+// Filter — die Kacheln, die nicht mit diesem Buchstaben starten, werden via
+// .alpha-hidden-Klasse weggeblendet. Nochmaliger Klick auf denselben
+// Buchstaben hebt den Filter wieder auf (Toggle). Schließen geht außerdem
+// über den ✕-Chip im Breadcrumb (renderBreadcrumb fügt ihn ein).
 function jumpToLetter(ch) {
-  const matches = (title) => {
-    const t = (title || "").replace(/^\W+/, "").toUpperCase();
-    if (!t) return false;
-    if (ch === "#") return /^\d/.test(t);
-    return t.startsWith(ch);
-  };
-  // Folders haben Vorrang — sie werden im Grid vor den Items gerendert. Die
-  // erste passende Kachel (Folder oder Item) ist Sprungziel.
-  const folders = state.lastRenderedFolders || [];
-  for (const f of folders) {
-    if (matches(folderDisplayTitle(f))) {
-      const card = document.querySelector(`.card[data-folder-name="${CSS.escape(f.name)}"]`);
-      if (card) { card.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  setAlphaFilter(state.alphaFilter === ch ? null : ch);
+}
+
+function setAlphaFilter(ch) {
+  state.alphaFilter = ch || null;
+  applyAlphaFilter();
+  // Aktiv-Markierung in der Sidebar nachziehen (ohne den ganzen Bar zu rebuilden).
+  const bar = $("#alphaSidebar");
+  if (bar) {
+    for (const btn of bar.querySelectorAll("button")) {
+      btn.classList.toggle("is-active", !!ch && btn.textContent === ch);
     }
   }
-  const items = state.lastRenderedItems || [];
-  for (const it of items) {
-    if (matches((it.metadata && it.metadata.title) || it.title)) {
-      const card = document.querySelector(`.card[data-item-id="${it.id}"]`);
-      if (card) { card.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  // Banner ein-/ausblenden — sitzt zwischen Breadcrumb und Grid und ist
+  // immer sichtbar, wenn der Filter aktiv ist (egal in welcher View).
+  const banner = $("#alphaFilterBanner");
+  const letter = $("#alphaFilterLetter");
+  if (banner && letter) {
+    if (ch) {
+      letter.textContent = ch;
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
     }
+  }
+}
+
+// applyAlphaFilter: läuft nach jedem Render und verbirgt Kacheln, deren
+// Anfangsbuchstabe nicht zum aktiven Filter passt. Liest den Titel aus
+// `.card-title` der gerade gerenderten Kachel — funktioniert sowohl für
+// Folder- als auch Item-Cards, ohne dass beide Render-Funktionen
+// einzelne data-Attribute setzen müssen.
+function applyAlphaFilter() {
+  const grid = $("#grid");
+  if (!grid) return;
+  const ch = state.alphaFilter;
+  for (const card of grid.querySelectorAll(".card")) {
+    if (!ch) {
+      card.classList.remove("alpha-hidden");
+      continue;
+    }
+    const titleEl = card.querySelector(".card-title");
+    const t = (titleEl ? titleEl.textContent : "").replace(/^\W+/, "").toUpperCase();
+    let match;
+    if (ch === "#") match = /^\d/.test(t);
+    else match = !!t && t.startsWith(ch);
+    card.classList.toggle("alpha-hidden", !match);
   }
 }
 
@@ -1448,10 +1480,20 @@ async function loadItems() {
     state.scrollPositions.set(state.lastNavKey, window.scrollY);
   }
   const targetKey = navKey();
+  // Bei Navigations-Wechsel den Anfangsbuchstaben-Filter zurücksetzen — er
+  // ist immer kontextspezifisch (z. B. „M in Filme") und macht in einer
+  // anderen Library/Ordner keinen Sinn mehr. setAlphaFilter pflegt
+  // gleichzeitig das Banner und die Sidebar-Markierung.
+  if (state.lastNavKey && state.lastNavKey !== targetKey && state.alphaFilter) {
+    setAlphaFilter(null);
+  }
   state.lastNavKey = targetKey;
   try {
     return await loadItemsBody();
   } finally {
+    // Nach jedem Render den Alpha-Filter erneut anwenden (DOM-Cards sind
+    // frisch und haben die .alpha-hidden-Klasse noch nicht).
+    applyAlphaFilter();
     // requestAnimationFrame: Browser hatte einen Frame Zeit, das Grid zu
     // layouten — sonst landen wir auf scrollY=0 weil der Inhalt noch nicht
     // hoch genug ist. Doppelt rAF, weil rendering manchmal zwei Frames
@@ -7287,6 +7329,9 @@ async function checkAuth() {
   if (gridEl && window.MutationObserver) {
     new MutationObserver(() => updateAlphaSidebar()).observe(gridEl, { childList: true });
   }
+  // Anfangsbuchstaben-Filter: ✕-Button im Banner hebt den Filter wieder auf.
+  const afClose = $("#alphaFilterClose");
+  if (afClose) afClose.addEventListener("click", () => setAlphaFilter(null));
   // Topbar ist fixed → Body braucht ein padding-top in Topbar-Höhe. Höhe
   // ändert sich beim Wrapping (viele Buttons → 2 Zeilen), deshalb live
   // nachführen.
