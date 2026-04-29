@@ -11,7 +11,23 @@
 <script src="/video.min.js" defer></script>
 <!-- Google Cast Sender SDK (Chromecast, FireTV mit AirScreen, Smart-TVs mit Cast).
      Lädt asynchron; bei Verfügbarkeit setzt Goldfish einen Cast-Button in der Player-
-     Control-Bar. Cast-Geräte authentifizieren via temporärem Token (?session=…). -->
+     Control-Bar. Cast-Geräte authentifizieren via temporärem Token (?session=…).
+     WICHTIG: Der __onGCastApiAvailable-Hook wird hier SYNCHRON definiert, BEVOR
+     das Cast-SDK lädt. Wenn das SDK aus dem Browser-Cache schneller fertig ist
+     als app.js, würde ein spät gesetzter Hook ins Leere laufen → Cast-Button
+     bleibt unsichtbar. Der Stub speichert das Result global; app.js liest es
+     in initCastFramework() aus oder registriert seinen Callback. -->
+<script>
+  window.__castSdkReady = false;
+  window.__castSdkAvailable = false;
+  window.__onGCastApiAvailable = function (isAvailable) {
+    window.__castSdkReady = true;
+    window.__castSdkAvailable = !!isAvailable;
+    if (typeof window.__onCastSdkResult === "function") {
+      window.__onCastSdkResult(!!isAvailable);
+    }
+  };
+</script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
 </head>
 <body>

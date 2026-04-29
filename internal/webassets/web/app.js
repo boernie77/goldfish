@@ -4287,9 +4287,14 @@ function ensurePlayerComponents() {
 // (HLS, MP4) abspielt. Eigener Receiver wäre möglich, aber unnötig: für
 // einfaches Streaming reicht der Default.
 function initCastFramework() {
-  // Hook, den die Cast-Bibliothek aufruft, sobald sie geladen ist.
-  window["__onGCastApiAvailable"] = (isAvailable) => {
-    if (!isAvailable || !window.cast || !window.cast.framework) return;
+  // Setup-Function: läuft sobald wir wissen, ob Cast verfügbar ist.
+  // Idempotent — kann sowohl aus dem frühen __onGCastApiAvailable-Pfad
+  // (Stub in index.html) als auch aus einem späten Callback aufgerufen werden.
+  const setup = (isAvailable) => {
+    if (!isAvailable || !window.cast || !window.cast.framework) {
+      console.log("[cast] not available in this browser (Firefox? kein Chromium?)");
+      return;
+    }
     try {
       const ctx = window.cast.framework.CastContext.getInstance();
       ctx.setOptions({
@@ -4308,6 +4313,14 @@ function initCastFramework() {
       console.warn("[cast] init failed", e);
     }
   };
+  // Race-Handling: Wenn das Cast-SDK aus dem Browser-Cache schneller fertig
+  // ist als app.js, hat der index.html-Stub das Ergebnis bereits gespeichert.
+  // Sonst registrieren wir uns als Callback für den späteren SDK-Ready-Event.
+  if (window.__castSdkReady) {
+    setup(window.__castSdkAvailable);
+  } else {
+    window.__onCastSdkResult = setup;
+  }
 }
 
 // startCastSession: vom CastButton-Click. Holt einen Cast-Session-Token vom
@@ -4316,10 +4329,13 @@ function initCastFramework() {
 async function startCastSession() {
   if (!state.castReady || !window.cast || !state.currentItem) return;
   const item = state.currentItem;
-  let token = "";
+  let token = state.castToken || "";
   try {
-    const r = await api("/api/auth/cast-token", { method: "POST" });
-    token = r && r.token;
+    if (!token) {
+      const r = await api("/api/auth/cast-token", { method: "POST" });
+      token = r && r.token;
+      if (token) state.castToken = token;
+    }
   } catch (e) {
     appAlert("Cast-Token konnte nicht erstellt werden: " + e.message);
     return;
@@ -4697,6 +4713,25 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   // Resume-Position bzw. 0 bei „Von Anfang".
   state.playback.startWantedSec = info.mode === "transcode" ? 0 : resumeForDirectPlay;
 
+  // Cast-/AirPlay-Auth: Wenn der User den Stream auf einen externen Receiver
+  // (AppleTV, Chromecast, FireTV) routet, holt das Gerät die URL SELBST vom
+  // Server — ohne Browser-Cookie. Ein Session-Token im Query-Param ist die
+  // einzige Möglichkeit, das ohne Auth-Bypass zu erlauben. Wir hängen ihn
+  // proaktiv an die URL an: sowohl bei Direct Play (für AirPlay) als auch
+  // bei Transcode (für Chromecast). Cookie-Auth bleibt parallel gültig — der
+  // Browser nutzt weiterhin das Cookie, der Token ist nur für externe Geräte
+  // relevant. Token wird einmal pro Player-Session geholt + gecacht.
+  if (!state.castToken) {
+    try {
+      const r = await api("/api/auth/cast-token", { method: "POST" });
+      if (r && r.token) state.castToken = r.token;
+    } catch (e) { /* nicht-blockierend; Browser-Cookie reicht */ }
+  }
+  if (state.castToken) {
+    const sep = info.url.includes("?") ? "&" : "?";
+    info.url = `${info.url}${sep}session=${encodeURIComponent(state.castToken)}`;
+  }
+
   // Video.js-Instanz bei Möglichkeit wiederverwenden (erhält Vollbild-Modus
   // beim Shuffle-Weiterschalten). Nur bei erstem Öffnen neu erzeugen.
   const srcType = info.mode === "transcode"
@@ -4857,10 +4892,16 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     // Cast-Button — bleibt unsichtbar, bis das Cast-Framework geladen ist
     // (initCastFramework markiert state.castReady und ruft btn.show()).
     addIfMissing("CastButton", 4);
-    // AirPlay-Button — Safari/iOS-only, bleibt unsichtbar bis das
-    // <video>-Element ein Availability-Event mit `available` feuert
-    // (= AppleTV/HomePod im selben Netz erkannt).
-    addIfMissing("AirPlayButton", 5);
+    // AirPlay-Button NUR bei Direct Play hinzufügen. Bei Transcode (HLS via
+    // VHS-MSE) zeigt Safari zwar den AirPlay-Picker, kann den Stream aber
+    // nicht an den AppleTV weiterreichen — der Spinner dreht sich auf dem
+    // AppleTV ohne dass je Frames ankommen. Apple unterstützt AirPlay-
+    // Routing nur, wenn das <video>-Element direkt eine Source-URL liest
+    // (progressives MP4 = Direct Play). Bei Transcode-Items gibt's stattdessen
+    // den Hinweis im UI: macOS-Bildschirmsynchronisierung verwenden.
+    if ((info && info.mode) === "direct") {
+      addIfMissing("AirPlayButton", 5);
+    }
     // Löschbutton nur für Admins; liegt direkt neben PlaylistButton.
     if (state.me && state.me.isAdmin) {
       addIfMissing("DeleteButton", 6);
