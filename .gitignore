@@ -22,3 +22,4 @@
 # Test artifacts
 /coverage.out
 /cmd/test*
+/.claude/
