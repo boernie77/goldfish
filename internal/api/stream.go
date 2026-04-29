@@ -221,8 +221,23 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 	// mit leerem Playlist-Stand startet. Wird vom „Von Anfang"-Pfad genutzt —
 	// sonst bekommt der Browser eine Playlist, in der schon ein paar hundert
 	// Sekunden Material liegen, und springt nicht zur Position 0.
+	//
+	// IDEMPOTENZ: VHS lädt die EVENT-Playlist periodisch neu mit derselben
+	// URL (inkl. fresh=1) — würde der Handler bei jedem Reload die Session
+	// killen, käme nie ein zweites Segment beim Player an und Playback hängt
+	// nach ~4 s (= ein Segment). Daher fresh=1 nur honorieren, wenn keine
+	// laufende Session existiert oder die laufende noch sehr jung ist
+	// (Schwelle: 4 s = eine Segment-Dauer; alles drüber ist „bereits am
+	// produzieren" und darf nicht abgebrochen werden).
 	if r.URL.Query().Get("fresh") == "1" {
-		s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
+		exists, age := s.Playback.SessionAge(it.ID, profile, audioIdx, startSec, deinterlace)
+		// Junge Session NICHT killen — kommt von genau diesem Player gerade.
+		// Stoppen nur wenn entweder keine Session da ist (no-op) oder die
+		// Session schon alt genug ist, um wirklich von einem früheren Play
+		// stehen geblieben zu sein.
+		if !exists || age >= 4*time.Second {
+			s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
+		}
 	}
 	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace)
 	if err != nil {

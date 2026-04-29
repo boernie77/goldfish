@@ -57,6 +57,7 @@ type Session struct {
 	AudioIdx  int  // -1 = default (erster Audio-Stream)
 	Dir       string
 	StartSec  float64
+	StartedAt time.Time // Wall-Clock-Zeit beim Session-Erzeugen — fresh=1-Idempotenz
 	Cmd       *exec.Cmd
 	cancel    context.CancelFunc
 	lastUsed  time.Time
@@ -130,6 +131,27 @@ func (m *Manager) StopSession(itemID int64, profile Profile, audioIdx int, start
 	}
 }
 
+// SessionAge liefert die Lebensdauer der existierenden Session zur Key oder
+// (false, _), wenn keine läuft. Wird vom Playlist-Handler genutzt, um
+// `fresh=1` idempotent zu machen: VHS holt EVENT-Playlists periodisch neu
+// mit derselben URL — würde der Server jedes Mal die ffmpeg-Session killen,
+// käme nie ein zweites Segment beim Player an, Playback hängt nach 4 s.
+// Akzeptiert wird `fresh` nur, wenn die Session noch nicht existiert oder
+// älter als ein paar Sekunden ist (bereits genug Material produziert hat).
+func (m *Manager) SessionAge(itemID int64, profile Profile, audioIdx int, startSec float64, deinterlace bool) (bool, time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	dei := 0
+	if deinterlace {
+		dei = 1
+	}
+	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profile.ID, audioIdx, int(startSec), dei)
+	if s, ok := m.sessions[id]; ok {
+		return true, time.Since(s.StartedAt)
+	}
+	return false, 0
+}
+
 // StartOrGet returns an existing session for the item or starts a new one.
 // Sessions werden pro (Item, Profil, Audio-Stream, Start-Offset, Deinterlace) gehalten.
 // audioIdx = -1 → default (erster Audio-Stream). Sonst ffprobe-Stream-Index.
@@ -165,17 +187,19 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		return nil, err
 	}
 
+	now := time.Now()
 	s := &Session{
-		ID:       id,
-		ItemID:   itemID,
-		Profile:  profile.ID,
-		AudioIdx: audioIdx,
-		Dir:      dir,
-		StartSec: startSec,
-		Cmd:      cmd,
-		cancel:   cancel,
-		lastUsed: time.Now(),
-		done:     make(chan struct{}),
+		ID:        id,
+		ItemID:    itemID,
+		Profile:   profile.ID,
+		AudioIdx:  audioIdx,
+		Dir:       dir,
+		StartSec:  startSec,
+		StartedAt: now,
+		Cmd:       cmd,
+		cancel:    cancel,
+		lastUsed:  now,
+		done:      make(chan struct{}),
 	}
 	go func() {
 		_ = cmd.Wait()
