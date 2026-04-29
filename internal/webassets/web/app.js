@@ -169,28 +169,8 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
-function fmtDuration(sec) {
-  sec = Math.round(sec || 0);
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function fmtSize(bytes) {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0, n = bytes || 0;
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
-  return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
-}
-
-function fmtDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
-  return d.toLocaleDateString("de-DE", { year: "numeric", month: "2-digit", day: "2-digit" });
-}
+// fmtDuration/fmtSize/fmtDate liegen in helpers.js (gleiche window-Scope,
+// via separatem <script>-Tag VOR app.js geladen).
 
 // applyNaturalTitleSort: re-sortiert items mit "natural" / "human" Vergleich,
 // damit Zahlen im Titel als Werte sortiert werden (1, 2, …, 9, 10, 11) statt
@@ -1164,34 +1144,12 @@ async function toggleFavoriteOnCard(item, btn) {
   }
 }
 
-function resLabel(it) {
-  if (!it) return "";
-  const w = it.width || 0;
-  const h = it.height || 0;
-  // Cinemascope-Filme (2.40:1) sind bei 1080p-Quelle nur ~800 Pixel hoch,
-  // aber volle 1920 breit. Wir nehmen deshalb das Maximum aus Höhe und auf
-  // 16:9 normalisierter Breite als „effektive Höhe" — dann landen sie im
-  // korrekten 1080p-Bucket.
-  const effH = Math.max(h, Math.round(w * 9 / 16));
-  if (effH >= 2000) return "4K";
-  if (effH >= 1400) return "2K";
-  if (effH >= 1000) return "1080p";
-  if (effH >= 700) return "720p";
-  if (effH >= 540) return "576p";
-  if (effH >= 440) return "480p";
-  if (effH >= 300) return "360p";
-  if (effH > 0) return effH + "p";
-  return "";
-}
+// resLabel liegt in helpers.js.
 
 // App-Dialoge (appAlert/appConfirm/appPrompt/showToast) liegen in dialogs.js
 // und werden via separatem <script>-Tag VOR app.js geladen.
 
-function escapeHTML(s) {
-  return String(s).replace(/[&<>"']/g, c => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
-}
+// escapeHTML liegt in helpers.js.
 
 // --- Libraries ---
 
