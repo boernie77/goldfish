@@ -70,14 +70,25 @@ type Manager struct {
 	sessions map[string]*Session
 	cacheDir string
 	hw       HWAccel
+	// freshHandledAt: Zeitpunkt, an dem ein `fresh=1`-Request fuer diesen
+	// Session-Key zuletzt das Stop-and-Recreate ausgeloest hat. VHS laedt
+	// EVENT-Playlists periodisch (alle ~targetDuration ≈ 4 s) mit DERSELBEN
+	// URL inkl. fresh=1. Ohne diese Drosselung wuerde jeder Reload nach
+	// 4 s die Session toeten und neu starten → Wiedergabe stottert sichtbar
+	// (Server-Buffer klettert hoch, fällt auf 0, klettert wieder hoch).
+	// Mit der Map honorieren wir fresh=1 nur einmal pro Key in einem
+	// 60-Sekunden-Fenster — damit reicht der erste Klick „Von Anfang"
+	// zum Stale-Session-Reset, alle folgenden VHS-Reloads sind no-op.
+	freshHandledAt map[string]time.Time
 }
 
 func NewManager(cacheDir string, hw HWAccel) *Manager {
 	_ = os.MkdirAll(cacheDir, 0o755)
 	m := &Manager{
-		sessions: map[string]*Session{},
-		cacheDir: cacheDir,
-		hw:       hw,
+		sessions:       map[string]*Session{},
+		cacheDir:       cacheDir,
+		hw:             hw,
+		freshHandledAt: map[string]time.Time{},
 	}
 	go m.gcLoop()
 	return m
@@ -150,6 +161,36 @@ func (m *Manager) SessionAge(itemID int64, profile Profile, audioIdx int, startS
 		return true, time.Since(s.StartedAt)
 	}
 	return false, 0
+}
+
+// ConsumeFresh meldet, ob ein `fresh=1`-Request fuer diesen Session-Key gerade
+// JETZT ausgefuehrt werden darf (= der erste fresh=1 in einem 60-Sekunden-
+// Fenster). Wird true zurueckgegeben, ist der Caller fuer das anschliessende
+// StopSession+StartOrGet zustaendig; der Timestamp wurde intern gesetzt, sodass
+// VHS-Playlist-Reloads in den naechsten 60 s false bekommen und keine zweite
+// Stop-and-Restart-Welle ausloesen.
+func (m *Manager) ConsumeFresh(itemID int64, profile Profile, audioIdx int, startSec float64, deinterlace bool) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	dei := 0
+	if deinterlace {
+		dei = 1
+	}
+	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profile.ID, audioIdx, int(startSec), dei)
+	if last, ok := m.freshHandledAt[id]; ok && time.Since(last) < 60*time.Second {
+		return false
+	}
+	m.freshHandledAt[id] = time.Now()
+	// Map gelegentlich aufraeumen — alte Eintraege bleiben sonst forever
+	if len(m.freshHandledAt) > 200 {
+		cutoff := time.Now().Add(-10 * time.Minute)
+		for k, t := range m.freshHandledAt {
+			if t.Before(cutoff) {
+				delete(m.freshHandledAt, k)
+			}
+		}
+	}
+	return true
 }
 
 // LookupSession liefert die existierende Session zur Key oder nil, wenn keine

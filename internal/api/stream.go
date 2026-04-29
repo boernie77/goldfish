@@ -222,20 +222,16 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 	// sonst bekommt der Browser eine Playlist, in der schon ein paar hundert
 	// Sekunden Material liegen, und springt nicht zur Position 0.
 	//
-	// IDEMPOTENZ: VHS lädt die EVENT-Playlist periodisch neu mit derselben
-	// URL (inkl. fresh=1) — würde der Handler bei jedem Reload die Session
-	// killen, käme nie ein zweites Segment beim Player an und Playback hängt
-	// nach ~4 s (= ein Segment). Daher fresh=1 nur honorieren, wenn keine
-	// laufende Session existiert oder die laufende noch sehr jung ist
-	// (Schwelle: 4 s = eine Segment-Dauer; alles drüber ist „bereits am
-	// produzieren" und darf nicht abgebrochen werden).
+	// IDEMPOTENZ via Manager.ConsumeFresh: VHS laedt die EVENT-Playlist
+	// periodisch (alle ~targetDuration ≈ 4 s) mit DERSELBEN URL inkl.
+	// fresh=1. Ein Age-Threshold reicht NICHT als Idempotenz — sobald die
+	// Session aelter als 4 s ist, killt jede VHS-Reload sie erneut →
+	// Wiedergabe stottert sichtbar (Server-Buffer pendelt zwischen 0 und
+	// hoch). ConsumeFresh sperrt den Stop-Weg fuer 60 s pro Session-Key,
+	// nachdem ihn der erste Request ausgeloest hat — VHS-Reloads sind dann
+	// no-op und die laufende Session bleibt am Leben.
 	if r.URL.Query().Get("fresh") == "1" {
-		exists, age := s.Playback.SessionAge(it.ID, profile, audioIdx, startSec, deinterlace)
-		// Junge Session NICHT killen — kommt von genau diesem Player gerade.
-		// Stoppen nur wenn entweder keine Session da ist (no-op) oder die
-		// Session schon alt genug ist, um wirklich von einem früheren Play
-		// stehen geblieben zu sein.
-		if !exists || age >= 4*time.Second {
+		if s.Playback.ConsumeFresh(it.ID, profile, audioIdx, startSec, deinterlace) {
 			s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
 		}
 	}
