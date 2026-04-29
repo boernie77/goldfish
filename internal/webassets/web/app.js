@@ -4339,7 +4339,7 @@ async function startCastSession() {
     currentItem: state.currentItem && state.currentItem.id,
   });
   if (!state.castReady || !window.cast || !window.cast.framework) {
-    appAlert("Cast-Framework ist nicht bereit. Konsole öffnen (Cmd-Opt-I) → Reload und nach „[cast]" suchen.");
+    appAlert('Cast-Framework ist nicht bereit. Konsole öffnen (Cmd-Opt-I) und nach "[cast]" suchen.');
     return;
   }
   if (!state.currentItem) return;
