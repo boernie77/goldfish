@@ -1865,7 +1865,12 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   word-break: break-all;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
+.trickplay-log-entry .tp-row-main { flex: 1; min-width: 0; }
+.trickplay-log-entry .tp-row-path { word-break: break-all; }
 .trickplay-log-entry:last-child { border-bottom: none; }
 .trickplay-log-entry.failed { background: rgba(239, 68, 68, 0.1); }
 .trickplay-log-entry .err {
@@ -1873,6 +1878,19 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
   font-size: 11px;
   margin-top: 2px;
 }
+.trickplay-log-entry .tp-row-retry {
+  flex: 0 0 auto;
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  color: #bfdbfe;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+}
+.trickplay-log-entry .tp-row-retry:hover { background: #2563eb; color: #fff; }
+.trickplay-log-entry .tp-row-retry:disabled { opacity: 0.5; cursor: default; }
 
 /* Icon-Buttons im Detail-Dialog (kompakte Reihe) */
 .icon-row {

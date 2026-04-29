@@ -177,6 +177,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/trickplay/cancel", requireAdmin(s.cancelTrickplay))
 		r.Post("/trickplay/delete-all", requireAdmin(s.deleteAllTrickplay))
 		r.Post("/trickplay/retry-failed", requireAdmin(s.retryFailedTrickplay))
+		r.Post("/trickplay/items/{id}/retry", requireAdmin(s.retryItemTrickplay))
 		r.Get("/trickplay/log", requireAdmin(s.trickplayLog))
 		r.Get("/trickplay/{id}/thumbs.vtt", s.trickplayVTT)
 		r.Get("/trickplay/{id}/sprite.jpg", s.trickplaySprite)
@@ -209,7 +210,7 @@ func (s *Server) Router() http.Handler {
 // buildTag wird bei jedem Code-Push aktualisiert und ist im /api/health
 // sichtbar — schneller Smoke-Test, ob der laufende Container die aktuelle
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
-const buildTag = "2026-04-29T11:54Z"
+const buildTag = "2026-04-29T14:37Z"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

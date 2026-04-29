@@ -532,11 +532,36 @@ async function refreshTrickplayManager() {
   logEl.innerHTML = list.map(e => {
     const err = (state.tpTab === "failed" && e.error)
       ? `<div class="err">✗ ${escapeHTML(e.error)}</div>` : "";
+    // Einzel-Retry-Button nur in der Failed-Liste — pending lebt schon in der
+    // Queue, done würde nichts kaputt machen aber ist sinnlos.
+    const retryBtn = (state.tpTab === "failed" && e.id)
+      ? `<button type="button" class="tp-row-retry" data-tp-retry="${e.id}" title="Diese Datei erneut versuchen">↻</button>`
+      : "";
     return `<div class="trickplay-log-entry ${state.tpTab}">
-      <div>${escapeHTML(e.relPath || e.path)}</div>
-      ${err}
+      <div class="tp-row-main">
+        <div class="tp-row-path">${escapeHTML(e.relPath || e.path)}</div>
+        ${err}
+      </div>
+      ${retryBtn}
     </div>`;
   }).join("");
+  // Click-Delegation für die Retry-Buttons. Nicht via inline-onclick, weil
+  // refreshTrickplayManager bei jedem Tab-Wechsel die Liste neu rendert.
+  logEl.querySelectorAll("[data-tp-retry]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.tpRetry;
+      btn.disabled = true;
+      btn.textContent = "…";
+      try {
+        await api(`/api/trickplay/items/${id}/retry`, { method: "POST" });
+        await refreshTrickplayManager();
+      } catch (e) {
+        appAlert("Konnte Retry nicht starten: " + e.message);
+        btn.disabled = false;
+        btn.textContent = "↻";
+      }
+    });
+  });
 }
 
 async function cancelTrickplayRun() {

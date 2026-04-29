@@ -32,6 +32,37 @@ func (s *Server) retryFailedTrickplay(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{"reset": n})
 }
 
+// retryItemTrickplay setzt ein einzelnes Item zurück (egal welcher Status) und
+// stösst den Worker an. Wird vom Trickplay-Manager-Dialog aus einem ↻-Button
+// pro Zeile genutzt — damit der User nicht „Alle Fehler erneut versuchen"
+// drücken muss, wenn er nur eine bestimmte Datei wieder testen will.
+func (s *Server) retryItemTrickplay(w http.ResponseWriter, r *http.Request) {
+	if s.Trickplay == nil {
+		writeError(w, 503, "Trickplay nicht initialisiert")
+		return
+	}
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if err := s.Store.SetItemTrickplayError(id, "", ""); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	s.Trickplay.Trigger()
+	w.WriteHeader(204)
+}
+
 // deleteAllTrickplay entfernt alle generierten Trickplay-Dateien + resettet Status.
 func (s *Server) deleteAllTrickplay(w http.ResponseWriter, _ *http.Request) {
 	if s.Trickplay == nil {
