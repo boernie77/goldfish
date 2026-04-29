@@ -903,6 +903,43 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Transcode-Playback hängt nach genau 4 Sekunden (fresh=1 vs. VHS-Reloads)
+- **Symptom:** Beim Start eines Videos im Transcode-Modus läuft das Bild ~4 s
+  und stoppt dann. Skip-nach-vorn macht es wieder lauffähig. Sehr
+  reproduzierbar, betrifft fast jeden Initial-Play.
+- **Ursache:** Frontend hängt an die Initial-Playlist-URL `&fresh=1` an,
+  damit der Server eine evtl. stehengebliebene ffmpeg-Session beim
+  „Von Anfang"-Pfad zwangsstop'd. **Aber:** Video.js/VHS lädt eine HLS-
+  EVENT-Playlist periodisch neu — mit derselben URL inklusive `fresh=1`.
+  Der Playlist-Handler hat damit bei jedem Reload erneut `StopSession +
+  StartOrGet` ausgeführt → ffmpeg-Prozess wurde gekillt, neue Session
+  startete bei Null, hatte erst seg00000 in der Playlist (4 s Material)
+  → VHS spielte seg0, wollte seg1, das gab's nie weil die Session schon
+  wieder weg war. Skip-Nach-Vorn (`restartTranscodeAt` in `app.js`) baut
+  eine neue URL **ohne** `fresh=1` → idempotent, läuft sauber.
+- **Lösung:** `Session.StartedAt` als Wallclock-Timestamp eingeführt,
+  `Manager.SessionAge(...)` exposed die Lebensdauer. Im Playlist-Handler
+  (`internal/api/stream.go`, `transcodePlaylist`) wird `fresh=1` nur noch
+  honoriert, wenn keine Session läuft ODER die laufende ≥ 4 s alt ist
+  (= ein Segment, garantiert nicht aus dem aktuellen VHS-Reload-Zyklus).
+- **Was NICHT zu tun ist:**
+  - **NICHT** den `fresh=1`-Mechanismus „aufräumen" oder durch ein
+    One-Time-Token ersetzen, ohne den Decision-Log-Eintrag „Von Anfang
+    startet mitten im Film" weiter unten zu kennen — `fresh=1` ist
+    fundamental für korrektes „Von Anfang"-Verhalten.
+  - **NICHT** die 4-Sekunden-Schwelle für Idempotenz tiefer setzen
+    (z. B. 1 s) — VHS-Reload-Frequenz für EVENT-Playlists liegt bei
+    `target_duration` (= unsere `-hls_time 4`), tiefere Werte würden
+    Reloads als „neuer Play" missinterpretieren und das Symptom
+    zurückbringen.
+  - **NICHT** `fresh=1` clientseitig nach dem ersten Load aus der URL
+    strippen — die URL ist VHS' interne Quelle, ein nachträglicher
+    `vjs.src({...})` würde den Player komplett neu initialisieren und
+    den ggf. aktiven Fullscreen-Modus verlieren.
+  - **NICHT** das `StartedAt`-Feld aus `Session` entfernen oder
+    `SessionAge` aus `Manager` löschen — beides ist genau für diese
+    Idempotenz-Prüfung da.
+
 ### ✅ „Ohne TMDB-Zuordnung"-Filter zeigt Serien, in denen man nichts findet
 - **Symptom:** Im TV-Library-Root mit Sort=„Ohne TMDB-Zuordnung" erscheinen
   Serien wie Blacklist oder Alias als Folder-Kacheln, obwohl sie aus User-
@@ -990,6 +1027,55 @@ volumes:
     Vollbild-Modus beim Shuffle-Next, der User hat das beim Test gemerkt.
   - Lösung steht und fällt mit Punkt 5: ohne Server-Side-Reset gibt es
     keinen verlässlichen Weg, die alte Session-Position auf 0 zu zwingen.
+
+### ✅ Duplikate-Filter zeigte falsche / fehlende Filme (2026-04-28)
+- **Symptom:** „Sort = Duplikate" in einer Library zeigte nicht alle Filme,
+  von denen der User wusste, dass er 2 Versionen hat. Im Standard-Grid
+  hatten dieselben Filme aber `×2`-Badges. Plus: nach späterem Fix wurden
+  auch Episoden + Privatvideos eingemischt, wenn man in einer Movies-Lib
+  war (Wildes Kanada in Bluray-Duplikaten o. ä.).
+- **Ursachen (in der Entdeckungs-Reihenfolge):**
+  1. **Frontend mischt eigene Filter rein.** Der Duplikate-Branch schickte
+     bisher zusätzlich `watched`, `favorite` und `resolution`-Buckets an den
+     Server. Bei aktivem „nur ungesehen"-Watched-Filter UND zwei gesehenen
+     Versionen verschwand der Film komplett. Bei „nur 1080p"-Filter +
+     einem Film mit 1080p+4K war nur eine Version sichtbar.
+  2. **Inkonsistenz Server-Filter vs. Variant-Count.** Eine andere
+     Session hat heute Mittag `attachVariantCounts` eingebaut, das
+     library-übergreifend zählt — daher zeigte das Badge `×2` auch für
+     Filme, deren zweite Version in einer anderen Library liegt (Bluray-
+     Variante + Filme-Variante). Der DupesOnly-SQL-Filter prüfte aber
+     nur library-spezifisch (`WHERE library_id = i.library_id` in der
+     HAVING-Subquery) → Filme mit cross-library-Duplikaten wurden NICHT
+     gefunden.
+  3. **Library-Type-Mismatch nach erstem Fix.** Sobald der DupesOnly-
+     Subquery-Library-Filter raus war, kamen Episoden-Duplikate aus
+     Serien-Lib und Doku-Duplikate aus Privat-Libs in den Bluray-View
+     mit rein.
+- **Lösung (drei zusammenwirkende Schritte):**
+  1. **Frontend (loadItems duplicates-Branch):** keine `libraryId`,
+     keine `watched`, keine Resolution-Buckets mitsenden — nur
+     `duplicates=yes` + Suche. Damit kommen alle Versionen aller
+     Duplikate vom Server zurück, ohne dass User-Filter Versionen aus
+     dem Vergleichs-View kicken.
+  2. **Server (DupesOnly-Filter):** HAVING-Subquery ohne `library_id`-
+     Bedingung → Duplikat = `metadata_id` taucht global ≥2× auf,
+     konsistent zu `attachVariantCounts`.
+  3. **Frontend (kind-aware Filterung nach Empfang):**
+     `currentLib.kind` bestimmt, welche Libraries einbezogen sind:
+     `kind=movies` (Bluray + Filme zusammen), `tv` (alle Serien-Libs),
+     `private` (alle Privat-Libs). Nach diesem Filter wird die
+     `metadata_id`-Häufigkeit nochmal client-seitig nachgezählt — sonst
+     bleiben „Geister-Singletons" zurück, deren Geschwister durch den
+     Kind-Filter rausgefallen ist. Breadcrumb: „⧉ Duplikate (alle
+     Filme/Serien/Privatvideos)".
+- **NICHT-Funktioniert (vermeiden, schon probiert):**
+  - Nur Frontend-Filter weglassen → `watched`/`resolution`-Probleme
+    behoben, aber library-übergreifende Duplikate fehlen weiter.
+  - Nur Server-SQL global machen → cross-library erkannt, aber Episoden
+    + Privatvideos kontaminieren den Movies-Duplikate-View.
+  - Server-side neuen `library_kind`-Filter einführen → mehr Schema/API-
+    Fläche; client-seitige Kind-Filterung ist einfacher und reicht.
 
 ### ✅ Buffer-Overlay ignoriert Docked-Position
 - **Symptom:** Nach Einführung der Docked-Darstellung (Streifen unter Bild im
