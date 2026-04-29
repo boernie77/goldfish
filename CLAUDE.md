@@ -137,7 +137,8 @@ Abhängigkeiten außer ffmpeg.
 - **Backend:** Go 1.22, stdlib `net/http` + `chi/v5`
 - **DB:** `modernc.org/sqlite` (pure Go, kein cgo)
 - **Frontend:** Vanilla HTML/CSS/JS + **Video.js 8.x** (VHS für HLS, lokal gebundelt, kein CDN).
-  Trickplay-Hover-Thumbnails sind als eigenes Mini-Plugin **inline in `app.js`** implementiert
+  Aufgeteilt in 10 fokussierte JS-Module (siehe „Frontend-Modul-Layout" unter Verzeichnisstruktur).
+  Trickplay-Hover-Thumbnails sind als eigenes Mini-Plugin **inline in `player.js`** implementiert
   (das externe `videojs-vtt-thumbnails`-Plugin ist raus — war nie im Repo gebundelt,
   HEAD-Check lief gegen 405).
 - **Video:** ffmpeg mit `intel-media-va-driver` (iHD) + `libx264`-Fallback
@@ -145,6 +146,15 @@ Abhängigkeiten außer ffmpeg.
 - **Auth:** `golang.org/x/crypto/bcrypt`, HttpOnly-Session-Cookies (SameSite=Lax)
 - **Container:** Debian bookworm-slim, Multi-Stage-Build, CGO_ENABLED=0
 - **Deploy:** Portainer-Stack auf Unraid (<UNRAID-LAN-IP>:9000 → Endpoint 3, Stack-ID 37)
+- **Tests + Tooling:** Tabellen-Tests in `internal/nameparser/parser_test.go` (88,8 % Coverage)
+  und `internal/playback/decider_test.go` (Decider 100 %). Linter: `golangci-lint` (Go) und
+  `biome` (JS/CSS) — beides empfohlen vor jedem Refactor laufen lassen.
+- **Pre-Deploy-Schutz:** `scripts/check-frontend.sh` ruft `node --check` ueber alle
+  embedded JS-Files. Lokal als pre-commit-Hook (Installation: `./scripts/install-git-hooks.sh`)
+  und in CI (`.github/workflows/deploy.yml`) zwingend vor dem Build. Hat zuletzt einen
+  „deutsche Anfuehrungszeichen mit ASCII-` " ` mittendrin"-Bug abgefangen, der die
+  komplette Frontend-App tot gemacht haette. **Niemals `node --check` ueberspringen
+  bei JS-Aenderungen.**
 
 ## Verzeichnisstruktur
 
@@ -155,18 +165,64 @@ internal/auth/                    — Session-Store, Middleware, ACL-Checks (req
 internal/enrich/worker.go         — TMDB/OMDb-Enrichment-Goroutine (Background-Queue)
 internal/model/types.go           — Library, Item, Metadata, User, Playlist, LibraryKind
 internal/nameparser/parser.go     — Dateiname → {Title, Year, Season, Episode}
+internal/nameparser/parser_test.go — Tabellen-Tests, 88,8 % Coverage (siehe Frontend-Tests + Tooling)
 internal/nameparser/variants.go   — De-leet + Longest-Token-Fallback für Kandidaten-Expansion
 internal/playback/                — Decider (mit Quality-Cap), VAAPI-ffmpeg-Runner, HW-Detect
+internal/playback/decider_test.go — Tabellen-Tests fuer Decide/DecideWithCap/IsInterlaced
 internal/scanner/scanner.go       — Recursive Walk + ffprobe + Thumbnail + Metadata + Sample-Skip
 internal/store/sqlite.go          — DB + Migrationen + alle Queries
 internal/store/cast.go            — People, Metadata-Cast, Cast-Backfill-Tracking
 internal/store/collections.go     — TMDB-Collections + Items-in-Collection
 internal/tmdb/client.go           — TMDB API-Client mit Rate-Limiting
 internal/trickplay/               — Background-Worker, VAAPI-HW-Decode, Hover-Thumbnail-Sprites
-internal/webassets/               — //go:embed web/* (index.html, app.js, style.css, login.html)
+internal/webassets/               — //go:embed all:web (siehe „Frontend-Modul-Layout" unten)
+scripts/check-frontend.sh         — Pre-Deploy: `node --check` ueber alle web/*.js
+scripts/install-git-hooks.sh      — installiert pre-commit-Hook (blockt JS-Parse-Errors)
+.github/workflows/deploy.yml      — Auto-Build via Portainer-API, mit Frontend-Syntax-Check
 Dockerfile                        — Multi-Stage-Build
 docker-compose.yml                — Template für Unraid
 ```
+
+### Frontend-Modul-Layout (Stand 2026-04-29)
+
+`internal/webassets/web/` enthaelt mehrere kleine, fokussierte JS-Dateien
+(plain `<script>`-Tags, keine ES-Modules — gemeinsamer window-Scope) plus
+HTML/CSS. Die Lade-Reihenfolge in `index.html` ist relevant, weil spaetere
+Module Funktionen aus frueheren nutzen.
+
+```
+internal/webassets/web/
+  index.html                      — HTML-Skeleton + Dialog-Definitionen + Cast-SDK + Script-Tags
+  login.html                      — Login + Setup-Form + OIDC-Button
+  style.css                       — komplette App-Styles
+  helpers.js          ~63 LOC     — fmtDuration/fmtSize/fmtDate/resLabel/escapeHTML
+  dialogs.js         ~124 LOC     — appAlert/appConfirm/appPrompt/appDialog/showToast
+  api.js              ~63 LOC     — api()/apiGetCached + 30s-LRU-Cache + 401-Redirect
+  cast.js            ~142 LOC     — Google-Cast-SDK-Init + startCastSession (Token-Auth)
+  player-components.js ~196 LOC   — Video.js-Custom-Buttons (Skip, Shuffle, Fav, Playlist, Delete, Cast, AirPlay)
+  cards.js           ~593 LOC     — renderCard / renderFolderCard / renderCollectionCard / renderPlaylistCard / renderPersonShowCard / hidePartButton / openMissingMovieDialog
+  views.js           ~878 LOC     — renderHomeView (Startseite) + Staffel-Ansicht + renderRangeContinuationCard
+  grid.js            ~758 LOC     — loadItems + loadItemsBody (Branch-Logik je Anzeige-Modus)
+  player.js         ~1661 LOC     — openDetail + applyPlayback + Buffer-Gate + Trickplay-Hover + Seek-Restart + syncTranscodeDisplays
+  app.js            ~3282 LOC     — Rest: state-Objekt, Boot-Wiring, Topbar, User-Menue, Manage-Libraries, Path-Browser, Settings, Playlists, Shuffle, Scan-Statusleiste, Trickplay-Statusleiste, Manuelles-Matching, Pfad-Suche
+```
+
+**Lade-Reihenfolge in index.html:**
+```
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → app
+```
+
+Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed. Der Refactor begann bei `app.js = 7531 Zeilen` und ist aktuell bei `3282 Zeilen` (−56 %). Pause-Stand 2026-04-29.
+
+**Geplant aber noch nicht extrahiert** (TODO, siehe „Refactor-Pause-Stand"):
+- `admin.js` (~1200 LOC) — User-Menue + Manage-Libraries + Path-Browser + Settings
+- `playlists.js` (~400 LOC) — Playlist-Manager + Add-to-Playlist + Shuffle
+- `scan.js` (~400 LOC) — Scan-Statusleiste + Trickplay-Statusleiste
+- `matching.js` (~400 LOC) — Manuelles Matching + Pfad-Suche
+
+Nach diesem zweiten Refactor-Schub bliebe `app.js` ~700–900 Zeilen (state-Init, Topbar-Wiring, Boot).
+
+**Nicht ueber `<script type="module">` nutzen** — die Funktionen referenzieren sich global via window-Scope, plus der ES-Module-Loader hat Quirks bei `defer`-Reihenfolge. Plain `<script defer>` mit korrekter HTML-Reihenfolge ist hier die einfachste, korrekte Loesung.
 
 ## Architektur
 
@@ -1512,6 +1568,42 @@ PUT    /api/libraries/{id}/home-visibility {onHome: bool}
 # Health
 GET    /api/health                         (hwaccel, tmdb.enabled)
 ```
+
+## Refactor-Pause-Stand 2026-04-29 (Frontend-Modul-Split)
+
+**Was schon fertig + live ist:**
+- Phase 1 (Linter-Findings): kleine Bugs (poster-edit ineffassign, scanner nilerr-Annotation, mp4probe int64-Overflow-Schutz, 3× ST1005-Errors klein, sqlite Close-Errcheck) + Parser-Bug („Mad MAX" wurde zu „Mad Fury Road" weil `max` in reTrash) gefixt.
+- Phase 2 (Tests): `parser_test.go` (88,8 %) + `decider_test.go` (Decider 100 %) als erste Test-Suite des Projekts.
+- Phase 3a (Frontend-Module 1–9): app.js von 7531 → 3282 Zeilen geschrumpft. 9 Module raus: helpers, dialogs, api, cast, player-components, cards, views, grid, player. Alle in main + live deployed, jeder Schritt einzeln gemerged + getestet.
+
+**Was als Naechstes ansteht (Phase 3b — wenn der User „weiter" sagt):**
+1. `admin.js` (~1200 LOC) — User-Menue + Admin-Panel + Manage-Libraries + Path-Browser + Settings
+2. `playlists.js` (~400 LOC) — Playlist-Manager + Add-to-Playlist + Shuffle
+3. `scan.js` (~400 LOC) — Scan-Statusleiste + Trickplay-Statusleiste
+4. `matching.js` (~400 LOC) — Manuelles Matching + Pfad-Suche
+
+**Pattern fuer jede weitere Extraktion** (eingespielt, klappt zuverlaessig):
+1. `git checkout -b code-review/app-js-split-<name>-2026-04-XX`
+2. Block-Boundaries via `grep -n "^// --- "` finden, dann `awk 'NR==X,NR==Y' app.js > /tmp/block.js`
+3. Datei mit Header-Kommentar bauen: `cat header /tmp/block.js > web/<name>.js`
+4. app.js trimmen mit `awk` und Breadcrumb-Kommentar einfuegen
+5. `<script src="/<name>.js" defer></script>` in `index.html` an der richtigen Position der Lade-Reihenfolge
+6. `./scripts/check-frontend.sh && go build ./... && go test ./...`
+7. Commit mit klarem Format (siehe bestehende refactor(frontend)-Commits)
+8. Push branch, dann beim User „merge" abfragen
+9. Auf main mergen, deployen, User testet im Browser
+10. Erst dann naechstes Modul
+
+**Wichtig fuer die naechste Session:**
+- Auto Mode war aktiv, User pausiert bewusst nach Modul 9 (alles live grün).
+- Branch `code-review/app-js-split-player-2026-04-29` ist gemerged + live (8e76b31).
+- Die alten Branches `code-review/app-js-split-{,cards-,grid-,player-}2026-04-29` koennen geloescht werden.
+- Tests laufen mit `go test ./internal/nameparser/ ./internal/playback/`.
+- Frontend-Syntax-Check vor jedem Commit: `./scripts/check-frontend.sh`. Niemals ueberspringen bei JS-Aenderungen.
+- buildTag in `internal/api/router.go` aktuell `2026-04-29T20:50Z` — bei naechstem Backend-Change bumpen.
+
+**Backend-Roadmap (separater Track, nicht teil des Refactors):**
+- Native iOS/iPadOS/macOS-App fuer Offline-Wiedergabe (siehe project_roadmap_offline-Memory) — nach dem Refactor.
 
 ## TODO
 
