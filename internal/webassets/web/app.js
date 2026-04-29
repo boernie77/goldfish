@@ -4399,7 +4399,16 @@ async function startCastSession() {
     showToast("Cast gestartet — Wiedergabe läuft am gewählten Gerät", { kind: "success", duration: 3500 });
   } catch (e) {
     if (e && e.code === "cancel") return; // User hat das Geräte-Picker-Modal abgebrochen
-    appAlert("Cast-Fehler: " + (e && e.description || e && e.code || e));
+    const code = e && e.code;
+    let msg;
+    if (code === "session_error" || code === "receiver_unavailable") {
+      msg = `Kein Cast-Gerät gefunden.\n\nGoogle-Cast funktioniert mit Chromecast, FireTV (mit 'AirScreen'-App) oder Smart-TVs mit eingebautem Cast (Sony Bravia, Vizio …).\n\nApple TV unterstützt kein Google-Cast — dafür AirPlay aus Safari nutzen.`;
+    } else if (code === "timeout") {
+      msg = `Cast-Verbindung Timeout — Gerät reagiert nicht. Im selben WLAN? Neu starten?`;
+    } else {
+      msg = "Cast-Fehler: " + (e && e.description || code || e);
+    }
+    appAlert(msg);
   }
 }
 
