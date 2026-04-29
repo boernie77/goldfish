@@ -330,9 +330,19 @@ func (s *Server) transcodeProgress(w http.ResponseWriter, r *http.Request) {
 		it.Streams = streams
 	}
 	deinterlace := resolveDeinterlace(r.URL.Query().Get("deinterlace"), playback.IsInterlaced(it))
-	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace)
-	if err != nil {
-		writeError(w, 500, err.Error())
+	// LOOKUP, nicht StartOrGet: ein Progress-Poll mit nicht ganz exakt
+	// passenden Parametern darf NIE eine neue Session erzeugen — sonst laufen
+	// zwei ffmpeg-Instanzen parallel (eine fuer Playback, eine fuer Progress),
+	// streiten sich um VAAPI/CPU, Wiedergabe stottert. Wenn keine Session da
+	// ist, antworten wir mit positionSec=0; der Client zeigt dann Server +0.
+	sess := s.Playback.LookupSession(it.ID, profile, audioIdx, startSec, deinterlace)
+	if sess == nil {
+		writeJSON(w, 200, map[string]any{
+			"positionSec": 0.0,
+			"done":        false,
+			"startSec":    startSec,
+			"noSession":   true,
+		})
 		return
 	}
 	pos, err := sess.Position()

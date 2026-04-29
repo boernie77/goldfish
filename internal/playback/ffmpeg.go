@@ -152,6 +152,28 @@ func (m *Manager) SessionAge(itemID int64, profile Profile, audioIdx int, startS
 	return false, 0
 }
 
+// LookupSession liefert die existierende Session zur Key oder nil, wenn keine
+// läuft. Im Gegensatz zu StartOrGet wird KEINE neue Session erzeugt — der
+// Progress-Handler nutzt das, damit ein Progress-Poll mit nicht ganz exakt
+// passenden Parametern (z.B. veraltetem `start=`) nicht versehentlich eine
+// zweite ffmpeg-Instanz parallel zur eigentlichen Playback-Session startet.
+// Eine konkurrierende ffmpeg-Instanz wuerde sich mit der laufenden Wiedergabe
+// um die iGPU/CPU streiten und Stutter erzeugen.
+func (m *Manager) LookupSession(itemID int64, profile Profile, audioIdx int, startSec float64, deinterlace bool) *Session {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	dei := 0
+	if deinterlace {
+		dei = 1
+	}
+	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profile.ID, audioIdx, int(startSec), dei)
+	if s, ok := m.sessions[id]; ok {
+		s.Touch()
+		return s
+	}
+	return nil
+}
+
 // StartOrGet returns an existing session for the item or starts a new one.
 // Sessions werden pro (Item, Profil, Audio-Stream, Start-Offset, Deinterlace) gehalten.
 // audioIdx = -1 → default (erster Audio-Stream). Sonst ffprobe-Stream-Index.

@@ -4576,6 +4576,9 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   // virtualOffset: bei initialem Load 0; nach Seek-Restart auf den neuen Startpunkt gesetzt.
   state.playback.virtualOffset = 0;
   state.playback.audioIdx = audioIdx;
+  // deinterlace im state, damit Progress-Poll dieselben Session-Keys hat wie
+  // die Playback-Session (sonst spawnt der Server eine zweite ffmpeg-Instanz).
+  state.playback.deinterlace = deiVal;
 
   // Profile-Select: bei Transcode = Zielprofil, bei Auto = Qualitäts-Maximum
   const currentMode = $("#modeSelect").value;
@@ -5455,10 +5458,20 @@ function startBufferDisplay(item, mode, profile, audioIdx) {
   const isTranscode = mode === "transcode";
   let url = null;
   if (isTranscode) {
+    // Progress-URL muss EXAKT denselben Session-Key liefern wie die laufende
+    // Playback-Session: profile + audio + start + deinterlace. Ohne start
+    // sucht der Server bei start=0 — bei Resume- oder Seek-Restart matcht
+    // das nicht und `StartOrGet` spawnt eine zweite ffmpeg-Instanz parallel,
+    // die mit der eigentlichen Wiedergabe um die iGPU konkurriert. Daher
+    // hier ALLE relevanten Parameter an die URL haengen.
     const params = new URLSearchParams({ profile: profile || "orig" });
     if (audioIdx !== undefined && audioIdx !== null && audioIdx >= 0) {
       params.set("audio", String(audioIdx));
     }
+    const off = state.playback && state.playback.virtualOffset;
+    if (off && off > 0) params.set("start", String(Math.floor(off)));
+    const dei = state.playback && state.playback.deinterlace;
+    if (dei && dei !== "auto") params.set("deinterlace", dei);
     url = `/api/transcode/${item.id}/progress?${params}`;
   }
   const clientBuffer = () => {
