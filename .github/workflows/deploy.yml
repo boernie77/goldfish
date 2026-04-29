@@ -16,6 +16,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Frontend syntax check (JS)
+        # Blockiert den Deploy bei JS-Parse-Fehlern. Wir hatten mehrfach
+        # tote Frontends durch einen einzigen vergessenen Quote-Escape;
+        # seitdem laeuft `node --check` ueber alle eingebetteten JS-Files.
+        # Self-hosted Runner hat evtl. kein Node — dann faellt der Check
+        # auf einen kurzlebigen Node-Container zurueck. Docker steht auf
+        # dem Runner garantiert zur Verfuegung (Portainer-Build laeuft eh
+        # darueber).
+        run: |
+          if command -v node >/dev/null 2>&1; then
+            ./scripts/check-frontend.sh
+          else
+            docker run --rm -v "$PWD":/work -w /work node:lts-alpine \
+              ./scripts/check-frontend.sh
+          fi
+
       - name: Bundle source as tarball
         run: |
           tar --exclude='.git' --exclude='config' --exclude='cache' \
