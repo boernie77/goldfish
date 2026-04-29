@@ -4236,7 +4236,11 @@ function ensurePlayerComponents() {
       // Bis Cast-Framework bereit ist: Button ausblenden.
       if (!state.castReady) this.hide();
     }
-    handleClick() { startCastSession(); }
+    handleClick(e) {
+      if (e && typeof e.preventDefault === "function") e.preventDefault();
+      if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+      startCastSession();
+    }
   }
   // AirPlay-Button für Safari/iOS. Die HTML-Attribute `airplay="allow"`
   // alleine zeigen das AirPlay-Icon nur an den NATIVEN Browser-Controls.
@@ -4327,7 +4331,18 @@ function initCastFramework() {
 // Server (via /api/auth/cast-token, 4 h TTL), baut die Stream-URL mit
 // `?session=<token>` und startet die Cast-Session am Default-Receiver.
 async function startCastSession() {
-  if (!state.castReady || !window.cast || !state.currentItem) return;
+  console.log("[cast] CastButton clicked", {
+    castReady: state.castReady,
+    castGlobal: !!window.cast,
+    castFramework: !!(window.cast && window.cast.framework),
+    chromeCast: !!(window.chrome && window.chrome.cast),
+    currentItem: state.currentItem && state.currentItem.id,
+  });
+  if (!state.castReady || !window.cast || !window.cast.framework) {
+    appAlert("Cast-Framework ist nicht bereit. Konsole öffnen (Cmd-Opt-I) → Reload und nach „[cast]" suchen.");
+    return;
+  }
+  if (!state.currentItem) return;
   const item = state.currentItem;
   let token = state.castToken || "";
   try {
