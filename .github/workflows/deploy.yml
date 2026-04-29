@@ -20,13 +20,27 @@ jobs:
         # Blockiert den Deploy bei JS-Parse-Fehlern. Wir hatten mehrfach
         # tote Frontends durch einen einzigen vergessenen Quote-Escape.
         #
-        # Self-hosted Runner hat ein altes Node (v8, ohne Numeric-Separator-
-        # Support). Daher IMMER ueber einen Docker-Container mit aktuellem
-        # Node-LTS laufen lassen — Docker ist auf dem Runner sowieso da
-        # (Portainer-Build geht ueber denselben Daemon).
+        # Self-hosted Runner laeuft selbst in einem Container — $PWD im
+        # Runner existiert nicht auf dem Docker-Host, daher kein Bind-
+        # Mount. Stattdessen jede JS-Datei via stdin pipen; Node liest
+        # via /dev/stdin und checkt syntax. Image-Pull einmalig (~80 MB),
+        # Layer bleibt im Daemon-Cache fuer Folge-Runs.
         run: |
-          docker run --rm -v "$PWD":/work -w /work node:lts-alpine \
-            sh ./scripts/check-frontend.sh
+          set -e
+          docker pull node:lts-alpine >/dev/null
+          errors=0
+          for f in $(find internal/webassets/web -type f -name "*.js"); do
+            if ! docker run --rm -i node:lts-alpine \
+                 node --check /dev/stdin < "$f"; then
+              echo "  ↳ Syntax-Error in $f" >&2
+              errors=$((errors + 1))
+            fi
+          done
+          if [ "$errors" -gt 0 ]; then
+            echo "Frontend-Check failed: $errors Datei(en) mit Syntax-Errors." >&2
+            exit 1
+          fi
+          echo "Frontend syntax check passed."
 
       - name: Bundle source as tarball
         run: |
