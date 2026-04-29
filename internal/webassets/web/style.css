@@ -1249,6 +1249,7 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .video-js .vjs-favorite .vjs-icon-placeholder::before,
 .video-js .vjs-addplaylist .vjs-icon-placeholder::before,
 .video-js .vjs-cast-button .vjs-icon-placeholder::before,
+.video-js .vjs-airplay-button .vjs-icon-placeholder::before,
 .video-js .vjs-delete .vjs-icon-placeholder::before {
   font-family: inherit;
   font-size: 1.6em;
@@ -1300,6 +1301,11 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .video-js .vjs-cast-button.vjs-cast-button--connected .vjs-icon-placeholder::before {
   color: #3b82f6;
 }
+
+/* AirPlay-Button (Safari/iOS-only): wird vom JS sichtbar gemacht, sobald
+   das <video>-Element ein `webkitplaybacktargetavailabilitychanged`-Event
+   mit `available` feuert. Andernfalls bleibt der Button hidden. */
+.video-js .vjs-airplay-button .vjs-icon-placeholder::before { content: "📡"; }
 
 details.hint summary { cursor: pointer; color: var(--text); font-weight: 500; }
 details.hint[open] { color: var(--text-dim); }

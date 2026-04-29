@@ -4238,6 +4238,33 @@ function ensurePlayerComponents() {
     }
     handleClick() { startCastSession(); }
   }
+  // AirPlay-Button für Safari/iOS. Die HTML-Attribute `airplay="allow"`
+  // alleine zeigen das AirPlay-Icon nur an den NATIVEN Browser-Controls.
+  // Da Video.js die Controls überlagert, brauchen wir einen Custom-Button,
+  // der `webkitShowPlaybackTargetPicker()` triggert. Sichtbarkeit folgt
+  // dem `webkitplaybacktargetavailabilitychanged`-Event am <video>.
+  class AirPlayButton extends Button {
+    constructor(player, options) {
+      super(player, options);
+      this.controlText("Auf AirPlay-Gerät streamen");
+      this.addClass("vjs-airplay-button");
+      this.hide();
+      player.ready(() => {
+        const v = player.tech_ && player.tech_.el_;
+        if (!v || typeof v.webkitShowPlaybackTargetPicker !== "function") return;
+        const onAvail = (e) => {
+          if (e.availability === "available") this.show(); else this.hide();
+        };
+        v.addEventListener("webkitplaybacktargetavailabilitychanged", onAvail);
+      });
+    }
+    handleClick() {
+      const v = this.player().tech_ && this.player().tech_.el_;
+      if (v && typeof v.webkitShowPlaybackTargetPicker === "function") {
+        v.webkitShowPlaybackTargetPicker();
+      }
+    }
+  }
   if (!window.videojs.getComponent("ShufflePrev")) {
     window.videojs.registerComponent("Skip30Back", Skip30Back);
     window.videojs.registerComponent("Skip30Forward", Skip30Forward);
@@ -4247,6 +4274,7 @@ function ensurePlayerComponents() {
     window.videojs.registerComponent("PlaylistButton", PlaylistButton);
     window.videojs.registerComponent("DeleteButton", DeleteButton);
     window.videojs.registerComponent("CastButton", CastButton);
+    window.videojs.registerComponent("AirPlayButton", AirPlayButton);
   }
   state.playerComponentsRegistered = true;
 }
@@ -4725,6 +4753,13 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
           // Segment-Pre-Fetch-Budget proportional anheben, sonst bremst VHS
           // intern nach wenigen Segmenten.
           BANDWIDTH_VARIANCE: 1.2,
+          // overrideNative: Safari hat eine eigene native HLS-Engine, die
+          // unsere progressive EVENT-Playlist (kein ENDLIST) als „media
+          // aborted/corruption" abbricht. VHS-Pfad zwingt Safari in den
+          // gleichen MSE-Code wie Chrome/Firefox — VHS transmuxt MPEG-TS
+          // zu fMP4 für Safaris MSE. Voraussetzung: H.264 + AAC im Output
+          // (unser Transcode liefert genau das, ac3 wird re-encoded).
+          overrideNative: true,
         },
       },
     });
@@ -4822,9 +4857,13 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     // Cast-Button — bleibt unsichtbar, bis das Cast-Framework geladen ist
     // (initCastFramework markiert state.castReady und ruft btn.show()).
     addIfMissing("CastButton", 4);
+    // AirPlay-Button — Safari/iOS-only, bleibt unsichtbar bis das
+    // <video>-Element ein Availability-Event mit `available` feuert
+    // (= AppleTV/HomePod im selben Netz erkannt).
+    addIfMissing("AirPlayButton", 5);
     // Löschbutton nur für Admins; liegt direkt neben PlaylistButton.
     if (state.me && state.me.isAdmin) {
-      addIfMissing("DeleteButton", 5);
+      addIfMissing("DeleteButton", 6);
     }
   }
   updatePlayerButtons();
