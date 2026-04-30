@@ -1083,6 +1083,7 @@ function wire() {
       case "pathsearch": openPathSearch(); break;
       case "missing": openMissingDialog(); break;
       case "refreshallmeta": runRefreshAllMetadata(); break;
+      case "renames": openRenamesManager(); break;
     }
   });
   document.addEventListener("click", (e) => {
@@ -1325,6 +1326,10 @@ function wire() {
   $("#tmdbRunBtn").addEventListener("click", runEnrich);
   $("#tmdbClearBtn").addEventListener("click", clearTMDBKey);
   $("#omdbClearBtn").addEventListener("click", clearOMDbKey);
+  // Renames-Manager-Buttons
+  $("#renamesReloadBtn").addEventListener("click", refreshRenamesManager);
+  $("#renamesCsvBtn").addEventListener("click", downloadRenamesCSV);
+  $("#renamesBulkBtn").addEventListener("click", runBulkRenameConfirmed);
 }
 
 function debounce(fn, ms) {

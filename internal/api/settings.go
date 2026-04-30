@@ -20,6 +20,10 @@ type settingsDTO struct {
 	OMDbKey              string `json:"omdbKey"`
 	OMDbConfigured       bool   `json:"omdbConfigured"`
 	HwaccelMode          string `json:"hwaccelMode"` // auto | vaapi | nvenc | software
+	// Auto-Rename-Hook im confirmItemMetadata-Handler. Wenn true wird beim
+	// Bestaetigen eines Films (tmdb_type=movie) die Datei zu „Title (Year).ext"
+	// umbenannt + in rename_history protokolliert. Default: false.
+	AutoRenameConfirmedMovies bool `json:"autoRenameConfirmedMovies"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
@@ -41,15 +45,17 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 	key, _ := s.Store.GetSetting("tmdb_api_key", "")
 	okey, _ := s.Store.GetSetting("omdb_api_key", "")
 	hw, _ := s.Store.GetSetting("hwaccel_mode", "auto")
+	arn, _ := s.Store.GetSetting(renameSettingKey, "")
 	writeJSON(w, 200, settingsDTO{
-		BufferSeconds:        n,
-		StartBufferSeconds:   sbn,
-		TrickplayIntervalSec: tn,
-		TMDBKey:              "",
-		TMDBConfigured:       key != "",
-		OMDbKey:              "",
-		OMDbConfigured:       okey != "",
-		HwaccelMode:          hw,
+		BufferSeconds:             n,
+		StartBufferSeconds:        sbn,
+		TrickplayIntervalSec:      tn,
+		TMDBKey:                   "",
+		TMDBConfigured:            key != "",
+		OMDbKey:                   "",
+		OMDbConfigured:            okey != "",
+		HwaccelMode:               hw,
+		AutoRenameConfirmedMovies: arn == "true" || arn == "1",
 	})
 }
 
@@ -145,13 +151,23 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	if ti < 2 || ti > 60 {
 		ti = 10
 	}
+	// Auto-Rename-Setting persistieren ("true" / "false" als String).
+	arnVal := "false"
+	if body.AutoRenameConfirmedMovies {
+		arnVal = "true"
+	}
+	if err := s.Store.SetSetting(renameSettingKey, arnVal); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
 	hw, _ := s.Store.GetSetting("hwaccel_mode", "auto")
 	writeJSON(w, 200, settingsDTO{
-		BufferSeconds:        body.BufferSeconds,
-		StartBufferSeconds:   body.StartBufferSeconds,
-		TrickplayIntervalSec: ti,
-		TMDBConfigured:       key != "",
-		OMDbConfigured:       okey != "",
-		HwaccelMode:          hw,
+		BufferSeconds:             body.BufferSeconds,
+		StartBufferSeconds:        body.StartBufferSeconds,
+		TrickplayIntervalSec:      ti,
+		TMDBConfigured:            key != "",
+		OMDbConfigured:            okey != "",
+		HwaccelMode:               hw,
+		AutoRenameConfirmedMovies: body.AutoRenameConfirmedMovies,
 	})
 }

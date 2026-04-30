@@ -44,7 +44,7 @@ func (s *Server) renamePreview(w http.ResponseWriter, r *http.Request) {
 	if !s.requireLibAccess(w, r, it.LibraryID) {
 		return
 	}
-	target, alreadyOK, reason := computeRenameTarget(it)
+	target, alreadyOK, reason := s.computeRenameTargetForItem(it)
 	resp := map[string]any{
 		"canRename": reason == "",
 		"alreadyOK": alreadyOK,
@@ -59,18 +59,31 @@ func (s *Server) renamePreview(w http.ResponseWriter, r *http.Request) {
 
 // computeRenameTarget zentralisiert die Logik „kann das Item umbenannt werden,
 // und wenn ja wohin". Liefert (target, alreadyOK, reasonIfNotPossible).
-func computeRenameTarget(it *model.Item) (string, bool, string) {
+//
+// Bedingungen:
+//   - Library muss kind=movies sein (Bluray-Libs etc. haben auch kind=movies,
+//     auch wenn sie anders heissen). TV/Private bleiben unberuehrt.
+//   - Item-Metadata muss tmdb_type=movie sein.
+//   - metadata_confirmed muss gesetzt sein.
+func (s *Server) computeRenameTargetForItem(it *model.Item) (string, bool, string) {
+	lib, err := s.Store.GetLibrary(it.LibraryID)
+	if err != nil || lib == nil {
+		return "", false, "Library nicht gefunden."
+	}
+	if lib.Kind != "movies" {
+		return "", false, "Library ist nicht vom Typ Filme (kind=" + string(lib.Kind) + ")."
+	}
 	if it.Metadata == nil || it.Metadata.TMDBType != "movie" {
-		return "", false, "Nur Filme werden umbenannt (kein Movie-Metadata)."
+		return "", false, "Item-Metadata ist kein Movie."
 	}
 	if !it.MetadataConfirmed {
 		return "", false, "Zuordnung nicht bestaetigt."
 	}
 	title := it.Metadata.Title
 	year := it.Metadata.Year
-	target, alreadyOK, err := rename.PreviewTarget(it.Path, title, year)
-	if err != nil {
-		return "", false, err.Error()
+	target, alreadyOK, perr := rename.PreviewTarget(it.Path, title, year)
+	if perr != nil {
+		return "", false, perr.Error()
 	}
 	return target, alreadyOK, ""
 }
@@ -106,7 +119,7 @@ func (s *Server) renameItemNow(w http.ResponseWriter, r *http.Request) {
 // (historyID, newPath, errMsg, httpStatusCode). status=0 bedeutet OK.
 // Bei alreadyOK liefert es (0, currentPath, "", 0).
 func (s *Server) executeRename(it *model.Item, triggeredBy string) (int64, string, string, int) {
-	target, alreadyOK, reason := computeRenameTarget(it)
+	target, alreadyOK, reason := s.computeRenameTargetForItem(it)
 	if reason != "" {
 		return 0, "", reason, 400
 	}

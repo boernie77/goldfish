@@ -468,6 +468,7 @@ async function openSettings() {
     lines.push(`✗ NVENC nicht erkannt — NVIDIA-Plugin auf dem Host + <code>runtime: nvidia</code> nötig`);
   }
   $("#hwaccelInfo").innerHTML = lines.join("<br>");
+  $("#autoRenameToggle").checked = !!state.settings.autoRenameConfirmedMovies;
   updateEnrichStatus();
   $("#settingsDialog").showModal();
 }
@@ -479,6 +480,7 @@ async function saveSettings(e) {
     startBufferSeconds: parseInt($("#startBufRange").value, 10) || 0,
     trickplayIntervalSec: parseInt($("#tpInterval").value, 10),
     hwaccelMode: $("#hwaccelMode").value || "auto",
+    autoRenameConfirmedMovies: !!$("#autoRenameToggle").checked,
   };
   const tmdbKey = $("#tmdbKeyInput").value.trim();
   if (tmdbKey) body.tmdbKey = tmdbKey;
@@ -536,5 +538,107 @@ async function updateEnrichStatus() {
   } catch (e) {
     $("#enrichStatus").textContent = "";
   }
+}
+
+// --- Auto-Rename: Umbenennungen-Manager ---
+//
+// Liste aller Datei-Umbenennungen, einzeln rueckgaengig machbar, plus
+// CSV-Export und „Alle bestaetigten umbenennen"-Bulk-Button. Nutzt die
+// /api/admin/renames-Endpoints (admin-only).
+
+async function openRenamesManager() {
+  $("#renamesDialog").showModal();
+  await refreshRenamesManager();
+}
+
+async function refreshRenamesManager() {
+  const body = $("#renamesBody");
+  body.innerHTML = `<div class="hint">Lade…</div>`;
+  let list;
+  try {
+    list = await api("/api/admin/renames");
+  } catch (e) {
+    body.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
+    return;
+  }
+  if (!list.length) {
+    body.innerHTML = `<div class="hint">Noch keine Umbenennungen protokolliert.</div>`;
+    return;
+  }
+  // Tabelle bauen. Spalten: Datum · Trigger · Vorher → Nachher · Status · Aktion
+  const rows = list.map(e => {
+    const dt = new Date(e.renamedAt).toLocaleString("de-DE");
+    const oldBase = (e.oldPath || "").split("/").pop();
+    const newBase = (e.newPath || "").split("/").pop();
+    const undone = e.undoneAt && e.undoneAt !== "0001-01-01T00:00:00Z";
+    const status = undone
+      ? `<span style="color:#94a3b8">↩ rückgängig</span>`
+      : `<span style="color:#22c55e">aktiv</span>`;
+    const action = undone
+      ? ""
+      : `<button type="button" class="rename-undo-btn" data-id="${e.id}" title="Rückgängig">↩</button>`;
+    const triggerLabel = ({auto: "auto", manual: "manuell", bulk: "bulk"})[e.triggeredBy] || e.triggeredBy;
+    return `
+      <tr>
+        <td style="white-space:nowrap;font-size:12px">${escapeHTML(dt)}</td>
+        <td style="font-size:12px"><span class="rename-trigger rename-trigger-${escapeHTML(e.triggeredBy)}">${escapeHTML(triggerLabel)}</span></td>
+        <td style="font-size:12px"><div style="color:#94a3b8">${escapeHTML(oldBase)}</div><div>→ ${escapeHTML(newBase)}</div></td>
+        <td style="font-size:12px">${status}</td>
+        <td>${action}</td>
+      </tr>`;
+  }).join("");
+  body.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334">
+          <th style="padding:6px 4px">Datum</th>
+          <th style="padding:6px 4px">Auslöser</th>
+          <th style="padding:6px 4px">Datei</th>
+          <th style="padding:6px 4px">Status</th>
+          <th style="padding:6px 4px"></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  // Click-Handler fuer Undo-Buttons (Event-Delegation auf body).
+  body.querySelectorAll(".rename-undo-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      if (!(await appConfirm("Umbenennung rückgängig machen? Datei wird zum alten Namen zurückbenannt."))) return;
+      try {
+        await api(`/api/admin/renames/${id}/undo`, { method: "POST" });
+        showToast("Rückgängig gemacht", { kind: "success" });
+        await refreshRenamesManager();
+        invalidateItemsCache();
+        loadItems();
+      } catch (e) { appAlert("Undo fehlgeschlagen: " + e.message); }
+    });
+  });
+}
+
+async function runBulkRenameConfirmed() {
+  if (!(await appConfirm(
+    `ALLE bestätigten Filme umbenennen?\n\n` +
+    `Jede Datei wird zu 'Titel (Jahr).ext' umgeschrieben. Jede einzelne ` +
+    `Aktion landet in der Historie und kann dort rückgängig gemacht werden. ` +
+    `Episoden werden NICHT angefasst. Auch Bibliotheken vom Typ TV oder Privat bleiben unberührt.`
+  ))) return;
+  showToast("Bulk-Umbenennung läuft…", { kind: "info", duration: 2000 });
+  try {
+    const r = await api("/api/admin/rename-all-confirmed", { method: "POST" });
+    let msg = `Bulk-Rename fertig.\n\nGesamt: ${r.total}\nUmbenannt: ${r.renamed}\nÜbersprungen (schon korrekt): ${r.skipped}\nFehler: ${r.failed}`;
+    if (r.failures && r.failures.length) {
+      msg += "\n\nErste Fehler:\n• " + r.failures.slice(0, 10).join("\n• ");
+    }
+    appAlert(msg);
+    await refreshRenamesManager();
+    invalidateItemsCache();
+    loadItems();
+  } catch (e) { appAlert("Bulk-Rename fehlgeschlagen: " + e.message); }
+}
+
+function downloadRenamesCSV() {
+  // Cookie-Auth: einfach Browser-Download via Location-Change.
+  window.location.href = "/api/admin/renames.csv";
 }
 
