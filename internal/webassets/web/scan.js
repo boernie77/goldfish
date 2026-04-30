@@ -254,13 +254,24 @@ function showScanAllSummary(summaries, force) {
 function pollScan() {
   if (state.scanPoll) return;
   const bar = $("#scanStatus");
+  // Stop a pending hide-timeout from a recently finished scan. Sonst
+  // blendet es den Balken mitten im neuen Scan wieder weg.
+  if (state.scanHideTimer) { clearTimeout(state.scanHideTimer); state.scanHideTimer = null; }
+  // Sofortiger Placeholder, damit der Balken nicht den ALTEN Status
+  // (z. B. „✓ Scan fertig …" vom vorigen Lauf) zeigt, bis der erste Poll
+  // ~1 s spaeter mit echten Daten reinkommt.
+  bar.innerHTML = `
+    <div class="statusbar-row">
+      <div class="statusbar-text">Scan startet…</div>
+    </div>
+  `;
   bar.classList.remove("hidden");
 
   // finalize wird nach Single- oder All-Scan einmalig zur Auflösung gerufen.
   const finalize = () => {
     clearInterval(state.scanPoll);
     state.scanPoll = null;
-    setTimeout(() => bar.classList.add("hidden"), 4000);
+    state.scanHideTimer = setTimeout(() => { bar.classList.add("hidden"); state.scanHideTimer = null; }, 4000);
     if (state.expectingScanAll) {
       const list = state.scanAllSummaries || [];
       state.expectingScanAll = false;
@@ -303,19 +314,11 @@ function pollScan() {
 
       // Single-Lib-Modus: alte Logik
       if (!st.running) {
-        if (st.lastSummary) {
-          // finalize zeigt den Single-Lib-Dialog
-          clearInterval(state.scanPoll);
-          state.scanPoll = null;
-          setTimeout(() => bar.classList.add("hidden"), 4000);
-          showScanSummary(st.lastSummary);
-          loadItems();
-        } else {
-          clearInterval(state.scanPoll);
-          state.scanPoll = null;
-          setTimeout(() => bar.classList.add("hidden"), 4000);
-          loadItems();
-        }
+        clearInterval(state.scanPoll);
+        state.scanPoll = null;
+        state.scanHideTimer = setTimeout(() => { bar.classList.add("hidden"); state.scanHideTimer = null; }, 4000);
+        if (st.lastSummary) showScanSummary(st.lastSummary);
+        loadItems();
       }
     } catch (e) { console.warn(e); }
   }, 1000);
