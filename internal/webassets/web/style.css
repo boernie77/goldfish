@@ -868,6 +868,14 @@ button.primary:hover { background: var(--accent-hover); }
   display: flex;
   gap: 8px;
 }
+/* Bestaetigt-Haken inline in der Meta-Zeile (neben Dateigroesse).
+   Klein, gruen, dezent — nur als Hinweis, nicht als Klick-Element. */
+.card-meta .confirmed-tick {
+  color: #22c55e;
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 11px;
+}
 /* Dateiname unter der Meta-Zeile — wichtig für Release-spezifische Unterscheidung */
 .card-filename {
   margin-top: 4px;
