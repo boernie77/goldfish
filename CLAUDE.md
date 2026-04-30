@@ -183,7 +183,7 @@ Dockerfile                        — Multi-Stage-Build
 docker-compose.yml                — Template für Unraid
 ```
 
-### Frontend-Modul-Layout (Stand 2026-04-29)
+### Frontend-Modul-Layout (Stand 2026-04-30, ABGESCHLOSSEN)
 
 `internal/webassets/web/` enthaelt mehrere kleine, fokussierte JS-Dateien
 (plain `<script>`-Tags, keine ES-Modules — gemeinsamer window-Scope) plus
@@ -204,25 +204,23 @@ internal/webassets/web/
   views.js           ~878 LOC     — renderHomeView (Startseite) + Staffel-Ansicht + renderRangeContinuationCard
   grid.js            ~758 LOC     — loadItems + loadItemsBody (Branch-Logik je Anzeige-Modus)
   player.js         ~1661 LOC     — openDetail + applyPlayback + Buffer-Gate + Trickplay-Hover + Seek-Restart + syncTranscodeDisplays
-  app.js            ~3282 LOC     — Rest: state-Objekt, Boot-Wiring, Topbar, User-Menue, Manage-Libraries, Path-Browser, Settings, Playlists, Shuffle, Scan-Statusleiste, Trickplay-Statusleiste, Manuelles-Matching, Pfad-Suche
+  admin.js           ~540 LOC     — User-Menue + Admin-Panel + Manage-Libraries + Path-Browser + Settings
+  playlists.js       ~250 LOC     — Playlist-Manager + Add-to-Playlist + Shuffle (shufflePrev/Next, playRandom)
+  scan.js            ~404 LOC     — Scan-Aktionen + Status-Polling + Globale Trickplay-Statusleiste
+  matching.js        ~792 LOC     — Manuelles Matching + Edit-Metadata + Refresh-All-Metadata + Missing-Movies-Export + Path-Search + Trickplay-Manager
+  app.js            ~1371 LOC     — Rest: state-Objekt, Libraries-Loading, Bulk-Selection, Alphabet-Sidebar, Dialog-Drag, Filter-Modi-Helper, Topbar-Events, Boot-Wiring
 ```
 
 **Lade-Reihenfolge in index.html:**
 ```
-helpers → dialogs → api → cast → player-components → cards → views → grid → player → app
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → app
 ```
 
-Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed. Der Refactor begann bei `app.js = 7531 Zeilen` und ist aktuell bei `3282 Zeilen` (−56 %). Pause-Stand 2026-04-29.
-
-**Geplant aber noch nicht extrahiert** (TODO, siehe „Refactor-Pause-Stand"):
-- `admin.js` (~1200 LOC) — User-Menue + Manage-Libraries + Path-Browser + Settings
-- `playlists.js` (~400 LOC) — Playlist-Manager + Add-to-Playlist + Shuffle
-- `scan.js` (~400 LOC) — Scan-Statusleiste + Trickplay-Statusleiste
-- `matching.js` (~400 LOC) — Manuelles Matching + Pfad-Suche
-
-Nach diesem zweiten Refactor-Schub bliebe `app.js` ~700–900 Zeilen (state-Init, Topbar-Wiring, Boot).
+Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (−82 %)**. Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed + im Browser getestet.
 
 **Nicht ueber `<script type="module">` nutzen** — die Funktionen referenzieren sich global via window-Scope, plus der ES-Module-Loader hat Quirks bei `defer`-Reihenfolge. Plain `<script defer>` mit korrekter HTML-Reihenfolge ist hier die einfachste, korrekte Loesung.
+
+**Bei weiteren Aenderungen an Modul-Boundaries:** awk-Trim mit Multi-Block-Extraktionen muss ALLE Phasen-Endbedingungen (`in_block=0`-Resets) VOR der generischen `if (in_block) next`-Skip-Aktion pruefen. Sonst feuert der Skip aus Phase A's Action-Block fuer Phase B's in_block-Periode und verschluckt alles bis Dateiende. War einmal passiert (admin.js-Trim, korrigiert).
 
 ## Architektur
 
@@ -1590,41 +1588,52 @@ PUT    /api/libraries/{id}/home-visibility {onHome: bool}
 GET    /api/health                         (hwaccel, tmdb.enabled)
 ```
 
-## Refactor-Pause-Stand 2026-04-29 (Frontend-Modul-Split)
+## Refactor-Abschluss 2026-04-30 (Frontend-Modul-Split, fertig)
 
-**Was schon fertig + live ist:**
-- Phase 1 (Linter-Findings): kleine Bugs (poster-edit ineffassign, scanner nilerr-Annotation, mp4probe int64-Overflow-Schutz, 3× ST1005-Errors klein, sqlite Close-Errcheck) + Parser-Bug („Mad MAX" wurde zu „Mad Fury Road" weil `max` in reTrash) gefixt.
-- Phase 2 (Tests): `parser_test.go` (88,8 %) + `decider_test.go` (Decider 100 %) als erste Test-Suite des Projekts.
-- Phase 3a (Frontend-Module 1–9): app.js von 7531 → 3282 Zeilen geschrumpft. 9 Module raus: helpers, dialogs, api, cast, player-components, cards, views, grid, player. Alle in main + live deployed, jeder Schritt einzeln gemerged + getestet.
+**Phase 1 — Linter-Findings (live):** kleine Bugs gefixt — poster-edit
+ineffassign, scanner nilerr-Annotation, mp4probe int64-Overflow-Schutz,
+3× ST1005-Errors klein, sqlite Close-Errcheck — plus echter Parser-Bug
+(„Mad MAX" wurde zu „Mad Fury Road" weil `max` in reTrash stand;
+`max`/`nf`/`dv` raus).
 
-**Was als Naechstes ansteht (Phase 3b — wenn der User „weiter" sagt):**
-1. `admin.js` (~1200 LOC) — User-Menue + Admin-Panel + Manage-Libraries + Path-Browser + Settings
-2. `playlists.js` (~400 LOC) — Playlist-Manager + Add-to-Playlist + Shuffle
-3. `scan.js` (~400 LOC) — Scan-Statusleiste + Trickplay-Statusleiste
-4. `matching.js` (~400 LOC) — Manuelles Matching + Pfad-Suche
+**Phase 2 — Tests (live):** erste Test-Suite des Projekts.
+- `internal/nameparser/parser_test.go` — 88,8 % Coverage, 60+ Cases inkl.
+  Decision-Log-Edge-Cases (Year-as-Title, numerische Episoden,
+  Doppelfolgen, Sample-Skip, etc.).
+- `internal/playback/decider_test.go` — Decider 100 % Coverage.
 
-**Pattern fuer jede weitere Extraktion** (eingespielt, klappt zuverlaessig):
-1. `git checkout -b code-review/app-js-split-<name>-2026-04-XX`
-2. Block-Boundaries via `grep -n "^// --- "` finden, dann `awk 'NR==X,NR==Y' app.js > /tmp/block.js`
-3. Datei mit Header-Kommentar bauen: `cat header /tmp/block.js > web/<name>.js`
-4. app.js trimmen mit `awk` und Breadcrumb-Kommentar einfuegen
-5. `<script src="/<name>.js" defer></script>` in `index.html` an der richtigen Position der Lade-Reihenfolge
+**Phase 3 — Frontend-Modul-Split (live, abgeschlossen):**
+- 13 Module aus app.js extrahiert: helpers, dialogs, api, cast,
+  player-components, cards, views, grid, player, admin, playlists,
+  scan, matching. Siehe „Frontend-Modul-Layout" oben.
+- app.js: **7531 → 1371 Zeilen (−82 %)**.
+- Jeder Modul-Schritt: eigener Branch, einzeln gemerged + im Browser
+  live getestet.
+
+**Tools eingerichtet (bleiben):**
+- `golangci-lint` und `biome` (homebrew) — vor groesseren Refactors laufen lassen.
+- `scripts/check-frontend.sh` — `node --check` ueber alle web/*.js. Wird in
+  pre-commit-Hook (`scripts/install-git-hooks.sh`) und in CI
+  (`.github/workflows/deploy.yml`) ausgefuehrt. Hat bereits 2 Bugs gefangen
+  („deutsche Anfuehrungszeichen mit ASCII-`"` mittendrin"). **Niemals
+  ueberspringen bei JS-Aenderungen.**
+
+**Pattern fuer Frontend-Modul-Aenderungen** (nicht mehr fuer geplante
+Splits, aber falls man weitere Aufteilung braucht):
+1. `git checkout -b code-review/<name>-<date>`
+2. Block-Boundaries via `grep -n "^// --- "` finden
+3. Datei via `awk` extrahieren + Header-Kommentar dazu
+4. app.js trimmen mit `awk` (Multi-Block-Trims: ALLE in_block=0-Resets
+   vor der generischen Skip-Aktion!) + Breadcrumb-Kommentar
+5. `<script src="/<name>.js" defer>` in `index.html` an der richtigen
+   Position der Lade-Reihenfolge
 6. `./scripts/check-frontend.sh && go build ./... && go test ./...`
-7. Commit mit klarem Format (siehe bestehende refactor(frontend)-Commits)
-8. Push branch, dann beim User „merge" abfragen
-9. Auf main mergen, deployen, User testet im Browser
-10. Erst dann naechstes Modul
+7. Commit mit `refactor(frontend): …` Prefix, Push branch
+8. „merge" beim User abfragen → ff-only auf main → push → Auto-Deploy
 
-**Wichtig fuer die naechste Session:**
-- Auto Mode war aktiv, User pausiert bewusst nach Modul 9 (alles live grün).
-- Branch `code-review/app-js-split-player-2026-04-29` ist gemerged + live (8e76b31).
-- Die alten Branches `code-review/app-js-split-{,cards-,grid-,player-}2026-04-29` koennen geloescht werden.
-- Tests laufen mit `go test ./internal/nameparser/ ./internal/playback/`.
-- Frontend-Syntax-Check vor jedem Commit: `./scripts/check-frontend.sh`. Niemals ueberspringen bei JS-Aenderungen.
-- buildTag in `internal/api/router.go` aktuell `2026-04-29T20:50Z` — bei naechstem Backend-Change bumpen.
-
-**Backend-Roadmap (separater Track, nicht teil des Refactors):**
-- Native iOS/iPadOS/macOS-App fuer Offline-Wiedergabe (siehe project_roadmap_offline-Memory) — nach dem Refactor.
+**Backend-Roadmap (eigener Track, nicht teil des Refactors):**
+- Native iOS/iPadOS/macOS-App fuer Offline-Wiedergabe (siehe
+  project_roadmap_offline-Memory) — separat, eigene Session.
 
 ## TODO
 
