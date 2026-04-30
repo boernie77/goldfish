@@ -388,6 +388,13 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 		"-c:a", "aac",
 		"-b:a", fmt.Sprintf("%dk", audioKbps),
 		"-ac", "2",
+		// Erzwinge Keyframe alle 2 s im Output. Ohne das schneidet
+		// `-hls_time 2` Segmente nur an den Keyframes der QUELLE — und die
+		// liegen oft 4–5 s auseinander. Dann wird das erste Segment trotz
+		// hls_time=2 erst nach 4–5 s fertig. Mit `expr:gte(t,n_forced*2)`
+		// setzt der Encoder beim ENCODEN selbst alle 2 s einen Keyframe.
+		// Frame-Rate-unabhaengig, funktioniert bei VAAPI / NVENC / libx264.
+		"-force_key_frames", "expr:gte(t,n_forced*2)",
 		"-f", "hls",
 		// Segment-Dauer 2 s: erstes Segment ist nach ~2 s startfaehig (statt
 		// 4 s bei `hls_time=4`). Browser-Buffer-Anzeige aktualisiert sich
