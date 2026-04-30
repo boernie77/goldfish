@@ -764,7 +764,8 @@ Reihenfolge erweitern, sonst werden bestehende Elemente verdeckt:
 | `top:8  left:8`        | `.card-select`   | 24×24  | Bulk-Select (überlagert, nur aktiv) |
 | `top:36 left:6`        | `.confirm-toggle`| 24×24  | ✅ Zuordnung bestätigen (cond.)      |
 | `top:6  left:38`       | `.thumb .badge`  | auto   | Container MKV/MP4                   |
-| `top:6  right:6`       | `.rating`        | auto   | TMDB ★ 8.5 / `.variant-badge` ×N    |
+| `top:6  right:6`       | `.rating`        | auto   | TMDB ★ 8.5 (kein Konflikt mit variant-badge) |
+| `top:34 right:6`       | `.variant-badge` | auto   | ×N Varianten (UNTER dem Rating, nicht daneben) |
 | `top:6  left:6`        | `.collection-complete`| auto | ✓ komplett (nur Sammlung-Kachel)   |
 | `bottom:6 left:6`      | `.res-badge`     | auto   | 1080p / 720p etc.                   |
 | `bottom:4 left:62`     | `.fav-toggle`    | 24×24  | ♡/♥ Favorit (rechts vom Res-Badge) |

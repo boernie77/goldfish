@@ -819,7 +819,9 @@ button.primary:hover { background: var(--accent-hover); }
 }
 .thumb .variant-badge {
   position: absolute;
-  top: 6px;
+  /* UNTER dem Rating (das bei top:6 sitzt + ~22px hoch ist), nicht
+     daneben — sonst ueberdeckt der ×N-Badge die Sterne. */
+  top: 34px;
   right: 6px;
   background: rgba(59, 130, 246, 0.9);
   color: #fff;
@@ -828,11 +830,6 @@ button.primary:hover { background: var(--accent-hover); }
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .3px;
-}
-.rating + .variant-badge,
-.variant-badge + .rating {
-  /* Falls beide oben-rechts sind, Rating nach links schieben */
-  right: 44px;
 }
 .variant-row {
   margin: 10px 0 6px;
