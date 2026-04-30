@@ -167,6 +167,43 @@ function groupVariants(items) {
   return out;
 }
 
+// silentlyRefreshItem holt ein Item frisch vom Server und ersetzt die
+// passende Kachel im Grid in-place — ohne loadItems() oder Re-Render
+// des ganzen Grids. Damit bleibt die Scroll-Position erhalten.
+//
+// Wird genutzt nach Confirm (kann Auto-Rename triggern), nach dem
+// manuellen Rename-Button und ueberall wo eine Item-Aenderung die
+// sichtbare Kachel veraendert (Pfad, Title, …).
+//
+// Wenn die Kachel nicht im DOM ist (Item gehoert zu einem anderen
+// Folder/Filter), wird trotzdem state.lastRenderedItems gepatcht —
+// sodass z. B. die Bulk-Selection auf den frischen Daten arbeitet.
+async function silentlyRefreshItem(id) {
+  let fresh;
+  try {
+    fresh = await api(`/api/items/${id}`);
+  } catch (e) {
+    console.warn("silentlyRefreshItem:", e.message);
+    return null;
+  }
+  if (!fresh) return null;
+  // state.lastRenderedItems patchen, damit kuenftige Re-Renders + Bulk-
+  // Aktionen auf frischen Daten arbeiten.
+  if (Array.isArray(state.lastRenderedItems)) {
+    const idx = state.lastRenderedItems.findIndex(x => x.id === fresh.id);
+    if (idx >= 0) state.lastRenderedItems[idx] = fresh;
+  }
+  // Kachel im DOM ersetzen, falls sichtbar.
+  const oldCard = document.querySelector(`[data-item-id="${fresh.id}"]`);
+  if (oldCard && typeof renderCard === "function") {
+    const newCard = renderCard(fresh);
+    if (newCard) {
+      oldCard.replaceWith(newCard);
+    }
+  }
+  return fresh;
+}
+
 // cardFileName: letztes Pfad-Segment (Dateiname) einer Variante. Bei gemergten
 // Kacheln wird die Anzahl der Varianten daneben angezeigt.
 function cardFileName(it) {
@@ -1197,12 +1234,28 @@ function wire() {
   $("#detailConfirm").addEventListener("click", async () => {
     if (!state.currentItem) return;
     const next = !state.currentItem.metadataConfirmed;
+    const id = state.currentItem.id;
     try {
-      await api(`/api/items/${state.currentItem.id}/confirm`, {
+      await api(`/api/items/${id}/confirm`, {
         method: "PUT",
         body: JSON.stringify({ confirmed: next }),
       });
-      state.currentItem.metadataConfirmed = next;
+      // Server kann beim Confirm einen Auto-Rename ausgeloest haben (Setting
+      // auto_rename_confirmed_movies). Item neu holen, damit der lokale State
+      // den ggf. neuen Pfad/Dateinamen kennt — dann lokale Felder + Kachel im
+      // Grid lautlos aktualisieren (kein loadItems, Scroll-Position bleibt).
+      const fresh = await silentlyRefreshItem(id);
+      if (fresh && state.currentItem && state.currentItem.id === id) {
+        // Variants-Patch beibehalten, falls der Aufrufer mit gemergten Items kam.
+        const carriedVariants = state.currentItem._variants;
+        state.currentItem = fresh;
+        if (carriedVariants) state.currentItem._variants = carriedVariants;
+        const fh = $("#detailFileHint");
+        if (fh) fh.innerHTML = fileHintHTML(fresh);
+      } else if (state.currentItem && state.currentItem.id === id) {
+        // Fallback wenn der Refetch fehlschlaegt: zumindest den Confirmed-Flag lokal.
+        state.currentItem.metadataConfirmed = next;
+      }
       updateConfirmBtn();
     } catch (e) { appAlert("Fehler: " + e.message); }
   });
@@ -1269,15 +1322,16 @@ function wire() {
     ))) return;
     try {
       const res = await api(`/api/items/${it.id}/rename`, { method: "POST" });
-      // Frisches Item laden, damit der Detail-Dialog den neuen Pfad anzeigt
-      const fresh = await api(`/api/items/${it.id}`);
-      if (fresh) {
+      // Lautlos refresh: Detail-Dialog zeigt neuen Pfad, Kachel im Grid wird
+      // in-place ersetzt — ohne loadItems(), damit die Scroll-Position bleibt.
+      const fresh = await silentlyRefreshItem(it.id);
+      if (fresh && state.currentItem && state.currentItem.id === it.id) {
         state.currentItem = fresh;
-        $("#detailFileHint").innerHTML = fileHintHTML(fresh);
+        const fh = $("#detailFileHint");
+        if (fh) fh.innerHTML = fileHintHTML(fresh);
       }
       showToast("Umbenannt zu: " + res.newBase, { kind: "success" });
       invalidateItemsCache();
-      loadItems();
     } catch (e) { appAlert("Umbenennen fehlgeschlagen: " + e.message); }
   });
   $("#detailDownload").addEventListener("click", () => {
