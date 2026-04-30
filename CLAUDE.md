@@ -959,6 +959,27 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Buffer-Counter steht 4–5 s, dann springt er hoch (HLS-Segment-Time + Keyframe-Intervall)
+- **Symptom:** Beim Klick auf „Abspielen" zeigt der Buffer-Counter im
+  Player ~4–5 s lang Null, dann springt er auf 4 oder 5. Manchmal
+  kurzer Hänger direkt nach diesen Sekunden.
+- **Ursache (zwei Schichten):**
+  1. Wir hatten `-hls_time 4` → ffmpeg liefert Segmente mit ~4 s Dauer.
+     Bis das erste fertig ist, gibt's nichts zum Abspielen.
+  2. Selbst nach dem Senken auf `-hls_time 2` blieben die Segmente
+     4–5 s lang. Grund: `-hls_time` schneidet **nur an Keyframes**.
+     Wenn die Quelle Keyframes alle 4–5 s hat (typisch fuer Releases),
+     ist das Segment-Minimum eben dieser Abstand. Ohne erzwungene
+     Keyframes greift `-hls_time` nicht wirklich.
+- **Fix:**
+  1. `-hls_time 2`.
+  2. **Plus** `-force_key_frames "expr:gte(t,n_forced*2)"` —
+     erzwingt beim Re-Encode einen Keyframe alle 2 s. Frame-Rate-
+     unabhaengig, funktioniert auf VAAPI / NVENC / libx264. Damit
+     greift `-hls_time 2` tatsaechlich.
+- **NICHT entfernen** ohne den Counter-Verzoegerungs-Bug zu kennen —
+  beides zusammen ist das Programm.
+
 ### ✅ Transcode-Playback hängt nach genau 4 Sekunden (fresh=1 vs. VHS-Reloads)
 - **Symptom:** Beim Start eines Videos im Transcode-Modus läuft das Bild ~4 s
   und stoppt dann. Skip-nach-vorn macht es wieder lauffähig. Sehr
