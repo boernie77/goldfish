@@ -139,7 +139,10 @@ async function openAddToPlaylist(opts = {}) {
             showToast(`Ist bereits in „${p.name}"`);
           }
         }
-        openAddToPlaylist({ itemIDs });
+        // Nach erfolgter Aktion Dialog schliessen — User will nach dem
+        // Hinzufuegen/Entfernen weiter zum eigentlichen Inhalt zurueck.
+        // Das ✕-Kreuz oben bleibt fuer den „doch nicht"-Fall verfuegbar.
+        $("#addToPlaylistDialog").close();
       } catch (e) { appAlert(e.message); }
     });
     ul.appendChild(li);

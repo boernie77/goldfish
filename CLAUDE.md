@@ -280,6 +280,10 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - `items.episode_end INTEGER DEFAULT 0` — Ende-Episode einer Doppelfolge (S07E23E24 →
   metadata_id=E23, episode_end=24). 0 = keine Range. Staffel-Ansicht zeigt alle
   abgedeckten Episoden als owned (gleiches Item).
+- `rename_history(id, item_id, old_path, new_path, old_rel_path, new_rel_path,
+  renamed_at, undone_at, triggered_by)` — Audit-Log für Auto-Rename. Jedes
+  Rename schreibt einen Eintrag (auto/manual/bulk); Undo setzt `undone_at`
+  und schreibt `items.path` zurück. Siehe „Auto-Rename bestätigter Filme".
 
 ## Features
 
@@ -858,6 +862,46 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   attachment` ausliefern. Kein Transcode.
 - **Löschen** (Admin-only, `DELETE /api/items/:id?deleteFile=true|false`): Item aus DB
   und optional auch die Datei von Disk entfernen.
+
+### Auto-Rename bestätigter Filme (seit 2026-04-30)
+- Setting `auto_rename_confirmed_movies` (Toggle in Settings → „Datei-Umbenennung",
+  iOS-Style Slider rechts in der Zeile). Wenn an: jede ✅-Bestätigung eines
+  Films **mit Library-`kind=movies`** (auch wenn die Lib „Bluray", „4K-Filme"
+  etc. heißt) löst eine Umbenennung der Datei zu `<Title> (<Year>).<ext>` aus.
+- Greift NICHT auf TV/Private-Libs und auch nicht auf Episoden — Filter über
+  `library.kind = "movies"` UND `metadata.tmdb_type = "movie"`.
+- Sanitize: `<>:"/\|?*` und Steuerzeichen werden aus dem Title entfernt;
+  trailing dots+spaces gestrippt. Bei Year=0 nur `Title.ext`.
+- Konflikt: existiert die Zieldatei → Suffix ` (2)`, ` (3)` … bis 99.
+- **rename_history-Tabelle** protokolliert jede Aktion (id, item_id, old_path,
+  new_path, old_rel_path, new_rel_path, renamed_at, undone_at, triggered_by ∈
+  {auto, manual, bulk}). Wird via DB-Transaktion atomar mit dem
+  `items.path`-Update geschrieben.
+- **Manueller 🏷-Button** im Detail-Dialog — admin-only, sichtbar bei
+  bestätigten Filmen mit Movies-Lib. Tooltip zeigt Ziel-Dateiname (Preview-
+  API ohne Side-Effect). Funktioniert auch mit Setting=AUS — User kann so
+  vor Aktivierung einzelne Files testen.
+- **Umbenennungen-Manager** im Zahnrad-Menü (`📝 Umbenennungen verwalten`):
+  Tabelle mit allen Renames inkl. ↩-Undo pro Eintrag, „⬇ CSV exportieren"
+  (Browser-Download), „Alle bestätigten Filme jetzt umbenennen" (Bulk).
+- **Lautloser Card-Refresh:** nach Confirm/Manual-Rename wird die einzelne
+  Kachel im Grid via `silentlyRefreshItem(id)` in-place ersetzt — KEIN
+  `loadItems()`-Reload, Scroll-Position bleibt erhalten.
+- **Kachel-Indikator:** kleiner grüner ✓ in der Meta-Zeile (10px) bei allen
+  Items mit `metadata_confirmed = 1`. Klasse `.confirmed-tick`.
+- Code-Pfade:
+  - `internal/rename/rename.go` — SanitizeFilename, TargetFilename,
+    ResolveConflict, PreviewTarget, RenameOnDisk (+ rename_test.go).
+  - `internal/store/rename_history.go` — RecordRename (TX), MarkRenameUndone
+    (TX), GetRenameHistory, ListRenameHistory, ListConfirmedMovies.
+  - `internal/api/admin_rename.go` — 6 Endpoints + computeRenameTargetForItem
+    + executeRename. Gemeinsamer Code-Pfad für manual/auto/bulk.
+  - Hook in `confirmItemMetadata` (api/items.go) — wenn
+    `s.settingAutoRenameOn()`. Fehler nur ins Log, Confirm bleibt erfolgreich.
+- **NICHT entfernen** ohne Verständnis: Library-Kind-Filter (`lib.Kind ==
+  "movies"`) ist explizit gewünscht. Bei Refactor-Versuchen, „warum prüft
+  ihr das doppelt (movie-metadata + movie-lib)" — der Lib-Filter ist die
+  *primäre* Schutzmaßnahme; metadata.tmdb_type ist redundant aber harmlos.
 
 ### TMDB-Integration
 - Suche & Detail für Filme, Serien, Episoden (deutsche Sprache).
