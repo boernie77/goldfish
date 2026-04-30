@@ -389,7 +389,13 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 		"-b:a", fmt.Sprintf("%dk", audioKbps),
 		"-ac", "2",
 		"-f", "hls",
-		"-hls_time", "4",
+		// Segment-Dauer 2 s: erstes Segment ist nach ~2 s startfaehig (statt
+		// 4 s bei `hls_time=4`). Browser-Buffer-Anzeige aktualisiert sich
+		// doppelt so haeufig, gefuehlte Latenz beim Play-Klick halbiert.
+		// Kein nennenswerter Overhead — doppelt so viele kleine .ts-Files,
+		// VHS reloadet die EVENT-Playlist statt alle 4 s nun alle 2 s
+		// (`fresh=1`-Idempotenz hat ein 60 s-Fenster, also weiter unkritisch).
+		"-hls_time", "2",
 		"-hls_list_size", "0",
 		// `independent_segments` erlaubt Segment-level Seek. `append_list`
 		// ist BEWUSST NICHT dabei — ffmpeg würde sonst `#EXT-X-DISCONTINUITY`
