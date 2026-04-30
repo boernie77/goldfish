@@ -94,6 +94,14 @@ func (s *Server) Router() http.Handler {
 		r.Put("/items/{id}/confirm", s.confirmItemMetadata)
 		r.Post("/items/{id}/write-nfo", requireAdmin(s.writeItemNFO))
 		r.Post("/items/write-all-nfos", requireAdmin(s.writeAllConfirmedNFOs))
+		// Auto-Rename: Preview ist lesend (nicht-admin OK), die schreibenden
+		// Endpoints sind admin-only.
+		r.Get("/items/{id}/rename-preview", s.renamePreview)
+		r.Post("/items/{id}/rename", requireAdmin(s.renameItemNow))
+		r.Get("/admin/renames", requireAdmin(s.renameList))
+		r.Get("/admin/renames.csv", requireAdmin(s.renameCSV))
+		r.Post("/admin/renames/{id}/undo", requireAdmin(s.renameUndo))
+		r.Post("/admin/rename-all-confirmed", requireAdmin(s.renameAllConfirmed))
 		r.Put("/items/{id}/favorite", s.setFavorite)
 		r.Post("/items/{id}/played", s.touchPlayed)
 		r.Put("/items/{id}/resume", s.setResumePos)
@@ -211,7 +219,7 @@ func (s *Server) Router() http.Handler {
 // buildTag wird bei jedem Code-Push aktualisiert und ist im /api/health
 // sichtbar — schneller Smoke-Test, ob der laufende Container die aktuelle
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
-const buildTag = "2026-04-30T08:30Z"
+const buildTag = "2026-04-30T10:00Z"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

@@ -1243,6 +1243,42 @@ function wire() {
       appAlert("NFO geschrieben:\n\n" + (list || "(keine Dateien)"));
     } catch (e) { appAlert("Fehler: " + e.message); }
   });
+  // Rename-Button (🏷) im Detail-Dialog. Holt zuerst Preview, zeigt Bestaetigung
+  // mit dem Ziel-Namen, fuehrt dann das Rename aus. items.path wird serverseitig
+  // mit-aktualisiert, damit Wiedergabe direkt mit dem neuen Namen funktioniert.
+  $("#detailRename").addEventListener("click", async () => {
+    if (!state.currentItem) return;
+    const it = state.currentItem;
+    let preview;
+    try {
+      preview = await api(`/api/items/${it.id}/rename-preview`);
+    } catch (e) { appAlert("Vorschau fehlgeschlagen: " + e.message); return; }
+    if (!preview.canRename) {
+      appAlert("Umbenennen nicht möglich: " + (preview.reason || "unbekannt"));
+      return;
+    }
+    if (preview.alreadyOK) {
+      appAlert("Datei trägt bereits den Wunschnamen.");
+      return;
+    }
+    if (!(await appConfirm(
+      `Datei umbenennen?\n\nVon:  ${it.path.split("/").pop()}\nNach: ${preview.targetBase}\n\n` +
+      "Die Aktion wird in der Umbenennen-Historie protokolliert und kann " +
+      "dort einzeln rückgängig gemacht werden."
+    ))) return;
+    try {
+      const res = await api(`/api/items/${it.id}/rename`, { method: "POST" });
+      // Frisches Item laden, damit der Detail-Dialog den neuen Pfad anzeigt
+      const fresh = await api(`/api/items/${it.id}`);
+      if (fresh) {
+        state.currentItem = fresh;
+        $("#detailFileHint").innerHTML = fileHintHTML(fresh);
+      }
+      showToast("Umbenannt zu: " + res.newBase, { kind: "success" });
+      invalidateItemsCache();
+      loadItems();
+    } catch (e) { appAlert("Umbenennen fehlgeschlagen: " + e.message); }
+  });
   $("#detailDownload").addEventListener("click", () => {
     if (!state.currentItem) return;
     // Browser-Download via Location-Change (Cookie wird mitgeschickt)

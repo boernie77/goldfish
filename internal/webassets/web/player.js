@@ -311,6 +311,35 @@ function updateConfirmBtn() {
   } else if (nfo) {
     nfo.classList.add("hidden");
   }
+  // Rename-Button (🏷) — admin, nur bei bestaetigten Filmen. Holt eine
+  // Preview vom Server, damit der Tooltip den Ziel-Dateinamen zeigt;
+  // bei alreadyOK (Datei traegt schon den Wunschnamen) wird der Button
+  // ausgeblendet.
+  const rn = $("#detailRename");
+  if (rn) {
+    const it = state.currentItem;
+    const isMovie = it && it.metadata && it.metadata.tmdbType === "movie";
+    if (state.me && state.me.isAdmin && on && isMovie) {
+      rn.classList.remove("hidden");
+      rn.title = "Datei zu Titel (Jahr) umbenennen — Vorschau lädt…";
+      rn.disabled = true;
+      api(`/api/items/${it.id}/rename-preview`).then(p => {
+        if (state.currentItem !== it) return; // Dialog geschlossen / anderes Item
+        if (!p.canRename) {
+          rn.classList.add("hidden");
+          return;
+        }
+        if (p.alreadyOK) {
+          rn.classList.add("hidden");
+          return;
+        }
+        rn.title = `Umbenennen zu: ${p.targetBase}`;
+        rn.disabled = false;
+      }).catch(() => { rn.classList.add("hidden"); });
+    } else {
+      rn.classList.add("hidden");
+    }
+  }
 }
 
 function updateDetailFavBtn() {

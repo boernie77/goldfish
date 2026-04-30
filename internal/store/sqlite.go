@@ -214,6 +214,23 @@ func (s *Store) migrate() error {
 			hidden_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (user_id, collection_id, tmdb_movie_id)
 		)`,
+		// Auto-Rename-History: jede Datei-Umbenennung (manuell oder automatisch
+		// beim Confirm) wird hier protokolliert. undone_at bleibt NULL solange
+		// die Umbenennung aktiv ist; beim Undo wird der Eintrag nicht geloescht
+		// sondern der Timestamp gesetzt — so bleibt die Historie nachvollziehbar.
+		`CREATE TABLE IF NOT EXISTS rename_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+			old_path TEXT NOT NULL,
+			new_path TEXT NOT NULL,
+			old_rel_path TEXT NOT NULL,
+			new_rel_path TEXT NOT NULL,
+			renamed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			undone_at DATETIME,
+			triggered_by TEXT NOT NULL DEFAULT 'auto'
+		)`,
+		`CREATE INDEX IF NOT EXISTS rename_history_item_idx ON rename_history(item_id)`,
+		`CREATE INDEX IF NOT EXISTS rename_history_renamed_idx ON rename_history(renamed_at DESC)`,
 	}
 	for _, q := range baseStmts {
 		if _, err := s.db.Exec(q); err != nil {

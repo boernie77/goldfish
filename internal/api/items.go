@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -246,6 +247,15 @@ func (s *Server) confirmItemMetadata(w http.ResponseWriter, r *http.Request) {
 		it2, _ := s.Store.GetItem(id)
 		if it2 != nil {
 			_, _ = s.writeNFOForItem(it2)
+			// Auto-Rename: nur Filme, nur wenn Setting an. Fehler werden
+			// stillschweigend ins Log geschrieben — Confirm bleibt erfolgreich
+			// auch wenn Rename fehlschlaegt (User behaelt konsistenten Zustand).
+			if s.settingAutoRenameOn() {
+				_, _, msg, code := s.executeRename(it2, "auto")
+				if code != 0 {
+					log.Printf("[auto-rename] item %d: %s", it2.ID, msg)
+				}
+			}
 		}
 	}
 	w.WriteHeader(204)
