@@ -1378,6 +1378,64 @@ details.hint p { margin: 6px 0; }
   border-color: #3b82f6;
 }
 
+/* Slider-Switch — iOS-Style An/Aus-Toggle.
+   Markup-Pattern:
+     <label class="switch-row">
+       <span>Beschreibung links</span>
+       <span class="switch"><input type="checkbox"><span class="slider"></span></span>
+     </label>
+   Die Row macht space-between, der Switch sitzt rechts.
+*/
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  background: #475569;
+  border-radius: 24px;
+  transition: background 0.2s ease;
+}
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.switch input:checked + .slider {
+  background: #22c55e;
+}
+.switch input:checked + .slider::before {
+  transform: translateX(20px);
+}
+.switch input:focus-visible + .slider {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
 /* Topbar-Navigation: Home, Sammlungen, Playlists — drei gleich große
    Icon-Only-Buttons. Fixe Breite damit unterschiedliche Emoji-Glyph-Breiten
    nicht zu optisch verschieden großen Kästchen führen. */
