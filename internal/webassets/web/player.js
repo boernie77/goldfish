@@ -495,20 +495,43 @@ function playNextInQueue() {
   openPlayer(next);
 }
 
-// Auto-Mark als "gesehen" wenn 90% der Laufzeit erreicht
+// Auto-Mark als „gesehen" wenn 90 % der Laufzeit erreicht.
+//
+// WICHTIG: bei Transcode liefert vjs.currentTime() nur die LOKALE Segment-
+// Position (zaehlt von 0, weil ffmpeg ab `virtualOffset` segmentiert).
+// Die absolute Video-Position ist `currentTime + virtualOffset`. Ohne
+// virtualOffset-Korrektur wuerde der 90-%-Threshold bei Resume-Plays
+// nie gezuendet (z.B. Resume bei 50 min, Video-Laenge 100 min →
+// currentTime steigt nur bis 50, Ratio 50/100 = 0.5 < 0.9).
+// Bei Direct Play ist virtualOffset=0, also keine Aenderung.
 function maybeMarkWatched(vjs) {
   if (state.watchedFired) return;
   const item = state.currentItem;
   if (!item || item.watched) return;
-  const dur = vjs ? vjs.duration() : 0;
+  const dur = item.durationSec || (vjs ? vjs.duration() : 0);
   const cur = vjs ? vjs.currentTime() : 0;
-  if (!dur || dur <= 0) return;
-  if (cur / dur >= 0.9) {
-    state.watchedFired = true;
-    api(`/api/items/${item.id}/watched`, { method: "PUT", body: JSON.stringify({ watched: true }) })
-      .then(() => { item.watched = true; updateDetailWatchedBtn(); })
-      .catch(console.warn);
+  if (!dur || dur <= 0 || !isFinite(cur)) return;
+  const offset = (state.playback && state.playback.virtualOffset) || 0;
+  const absolute = cur + offset;
+  if (absolute / dur >= 0.9) {
+    markWatchedNow(item);
   }
+}
+
+// markWatchedNow: gemeinsamer Pfad fuer 90-%-Threshold UND ended-Event.
+// Idempotent durch state.watchedFired-Flag.
+function markWatchedNow(item) {
+  if (state.watchedFired) return;
+  state.watchedFired = true;
+  api(`/api/items/${item.id}/watched`, { method: "PUT", body: JSON.stringify({ watched: true }) })
+    .then(() => {
+      item.watched = true;
+      updateDetailWatchedBtn();
+      // Lautlos die Kachel im Grid auffrischen, damit der gruene
+      // Watched-Haken sofort sichtbar ist — ohne Page-Reload.
+      if (typeof silentlyRefreshItem === "function") silentlyRefreshItem(item.id);
+    })
+    .catch(console.warn);
 }
 
 // --- Trickplay-Hover-Thumbnails (eigenes Plugin) ---
@@ -889,12 +912,16 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     state.vjs = vjs;
     vjs.on("timeupdate", () => maybeMarkWatched(vjs));
     vjs.on("ended", () => {
-      // Wiedergabe durchgespielt → Resume-Marker löschen.
+      // Wiedergabe durchgespielt → Resume-Marker löschen + als gesehen markieren.
+      // Letzteres ist Sicherheitsnetz: maybeMarkWatched feuert idealerweise
+      // schon bei 90 %, aber falls timeupdate-Events kurz vor Ende ausgelassen
+      // werden (Buffering, Tab-Wechsel) fängt das ended-Event es hier auf.
       if (state.currentItem) {
         api(`/api/items/${state.currentItem.id}/resume`, {
           method: "PUT",
           body: JSON.stringify({ positionSec: 0 }),
         }).catch(() => {});
+        markWatchedNow(state.currentItem);
       }
       if (state.currentPlaylist) playNextInQueue();
     });
