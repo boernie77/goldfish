@@ -1002,6 +1002,27 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Server-Buffer springt zyklisch alle ~60 s auf 0, Wiedergabe stallt (2026-05-02)
+- **Symptom:** Bei Transcode-Wiedergabe alle ~60 s Sprung der
+  Server-Buffer-Anzeige auf 0, Browser-Buffer waechst nicht weiter,
+  Video stoppt. Sehr wiederkehrend, betrifft jede Wiedergabe ueber 1 min.
+- **Ursache:** `Manager.ConsumeFresh` hatte als Idempotenz ein 60-s-
+  Wallclock-Fenster. VHS laedt aber EVENT-Playlists **kontinuierlich**
+  mit `fresh=1` in der URL. Nach 60 s lief das Fenster ab, die naechste
+  Reload kam durch, ConsumeFresh sagte „OK", `StopSession` killte die
+  laufende ffmpeg-Session, `StartOrGet` startete frisch von vorn →
+  Browser-Buffer leer, Stall. Loop alle 60 s.
+- **Fix:** Discriminator von Wallclock auf den `_t`-URL-Token umstellen.
+  Das Frontend setzt `_t=Date.now()` einmalig pro `applyPlayback`-Aufruf.
+  VHS-Reloads behalten denselben Token (= no-op), ein echter Player-Open
+  generiert einen neuen Token (= killen+neu starten ist erlaubt).
+  Manager-Field `freshHandledAt map[string]time.Time` →
+  `freshTokens map[string]string`. Caller in `transcodePlaylist`
+  uebergibt `r.URL.Query().Get("_t")` als Token.
+- **Niemals zurueck auf Wallclock-Fenster** — das ist der Bug, den wir
+  gerade beseitigt haben. Der Token ist die einzige zuverlaessige
+  Discrimination zwischen VHS-Reload und echtem User-Open.
+
 ### ✅ Buffer-Counter steht 4–5 s, dann springt er hoch (HLS-Segment-Time + Keyframe-Intervall)
 - **Symptom:** Beim Klick auf „Abspielen" zeigt der Buffer-Counter im
   Player ~4–5 s lang Null, dann springt er auf 4 oder 5. Manchmal

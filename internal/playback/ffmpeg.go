@@ -70,16 +70,18 @@ type Manager struct {
 	sessions map[string]*Session
 	cacheDir string
 	hw       HWAccel
-	// freshHandledAt: Zeitpunkt, an dem ein `fresh=1`-Request fuer diesen
-	// Session-Key zuletzt das Stop-and-Recreate ausgeloest hat. VHS laedt
-	// EVENT-Playlists periodisch (alle ~targetDuration ≈ 4 s) mit DERSELBEN
-	// URL inkl. fresh=1. Ohne diese Drosselung wuerde jeder Reload nach
-	// 4 s die Session toeten und neu starten → Wiedergabe stottert sichtbar
-	// (Server-Buffer klettert hoch, fällt auf 0, klettert wieder hoch).
-	// Mit der Map honorieren wir fresh=1 nur einmal pro Key in einem
-	// 60-Sekunden-Fenster — damit reicht der erste Klick „Von Anfang"
-	// zum Stale-Session-Reset, alle folgenden VHS-Reloads sind no-op.
-	freshHandledAt map[string]time.Time
+	// freshTokens: pro Session-Key der zuletzt akzeptierte `_t`-Token aus
+	// der Player-URL. VHS laedt EVENT-Playlists periodisch mit DERSELBEN
+	// URL (inkl. fresh=1 und _t=<page-load-time>). Solange der Token
+	// gleich bleibt, erkennen wir einen VHS-Reload und tun NICHTS — die
+	// laufende Session bleibt am Leben. Bei einem neuen Player-Open
+	// generiert das Frontend `_t=Date.now()` neu → Token-Mismatch →
+	// alte Session wird gekillt und frisch erzeugt.
+	//
+	// Die fruehere Wallclock-60-s-Variante hatte den Bug: nach 60 s
+	// lief das Fenster ab und die naechste VHS-Reload killte die laufende
+	// Session, Wiedergabe stallte zyklisch.
+	freshTokens map[string]string
 }
 
 func NewManager(cacheDir string, hw HWAccel) *Manager {
@@ -88,7 +90,7 @@ func NewManager(cacheDir string, hw HWAccel) *Manager {
 		sessions:       map[string]*Session{},
 		cacheDir:       cacheDir,
 		hw:             hw,
-		freshHandledAt: map[string]time.Time{},
+		freshTokens: map[string]string{},
 	}
 	go m.gcLoop()
 	return m
@@ -164,12 +166,20 @@ func (m *Manager) SessionAge(itemID int64, profile Profile, audioIdx int, startS
 }
 
 // ConsumeFresh meldet, ob ein `fresh=1`-Request fuer diesen Session-Key gerade
-// JETZT ausgefuehrt werden darf (= der erste fresh=1 in einem 60-Sekunden-
-// Fenster). Wird true zurueckgegeben, ist der Caller fuer das anschliessende
-// StopSession+StartOrGet zustaendig; der Timestamp wurde intern gesetzt, sodass
-// VHS-Playlist-Reloads in den naechsten 60 s false bekommen und keine zweite
-// Stop-and-Restart-Welle ausloesen.
-func (m *Manager) ConsumeFresh(itemID int64, profile Profile, audioIdx int, startSec float64, deinterlace bool) bool {
+// JETZT ausgefuehrt werden darf. Discriminator ist der `_t`-Token aus der
+// URL (Date.now() vom Frontend, eindeutig pro applyPlayback-Aufruf):
+//   - Gleicher Token wie zuletzt → VHS-Reload derselben Wiedergabe → false
+//     (Session bleibt am Leben).
+//   - Anderer/leerer Token → echter neuer Player-Open → true (Caller killt
+//     ggf. eine alte Session aus einer frueheren Wiedergabe und startet neu).
+//
+// Frueher war die Idempotenz ueber ein 60-s-Zeitfenster realisiert. Das
+// hat den fundamentalen Bug erzeugt: VHS laedt die EVENT-Playlist
+// permanent mit fresh=1, nach 60 s lief das Fenster ab → die naechste
+// Reload triggerte Stop+Restart der laufenden ffmpeg-Session →
+// Wiedergabe stallte alle ~60 s. Der `_t`-Token koppelt die Idempotenz
+// an die tatsaechliche Player-Session statt an Wallclock.
+func (m *Manager) ConsumeFresh(itemID int64, profile Profile, audioIdx int, startSec float64, deinterlace bool, freshToken string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	dei := 0
@@ -177,16 +187,19 @@ func (m *Manager) ConsumeFresh(itemID int64, profile Profile, audioIdx int, star
 		dei = 1
 	}
 	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profile.ID, audioIdx, int(startSec), dei)
-	if last, ok := m.freshHandledAt[id]; ok && time.Since(last) < 60*time.Second {
+	if last, ok := m.freshTokens[id]; ok && last == freshToken && freshToken != "" {
 		return false
 	}
-	m.freshHandledAt[id] = time.Now()
-	// Map gelegentlich aufraeumen — alte Eintraege bleiben sonst forever
-	if len(m.freshHandledAt) > 200 {
-		cutoff := time.Now().Add(-10 * time.Minute)
-		for k, t := range m.freshHandledAt {
-			if t.Before(cutoff) {
-				delete(m.freshHandledAt, k)
+	m.freshTokens[id] = freshToken
+	// Map gelegentlich aufraeumen, falls sehr viele unique Session-Keys
+	// auflaufen — Standardfall hat dutzende Eintraege, sehr klein.
+	if len(m.freshTokens) > 500 {
+		// Einfache Strategie: alle Eintraege verwerfen, deren Session nicht
+		// (mehr) existiert. Token-Drosselung wird damit fuer veraltete
+		// Eintraege resettet, das ist OK — die zugehoerige Session ist eh weg.
+		for k := range m.freshTokens {
+			if _, alive := m.sessions[k]; !alive {
+				delete(m.freshTokens, k)
 			}
 		}
 	}

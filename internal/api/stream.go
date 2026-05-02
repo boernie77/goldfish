@@ -231,7 +231,12 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 	// nachdem ihn der erste Request ausgeloest hat — VHS-Reloads sind dann
 	// no-op und die laufende Session bleibt am Leben.
 	if r.URL.Query().Get("fresh") == "1" {
-		if s.Playback.ConsumeFresh(it.ID, profile, audioIdx, startSec, deinterlace) {
+		// `_t` ist der per-Player-Open-eindeutige Token aus dem Frontend
+		// (Date.now()). VHS-Reloads behalten denselben Token, ein neuer
+		// Open generiert einen neuen — so bleibt das Killen+Neustarten
+		// gebunden an echte User-Actions, nicht an Wallclock-Fenster.
+		freshToken := r.URL.Query().Get("_t")
+		if s.Playback.ConsumeFresh(it.ID, profile, audioIdx, startSec, deinterlace, freshToken) {
 			s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
 		}
 	}
