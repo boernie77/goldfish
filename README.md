@@ -13,6 +13,21 @@ Written in Go, runs in a ~150 MB Docker image, no external dependencies.
 
 ## Quickstart
 
+### Easiest: interactive installer
+
+```bash
+wget https://raw.githubusercontent.com/<your-fork>/goldfish/main/install.sh
+chmod +x install.sh
+./install.sh
+```
+
+The installer pops up dialog boxes for the install path, media path,
+render-group ID (auto-detected), NVIDIA support, optional OIDC SSO config —
+then clones the repo, writes `.env`, builds, starts. Done in 2 minutes on a
+warm Docker cache.
+
+### Manual
+
 ```bash
 git clone https://github.com/<your-fork>/goldfish
 cd goldfish
