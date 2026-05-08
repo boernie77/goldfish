@@ -1052,10 +1052,25 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			q += ` ORDER BY i.added_at DESC`
 		}
 	case "released":
+		// Bevorzugt das TMDB-Release-Datum (m.release_date) — das ist auch
+		// was die Kachel als Jahr zeigt. Fallback auf m.year (manche
+		// Metadata-Einträge haben nur das Jahr, kein volles Datum), dann
+		// auf i.released_at (ffprobe creation_time / yt-dlp DATE-Tag),
+		// schließlich i.mod_time. Für Episoden zusätzlich Parent-Show-
+		// release-Date als Fallback, damit alle Folgen einer Show
+		// chronologisch nahe beieinander stehen wenn die Episoden-
+		// Metadata kein Datum hat.
+		releaseExpr := `COALESCE(
+			NULLIF(m.release_date, ''),
+			CASE WHEN COALESCE(m.year, 0) > 0 THEN printf('%d-01-01', m.year) END,
+			(SELECT mp.release_date FROM metadata mp WHERE mp.id = m.parent_id AND mp.release_date != ''),
+			i.released_at,
+			i.mod_time
+		)`
 		if asc {
-			q += ` ORDER BY COALESCE(i.released_at, i.mod_time) ASC`
+			q += ` ORDER BY ` + releaseExpr + ` ASC`
 		} else {
-			q += ` ORDER BY COALESCE(i.released_at, i.mod_time) DESC`
+			q += ` ORDER BY ` + releaseExpr + ` DESC`
 		}
 	case "episode":
 		if desc {
