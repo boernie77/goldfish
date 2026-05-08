@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.1.0)
+# 📱 Android-App (in Testphase, aktuell 1.1.3)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,13 +158,18 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (alle in 1.1.0 enthalten)
+## Android-App-Featureliste (alle in 1.1.3 enthalten)
 
 - Library-Grid (adaptive Spalten Tablet/Phone), Filter (Sort/Watched/Favorit/
   Auflösung/Rating/Flach/Staffeln/Zufall/Auswahl), Detail-Screen mit Cast-Strip
+- **Buchstaben-Sidebar** rechts bei Sort=Title und ≥10 Kacheln — sucht zuerst
+  in Show-Folders (TV-Lib), dann in Items (wie im Browser)
+- **Sortier-Richtung** wird explizit als `dir=asc|desc` gesendet, nicht
+  client-side gereverst
 - Player: Media3/ExoPlayer, eigenes Compose-Settings-Zahnrad oben rechts (synced
-  mit ControlBar), Quality-Auswahl, Trickplay-Hover beim Scrub-Drag, Resume-
-  Dialog („Von Anfang"/„Fortsetzen ab MM:SS")
+  mit ControlBar), Quality-Auswahl, **Untertitel-Dropdown** (Text-VTT,
+  Whisper-VTT, PGS bei Direct Play via ExoPlayer-PgsParser), Trickplay-Hover
+  beim Scrub-Drag, Resume-Dialog (Daten aus separatem `/resume`-Endpoint)
 - Show-Header in der Staffel-Übersicht mit Beschreibung
 - Episoden-Grid mit Auflösung-Badges und Offline-Indikator
 - Download via SAF-Picker („Ordner auswählen…") in Settings, Application-Scope-
@@ -172,6 +177,7 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 - Performance: in-Memory ApiCache (TTL pro Endpoint), Coil 1 GB Disk-Cache,
   OkHttp HTTP-Cache (User-konfigurierbar)
 - Adaptive Launcher-Icon (Goldfisch CC-BY 4.0 Twemoji)
+- Versionsnummer aus `BuildConfig.VERSION_NAME` im Settings-Screen sichtbar
 
 ## Was die App NICHT hat
 
@@ -1126,6 +1132,40 @@ volumes:
 ```
 
 ## Bekannte Probleme & Lösungen (Decision Log)
+
+### ✅ Stack-Update via Portainer-API zerstört Stack-Env-Variablen (2026-05-08)
+- **Symptom:** Nach mehreren `PUT /api/stacks/37`-Calls antwortete
+  `https://goldfish.<your-domain>/api/auth/oidc/login` mit **503 „SSO nicht
+  konfiguriert"**. Browser-SSO-Login tot. App war nicht betroffen, weil sie
+  Email/Passwort nutzt.
+- **Ursache:** Portainer-Stack-Update löscht das `Env`-Array, wenn der
+  PUT-Body nur `{"stackFileContent": ..., "prune": false, "pullImage": false}`
+  enthält. Das Compose-File nutzt `${OIDC_*:-}`-Substitution → bei leerer
+  Stack-Env wird der Container mit leeren OIDC-Werten gestartet → goldfish.go
+  schaltet OIDC-Routes auf 503.
+- **Lösung:** Beim Stack-Redeploy IMMER das `env`-Array mitsenden — entweder
+  vorher per `GET /api/stacks/37` rausziehen und 1:1 zurück schreiben, oder
+  explizit die 4 OIDC-Vars setzen. Memory: `project_stack_env_pitfall.md`.
+- **NICHT** wieder vergessen — der Bug zerstört SSO ohne Vorwarnung.
+
+### ✅ DeepL-API-Key wurde als maskierter String in der DB gespeichert (2026-05-08)
+- **Symptom:** Whisper-VTTs für `de` und `en` waren bytegleich, kein
+  Übersetzungsfehler im Log, aber Text war englisch. DeepL-Test mit dem
+  echten Key (vom User-Screenshot) lieferte 200, vom Server aus 403.
+- **Ursache:** Klassischer Mask-Save-Roundtrip-Bug. `whisperGetSettings`
+  gab `deeplKey` maskiert (`a22e…d:fx`) zurück. Frontend füllte das
+  `<input>`-Feld damit. Beim Save schickte die UI den maskierten Wert
+  zurück → Server überschrieb DB-Wert mit der Maske → DeepL antwortet
+  auf den Müll-Key mit 403. Mein zweiter Bugfix in `TranslateVTT`
+  (Original-Zeile bei Fehler behalten) maskierte das zusätzlich, weil
+  alle Cues unverändert blieben.
+- **Lösung:** Server gibt API-Keys NICHT mehr zurück, nur ein bool
+  `deeplKeySet`/`libreKeySet`. Save überschreibt Keys nur wenn das Feld
+  nicht leer ist und keine Maske (`…` oder `***`) enthält. Frontend zeigt
+  Placeholder „(gespeichert — leer lassen zum Behalten)".
+- **NICHT** auf den maskKey-Roundtrip zurück. Wenn ein neues Setting einen
+  Secret-Wert hat: bool-Indikator + leeres Eingabefeld, nie maskieren-und-
+  zurückschicken.
 
 ### ✅ Server-Buffer springt zyklisch alle ~60 s auf 0, Wiedergabe stallt (2026-05-02)
 - **Symptom:** Bei Transcode-Wiedergabe alle ~60 s Sprung der
