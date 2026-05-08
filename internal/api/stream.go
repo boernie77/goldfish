@@ -8,8 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/boernie77/goldfish/internal/model"
+	"github.com/boernie77/goldfish/internal/playback"
+	"github.com/boernie77/goldfish/internal/whisper"
 )
 
 // resolveDeinterlace übersetzt den Query-Param `deinterlace=auto|on|off`
@@ -87,6 +90,26 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 	// Stream-Liste dazupacken (Client zeigt Audio/Subtitle-Dropdown)
 	streams, _ := s.Store.ItemStreams(it.ID)
 	it.Streams = streams // damit IsInterlaced / Decide korrekt arbeiten
+
+	// KI-generierte Untertitel anhängen: VTT-Datei auf Disk ist der Wahrheits-Anker,
+	// nicht der DB-Status (ein fehlgeschlagener Retry löscht die alte Datei nicht).
+	if genJobs, err := s.Store.ListItemSubtitles(it.ID); err == nil {
+		for i, job := range genJobs {
+			vttPath := whisper.VTTPath(s.ConfigDir, it.ID, job.Language)
+			if job.Status != "done" {
+				if _, statErr := os.Stat(vttPath); statErr != nil {
+					continue // kein Status "done" und keine Datei → überspringen
+				}
+			}
+			streams = append(streams, model.ItemStream{
+				Index:    2000 + i,
+				Type:     "subtitle",
+				Codec:    "webvtt-generated",
+				Language: job.Language,
+				Title:    whisperSubStreamLabel(job.Language),
+			})
+		}
+	}
 	isInterlaced := playback.IsInterlaced(it)
 	deinterlaceParam := q.Get("deinterlace")
 	if deinterlaceParam == "" {

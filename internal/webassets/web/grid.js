@@ -114,7 +114,10 @@ async function loadItemsBody() {
   if (state.homeView) {
     const sq = $("#searchInput").value.trim();
     $("#searchClear").classList.toggle("hidden", sq === "");
-    if (sq) {
+    // Mindestlänge 2 — bei 1 Buchstaben matcht die Suche zu viel (LIKE %h%
+    // gegen alle Libraries plus Schauspieler-EXISTS-Subquery), das Ergebnis
+    // ist nicht hilfreich und der Roundtrip mehrere Sekunden.
+    if (sq.length >= 2) {
       let items = [];
       try {
         const params = new URLSearchParams({ search: sq, sort: "title", dir: "asc" });

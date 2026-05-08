@@ -7,7 +7,21 @@
 <link rel="stylesheet" href="/video-js.min.css" />
 <link rel="stylesheet" href="/style.css" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="/favicon.svg" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#0c2a3a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Goldfish" />
+<script>
+  // Service-Worker registrieren — Voraussetzung für PWA-Install ("Als App installieren").
+  // Strategie + Update-Logik in /sw.js.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
 <script src="/video.min.js" defer></script>
 <!-- Google Cast Sender SDK (Chromecast, FireTV mit AirScreen, Smart-TVs mit Cast).
      Lädt asynchron; bei Verfügbarkeit setzt Goldfish einen Cast-Button in der Player-
@@ -104,20 +118,104 @@
   <div class="topbar-corner">
     <span id="userMenu" class="user-menu"></span>
     <span class="btn-group">
+      <button id="bellBtn" title="Benachrichtigungen" class="bell-btn" aria-label="Benachrichtigungen">🔔<span id="bellBadge" class="bell-badge hidden">0</span></button>
       <button id="settingsBtn" title="Einstellungen">⚙︎</button>
     </span>
-    <div id="settingsMenu" class="dropdown hidden">
-      <button data-action="settings">⚙︎  Einstellungen</button>
-      <button data-action="libraries">📁  Bibliotheken</button>
-      <button data-action="users" id="settingsMenuUsers">👥  Benutzer</button>
-      <button data-action="trickplay" id="settingsMenuTrickplay">🎞  Trickplay verwalten</button>
-      <button data-action="missing" id="settingsMenuMissing">📥  Fehlende Inhalte</button>
-      <button data-action="refreshallmeta" id="settingsMenuRefreshAllMeta">↻  Metadaten neu laden (alle)</button>
-      <button data-action="pathsearch" id="settingsMenuPathSearch">🔍  Datei/Ordner suchen</button>
-      <button data-action="renames" id="settingsMenuRenames">📝  Umbenennungen verwalten</button>
+    <div id="bellDropdown" class="dropdown bell-dropdown hidden">
+      <div class="bell-header">
+        <span>Benachrichtigungen</span>
+        <button type="button" id="bellClearBtn" class="bell-clear">Alle löschen</button>
+      </div>
+      <div id="bellList" class="bell-list"></div>
     </div>
   </div>
 </header>
+
+<!-- Side-Drawer Overlay -->
+<div id="drawerOverlay" class="drawer-overlay hidden"></div>
+
+<!-- Settings Side Drawer -->
+<aside id="settingsMenu" class="settings-drawer" aria-label="Administration" aria-hidden="true">
+  <div class="drawer-header">
+    <span class="drawer-title">⚙ Administration</span>
+    <button type="button" class="drawer-close" id="drawerClose" aria-label="Schließen">✕</button>
+  </div>
+
+  <div class="drawer-section">
+    <div class="drawer-section-label">Allgemein</div>
+    <button class="drawer-item" data-action="settings">
+      <span class="drawer-icon">⚙</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Einstellungen</span>
+        <span class="drawer-item-sub">Server, Hardware, Puffer</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="libraries">
+      <span class="drawer-icon">📁</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Bibliotheken</span>
+        <span class="drawer-item-sub">Ordner, Scan-Pfade</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="users" id="settingsMenuUsers">
+      <span class="drawer-icon">👥</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Benutzer</span>
+        <span class="drawer-item-sub">Accounts, Rechte, FSK</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="drawer-section">
+    <div class="drawer-section-label">Bibliothek & Medien</div>
+    <button class="drawer-item" data-action="trickplay" id="settingsMenuTrickplay">
+      <span class="drawer-icon">🎞</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Trickplay</span>
+        <span class="drawer-item-sub">Hover-Vorschau verwalten</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="whisper" id="settingsMenuWhisper">
+      <span class="drawer-icon">🎤</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Whisper-Untertitel</span>
+        <span class="drawer-item-sub">KI-Modell, Übersetzung</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="refreshallmeta" id="settingsMenuRefreshAllMeta">
+      <span class="drawer-icon">↻</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Metadaten neu laden</span>
+        <span class="drawer-item-sub">Alle Filme & Serien (TMDB)</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="renames" id="settingsMenuRenames">
+      <span class="drawer-icon">📝</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Umbenennungen</span>
+        <span class="drawer-item-sub">History, Undo, CSV-Export</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="drawer-section">
+    <div class="drawer-section-label">Diagnose</div>
+    <button class="drawer-item" data-action="missing" id="settingsMenuMissing">
+      <span class="drawer-icon">📥</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Fehlende Inhalte</span>
+        <span class="drawer-item-sub">Export für Radarr / Sonarr</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="pathsearch" id="settingsMenuPathSearch">
+      <span class="drawer-icon">🔍</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Datei/Ordner suchen</span>
+        <span class="drawer-item-sub">Pfad-Diagnose & Zuordnung</span>
+      </span>
+    </button>
+  </div>
+</aside>
 
 <nav id="libNav" class="lib-nav" role="navigation" aria-label="Bibliotheken"></nav>
 <aside id="alphaSidebar" class="alpha-sidebar hidden" aria-label="Zu Buchstaben springen"></aside>
@@ -142,6 +240,7 @@
 
 <div id="scanStatus" class="scanbar hidden"></div>
 <div id="trickplayStatus" class="scanbar trickbar hidden"></div>
+<div id="whisperStatus" class="scanbar whisperbar hidden"></div>
 
 <!-- Player -->
 <dialog id="playerDialog" class="player-dialog">
@@ -281,8 +380,19 @@
     <button type="button" id="detailConfirm" class="icon-btn" title="Zuordnung bestätigen" aria-label="Zuordnung bestätigen">✅</button>
     <button type="button" id="detailNFO" class="icon-btn hidden" title="NFO aktualisieren (wird beim ✅ automatisch geschrieben)" aria-label="NFO aktualisieren">💾</button>
     <button type="button" id="detailRename" class="icon-btn hidden" title="Datei zu Titel (Jahr) umbenennen" aria-label="Umbenennen">🏷</button>
+    <button type="button" id="detailSubGen" class="icon-btn hidden" title="Untertitel generieren (Whisper KI)" aria-label="Untertitel generieren">🎤</button>
     <button type="button" id="detailDelete" class="icon-btn danger" title="Datei löschen" aria-label="Löschen">🗑</button>
     <button type="button" class="icon-btn" data-close title="Schließen" aria-label="Schließen">✕</button>
+  </div>
+  <!-- Whisper-Untertitel-Popover (erscheint über dem 🎤-Button) -->
+  <div id="subGenPopover" class="sub-gen-popover hidden">
+    <div class="sub-gen-title">🎤 Untertitel generieren</div>
+    <div id="subGenJobs" class="sub-gen-jobs"></div>
+    <div class="sub-gen-actions">
+      <button type="button" class="sub-gen-lang-btn" data-lang="de">🇩🇪 Deutsch</button>
+      <button type="button" class="sub-gen-lang-btn" data-lang="en">🇬🇧 Englisch</button>
+      <button type="button" class="sub-gen-lang-btn" data-lang="it">🇮🇹 Italienisch</button>
+    </div>
   </div>
 </dialog>
 
@@ -397,6 +507,57 @@
   <div class="row" style="margin-top:14px"><button type="button" data-close class="primary">OK</button></div>
 </dialog>
 
+<!-- Whisper KI-Untertitel (Admin) -->
+<dialog id="whisperDialog" class="modal whisper-modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>🎤 Whisper — KI-Untertitel</h2>
+
+  <div class="whisper-section">
+    <h3>Modell</h3>
+    <p class="hint">Das Sprachmodell wird beim ersten Download nach <code>/config/whisper-models/</code> gespeichert und bleibt dann lokal.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="whisperModelSel">
+        <option value="ggml-tiny">Tiny (~75 MB) — schnell, weniger genau</option>
+        <option value="ggml-base">Base (~142 MB)</option>
+        <option value="ggml-small" selected>Small (~466 MB) — Empfehlung</option>
+        <option value="ggml-medium">Medium (~1,5 GB) — sehr genau, langsam</option>
+      </select>
+      <button type="button" id="whisperDownloadBtn" class="primary">⬇ Herunterladen</button>
+    </div>
+    <div id="whisperDownloadStatus" class="hint" style="margin-top:6px"></div>
+    <div id="whisperDownloadBar" class="whisper-progress-wrap hidden">
+      <div id="whisperDownloadBarInner" class="whisper-progress-bar"></div>
+    </div>
+  </div>
+
+  <div class="whisper-section">
+    <h3>Übersetzungs-Backend</h3>
+    <p class="hint">Whisper transkribiert auf Englisch. Für deutsche/italienische Untertitel wird ein Übersetzungs-Service benötigt.</p>
+    <div class="row" style="gap:8px;margin-bottom:8px">
+      <label><input type="radio" name="translationBackend" value="none" id="tbNone"> Keins (nur Englisch)</label>
+      <label><input type="radio" name="translationBackend" value="deepl" id="tbDeepl"> DeepL Free</label>
+      <label><input type="radio" name="translationBackend" value="libretranslate" id="tbLibre"> LibreTranslate</label>
+    </div>
+    <div id="tbDeeplFields" class="whisper-backend-fields hidden">
+      <label>DeepL API-Key (kostenloser Account auf deepl.com)
+        <input type="password" id="tbDeeplKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx" style="width:100%;margin-top:4px">
+      </label>
+    </div>
+    <div id="tbLibreFields" class="whisper-backend-fields hidden">
+      <label>LibreTranslate URL
+        <input type="text" id="tbLibreUrl" placeholder="http://192.168.2.x:5000" style="width:100%;margin-top:4px">
+      </label>
+      <label style="margin-top:8px;display:block">API-Key (optional, leer lassen wenn self-hosted ohne Key)
+        <input type="password" id="tbLibreKey" placeholder="" style="width:100%;margin-top:4px">
+      </label>
+    </div>
+    <button type="button" id="whisperSaveSettingsBtn" class="primary" style="margin-top:10px">Einstellungen speichern</button>
+    <span id="whisperSaveStatus" class="hint" style="margin-left:8px"></span>
+  </div>
+
+  <div class="row" style="margin-top:14px"><button type="button" data-close>Schließen</button></div>
+</dialog>
+
 <!-- Fehlende Inhalte (Admin) — Export für Radarr/Sonarr -->
 <dialog id="missingDialog" class="modal missing-modal">
   <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
@@ -407,6 +568,9 @@
 
   <div class="missing-section">
     <h3>🎬 Filme (aus Sammlungen, nicht ausgeblendet)</h3>
+    <div class="row" style="margin-bottom:6px">
+      <button type="button" id="missingMoviesRefresh">↻ Aktualisieren</button>
+    </div>
     <div id="missingMoviesStatus" class="hint">Wird geladen…</div>
     <div id="missingMoviesPreview" class="missing-preview"></div>
     <div class="row" style="margin-top:8px">
@@ -643,6 +807,7 @@
 <script src="/playlists.js" defer></script>
 <script src="/scan.js" defer></script>
 <script src="/matching.js" defer></script>
+<script src="/whisper.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

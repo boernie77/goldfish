@@ -2604,3 +2604,253 @@ button.danger:hover { background: #991b1b; }
   .breadcrumb { font-size: 15px; }
   .lib-nav-btn { font-size: 13px; padding: 4px 8px; }
 }
+
+/* --- Whisper KI-Untertitel --- */
+
+/* Popover über dem 🎤-Button im Detail-Dialog */
+.sub-gen-popover {
+  position: absolute;
+  bottom: 56px;
+  right: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 220px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  z-index: 10;
+}
+.sub-gen-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+.sub-gen-jobs { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+.sub-gen-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.sub-gen-lang-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.sub-gen-lang-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* Job-Status-Zeilen */
+.sub-job-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.sub-job-lang { font-weight: 500; }
+.sub-job-err  { flex: 1; font-size: 11px; color: var(--muted); }
+.sub-job-delete {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 14px; padding: 0 2px;
+}
+.sub-job-delete:hover { color: var(--danger); }
+.sub-job-status--done    { color: #22c55e; }
+.sub-job-status--pending { color: #f59e0b; }
+.sub-job-status--running { color: #3b82f6; }
+.sub-job-status--failed  { color: var(--danger); }
+
+/* Whisper-Einstellungs-Dialog */
+.whisper-modal { max-width: 560px; }
+.whisper-section { margin-bottom: 20px; }
+.whisper-section h3 { margin: 0 0 6px; font-size: 14px; }
+.whisper-backend-fields { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.whisper-progress-wrap {
+  height: 6px; background: var(--border); border-radius: 3px; margin-top: 8px; overflow: hidden;
+}
+.whisper-progress-bar { height: 100%; background: var(--accent); transition: width .3s; width: 0; }
+
+/* --- Glocke / Benachrichtigungen --- */
+.bell-btn {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 6px;
+  line-height: 1;
+}
+.bell-badge {
+  position: absolute;
+  top: 0; right: 0;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0 3px;
+  pointer-events: none;
+}
+.bell-dropdown {
+  right: 0;
+  left: auto;
+  min-width: 320px;
+  max-width: 400px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0;
+}
+.bell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+.bell-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bell-clear:hover { color: var(--text); }
+.bell-list { padding: 6px 0; }
+.bell-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.bell-item:last-child { border-bottom: none; }
+.bell-item--unread { background: rgba(99,102,241,0.07); }
+.bell-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.bell-body { flex: 1; }
+.bell-title { font-weight: 500; }
+.bell-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.bell-time { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.bell-empty { padding: 20px 14px; color: var(--muted); font-size: 13px; text-align: center; }
+
+/* Whisper-Statusbar (analog Trickplay-Bar) */
+.whisperbar { background: #312e81; color: #c7d2fe; }
+
+/* ============================================================
+   Settings Side Drawer
+   ============================================================ */
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  backdrop-filter: blur(2px);
+}
+.drawer-overlay.active { opacity: 1; }
+
+.settings-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 300px;
+  max-width: 90vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.4);
+}
+.settings-drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.drawer-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+.drawer-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 18px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+.drawer-close:hover { background: var(--card-2); color: var(--text); }
+
+.drawer-section {
+  padding: 12px 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-section:last-child { border-bottom: none; }
+
+.drawer-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 20px 6px;
+}
+
+.drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.15s;
+  color: var(--text);
+}
+.drawer-item:hover { background: var(--card-2); }
+.drawer-item:active { background: var(--card); }
+
+.drawer-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.drawer-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.drawer-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.2;
+}
+.drawer-item-sub {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.2;
+}

@@ -18,6 +18,22 @@ RUN set -eux \
  && curl -fsSL "https://cdn.jsdelivr.net/npm/videojs-vtt-thumbnails@${VTT_THUMBS_VERSION}/dist/videojs-vtt-thumbnails.css" \
       -o /src/internal/webassets/web/videojs-vtt-thumbnails.css
 
+# whisper.cpp — lokale KI-Untertitelerstellung (kein Python benötigt)
+ARG WHISPER_TAG=v1.7.5
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      cmake g++ git libgomp1 \
+      libopenblas-dev \
+    && git clone --depth 1 --branch ${WHISPER_TAG} https://github.com/ggerganov/whisper.cpp /whisper \
+    && cmake -B /whisper/build -S /whisper \
+         -DWHISPER_BUILD_TESTS=OFF \
+         -DWHISPER_BUILD_EXAMPLES=ON \
+         -DBUILD_SHARED_LIBS=OFF \
+         -DGGML_BLAS=ON \
+         -DGGML_BLAS_VENDOR=OpenBLAS \
+         -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /whisper/build --config Release -j$(nproc) \
+    && rm -rf /var/lib/apt/lists/*
+
 # go mod tidy erzeugt go.sum und lädt Abhängigkeiten in einem Schritt
 RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
@@ -43,6 +59,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       i965-va-driver \
       ca-certificates \
       tzdata \
+      curl \
+      libgomp1 \
+      libopenblas0 \
     && rm -rf /var/lib/apt/lists/*
 
 # nvidia-smi wird NICHT im Image installiert — es wird vom Host via
@@ -58,6 +77,7 @@ ENV NVIDIA_VISIBLE_DEVICES=all \
 RUN groupadd -g 107 render 2>/dev/null || true
 
 COPY --from=build /out/goldfish /app/goldfish
+COPY --from=build /whisper/build/bin/whisper-cli /usr/local/bin/whisper-cli
 
 EXPOSE 8096
 VOLUME ["/config", "/media"]

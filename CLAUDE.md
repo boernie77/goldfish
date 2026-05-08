@@ -122,6 +122,66 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
+# 📱 Android-App (in Testphase, aktuell 1.1.0)
+
+> **An jede Claude-Session, die Goldfish-Server-API anfasst:**
+> Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
+> die aktuell im **Internal-Testing-Track** der Google Play Console verteilt wird
+> (NICHT öffentlich im Play Store) und auf einem Samsung-Tablet des Users sowie
+> im Pixel-Tablet-Emulator läuft. Die App ist NICHT mitversioniert mit dem Server —
+> wenn du eine API-Antwort änderst, kann die App stillschweigend brechen
+> (Moshi-Parse-Error → leere Listen).
+>
+> **VOR** API-Änderungen prüfen:
+> - Pfad geändert? → App-Repo `app/src/main/kotlin/com/goldfish/android/data/api/GoldfishApi.kt`
+> - JSON-Feld umbenannt oder Typ geändert? → `data/model/Models.kt` (Moshi `@Json(name=…)`)
+> - Neuer Endpoint? Optional, App kann ihn ignorieren.
+>
+> **Wenn du etwas brichst:** versionCode in `app/build.gradle.kts` erhöhen, neue
+> AAB bauen (`./gradlew bundleRelease`), in Play Console Internal-Testing-Track
+> hochladen. Dauert ~3 Min Build + 5 Min Play-Console-Prozessierung.
+
+## Server-API-Quirks, die die App kennt (NICHT brechen)
+
+Diese drei Quirks sind in der App fest verdrahtet und gelten als „bekannte
+Konvention" — nicht ändern, sonst stille App-Bugs:
+
+1. **`resumePosSec` ist NICHT in der `getItem`-Antwort.** Es gibt einen separaten
+   Endpoint `GET /api/items/{id}/resume` → `{positionSec: float}`. Die App holt
+   beide Calls und merget. Der `GetItemFor`-SQL-Query in `internal/store/sqlite.go`
+   listet `resume_pos_sec` bewusst nicht auf — Server hat ihn historisch nicht
+   im Item-Modell exposed. Wenn du das ändern willst, ist es OK — aber die App
+   verlässt sich aktuell auf den separaten Endpoint UND würde von einem Feld
+   im JSON profitieren, nicht stören.
+2. **Download-Endpoint heißt `/api/download/{id}`**, NICHT `/api/items/{id}/download`.
+   Letzteres existiert nicht (404). Routing in `internal/api/router.go` Zeile 100.
+3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
+   Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
+
+## Android-App-Featureliste (alle in 1.1.0 enthalten)
+
+- Library-Grid (adaptive Spalten Tablet/Phone), Filter (Sort/Watched/Favorit/
+  Auflösung/Rating/Flach/Staffeln/Zufall/Auswahl), Detail-Screen mit Cast-Strip
+- Player: Media3/ExoPlayer, eigenes Compose-Settings-Zahnrad oben rechts (synced
+  mit ControlBar), Quality-Auswahl, Trickplay-Hover beim Scrub-Drag, Resume-
+  Dialog („Von Anfang"/„Fortsetzen ab MM:SS")
+- Show-Header in der Staffel-Übersicht mit Beschreibung
+- Episoden-Grid mit Auflösung-Badges und Offline-Indikator
+- Download via SAF-Picker („Ordner auswählen…") in Settings, Application-Scope-
+  Coroutine, Progress-Ring auf der Kachel + grünes CloudDone nach Abschluss
+- Performance: in-Memory ApiCache (TTL pro Endpoint), Coil 1 GB Disk-Cache,
+  OkHttp HTTP-Cache (User-konfigurierbar)
+- Adaptive Launcher-Icon (Goldfisch CC-BY 4.0 Twemoji)
+
+## Was die App NICHT hat
+
+- Kein OIDC. Login direkt per Email/Passwort (Cookie-Persistenz in SharedPrefs).
+  Die App profitiert NICHT vom Authentik-SSO im Browser.
+- Kein Cast/AirPlay (die Buttons im Player sind browser-only, in der App fehlen sie).
+- Kein Admin (User-Verwaltung, Library-Manager, Scan, NFO-Bulk, Whisper-UI etc.).
+
+---
+
 Ein schlanker Video-Streaming-Server auf Intel-iGPU-Hardware. Einzelner Go-Binärcontainer,
 eingebettetes Web-UI, SQLite, ffmpeg mit VAAPI.
 
@@ -173,8 +233,11 @@ internal/scanner/scanner.go       — Recursive Walk + ffprobe + Thumbnail + Met
 internal/store/sqlite.go          — DB + Migrationen + alle Queries
 internal/store/cast.go            — People, Metadata-Cast, Cast-Backfill-Tracking
 internal/store/collections.go     — TMDB-Collections + Items-in-Collection
+internal/store/subtitle_jobs.go   — generated_subtitles CRUD (KI-Untertitel-Jobs)
 internal/tmdb/client.go           — TMDB API-Client mit Rate-Limiting
+internal/translate/translate.go   — Translator-Interface + DeepL + LibreTranslate + NopTranslator + TranslateVTT
 internal/trickplay/               — Background-Worker, VAAPI-HW-Decode, Hover-Thumbnail-Sprites
+internal/whisper/worker.go        — KI-Untertitel-Worker (whisper-cli + ffmpeg + Übersetzung)
 internal/webassets/               — //go:embed all:web (siehe „Frontend-Modul-Layout" unten)
 scripts/check-frontend.sh         — Pre-Deploy: `node --check` ueber alle web/*.js
 scripts/install-git-hooks.sh      — installiert pre-commit-Hook (blockt JS-Parse-Errors)
@@ -208,12 +271,13 @@ internal/webassets/web/
   playlists.js       ~250 LOC     — Playlist-Manager + Add-to-Playlist + Shuffle (shufflePrev/Next, playRandom)
   scan.js            ~404 LOC     — Scan-Aktionen + Status-Polling + Globale Trickplay-Statusleiste
   matching.js        ~792 LOC     — Manuelles Matching + Edit-Metadata + Refresh-All-Metadata + Missing-Movies-Export + Path-Search + Trickplay-Manager
+  whisper.js         ~300 LOC     — KI-Untertitel: openWhisperDialog, initSubGenBtn, Glocke/Benachrichtigungen, globaler Status-Poll
   app.js            ~1371 LOC     — Rest: state-Objekt, Libraries-Loading, Bulk-Selection, Alphabet-Sidebar, Dialog-Drag, Filter-Modi-Helper, Topbar-Events, Boot-Wiring
 ```
 
 **Lade-Reihenfolge in index.html:**
 ```
-helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → app
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → app
 ```
 
 Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (−82 %)**. Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed + im Browser getestet.
@@ -271,6 +335,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `UnmatchEpisodesInFolder`, (c) Trigger für Auto-NFO-Write
 - `libraries.on_home INTEGER DEFAULT 1` — Toggle „auf der Startseite anzeigen".
   Gesteuert im Library-Manager via Checkbox pro Lib
+- `generated_subtitles(id, item_id, language, status, error, generated_at)` — KI-generierte
+  Untertitel-Jobs; `status ∈ {pending, running, done, failed}`, UNIQUE(item_id, language).
+  Whisper transkribiert immer zuerst auf Englisch → `en.vtt`, dann optional Übersetzung.
+  VTT-Dateien liegen unter `/config/generated-subs/{itemID}/{lang}.vtt`. Der
+  Playback-Handler zeigt generierte Tracks im Sub-Dropdown (`🎤 Deutsch (KI)`) wenn
+  die VTT-Datei auf Disk existiert (unabhängig vom DB-Status — Retry löscht alte Datei nicht).
+- `settings.translation_backend` — `none` | `deepl` | `libretranslate`
+- `settings.deepl_api_key` — DeepL Free-Keys enden auf `:fx` → `api-free.deepl.com`,
+  sonst `api.deepl.com`. Wird auto-detekted in `translate.DeepLTranslator.endpoint()`.
+- `settings.libretranslate_url` — z.B. `http://<UNRAID-LAN-IP>:5000`
+- `settings.whisper_model` — z.B. `ggml-small`; Datei liegt in `/config/whisper-models/`
 - `settings.hwaccel_mode` — `auto` | `vaapi` | `nvenc` | `software`; wird beim
   App-Start in `hw.ApplySelection()` gelesen, wirkt live nach Settings-Save
 - `metadata.cast_fetched_at` — markiert „Cast-Call bereits gemacht" auch ohne Treffer,
@@ -857,6 +932,56 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   aller Playlists + Quick-Create-Formular (gleicher Dialog wie im Detail).
   Aus Bulk-Auswahl heraus kann so auch direkt eine neue Playlist erstellt
   werden, die alle gewählten Videos enthält.
+
+### KI-Untertitel (Whisper, seit 2026-05-05)
+
+- **whisper-cli** (whisper.cpp, statisch gebaut mit OpenBLAS) läuft lokal im Container.
+  Modelle unter `/config/whisper-models/*.bin` (persistent im Volume). Empfehlung: `ggml-small`.
+- **Pipeline** pro Job: (1) ffmpeg extrahiert 16kHz-Mono-WAV, (2) whisper-cli transkribiert
+  auf Englisch → `en.vtt`, (3) Übersetzungs-Backend konvertiert VTT-Cues für de/it.
+  Whisper-Annotationen wie `[MUSIC PLAYING]` werden beim Übersetzen übersprungen.
+- **Übersetzungs-Backends** (wählbar in Settings → 🎤 Whisper):
+  - `none` — nur Englisch
+  - `deepl` — Free-Key endet auf `:fx` → `api-free.deepl.com` (auto-detekted)
+  - `libretranslate` — Self-hosted Stack 39 auf `http://<UNRAID-LAN-IP>:5000`
+    (nur de/en/it geladen: `LT_LOAD_ONLY=de,en,it`)
+- **Timeout**: `audioTimeout(5m) + durationSec/60 * 5m`, Cap bei 8h (Whisper), um
+  lange Filme sicher abzudecken. OpenBLAS beschleunigt die CPU-Berechnung 3-5×.
+- **Admin-UI**: 🎤-Button im Detail-Dialog öffnet Popover mit Sprach-Auswahl
+  (🇩🇪 🇬🇧 🇮🇹). Job-Status wird alle 5s gepollt (⏳ pending, ⚙ running, ✓ done, ✗ failed).
+  Fertige Tracks erscheinen im Player-Sub-Dropdown als `🎤 Deutsch (KI)`.
+  VTT-Datei auf Disk ist der Wahrheitsanker — ein fehlgeschlagener Retry löscht die
+  alte Datei nicht (UpsertSubtitleJob setzt nur `failed`-Jobs zurück, nicht `done`).
+- **Glocke 🔔** in der Topbar: sammelt Fertig/Fehler-Meldungen aller Whisper-Jobs in
+  `localStorage` (max 50). Globaler Hintergrund-Poll alle 5s in `whisper.js`.
+  Lila Statusbar unten zeigt Phase + Fortschritt während Transkription läuft.
+- **Dockerfile**: Build-Stage kompiliert whisper.cpp mit
+  `-DBUILD_SHARED_LIBS=OFF -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS`.
+  Runtime-Stage: `libgomp1 libopenblas0 curl`. Binary: `/usr/local/bin/whisper-cli`.
+  Modell-Download via `curl` aus HuggingFace (`ggerganov/whisper.cpp`).
+- **NICHT zurück auf dynamisches Linking** — `libwhisper.so.1` fehlt im Runtime-Image,
+  static build ist Pflicht (`-DBUILD_SHARED_LIBS=OFF`).
+- Endpoints:
+  ```
+  POST /api/items/{id}/generate-subtitle    {language:"de"|"en"|"it"}
+  GET  /api/items/{id}/subtitle-jobs
+  DELETE /api/items/{id}/subtitle/{lang}
+  GET  /api/generated-subtitle/{id}/{lang}.vtt
+  GET  /api/whisper/status
+  GET  /api/whisper/settings
+  PUT  /api/whisper/settings                {backend, deeplKey, libreUrl, libreKey}
+  POST /api/whisper/download-model          {model:"ggml-tiny|base|small|medium"}
+  GET  /api/whisper/download-status
+  ```
+
+### Glocke / Benachrichtigungen (seit 2026-05-05)
+
+- 🔔-Button in der Topbar (`.bell-btn`) neben dem Zahnrad.
+- Rotes Badge mit ungelesener Anzahl; Klick öffnet Dropdown, markiert alle als gelesen.
+- Einträge in `localStorage` unter `gf_notifications` (max 50), persistent über Reload.
+- Aktuell befüllt von Whisper-Job-Completions (✅ fertig / ❌ fehlgeschlagen).
+- `bellAdd(icon, title, sub)` ist global — weitere Features können es nutzen.
+- `initBell()` wird aus `boot()` in `app.js` aufgerufen.
 
 ### Download & Löschen
 - **Download** (`GET /api/items/:id/download`): Original-Datei mit `Content-Disposition:
@@ -1543,6 +1668,51 @@ volumes:
 - **Symptom:** Redundante „Sample"-Kacheln, zusätzliche Enrichment-Queue-Einträge.
 - **Lösung:** Scanner skippt Ordner mit Namen `Sample`/`Samples` per
   `filepath.SkipDir` (case-insensitive).
+
+### ✅ whisper-cli: libwhisper.so.1 nicht gefunden (2026-05-05)
+- **Symptom:** `exit status 127 — whisper-cli: error while loading shared libraries: libwhisper.so.1`
+- **Ursache:** cmake baut whisper.cpp default als dynamische Library. Die `.so` wird
+  in den Build-Stage kopiert, aber nicht in den Runtime-Stage.
+- **Lösung:** `-DBUILD_SHARED_LIBS=OFF` in cmake → statisches Binary, keine `.so` nötig.
+- **NICHT** zurück auf dynamisches Linking ohne auch `libwhisper.so.1` in den Runtime-Stage zu kopieren.
+
+### ✅ whisper-cli: exit status 3 — Modell nicht geladen (2026-05-05)
+- **Symptom:** Job schlägt sofort fehl, Meldung „exit status 3".
+- **Ursache:** Falscher Download-URL — Format-String hatte `ggml-%s.bin` statt `%s.bin`,
+  was zu `ggml-ggml-small.bin` führte. Datei existierte nicht auf Disk.
+- **Lösung:** URL-Format auf `%s.bin` korrigiert; Modellname inkl. `ggml-`-Präfix.
+  Klare Fehlermeldung für exit status 3: „Modell nicht gefunden — bitte im Admin-Menü herunterladen".
+
+### ✅ Whisper-Timeout killt 4K-Trickplay (signal: killed) (2026-05-05)
+- **Symptom:** Trickplay-Generierung für 4K-Dateien schlägt mit `ffmpeg: signal: killed` fehl,
+  obwohl genug RAM vorhanden ist.
+- **Ursache:** Trickplay-Timeout-Cap war 30 Minuten. Für 4K-Dateien bei Software-Decode-Fallback
+  (z.B. HEVC Main10 mit VAAPI-Quirks) kann ffmpeg deutlich länger brauchen.
+- **Lösung:** Timeout-Cap nach Auflösung gestaffelt: 4K (≥2160p) → 3h, 1080p → 60min, Rest → 30min.
+
+### ✅ VAAPI Trickplay schlägt bei 10-bit HDR (HEVC Main10) fehl (2026-05-05)
+- **Symptom:** VAAPI-Trickplay für HEVC Main10 (HDR) Dateien schlägt fehl;
+  Software-Fallback greift, der für 4K langsam ist und in den Timeout läuft.
+- **Ursache:** `hwdownload,format=nv12` erwartet 8-bit Input, HEVC Main10 liefert 10-bit.
+  `scale_vaapi` ohne `format=nv12` gibt `p010le` aus statt `nv12`.
+- **Lösung:** `scale_vaapi=...:format=nv12` explizit setzen — erzwingt 8-bit Ausgabe
+  vor hwdownload. Filter-Chain: `fps=1/N,scale_vaapi=w=W:h=H:...:format=nv12,hwdownload,format=nv12,...`
+
+### ✅ Video.js Untertitel werden nicht angezeigt (2026-05-05)
+- **Symptom:** Untertitel-Track ist im Dropdown wählbar, wird aber nicht im Video angezeigt.
+- **Ursachen (zwei):**
+  1. `addRemoteTextTrack({default: true})` aktiviert den Track in Video.js nicht zuverlässig.
+  2. Kein Change-Handler auf `#subSelect` — Dropdown-Änderungen hatten keinen Effekt.
+- **Lösung:** `applySubtitleChoice(vjs, item, subs)` als eigene Funktion; entfernt alle
+  alten Tracks, fügt neuen hinzu, ruft dann `tracks[i].mode = "showing"` explizit auf
+  (sofort + nach 300ms Timeout). Change-Handler auf `#subSelect` verdrahtet beim Player-Open.
+  Flag `subSel.dataset.subHandlerAttached` verhindert doppelte Handler-Registrierung.
+
+### ✅ SubtitleJob-Felder nicht in camelCase (undefined in UI) (2026-05-05)
+- **Symptom:** Whisper-Popover zeigte „? undefined" statt Job-Status.
+- **Ursache:** Go-Struct `SubtitleJob` hatte keine JSON-Tags → Felder als `Status`, `Language`
+  serialisiert; JavaScript erwartete `status`, `language` (lowercase).
+- **Lösung:** JSON-Tags hinzugefügt: `json:"status"`, `json:"language"` etc.
 
 ### ✅ Numerische Episoden-Codes (104 = S1E04)
 - **Symptom:** Dateien wie `Derrick 104.avi` wurden nicht als Episoden erkannt.

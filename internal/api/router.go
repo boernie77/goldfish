@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/boernie77/goldfish/internal/scanner"
 	"github.com/boernie77/goldfish/internal/store"
 	"github.com/boernie77/goldfish/internal/trickplay"
+	"github.com/boernie77/goldfish/internal/whisper"
 )
 
 type Server struct {
@@ -22,13 +24,19 @@ type Server struct {
 	HW        playback.HWAccel
 	Enrich    *enrich.Worker
 	Trickplay *trickplay.Worker
-	SubsDir   string // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
-	PosterDir string // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
+	Whisper   *whisper.Worker
+	SubsDir   string    // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
+	ConfigDir string    // z.B. /config — Basis für alle persistenten Daten
+	PosterDir string    // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
 	WebFS     fs.FS
 	OIDC      *OIDCRuntime // optional, nil/disabled wenn OIDC_*-Env nicht gesetzt
+	bgCtx     context.Context
 }
 
 func (s *Server) Router() http.Handler {
+	if s.bgCtx == nil {
+		s.bgCtx = context.Background()
+	}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -178,6 +186,17 @@ func (s *Server) Router() http.Handler {
 		// Untertitel on-demand als WebVTT extrahieren
 		r.Get("/subtitle/{id}/{idx}.vtt", s.subtitleVTT)
 
+		// KI-generierte Untertitel (Whisper)
+		r.Post("/items/{id}/generate-subtitle", requireAdmin(s.generateSubtitle))
+		r.Get("/items/{id}/subtitle-jobs", s.subtitleJobs)
+		r.Delete("/items/{id}/subtitle/{lang}", requireAdmin(s.deleteSubtitle))
+		r.Get("/generated-subtitle/{id}/{lang}.vtt", s.serveGeneratedSubtitle)
+		r.Get("/whisper/status", s.whisperStatus)
+		r.Get("/whisper/settings", requireAdmin(s.whisperGetSettings))
+		r.Put("/whisper/settings", requireAdmin(s.whisperSaveSettings))
+		r.Post("/whisper/download-model", requireAdmin(s.whisperDownloadModel))
+		r.Get("/whisper/download-status", s.whisperDownloadStatus)
+
 		// Trickplay: Aktivierung admin-only, Konsum für alle
 		r.Get("/libraries/{id}/trickplay", requireAdmin(s.listTrickplayFolders))
 		r.Put("/libraries/{id}/trickplay", requireAdmin(s.setTrickplayFolder))
@@ -209,6 +228,18 @@ func (s *Server) Router() http.Handler {
 			// also kein echter Traffic-Overhead.
 			w.Header().Set("Cache-Control", "no-cache")
 		case strings.HasSuffix(p, ".html") || p == "/" || p == "":
+			w.Header().Set("Cache-Control", "no-cache")
+		case strings.HasSuffix(p, ".webmanifest"):
+			// Go-mime-Package kennt .webmanifest nicht — explizit setzen, sonst
+			// warnt der Browser bei der PWA-Installation.
+			w.Header().Set("Content-Type", "application/manifest+json")
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		// Service-Worker muss mit Scope=/ registrierbar sein. http.FileServer
+		// setzt den korrekten Content-Type für .js. Wichtig nur: kein Caching,
+		// damit Updates des SW sofort greifen.
+		if p == "/sw.js" {
+			w.Header().Set("Service-Worker-Allowed", "/")
 			w.Header().Set("Cache-Control", "no-cache")
 		}
 		fileSrv.ServeHTTP(w, r)

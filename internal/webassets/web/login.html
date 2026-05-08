@@ -5,7 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Anmelden – Goldfish</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#0c2a3a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Goldfish" />
 <link rel="stylesheet" href="/style.css" />
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
 <style>
 body { display: flex; min-height: 100vh; align-items: center; justify-content: center; }
 .login-card {

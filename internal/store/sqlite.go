@@ -231,6 +231,17 @@ func (s *Store) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS rename_history_item_idx ON rename_history(item_id)`,
 		`CREATE INDEX IF NOT EXISTS rename_history_renamed_idx ON rename_history(renamed_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS generated_subtitles (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			item_id     INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+			language    TEXT NOT NULL,
+			status      TEXT NOT NULL DEFAULT 'pending',
+			error       TEXT,
+			generated_at DATETIME,
+			UNIQUE(item_id, language)
+		)`,
+		`CREATE INDEX IF NOT EXISTS gen_subs_item_idx ON generated_subtitles(item_id)`,
+		`CREATE INDEX IF NOT EXISTS gen_subs_status_idx ON generated_subtitles(status)`,
 	}
 	for _, q := range baseStmts {
 		if _, err := s.db.Exec(q); err != nil {
@@ -837,22 +848,27 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		args = append(args, f.LibraryID)
 	}
 	if f.Search != "" {
-		// Suche trifft Titel ODER Schauspielername. Bei Episoden zusätzlich
-		// Schauspieler der Parent-Show (Hauptcast der Serie), damit z. B. die
-		// Suche nach einem Hauptdarsteller auch alle Episoden findet.
-		q += ` AND (
-			i.title LIKE ?
-			OR COALESCE(m.title, '') LIKE ?
-			OR EXISTS (
-				SELECT 1 FROM metadata_cast mc
-				JOIN people p ON p.id = mc.person_id
-				WHERE p.name LIKE ?
-				  AND (mc.metadata_id = i.metadata_id
-				       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
-			)
-		)`
 		pattern := "%" + f.Search + "%"
-		args = append(args, pattern, pattern, pattern)
+		// Suche auf Schauspielernamen ist teuer (LIKE auf people.name = Full-
+		// Scan, plus EXISTS pro Item). Erst ab 3 Zeichen mit dazunehmen —
+		// bei 1-2 Buchstaben sind die Cast-Treffer eh nicht hilfreich.
+		if len(f.Search) >= 3 {
+			q += ` AND (
+				i.title LIKE ?
+				OR COALESCE(m.title, '') LIKE ?
+				OR EXISTS (
+					SELECT 1 FROM metadata_cast mc
+					JOIN people p ON p.id = mc.person_id
+					WHERE p.name LIKE ?
+					  AND (mc.metadata_id = i.metadata_id
+					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
+				)
+			)`
+			args = append(args, pattern, pattern, pattern)
+		} else {
+			q += ` AND (i.title LIKE ? OR COALESCE(m.title, '') LIKE ?)`
+			args = append(args, pattern, pattern)
+		}
 	}
 	if !f.DateFrom.IsZero() {
 		q += ` AND COALESCE(i.released_at, i.mod_time) >= ?`
@@ -1068,6 +1084,14 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		} else {
 			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NOCASE`
 		}
+	}
+	// Bei aktiver Suche Result kappen — die LIKE+EXISTS-Query auf Cast ist
+	// quadratisch in der Item-Anzahl. Ohne Limit liefert sie bei kurzen
+	// Queries („h", „a") tausende Zeilen, was den Browser hängen lässt.
+	// 300 reicht für eine sinnvolle Trefferübersicht; spezifischer eintippen
+	// engt die Treffer eh ein.
+	if f.Search != "" && f.Sort != "random" {
+		q += ` LIMIT 300`
 	}
 	rows, err := s.db.Query(q, args...)
 	if err != nil {

@@ -68,12 +68,9 @@ function pollRefreshAllStatus() {
   }, 3000);
 }
 
-async function openMissingDialog() {
-  const dlg = $("#missingDialog");
-  if (!dlg) return;
-  dlg.showModal();
-
-  // 1) Filme — sofort laden
+async function loadMissingMovies() {
+  const refreshBtn = $("#missingMoviesRefresh");
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = "Lade…"; }
   $("#missingMoviesStatus").textContent = "Wird geladen…";
   $("#missingMoviesPreview").innerHTML = "";
   let movies = [];
@@ -81,6 +78,7 @@ async function openMissingDialog() {
     movies = await api("/api/missing/movies");
   } catch (e) {
     $("#missingMoviesStatus").textContent = "Fehler: " + e.message;
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = "↻ Aktualisieren"; }
     return;
   }
   $("#missingMoviesStatus").textContent = movies.length
@@ -93,6 +91,7 @@ async function openMissingDialog() {
     })),
     movies.length,
   );
+  if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = "↻ Aktualisieren"; }
   $("#missingMoviesCsv").onclick = () => {
     window.location.href = "/api/missing/movies?format=csv";
   };
@@ -105,6 +104,20 @@ async function openMissingDialog() {
       appAlert("Konnte nicht in die Zwischenablage schreiben. CSV-Download nutzen.");
     }
   };
+}
+
+async function openMissingDialog() {
+  const dlg = $("#missingDialog");
+  if (!dlg) return;
+  dlg.showModal();
+
+  // 1) Filme — sofort laden; Aktualisieren-Button verdrahten (einmalig)
+  const refreshBtn = $("#missingMoviesRefresh");
+  if (refreshBtn && !refreshBtn.dataset.wired) {
+    refreshBtn.dataset.wired = "1";
+    refreshBtn.addEventListener("click", loadMissingMovies);
+  }
+  await loadMissingMovies();
 
   // 2) Folgen — Library-Auswahl füllen
   const sel = $("#missingEpLib");
@@ -134,8 +147,10 @@ async function openMissingDialog() {
 
 async function runMissingEpisodesScan(libID) {
   if (!libID) return;
+  const runBtn = $("#missingEpRun");
+  const origText = runBtn ? runBtn.textContent : "Jetzt prüfen";
+  if (runBtn) { runBtn.disabled = true; runBtn.textContent = "Prüfe…"; }
   $("#missingEpStatus").textContent = "Prüfe (kann dauern, fragt TMDB pro Show)…";
-  $("#missingEpRun").disabled = true;
   $("#missingEpCsv").disabled = true;
   try {
     const list = await api(`/api/missing/episodes?libraryId=${libID}`);
@@ -154,7 +169,7 @@ async function runMissingEpisodesScan(libID) {
   } catch (e) {
     $("#missingEpStatus").textContent = "Fehler: " + e.message;
   } finally {
-    $("#missingEpRun").disabled = false;
+    if (runBtn) { runBtn.disabled = false; runBtn.textContent = origText; }
   }
 }
 

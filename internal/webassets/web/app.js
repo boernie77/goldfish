@@ -995,7 +995,10 @@ function wire() {
     // Topbar-Button (#collectionsBtn) neben Home und Playlists.
     loadItems();
   });
-  $("#searchInput").addEventListener("input", debounce(loadItems, 200));
+  // 500 ms Debounce — Suche ist bei großen Libraries server-seitig teuer
+  // (LIKE+EXISTS auf Cast). Unter dem Wert feuert jeder Tastendruck einen
+  // neuen Request, der den vorigen überholt — UI fühlt sich „eingefroren" an.
+  $("#searchInput").addEventListener("input", debounce(loadItems, 500));
   $("#searchClear").addEventListener("click", () => {
     $("#searchInput").value = "";
     $("#searchInput").focus();
@@ -1103,29 +1106,43 @@ function wire() {
       $("#scanMenu").classList.add("hidden");
     }
   });
-  // Einstellungs-Dropdown: vereint Settings / Libraries / Users (admin)
+  // Settings Side Drawer
+  function openDrawer() {
+    $("#settingsMenu").classList.add("open");
+    $("#settingsMenu").setAttribute("aria-hidden", "false");
+    $("#drawerOverlay").classList.remove("hidden");
+    requestAnimationFrame(() => $("#drawerOverlay").classList.add("active"));
+  }
+  function closeDrawer() {
+    $("#settingsMenu").classList.remove("open");
+    $("#settingsMenu").setAttribute("aria-hidden", "true");
+    $("#drawerOverlay").classList.remove("active");
+    setTimeout(() => $("#drawerOverlay").classList.add("hidden"), 250);
+  }
   $("#settingsBtn").addEventListener("click", (e) => {
     e.stopPropagation();
-    $("#settingsMenu").classList.toggle("hidden");
+    $("#settingsMenu").classList.contains("open") ? closeDrawer() : openDrawer();
+  });
+  $("#drawerClose").addEventListener("click", closeDrawer);
+  $("#drawerOverlay").addEventListener("click", closeDrawer);
+  // Escape-Taste schließt Drawer
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("#settingsMenu").classList.contains("open")) closeDrawer();
   });
   $("#settingsMenu").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
-    $("#settingsMenu").classList.add("hidden");
+    closeDrawer();
     switch (btn.dataset.action) {
       case "settings":  openSettings(); break;
       case "libraries": openManage(); break;
       case "users":     openUsersManager(); break;
       case "trickplay": openTrickplayManager(); break;
+      case "whisper":   openWhisperDialog(); break;
       case "pathsearch": openPathSearch(); break;
       case "missing": openMissingDialog(); break;
       case "refreshallmeta": runRefreshAllMetadata(); break;
       case "renames": openRenamesManager(); break;
-    }
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest("#settingsMenu, #settingsBtn")) {
-      $("#settingsMenu").classList.add("hidden");
     }
   });
   // Home/Sammlungen/Playlists/Library-Wechsel laufen über die pinned Lib-Nav
@@ -1460,6 +1477,8 @@ async function checkAuth() {
   setInterval(checkScanActive, 30000);
   setInterval(checkTrickplayWorker, 30000);
   renderUserMenu();
+  if (typeof initBell === "function") initBell();
+  if (typeof startWhisperGlobalPoll === "function") startWhisperGlobalPoll();
   // Google-Cast SDK initialisieren — registriert sich beim Cast-Framework
   // sobald `cast_sender.js` geladen ist und der Receiver-Discovery startet.
   initCastFramework();

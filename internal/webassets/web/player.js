@@ -181,6 +181,7 @@ async function openDetail(item) {
   updateDetailWatchedBtn();
   updateDetailFavBtn();
   updateConfirmBtn();
+  if (typeof initSubGenBtn === "function") initSubGenBtn(item);
   const itemLib = state.libraries.find(l => l.id == item.libraryId);
   $("#detailMatch").style.display = (itemLib && itemLib.kind === "private") ? "none" : "";
   // Confirm-Button nur sinnvoll bei TMDB-matchen Items (nicht private, nicht
@@ -200,7 +201,14 @@ async function openDetail(item) {
   // sonst manchmal an den Seitenanfang, weil das Dialog-Element am DOM-Anfang
   // den Fokus zieht und/oder der Hintergrund-Scroll-Lock beim Öffnen kurz zurücksetzt.
   const savedScrollY = window.scrollY;
-  $("#detailDialog").showModal();
+  const detDlg = $("#detailDialog");
+  // Popover + Polling bei Dialog-Schluss aufräumen
+  detDlg.addEventListener("close", () => {
+    const pop = $("#subGenPopover");
+    if (pop) pop.classList.add("hidden");
+    if (typeof stopSubGenPolling === "function") stopSubGenPolling();
+  }, { once: true });
+  detDlg.showModal();
   if (window.scrollY !== savedScrollY) window.scrollTo(0, savedScrollY);
   // Cast lazy nachladen (kein Blockieren des Dialog-Öffnens)
   if (item.metadataId > 0) loadDetailCast(item.metadataId);
@@ -844,13 +852,15 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   let vjs;
   if (reuse) {
     vjs = state.vjs;
-    // Alte Remote-Text-Tracks entfernen, damit sie sich nicht stapeln
+    // Alte Remote-Text-Tracks entfernen + Handler-Flag zurücksetzen
     const rtt = vjs.remoteTextTracks();
     if (rtt) {
       for (let i = rtt.length - 1; i >= 0; i--) {
         try { vjs.removeRemoteTextTrack(rtt[i]); } catch {}
       }
     }
+    const subSelReuse = $("#subSelect");
+    if (subSelReuse) delete subSelReuse.dataset.subHandlerAttached;
     vjs.src({ src: info.url, type: srcType });
     // currentTime explizit setzen, sonst „erinnert" sich der wiederverwendete
     // Player an die letzte Position des vorherigen Streams. Direct Play:
@@ -1048,19 +1058,54 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     detachTrickplayHover(vjs);
   }
 
-  // Aktuell gewählten Subtitle-Stream als text-track einhängen
-  const subChoice = $("#subSelect").value;
-  if (subChoice) {
-    const sub = subs.find(s => String(s.index) === subChoice);
-    const label = (sub && sub.title) || (sub && sub.language && sub.language.toUpperCase()) || "Untertitel";
-    vjs.addRemoteTextTrack({
-      kind: "subtitles",
-      src: `/api/subtitle/${item.id}/${subChoice}.vtt`,
-      srclang: (sub && sub.language) || "und",
-      label: label,
-      default: true,
-    }, false);
+  // Subtitle-Verwaltung: Track laden + Change-Handler auf dem Dropdown
+  applySubtitleChoice(vjs, item, subs);
+  const subSelEl = $("#subSelect");
+  if (subSelEl && !subSelEl.dataset.subHandlerAttached) {
+    subSelEl.dataset.subHandlerAttached = "1";
+    subSelEl.addEventListener("change", () => applySubtitleChoice(vjs, item, subs));
   }
+}
+
+// applySubtitleChoice entfernt alle vorhandenen Subtitle-Tracks und lädt den
+// aktuell gewählten neu. Wird beim Player-Open und bei jeder Dropdown-Änderung
+// aufgerufen.
+function applySubtitleChoice(vjs, item, subs) {
+  // Alle vorhandenen Remote-Text-Tracks entfernen
+  const existing = vjs.remoteTextTracks();
+  while (existing.length > 0) {
+    vjs.removeRemoteTextTrack(existing[0]);
+  }
+
+  const subChoice = $("#subSelect").value;
+  if (!subChoice) return;
+
+  const sub = subs.find(s => String(s.index) === subChoice);
+  const label = (sub && sub.title) || (sub && sub.language && sub.language.toUpperCase()) || "Untertitel";
+  const subSrc = (sub && sub.codec === "webvtt-generated")
+    ? `/api/generated-subtitle/${item.id}/${sub.language}.vtt`
+    : `/api/subtitle/${item.id}/${subChoice}.vtt`;
+
+  vjs.addRemoteTextTrack({
+    kind: "subtitles",
+    src: subSrc,
+    srclang: (sub && sub.language) || "und",
+    label: label,
+  }, false);
+
+  // Video.js setzt "default" nicht zuverlässig — Track explizit auf "showing".
+  // Kurzes Timeout, damit Video.js den Track intern registriert hat.
+  const activate = () => {
+    const tracks = vjs.textTracks();
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].label === label) {
+        tracks[i].mode = "showing";
+        return;
+      }
+    }
+  };
+  activate();
+  setTimeout(activate, 300);
 }
 
 const playerResizeObservers = new WeakMap();

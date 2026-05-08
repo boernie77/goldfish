@@ -249,11 +249,18 @@ func (w *Worker) generate(ctx context.Context, it model.Item) error {
 	sprite := filepath.Join(dir, "sprite.jpg")
 	vtt := filepath.Join(dir, "thumbs.vtt")
 
-	// Timeout proportional zur Laufzeit. Ohne HW-Decode brauchen 4K-60fps-Quellen
-	// mehr Zeit; deshalb großzügiger Grundbudget-Faktor und Obergrenze 30 min.
+	// Timeout proportional zur Laufzeit. Bei 4K (≥2160p) kann Software-Decode
+	// als Fallback sehr langsam sein → großzügigeres Cap.
 	timeout := time.Duration(it.DurationSec/10)*time.Second + 120*time.Second
-	if timeout > 30*time.Minute {
-		timeout = 30 * time.Minute
+	maxTimeout := 30 * time.Minute
+	if it.Height >= 2160 {
+		// 4K Software-Fallback: bis zu 3h erlauben
+		maxTimeout = 3 * time.Hour
+	} else if it.Height >= 1080 {
+		maxTimeout = 60 * time.Minute
+	}
+	if timeout > maxTimeout {
+		timeout = maxTimeout
 	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -261,8 +268,11 @@ func (w *Worker) generate(ctx context.Context, it model.Item) error {
 	// Filter-Chains pro Backend. Alle landen am Ende bei einem Sprite-Bild
 	// mit `tile=gridX x gridY`-Kacheln; der Weg dorthin unterscheidet sich
 	// nur im HW-Upload-/Download-Pfad.
+	// format=nv12 in scale_vaapi erzwingt 8-bit-Ausgabe — nötig für 10-bit HDR
+	// Quellen (HEVC Main10), bei denen hwdownload sonst p010le statt nv12 bekommt
+	// und der nachfolgende Software-Filter die Konversion ablehnt.
 	vaapiVF := fmt.Sprintf(
-		"fps=1/%d,scale_vaapi=w=%d:h=%d:force_original_aspect_ratio=decrease,hwdownload,format=nv12,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black,tile=%dx%d",
+		"fps=1/%d,scale_vaapi=w=%d:h=%d:force_original_aspect_ratio=decrease:format=nv12,hwdownload,format=nv12,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black,tile=%dx%d",
 		interval, tileWidth, tileHeight, tileWidth, tileHeight, gridX, gridY,
 	)
 	swVF := fmt.Sprintf(

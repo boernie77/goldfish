@@ -33,6 +33,7 @@ function renderUserMenu() {
   // Admin-Menüeinträge nur für Admins sichtbar
   $("#settingsMenuUsers").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuTrickplay").classList.toggle("hidden", !state.me.isAdmin);
+  $("#settingsMenuWhisper").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuPathSearch").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuMissing").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuRefreshAllMeta").classList.toggle("hidden", !state.me.isAdmin);

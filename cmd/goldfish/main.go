@@ -21,6 +21,7 @@ import (
 	"github.com/boernie77/goldfish/internal/tmdb"
 	"github.com/boernie77/goldfish/internal/trickplay"
 	"github.com/boernie77/goldfish/internal/webassets"
+	"github.com/boernie77/goldfish/internal/whisper"
 )
 
 func main() {
@@ -66,6 +67,10 @@ func main() {
 	trickplayWorker.SetBackend(string(hw.Selected))
 	go trickplayWorker.Run(workerCtx)
 
+	// Whisper-Worker (KI-Untertitel-Generierung)
+	whisperWorker := whisper.New(db, configDir)
+	go whisperWorker.Run(workerCtx)
+
 	// Nach jedem Scan beide Hintergrund-Worker anstoßen.
 	// `EnrichAllFoldersNow` arbeitet den TV-Backlog folder-weise ab, damit bei
 	// mehreren tausend unmatched Items die Queue-Reihenfolge des 5-Min-Tickers
@@ -95,11 +100,14 @@ func main() {
 		HW:        hw,
 		Enrich:    enricher,
 		Trickplay: trickplayWorker,
+		Whisper:   whisperWorker,
 		SubsDir:   filepath.Join(configDir, "subs"),
+		ConfigDir: configDir,
 		PosterDir: filepath.Join(configDir, "posters"),
 		WebFS:     webassets.FS(),
 		OIDC:      api.NewOIDCRuntime(oidcCfg),
 	}
+	srv.ApplyTranslationBackend()
 
 	httpSrv := &http.Server{
 		Addr:              addr,
