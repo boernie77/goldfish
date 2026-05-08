@@ -11,7 +11,11 @@ services:
       # Remove if you have no iGPU — the server falls back to software encoding.
       - "/dev/dri:/dev/dri"
     group_add:
-      - "107"  # render group on most Linux distros
+      # render-Group-ID des Hosts. Default 107 (Debian/Ubuntu/Mint). Auf
+      # Arch/Fedora oft 989, auf Unraid 109. Override via `.env`-File mit
+      #   RENDER_GID=<deine-id>
+      # Prüfen mit: getent group render
+      - "${RENDER_GID:-107}"
     # NVIDIA passthrough — uncomment runtime + env block on hosts with the
     # NVIDIA Container Runtime + a CUDA-capable GPU. On Unraid: install the
     # NVIDIA Driver plugin first. The image already ships with NVENC support;
@@ -22,9 +26,10 @@ services:
     #   - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
     volumes:
       - ./config:/config
-      # Point this at your media root (read-only). Goldfish can manage many
-      # libraries under this mount.
-      - /mnt/media:/media:ro
+      # Pfad zu deinem Medien-Root (read-only ins /media gemountet). Override
+      # via `.env`: MEDIA_ROOT=/dein/pfad — Default ist /mnt/media (klassisch).
+      # Beispiele: /mnt/user (Unraid), /volume1/Video (Synology), /mnt/media.
+      - "${MEDIA_ROOT:-/mnt/media}:/media:ro"
     environment:
       - VP_LISTEN=:8096
       - VP_CONFIG_DIR=/config

@@ -1913,17 +1913,20 @@ Splits, aber falls man weitere Aufteilung braucht):
 
 ## TODO
 
-- [ ] **Nach GitHub hochladen als Open-Source-Projekt.** Vorbereitung ist
-  abgeschlossen: MIT-Lizenz, NOTICE.md mit allen Third-Party-Attributionen,
-  README.md auf Englisch, CLAUDE.md via `.gitignore` ausgeschlossen,
-  Go-Modulpfad anonymisiert (`github.com/goldfish-media/goldfish`),
-  TMDB-Attribution im Settings-Dialog. Offene Schritte:
-  1. `git init` im Projekt-Root + erstes Commit
-  2. Repository auf GitHub erstellen (z. B. `github.com/<user>/goldfish`)
-  3. Bei abweichendem User: Modulpfad anpassen
-     (`go mod edit -module github.com/<user>/goldfish` + sed über alle `.go`)
-  4. `git remote add origin` + `git push -u origin main`
-  5. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
+- [ ] **Repo öffentlich schalten als Open-Source-Projekt** (aktuell PRIVAT
+  unter `github.com/boernie77/goldfish`, Verifikation: `curl -I` → 404).
+  Vorbereitung ist im Repo:
+  * MIT-Lizenz + NOTICE.md mit Third-Party-Attributionen
+  * README.md auf Englisch, TMDB-Attribution im Settings-Dialog
+  * CLAUDE.md sanitisiert (keine Email-Adressen, LAN-IPs nur als Platzhalter)
+  * `scripts/redeploy.sh` benötigt `$UNRAID_HOST` als Env (kein Hardcoded-IP)
+  Offene Schritte vor public-Schalten:
+  1. Final-Check über git-Historie auf evtl. übersehene Secrets (vor dem
+     2026-05-08-Sanitization-Commit `f46eebf` waren Email + IP in CLAUDE.md
+     drin — falls History-Cleanup gewünscht: `git filter-repo` + force-push)
+  2. Optional: Modulpfad anonymisieren (`go mod edit -module …`)
+  3. In Repo-Settings auf „Public" stellen
+  4. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
 
 ## Entwicklungsworkflow
 

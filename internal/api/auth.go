@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/boernie77/goldfish/internal/model"
+	"github.com/boernie77/goldfish/internal/omdb"
 	"github.com/boernie77/goldfish/internal/store"
+	"github.com/boernie77/goldfish/internal/tmdb"
 )
 
 const sessionCookieName = "goldfish_session"
@@ -215,6 +217,10 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		// Optionale Konfiguration die das Setup-Fenster sammelt — leere Felder
+		// bleiben einfach ungesetzt (User kann später in Settings nachtragen).
+		TMDBKey string `json:"tmdbKey"`
+		OMDbKey string `json:"omdbKey"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiges JSON")
@@ -229,6 +235,21 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	// Optionale Initial-Settings persistieren — nur wenn nicht-leer.
+	if k := strings.TrimSpace(body.TMDBKey); k != "" {
+		_ = s.Store.SetSetting("tmdb_api_key", k)
+		// TMDB-Client für Enrichment frisch verdrahten (gleiche Logik wie
+		// im /api/settings-Endpoint), damit der Worker direkt loslegen kann.
+		if s.Enrich != nil {
+			s.Enrich.SetClient(tmdb.New(k, "de-DE"))
+		}
+	}
+	if k := strings.TrimSpace(body.OMDbKey); k != "" {
+		_ = s.Store.SetSetting("omdb_api_key", k)
+		if s.Enrich != nil {
+			s.Enrich.SetOMDb(omdb.New(k))
+		}
 	}
 	// Alle existing Libraries für den Admin freigeben (sonst sieht er nichts)
 	libs, _ := s.Store.ListLibraries()

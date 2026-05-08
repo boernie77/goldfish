@@ -14,38 +14,55 @@ Written in Go, runs in a ~150 MB Docker image, no external dependencies.
 ## Quickstart
 
 ```bash
+git clone https://github.com/<your-fork>/goldfish
+cd goldfish
+cp .env.example .env       # adjust RENDER_GID + MEDIA_ROOT to your host
 docker compose up -d --build
 # open http://<host>:8096
 ```
 
-On first launch the UI asks you to create the initial admin account.
+On first launch the UI shows a **setup wizard** that asks for:
 
-Add a library (📁 icon), scan it, grab a free
-[TMDB API key](https://www.themoviedb.org/settings/api) and paste it into
-Settings → TMDB.
+- Admin username + password (the first account is automatically admin)
+- *Optional:* TMDB API key (free at https://www.themoviedb.org/settings/api)
+- *Optional:* OMDb API key (fallback for IMDb-ID lookups)
 
-## docker-compose.yml (template)
+Without a TMDB key Goldfish still scans and plays your videos — but no
+posters, plot or cast info. You can paste the key later in Settings → TMDB.
 
-```yaml
-services:
-  goldfish:
-    build: .
-    image: goldfish:latest
-    restart: unless-stopped
-    ports:
-      - "8096:8096"
-    devices:
-      - "/dev/dri:/dev/dri"   # Intel iGPU passthrough for VAAPI
-    group_add:
-      - "107"                  # render group on most Linux hosts
-    volumes:
-      - ./config:/config
-      - /mnt/media:/media:ro   # your media root (read-only)
-    environment:
-      - VP_LISTEN=:8096
-      - VP_CONFIG_DIR=/config
-      - TZ=Europe/Berlin
-```
+After the wizard: add a library (📁 icon), point it at a sub-path under
+`/media`, hit "Scan". Metadata enrichment runs in the background.
+
+## Host setup before first run
+
+The two values you almost certainly need to adjust in `.env`:
+
+| Variable | What | How to find it |
+|----------|------|----------------|
+| `RENDER_GID` | The numeric ID of the host's `render` group, so the container can talk to `/dev/dri` for VAAPI. Default 107 (Debian/Ubuntu/Mint). | `getent group render` returns `render:x:<GID>:` — that number. On Arch/Fedora often 989, on Unraid 109. |
+| `MEDIA_ROOT` | Absolute path to your media library on the host. Mounted read-only into `/media` inside the container. | Just the path. Examples: `/mnt/media`, `/mnt/user` (Unraid), `/volume1/Video` (Synology), `/srv/media`. |
+
+Both have sensible defaults so the stack will start without `.env`, but the
+container won't see your media until `MEDIA_ROOT` points at the right place.
+
+### NVIDIA NVENC (optional)
+
+If your host has a CUDA-capable NVIDIA GPU and the
+[NVIDIA Container Runtime](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html),
+uncomment the `runtime: nvidia` block and the three NVIDIA env vars in
+`docker-compose.yml`. On Unraid: install the NVIDIA Driver plugin first,
+then a host reboot — `nvidia-smi` must work on the host before Goldfish can
+use the GPU.
+
+After the container is up, switch in **Settings → Hardware** to "NVIDIA NVENC"
+or leave it on Auto (which prefers VAAPI > NVENC > Software).
+
+### OIDC SSO (optional)
+
+For single-sign-on with Authentik / Keycloak / Authelia / Zitadel etc., set
+`OIDC_*` in `.env` (template at the bottom of `.env.example`). Without
+these the SSO button on the login page is hidden — username + password
+keeps working as a normal fallback.
 
 ## Configuration
 

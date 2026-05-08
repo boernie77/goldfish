@@ -71,6 +71,23 @@ body { display: flex; min-height: 100vh; align-items: center; justify-content: c
   <form id="loginForm">
     <label>Benutzername <input type="text" name="username" autocomplete="username" required autofocus /></label>
     <label>Passwort <input type="password" name="password" autocomplete="current-password" required /></label>
+    <!-- Setup-Mode: zusätzliche Konfig-Felder, eingeblendet wenn keine User existieren.
+         Einklappbar, damit normale Login-Form nicht überladen wirkt. -->
+    <div id="setupExtra" style="display:none">
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer; color:var(--orange,#ff8c00); user-select:none">
+          Optional: API-Keys jetzt eintragen (kann später auch in Settings)
+        </summary>
+        <label style="margin-top:8px;display:block">TMDB API-Key
+          <input type="text" name="tmdbKey" placeholder="(optional, aber stark empfohlen)" autocomplete="off" />
+          <span style="font-size:11px; color:#888">Kostenlos auf themoviedb.org/settings/api · ohne Key keine Poster/Plot/Cast</span>
+        </label>
+        <label style="margin-top:8px;display:block">OMDb API-Key
+          <input type="text" name="omdbKey" placeholder="(optional, IMDb-Fallback)" autocomplete="off" />
+          <span style="font-size:11px; color:#888">omdbapi.com — nur als Fallback wenn TMDB einen Eintrag nicht findet</span>
+        </label>
+      </details>
+    </div>
     <div class="err" id="loginErr"></div>
     <button type="submit" class="primary">Anmelden</button>
   </form>
@@ -95,6 +112,7 @@ async function check() {
       document.getElementById("loginTitle").textContent = "Erste Einrichtung";
       document.getElementById("loginForm").querySelector("button").textContent = "Admin-Konto anlegen";
       document.getElementById("setupHint").style.display = "block";
+      document.getElementById("setupExtra").style.display = "block";
       document.getElementById("loginForm").dataset.mode = "setup";
     } else {
       // SSO-Block nur sichtbar wenn schon User existieren (Setup nicht mehr nötig)
