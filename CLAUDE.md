@@ -1915,18 +1915,29 @@ Splits, aber falls man weitere Aufteilung braucht):
 
 - [ ] **Repo öffentlich schalten als Open-Source-Projekt** (aktuell PRIVAT
   unter `github.com/boernie77/goldfish`, Verifikation: `curl -I` → 404).
-  Vorbereitung ist im Repo:
+  Vorbereitung ist abgeschlossen:
   * MIT-Lizenz + NOTICE.md mit Third-Party-Attributionen
   * README.md auf Englisch, TMDB-Attribution im Settings-Dialog
   * CLAUDE.md sanitisiert (keine Email-Adressen, LAN-IPs nur als Platzhalter)
   * `scripts/redeploy.sh` benötigt `$UNRAID_HOST` als Env (kein Hardcoded-IP)
+  * `docker-compose.yml` env-konfigurierbar via `RENDER_GID` + `MEDIA_ROOT`
+  * `.env.example` mit Hinweisen für Unraid/Synology/Arch/Fedora
+  * Setup-Wizard im Server (`/api/auth/setup`) fragt TMDB+OMDb beim ersten
+    Login mit ab — User muss nicht in Settings nachträglich
+  * **`install.sh`**: interaktiver Bash-Installer mit whiptail-Dialog-Boxen,
+    macht git clone + .env + docker compose up in einem Rutsch (commit
+    `24a1db1`). Auto-erkennt render-GID, fragt NVIDIA + OIDC ab, schreibt
+    docker-compose.override.yml für Port + NVIDIA. Fallback auf read-Prompts
+    wenn whiptail fehlt. **End-to-End-Test auf fremdem Linux steht noch aus.**
   Offene Schritte vor public-Schalten:
-  1. Final-Check über git-Historie auf evtl. übersehene Secrets (vor dem
+  1. install.sh auf frischem Linux testen (siehe Memory
+     `project_installer_e2e_test.md`)
+  2. Final-Check über git-Historie auf evtl. übersehene Secrets (vor dem
      2026-05-08-Sanitization-Commit `f46eebf` waren Email + IP in CLAUDE.md
      drin — falls History-Cleanup gewünscht: `git filter-repo` + force-push)
-  2. Optional: Modulpfad anonymisieren (`go mod edit -module …`)
-  3. In Repo-Settings auf „Public" stellen
-  4. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
+  3. Optional: Modulpfad anonymisieren (`go mod edit -module …`)
+  4. In Repo-Settings auf „Public" stellen
+  5. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
 
 ## Entwicklungsworkflow
 
