@@ -12,12 +12,18 @@
 #   (oder $JWT vorher gesetzt)
 #
 # Voraussetzung:
-#   - Erreichbar auf <UNRAID-LAN-IP>:9000 (Tailscale oder LAN)
+#   - $UNRAID_HOST gesetzt (z.B. die LAN-IP des Unraid-Servers)
 #   - python3 vorhanden für JSON-Verarbeitung
 
 set -euo pipefail
 
-PORTAINER_HOST="${PORTAINER_HOST:-http://<UNRAID-LAN-IP>:9000}"
+if [[ -z "${UNRAID_HOST:-}" && -z "${PORTAINER_HOST:-}" ]]; then
+  echo "ERROR: \$UNRAID_HOST oder \$PORTAINER_HOST muss gesetzt sein (z.B. UNRAID_HOST=192.168.x.y)" >&2
+  exit 1
+fi
+PORTAINER_HOST="${PORTAINER_HOST:-http://${UNRAID_HOST}:9000}"
+GOLDFISH_LIVE="${GOLDFISH_LIVE:-https://goldfish.<your-domain>}"
+GOLDFISH_LAN="${GOLDFISH_LAN:-http://${UNRAID_HOST:-localhost}:8098}"
 ENDPOINT_ID="${ENDPOINT_ID:-3}"
 STACK_ID="${STACK_ID:-37}"
 IMAGE_TAG="${IMAGE_TAG:-simple-videoplayer:latest}"
@@ -93,7 +99,7 @@ curl -sS -X PUT "$PORTAINER_HOST/api/stacks/$STACK_ID?endpointId=$ENDPOINT_ID" \
   -o /tmp/redeploy-result.json
 
 sleep 5
-HEALTH=$(curl -sS http://<UNRAID-LAN-IP>:8098/api/health -o /dev/null -w "%{http_code}" || echo "fail")
+HEALTH=$(curl -sS http://${UNRAID_HOST:-<UNRAID-LAN-IP>}:8098/api/health -o /dev/null -w "%{http_code}" || echo "fail")
 echo "  /api/health: $HEALTH"
 
 # OIDC-Health gegenchecken
