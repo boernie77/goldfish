@@ -1133,6 +1133,30 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Sort „Veröffentlicht" sortierte nach Datei-mtime statt Kino-Release (2026-05-08)
+- **Symptom:** „Veröffentlicht"-Sortierung in Filme-Lib gab durcheinandere
+  Reihenfolge — Kachel zeigt z. B. "2025", Sortierung packt den Film
+  irgendwo zwischen 1990er-Filme. Browser + App gleichermaßen betroffen.
+- **Ursache:** `internal/store/sqlite.go` `case "released"` sortierte nach
+  `COALESCE(i.released_at, i.mod_time)` — also ffprobe-creation_time bzw.
+  File-mtime der Datei auf Disk. Das ist meist das Encoding-/Download-
+  Datum, NICHT das Kino-Release. Aber die Kachel zeigt `metadata.year`
+  vom TMDB. → Sortierung passte nie zum Anzeige-Datum.
+- **Lösung:** SortKey auf `metadata.release_date` umgestellt mit
+  Fallback-Kette:
+  ```sql
+  COALESCE(
+    NULLIF(m.release_date, ''),                            -- TMDB primary
+    CASE WHEN m.year>0 THEN printf('%d-01-01', m.year) END, -- Jahr-only
+    (SELECT mp.release_date FROM metadata mp                -- Episoden
+       WHERE mp.id = m.parent_id AND mp.release_date != ''),
+    i.released_at,                                          -- YouTube/yt-dlp
+    i.mod_time                                              -- last resort
+  )
+  ```
+- **NICHT** zurück auf `i.released_at` — da steht das Wrong Date drin.
+  Wer einen TMDB-Match hat, soll TMDB-Datum sehen UND danach sortieren.
+
 ### ✅ Stack-Update via Portainer-API zerstört Stack-Env-Variablen (2026-05-08)
 - **Symptom:** Nach mehreren `PUT /api/stacks/37`-Calls antwortete
   `https://goldfish.<your-domain>/api/auth/oidc/login` mit **503 „SSO nicht
