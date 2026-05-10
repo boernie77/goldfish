@@ -286,7 +286,19 @@ func (w *Worker) generate(ctx context.Context, it model.Item) error {
 	nvencVF := swVF
 
 	buildArgs := func(backend string) []string {
-		args := []string{"-hide_banner", "-loglevel", "error", "-y"}
+		args := []string{
+			"-hide_banner", "-loglevel", "error", "-y",
+			// Tolerant gegenüber kaputten Streams — Invalid NAL / POC-Fehler
+			// (typisch in alten Release-Encodes) sollen ffmpeg nicht killen,
+			// sondern werden übersprungen.
+			"-err_detect", "ignore_err",
+			"-fflags", "+discardcorrupt+genpts",
+			// Decoder gibt nur Keyframes raus → 4K-60fps-Files werden 30-100×
+			// schneller verarbeitet (kein Linear-Decode aller Inter-Frames).
+			// Bei interval=10s und typischem Keyframe-Abstand ≤5s ist jeder
+			// Sprite-Slot weiterhin nahe genug am Soll-Timestamp.
+			"-skip_frame", "nokey",
+		}
 		switch backend {
 		case "vaapi":
 			args = append(args,
@@ -340,11 +352,21 @@ func (w *Worker) generate(ctx context.Context, it model.Item) error {
 			strings.Contains(out, "Function not implemented") ||
 			strings.Contains(out, "No support for codec") ||
 			strings.Contains(out, "Cannot load") ||
-			strings.Contains(out, "CUDA_ERROR")) {
+			strings.Contains(out, "CUDA_ERROR") ||
+			strings.Contains(out, "Could not find ref") ||
+			strings.Contains(out, "Failed to inject frame") ||
+			strings.Contains(out, "Failed to query surface") ||
+			strings.Contains(out, "hwdownload")) {
 		log.Printf("[trickplay] item %d: %s-Init fehlgeschlagen, fallback auf Software", it.ID, primary)
 		out, err = run("software")
 	}
 	if err != nil {
+		// Timeout vom context.WithTimeout: ffmpeg-stderr ist meist leer
+		// (Prozess wurde mid-decode SIGKILL'd). Klare Meldung statt
+		// nichtssagendem "signal: killed ()".
+		if tctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("ffmpeg: timeout nach %v (Datei zu lang oder Decoder zu langsam)", timeout)
+		}
 		return fmt.Errorf("ffmpeg: %w (%s)", err, truncate(out, 300))
 	}
 
