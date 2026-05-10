@@ -876,13 +876,13 @@ button.primary:hover { background: var(--accent-hover); }
 /* Dateiname unter der Meta-Zeile — wichtig für Release-spezifische Unterscheidung */
 .card-filename {
   margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.75;
+  opacity: 0.92;
 }
 /* Episoden-Code (S01E01) auf Serien-Kacheln prominenter hervorheben */
 .card .card-body .card-meta .episode-code,

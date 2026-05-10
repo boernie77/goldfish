@@ -449,10 +449,15 @@ function renderCard(it, opts = {}) {
   } else {
     imgUrl = it.hasThumb ? `/api/thumb/${it.id}` : "/placeholder.svg";
   }
-  // Private Libraries (YouTube-Channels, Urlaubsordner, etc.): Kachel zeigt
-  // den Dateinamen (it.title = Basename ohne Extension). Der Ordnername
-  // taucht auf der Kachel nicht auf — er ist ohnehin im Breadcrumb und im
-  // Detail-Dialog (rel_path) sichtbar.
+  // Private Libraries (YouTube-Channels, Urlaubsordner, etc.): Top-Zeile zeigt
+  // den Kanal/Top-Folder (relPath[0]) — der Dateiname/Titel kommt unten in der
+  // card-filename-Zeile (CSS macht ihn dort etwas dicker).
+  if (itLib && itLib.kind === "private" && !isEpisode) {
+    const rel = (it.relPath || "").split("/").filter(Boolean);
+    if (rel.length > 1) {
+      title = rel[0];
+    }
+  }
   const released = fmtDate(it.releasedAt);
   const rating = it.metadata && it.metadata.rating
     ? `<span class="rating">★ ${it.metadata.rating.toFixed(1)}</span>` : "";
@@ -514,7 +519,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
-      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFileName(it))}</div>
+      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(itLib && itLib.kind === "private" ? (it.title || cardFileName(it)) : cardFileName(it))}</div>
     </div>
   `;
   el.addEventListener("click", (ev) => {
