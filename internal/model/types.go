@@ -66,7 +66,10 @@ type Library struct {
 	Path      string      `json:"path"`
 	Kind      LibraryKind `json:"kind"`
 	OnHome    bool        `json:"onHome"`
-	CreatedAt time.Time   `json:"createdAt"`
+	// SortOrder steuert die Reihenfolge in Topbar-Dropdown + Home-Recent-
+	// Sektionen. Default 0 — bei Gleichstand fallen wir alphabetisch zurueck.
+	SortOrder int       `json:"sortOrder"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // Metadata hält angereicherte TMDB-Daten zu einem Film, einer Serie oder einer Episode.

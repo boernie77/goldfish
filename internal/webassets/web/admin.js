@@ -236,9 +236,21 @@ async function openManage() {
   if (!state.libraries.length) {
     ul.innerHTML = `<li><em>Noch keine Bibliotheken angelegt.</em></li>`;
   }
-  for (const l of state.libraries) {
+  // Reihenfolge nach Drag/Up-Down zum Server schicken.
+  async function persistOrder() {
+    const ids = Array.from(ul.querySelectorAll("li.lib-row"))
+      .map(li => Number(li.dataset.libId))
+      .filter(id => id > 0);
+    try {
+      await api(`/api/libraries/order`, { method: "PUT", body: JSON.stringify({ ids }) });
+      await loadLibraries();
+    } catch (e) { appAlert(e.message); }
+  }
+  for (let idx = 0; idx < state.libraries.length; idx++) {
+    const l = state.libraries[idx];
     const li = document.createElement("li");
     li.classList.add("lib-row");
+    li.dataset.libId = String(l.id);
     const kindLabel = l.kind === "movies" ? "Filme" : l.kind === "tv" ? "Serien" : "Privat";
 
     // Header-Zeile
@@ -249,6 +261,35 @@ async function openManage() {
     const actions = document.createElement("div");
     actions.style.display = "flex";
     actions.style.gap = "6px";
+
+    // ▲▼ zum Verschieben innerhalb der Liste — schreibt nach jedem Klick
+    // die neue Reihenfolge an /api/libraries/order zurueck und reloadet.
+    const upBtn = document.createElement("button");
+    upBtn.textContent = "▲";
+    upBtn.title = "Nach oben verschieben";
+    upBtn.disabled = idx === 0;
+    upBtn.addEventListener("click", async () => {
+      const prev = li.previousElementSibling;
+      if (prev && prev.classList.contains("lib-row")) {
+        ul.insertBefore(li, prev);
+        await persistOrder();
+        openManage();
+      }
+    });
+    const downBtn = document.createElement("button");
+    downBtn.textContent = "▼";
+    downBtn.title = "Nach unten verschieben";
+    downBtn.disabled = idx === state.libraries.length - 1;
+    downBtn.addEventListener("click", async () => {
+      const next = li.nextElementSibling;
+      if (next && next.classList.contains("lib-row")) {
+        ul.insertBefore(next, li);
+        await persistOrder();
+        openManage();
+      }
+    });
+    actions.appendChild(upBtn);
+    actions.appendChild(downBtn);
     const kindSel = document.createElement("select");
     for (const [k, lbl] of [["movies", "Filme"], ["tv", "Serien"], ["private", "Privat"]]) {
       const o = document.createElement("option");

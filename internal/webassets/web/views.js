@@ -28,7 +28,9 @@ function renderHomeView(grid, data) {
   wrap.className = "home-view";
   const sections = data.sections || [];
 
-  const renderStrip = (parent, title, items) => {
+  // Globaler Streifen: ein Titel, eine flache Reihe Kacheln aus allen
+  // Libraries. Items werden vor dem Render gemerged (groupVariants).
+  const renderGlobalStrip = (parent, title, items) => {
     if (!items || !items.length) return;
     const secEl = document.createElement("section");
     secEl.className = "home-section";
@@ -48,12 +50,36 @@ function renderHomeView(grid, data) {
     parent.appendChild(secEl);
   };
 
-  const flatAll = [];
+  // Layout-Variante seit 2026-05-10: Library-uebergreifende „Fortsetzen"
+  // und „Als naechstes"-Streifen ganz oben, dann pro Library „Zuletzt
+  // hinzugefuegt" — in der Reihenfolge des Topbar-Dropdowns.
+  // continue ist server-seitig nach last_played_at DESC sortiert pro Lib,
+  // wir mergen + re-sortieren cross-library; nextUp analog nach added_at.
+  const allContinue = [];
+  const allNextUp = [];
   for (const sec of sections) {
+    if (Array.isArray(sec.continue)) allContinue.push(...sec.continue);
+    if (Array.isArray(sec.nextUp))   allNextUp.push(...sec.nextUp);
+  }
+  // Cross-library Sort: continue nach lastPlayedAt desc (faellt auf addedAt
+  // zurueck), nextUp nach addedAt desc.
+  const tsKey = (it, prefer) => {
+    const v = (it && it[prefer]) || (it && it.addedAt) || "";
+    return v;
+  };
+  allContinue.sort((a, b) => tsKey(b, "lastPlayedAt").localeCompare(tsKey(a, "lastPlayedAt")));
+  allNextUp.sort((a, b) => tsKey(b, "addedAt").localeCompare(tsKey(a, "addedAt")));
+  // Cap: 24 / 24 — sonst werden die Streifen unuebersichtlich lang.
+  renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24));
+  renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24));
+
+  // Pro Library: nur „Zuletzt hinzugefuegt", in Library-Reihenfolge.
+  const flatAll = [...allContinue, ...allNextUp];
+  for (const sec of sections) {
+    if (!sec.recent || !sec.recent.length) continue;
     const lib = sec.library || {};
     const libBlock = document.createElement("div");
     libBlock.className = "home-lib-block";
-    // Library-Überschrift
     const h2 = document.createElement("h2");
     h2.className = "home-lib-title";
     h2.textContent = lib.name || "";
@@ -65,14 +91,11 @@ function renderHomeView(grid, data) {
       loadItems();
     });
     libBlock.appendChild(h2);
-
-    renderStrip(libBlock, "▶ Fortsetzen", sec.continue);
-    renderStrip(libBlock, "📺 Als nächstes", sec.nextUp);
-    renderStrip(libBlock, "🆕 Zuletzt hinzugefügt", sec.recent);
-
+    renderGlobalStrip(libBlock, "🆕 Zuletzt hinzugefügt", sec.recent);
     wrap.appendChild(libBlock);
-    flatAll.push(...(sec.continue || []), ...(sec.nextUp || []), ...(sec.recent || []));
+    flatAll.push(...sec.recent);
   }
+
   if (!sections.length) {
     const empty = document.createElement("div");
     empty.className = "empty";

@@ -79,6 +79,27 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"sections": out})
 }
 
+// setLibraryOrder schreibt die User-definierte Library-Reihenfolge. Admin-only.
+// Body: {"ids": [3, 1, 2, ...]}
+func (s *Server) setLibraryOrder(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if len(body.IDs) == 0 {
+		writeError(w, 400, "ids leer")
+		return
+	}
+	if err := s.Store.SetLibraryOrder(body.IDs); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
 // setLibraryHomeVisibility togglet `libraries.on_home`. Admin-only.
 // Body: {"onHome": bool}
 func (s *Server) setLibraryHomeVisibility(w http.ResponseWriter, r *http.Request) {

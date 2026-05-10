@@ -324,6 +324,11 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "on_home", "INTEGER NOT NULL DEFAULT 1"); err != nil {
 		return err
 	}
+	// User-konfigurierbare Reihenfolge fuer Topbar-Dropdown + Home-Sektionen.
+	// Default 0 — bei Gleichstand sortieren wir alphabetisch (Bestands-DBs).
+	if err := addCol("libraries", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Doppelfolgen: "S07E23E24.mkv" wird auf E23 gematcht; episode_end trägt die
 	// letzte Episode der Range (24). 0 = keine Range. Staffel-Ansicht markiert
 	// E23 UND E24 als owned (gleiches Item).
@@ -391,7 +396,7 @@ func (s *Store) migrate() error {
 // --- Libraries ---
 
 func (s *Store) ListLibraries() ([]model.Library, error) {
-	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), created_at FROM libraries ORDER BY name`)
+	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), created_at FROM libraries ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +406,7 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 		var l model.Library
 		var kind string
 		var onHome int
-		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.CreatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &l.CreatedAt); err != nil {
 			return nil, err
 		}
 		l.Kind = model.LibraryKind(kind)
@@ -415,14 +420,32 @@ func (s *Store) GetLibrary(id int64) (*model.Library, error) {
 	var l model.Library
 	var kind string
 	var onHome int
-	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), created_at FROM libraries WHERE id = ?`, id).
-		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.CreatedAt)
+	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), created_at FROM libraries WHERE id = ?`, id).
+		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &l.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	l.Kind = model.LibraryKind(kind)
 	l.OnHome = onHome == 1
 	return &l, err
+}
+
+// SetLibraryOrder schreibt die User-definierte Reihenfolge atomar in einer TX.
+// IDs in der uebergebenen Reihenfolge bekommen sort_order 1..N. IDs die nicht
+// uebergeben werden bleiben unveraendert (kein DELETE/Reset, falls fremde
+// Libraries dazukommen sollten).
+func (s *Store) SetLibraryOrder(ids []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE libraries SET sort_order = ? WHERE id = ?`, i+1, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) CreateLibrary(name, path string, kind model.LibraryKind) (int64, error) {
