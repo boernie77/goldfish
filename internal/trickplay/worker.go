@@ -249,12 +249,13 @@ func (w *Worker) generate(ctx context.Context, it model.Item) error {
 	sprite := filepath.Join(dir, "sprite.jpg")
 	vtt := filepath.Join(dir, "thumbs.vtt")
 
-	// Timeout proportional zur Laufzeit. Bei 4K (≥2160p) kann Software-Decode
-	// als Fallback sehr langsam sein → großzügigeres Cap.
-	timeout := time.Duration(it.DurationSec/10)*time.Second + 120*time.Second
+	// Timeout proportional zur Laufzeit. Großzügig dimensioniert, weil
+	// 4K-Files mit langen GOPs trotz -skip_frame nokey noch substantielle
+	// Demux-/Parse-Zeit brauchen, und der Software-Fallback bei
+	// VAAPI-Aussetzern deutlich langsamer ist.
+	timeout := time.Duration(it.DurationSec/5)*time.Second + 5*time.Minute
 	maxTimeout := 30 * time.Minute
 	if it.Height >= 2160 {
-		// 4K Software-Fallback: bis zu 3h erlauben
 		maxTimeout = 3 * time.Hour
 	} else if it.Height >= 1080 {
 		maxTimeout = 60 * time.Minute
