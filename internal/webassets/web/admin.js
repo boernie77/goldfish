@@ -253,44 +253,25 @@ async function openManage() {
     li.dataset.libId = String(l.id);
     const kindLabel = l.kind === "movies" ? "Filme" : l.kind === "tv" ? "Serien" : "Privat";
 
-    // Header-Zeile
+    // Zwei-Zeilen-Layout fuer die schmale 520px-Dialog-Breite:
+    //   Zeile 1: Name + Kind-Select + Loeschen-Icon  (gross/lesbar)
+    //   Zeile 2: ▲▼ + Toggle-Pillen                  (kompakt)
+    // Beide Container haben flex-wrap, damit bei sehr schmalen Viewports
+    // (z.B. Tablet hochkant) nichts mehr aus dem Dialog rausragt.
     const header = document.createElement("div");
     header.className = "lib-row-head";
-    header.innerHTML = `<div><strong>${escapeHTML(l.name)}</strong> <span class="lib-kind">${kindLabel}</span></div>`;
 
-    const actions = document.createElement("div");
-    actions.style.display = "flex";
-    actions.style.gap = "6px";
+    const topRow = document.createElement("div");
+    topRow.className = "lib-row-top";
 
-    // ▲▼ zum Verschieben innerhalb der Liste — schreibt nach jedem Klick
-    // die neue Reihenfolge an /api/libraries/order zurueck und reloadet.
-    const upBtn = document.createElement("button");
-    upBtn.textContent = "▲";
-    upBtn.title = "Nach oben verschieben";
-    upBtn.disabled = idx === 0;
-    upBtn.addEventListener("click", async () => {
-      const prev = li.previousElementSibling;
-      if (prev && prev.classList.contains("lib-row")) {
-        ul.insertBefore(li, prev);
-        await persistOrder();
-        openManage();
-      }
-    });
-    const downBtn = document.createElement("button");
-    downBtn.textContent = "▼";
-    downBtn.title = "Nach unten verschieben";
-    downBtn.disabled = idx === state.libraries.length - 1;
-    downBtn.addEventListener("click", async () => {
-      const next = li.nextElementSibling;
-      if (next && next.classList.contains("lib-row")) {
-        ul.insertBefore(next, li);
-        await persistOrder();
-        openManage();
-      }
-    });
-    actions.appendChild(upBtn);
-    actions.appendChild(downBtn);
+    const nameBox = document.createElement("div");
+    nameBox.className = "lib-name";
+    nameBox.innerHTML = `<strong>${escapeHTML(l.name)}</strong>`;
+    topRow.appendChild(nameBox);
+
     const kindSel = document.createElement("select");
+    kindSel.className = "lib-kind-select";
+    kindSel.title = "Bibliothekstyp";
     for (const [k, lbl] of [["movies", "Filme"], ["tv", "Serien"], ["private", "Privat"]]) {
       const o = document.createElement("option");
       o.value = k; o.textContent = lbl;
@@ -303,10 +284,58 @@ async function openManage() {
         await loadLibraries();
       } catch (e) { appAlert(e.message); }
     });
-    actions.appendChild(kindSel);
-    // Startseiten-Sichtbarkeit
+    topRow.appendChild(kindSel);
+
+    const del = document.createElement("button");
+    del.className = "danger lib-del";
+    del.title = "Bibliothek löschen";
+    del.textContent = "🗑";
+    del.addEventListener("click", async () => {
+      if (!(await appConfirm(`Bibliothek "${l.name}" löschen?`))) return;
+      await api(`/api/libraries/${l.id}`, { method: "DELETE" });
+      await loadLibraries();
+      openManage();
+      loadItems();
+    });
+    topRow.appendChild(del);
+
+    header.appendChild(topRow);
+
+    // Zeile 2: Reorder + Toggles
+    const toolbar = document.createElement("div");
+    toolbar.className = "lib-toolbar";
+
+    const upBtn = document.createElement("button");
+    upBtn.className = "icon-btn";
+    upBtn.textContent = "▲";
+    upBtn.title = "Nach oben verschieben";
+    upBtn.disabled = idx === 0;
+    upBtn.addEventListener("click", async () => {
+      const prev = li.previousElementSibling;
+      if (prev && prev.classList.contains("lib-row")) {
+        ul.insertBefore(li, prev);
+        await persistOrder();
+        openManage();
+      }
+    });
+    const downBtn = document.createElement("button");
+    downBtn.className = "icon-btn";
+    downBtn.textContent = "▼";
+    downBtn.title = "Nach unten verschieben";
+    downBtn.disabled = idx === state.libraries.length - 1;
+    downBtn.addEventListener("click", async () => {
+      const next = li.nextElementSibling;
+      if (next && next.classList.contains("lib-row")) {
+        ul.insertBefore(next, li);
+        await persistOrder();
+        openManage();
+      }
+    });
+    toolbar.appendChild(upBtn);
+    toolbar.appendChild(downBtn);
+
     const onHomeLabel = document.createElement("label");
-    onHomeLabel.className = "lib-on-home";
+    onHomeLabel.className = "lib-toggle";
     onHomeLabel.title = "Auf der Startseite anzeigen";
     const onHomeBox = document.createElement("input");
     onHomeBox.type = "checkbox";
@@ -322,12 +351,13 @@ async function openManage() {
     });
     onHomeLabel.appendChild(onHomeBox);
     onHomeLabel.appendChild(document.createTextNode(" 🏠 Startseite"));
-    actions.appendChild(onHomeLabel);
+    toolbar.appendChild(onHomeLabel);
+
     // Card-Layout-Toggle nur bei Privat-Libs anzeigen — bei Filme/Serien
     // ist sowieso der Titel oben (Kanal-Layout greift dort nicht).
     if (l.kind === "private") {
       const layoutLabel = document.createElement("label");
-      layoutLabel.className = "lib-on-home";
+      layoutLabel.className = "lib-toggle";
       layoutLabel.title = "Top-Zeile: Ordner/Kanal statt Titel (YouTube-Style)";
       const layoutBox = document.createElement("input");
       layoutBox.type = "checkbox";
@@ -343,20 +373,10 @@ async function openManage() {
       });
       layoutLabel.appendChild(layoutBox);
       layoutLabel.appendChild(document.createTextNode(" 🏷 Ordner oben"));
-      actions.appendChild(layoutLabel);
+      toolbar.appendChild(layoutLabel);
     }
-    const del = document.createElement("button");
-    del.textContent = "Bibliothek löschen";
-    del.classList.add("danger");
-    del.addEventListener("click", async () => {
-      if (!(await appConfirm(`Bibliothek "${l.name}" löschen?`))) return;
-      await api(`/api/libraries/${l.id}`, { method: "DELETE" });
-      await loadLibraries();
-      openManage();
-      loadItems();
-    });
-    actions.appendChild(del);
-    header.appendChild(actions);
+
+    header.appendChild(toolbar);
     li.appendChild(header);
 
     // Paths-Liste
