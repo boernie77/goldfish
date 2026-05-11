@@ -874,6 +874,7 @@ type ItemFilter struct {
 	DupesOnly  bool  // true = nur Items mit mehrfach vergebener metadata_id
 	MetadataID int64 // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
 	PersonTMDB int64 // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
+	PlaylistID int64 // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
 	MinHeight  int   // 0 = aus; sonst nur Items mit height >= MinHeight
 	MaxHeight  int   // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
 	ResBuckets []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
@@ -1033,6 +1034,16 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
 		)`
 		args = append(args, f.PersonTMDB)
+	}
+	if f.PlaylistID > 0 {
+		// Playlist-Filter (fuer Shuffle in Playlist-Ansicht). Per EXISTS, damit
+		// pro Item nur eine Zeile zurueckkommt — bei JOIN wuerden Items, die in
+		// mehreren Playlists liegen, dupliziert werden.
+		q += ` AND EXISTS (
+			SELECT 1 FROM playlist_items pi
+			WHERE pi.item_id = i.id AND pi.playlist_id = ?
+		)`
+		args = append(args, f.PlaylistID)
 	}
 	if f.MaxAgeRating > 0 {
 		// FSK-Filter: Items mit numerisch höherer age_rating als das User-

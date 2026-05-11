@@ -369,6 +369,12 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 	if v := q.Get("libraryId"); v != "" {
 		f.LibraryID, _ = strconv.ParseInt(v, 10, 64)
 	}
+	if v := q.Get("personId"); v != "" {
+		f.PersonTMDB, _ = strconv.ParseInt(v, 10, 64)
+	}
+	if v := q.Get("playlistId"); v != "" {
+		f.PlaylistID, _ = strconv.ParseInt(v, 10, 64)
+	}
 	if v := q.Get("minHeight"); v != "" {
 		n, _ := strconv.Atoi(v)
 		f.MinHeight = n

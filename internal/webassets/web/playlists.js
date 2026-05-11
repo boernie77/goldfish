@@ -196,10 +196,21 @@ async function handleQuickCreatePlaylist(e) {
 // --- Zufällige Wiedergabe ---
 
 // randomParams: baut die URL-Parameter für /api/items/random aus dem aktuellen Kontext.
+// Beruecksichtigt: Library + Folder, aktive Playlist, Person-Filter (Schauspieler),
+// Such-Query, Watched-/Favorite-/Match-Filter, Aufloesungs-Buckets.
 function randomParams() {
   const params = new URLSearchParams();
-  if (state.currentLibrary) params.set("libraryId", state.currentLibrary);
-  if (state.currentFolder !== null) params.set("folder", state.currentFolder);
+  if (state.currentPlaylist) {
+    // Playlist-Kontext: nur Items aus dieser Playlist. libraryId ist hier
+    // irrelevant — Playlists sind library-uebergreifend.
+    params.set("playlistId", state.currentPlaylist);
+  } else if (state.personFilter && state.personFilter.tmdbId) {
+    // Person-Filter: alle Videos mit diesem Schauspieler, library-uebergreifend.
+    params.set("personId", state.personFilter.tmdbId);
+  } else if (state.currentLibrary) {
+    params.set("libraryId", state.currentLibrary);
+    if (state.currentFolder !== null) params.set("folder", state.currentFolder);
+  }
   const search = $("#searchInput").value.trim();
   if (search) params.set("search", search);
   const watched = $("#watchedFilter").value; if (watched) params.set("watched", watched);
@@ -211,8 +222,11 @@ function randomParams() {
 }
 
 async function playRandom() {
-  if (!state.currentLibrary) {
-    appAlert("Keine Bibliothek gewählt.");
+  // Mindestens einer der drei Kontexte muss aktiv sein: Library, Playlist oder
+  // Person-Filter. Sonst gibt es nichts, woraus zufaellig gewaehlt werden kann.
+  if (!state.currentLibrary && !state.currentPlaylist &&
+      !(state.personFilter && state.personFilter.tmdbId)) {
+    appAlert("Bitte erst eine Bibliothek, Playlist oder einen Schauspieler-Filter waehlen.");
     return;
   }
   try {
