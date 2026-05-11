@@ -9,8 +9,8 @@ import (
 // als ganze Zahlen verglichen, nicht zeichenweise. „Folge 2" kommt vor
 // „Folge 10", „Episode 9" vor „Episode 11". Fuer nicht-numerische Bereiche
 // wird case-insensitive auf Lowercase verglichen. Wird per
-// sqlite.MustRegisterCollationUtf8("NATURAL", naturalCompare) registriert
-// und in ORDER-BY-Clauses als COLLATE NATURAL referenziert.
+// sqlite.MustRegisterCollationUtf8("NATSORT", naturalCompare) registriert
+// und in ORDER-BY-Clauses als COLLATE NATSORT referenziert.
 func naturalCompare(a, b string) int {
 	ar := []rune(strings.ToLower(a))
 	br := []rune(strings.ToLower(b))

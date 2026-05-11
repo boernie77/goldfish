@@ -12,7 +12,7 @@ import (
 	sqlite "modernc.org/sqlite"
 )
 
-// NATURAL-Collation einmalig registrieren — danach ist `COLLATE NATURAL` in
+// NATSORT-Collation einmalig registrieren — danach ist `COLLATE NATSORT` in
 // jedem ORDER BY nutzbar (Zahlen werden als ganze Zahlen verglichen,
 // case-insensitive). Wird nur einmal pro Prozess registriert; spaetere
 // Aufrufe von Open koennen kein Re-Register triggern.
@@ -20,7 +20,7 @@ var registerNaturalOnce sync.Once
 
 func registerNaturalCollation() {
 	registerNaturalOnce.Do(func() {
-		sqlite.MustRegisterCollationUtf8("NATURAL", naturalCompare)
+		sqlite.MustRegisterCollationUtf8("NATSORT", naturalCompare)
 	})
 }
 
@@ -1152,9 +1152,9 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// sonst nach items.title. Sonst kommen Dateinamen mit Release-Präfix
 		// ("a-complete-unknown-1080p") unerwartet vor "Alex" o. ä.
 		if desc {
-			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATURAL DESC`
+			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATSORT DESC`
 		} else {
-			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATURAL`
+			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATSORT`
 		}
 	}
 	// Bei aktiver Suche Result kappen — die LIKE+EXISTS-Query auf Cast ist
@@ -1404,7 +1404,7 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 		) f
 		LEFT JOIN folder_metadata fm
 		  ON fm.library_id = f.library_id AND fm.folder = f.folder`+postFilter+`
-		ORDER BY f.folder COLLATE NATURAL
+		ORDER BY f.folder COLLATE NATSORT
 	`, libraryID)
 	if err != nil {
 		return nil, err
