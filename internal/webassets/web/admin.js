@@ -323,6 +323,28 @@ async function openManage() {
     onHomeLabel.appendChild(onHomeBox);
     onHomeLabel.appendChild(document.createTextNode(" 🏠 Startseite"));
     actions.appendChild(onHomeLabel);
+    // Card-Layout-Toggle nur bei Privat-Libs anzeigen — bei Filme/Serien
+    // ist sowieso der Titel oben (Kanal-Layout greift dort nicht).
+    if (l.kind === "private") {
+      const layoutLabel = document.createElement("label");
+      layoutLabel.className = "lib-on-home";
+      layoutLabel.title = "Top-Zeile: Ordner/Kanal statt Titel (YouTube-Style)";
+      const layoutBox = document.createElement("input");
+      layoutBox.type = "checkbox";
+      layoutBox.checked = l.channelLabelOnTop !== false;
+      layoutBox.addEventListener("change", async () => {
+        try {
+          await api(`/api/libraries/${l.id}/channel-label-on-top`, {
+            method: "PUT",
+            body: JSON.stringify({ channelLabelOnTop: layoutBox.checked }),
+          });
+          await loadLibraries();
+        } catch (e) { appAlert(e.message); }
+      });
+      layoutLabel.appendChild(layoutBox);
+      layoutLabel.appendChild(document.createTextNode(" 🏷 Ordner oben"));
+      actions.appendChild(layoutLabel);
+    }
     const del = document.createElement("button");
     del.textContent = "Bibliothek löschen";
     del.classList.add("danger");

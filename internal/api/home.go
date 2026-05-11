@@ -121,3 +121,26 @@ func (s *Server) setLibraryHomeVisibility(w http.ResponseWriter, r *http.Request
 	}
 	w.WriteHeader(204)
 }
+
+// setLibraryChannelLabelOnTop togglet das Private-Card-Layout pro Library
+// (siehe model.Library.ChannelLabelOnTop). Admin-only.
+// Body: {"channelLabelOnTop": bool}
+func (s *Server) setLibraryChannelLabelOnTop(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		ChannelLabelOnTop bool `json:"channelLabelOnTop"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetLibraryChannelLabelOnTop(id, body.ChannelLabelOnTop); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}

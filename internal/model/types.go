@@ -68,8 +68,13 @@ type Library struct {
 	OnHome    bool        `json:"onHome"`
 	// SortOrder steuert die Reihenfolge in Topbar-Dropdown + Home-Recent-
 	// Sektionen. Default 0 — bei Gleichstand fallen wir alphabetisch zurueck.
-	SortOrder int       `json:"sortOrder"`
-	CreatedAt time.Time `json:"createdAt"`
+	SortOrder int `json:"sortOrder"`
+	// ChannelLabelOnTop steuert das Card-Layout fuer private-Libs: true (Default)
+	// = Top-Folder (z.B. YouTube-Kanal) als Top-Zeile, Dateiname unten dicker.
+	// false = standard layout (Titel oben, Folder im Pfad). Wirkt nur fuer
+	// Libraries mit kind=private; bei movies/tv ist das Feld irrelevant.
+	ChannelLabelOnTop bool      `json:"channelLabelOnTop"`
+	CreatedAt         time.Time `json:"createdAt"`
 }
 
 // Metadata hält angereicherte TMDB-Daten zu einem Film, einer Serie oder einer Episode.

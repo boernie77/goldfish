@@ -83,6 +83,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/libraries/{id}/folders", s.listFolders)
 		r.Put("/libraries/{id}/folders/drilldown", requireAdmin(s.setFolderDrilldown))
 		r.Put("/libraries/{id}/home-visibility", requireAdmin(s.setLibraryHomeVisibility))
+		r.Put("/libraries/{id}/channel-label-on-top", requireAdmin(s.setLibraryChannelLabelOnTop))
 		r.Put("/libraries/order", requireAdmin(s.setLibraryOrder))
 		r.Get("/libraries/{id}/stats", s.libraryStats)
 		r.Get("/libraries/{id}/seasons", s.seriesSeasons)

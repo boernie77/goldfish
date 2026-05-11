@@ -451,8 +451,10 @@ function renderCard(it, opts = {}) {
   }
   // Private Libraries (YouTube-Channels, Urlaubsordner, etc.): Top-Zeile zeigt
   // den Kanal/Top-Folder (relPath[0]) — der Dateiname/Titel kommt unten in der
-  // card-filename-Zeile (CSS macht ihn dort etwas dicker).
-  if (itLib && itLib.kind === "private" && !isEpisode) {
+  // card-filename-Zeile (CSS macht ihn dort etwas dicker). Per-Lib via
+  // Library-Manager-Checkbox abschaltbar (channelLabelOnTop=false).
+  const channelTop = itLib && itLib.kind === "private" && itLib.channelLabelOnTop !== false;
+  if (channelTop && !isEpisode) {
     const rel = (it.relPath || "").split("/").filter(Boolean);
     if (rel.length > 1) {
       title = rel[0];
@@ -519,7 +521,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
-      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(itLib && itLib.kind === "private" ? (it.title || cardFileName(it)) : cardFileName(it))}</div>
+      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : cardFileName(it))}</div>
     </div>
   `;
   el.addEventListener("click", (ev) => {

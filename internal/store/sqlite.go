@@ -5,17 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/boernie77/goldfish/internal/model"
-	_ "modernc.org/sqlite"
+	sqlite "modernc.org/sqlite"
 )
+
+// NATURAL-Collation einmalig registrieren — danach ist `COLLATE NATURAL` in
+// jedem ORDER BY nutzbar (Zahlen werden als ganze Zahlen verglichen,
+// case-insensitive). Wird nur einmal pro Prozess registriert; spaetere
+// Aufrufe von Open koennen kein Re-Register triggern.
+var registerNaturalOnce sync.Once
+
+func registerNaturalCollation() {
+	registerNaturalOnce.Do(func() {
+		sqlite.MustRegisterCollationUtf8("NATURAL", naturalCompare)
+	})
+}
 
 type Store struct {
 	db *sql.DB
 }
 
 func Open(path string) (*Store, error) {
+	registerNaturalCollation()
 	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
@@ -329,6 +343,12 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Card-Layout-Toggle fuer Private-Libs: 1 = Top-Folder als Top-Zeile (Default,
+	// YouTube-Style), 0 = klassisch Titel oben. Bestands-Private-Libs behalten
+	// damit das aktuelle Verhalten; User kann pro Lib im Library-Manager opten.
+	if err := addCol("libraries", "channel_label_on_top", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		return err
+	}
 	// Doppelfolgen: "S07E23E24.mkv" wird auf E23 gematcht; episode_end trägt die
 	// letzte Episode der Range (24). 0 = keine Range. Staffel-Ansicht markiert
 	// E23 UND E24 als owned (gleiches Item).
@@ -396,7 +416,7 @@ func (s *Store) migrate() error {
 // --- Libraries ---
 
 func (s *Store) ListLibraries() ([]model.Library, error) {
-	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), created_at FROM libraries ORDER BY sort_order, name`)
+	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), created_at FROM libraries ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -405,12 +425,13 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 	for rows.Next() {
 		var l model.Library
 		var kind string
-		var onHome int
-		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &l.CreatedAt); err != nil {
+		var onHome, channelTop int
+		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &l.CreatedAt); err != nil {
 			return nil, err
 		}
 		l.Kind = model.LibraryKind(kind)
 		l.OnHome = onHome == 1
+		l.ChannelLabelOnTop = channelTop == 1
 		out = append(out, l)
 	}
 	return out, rows.Err()
@@ -419,15 +440,28 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 func (s *Store) GetLibrary(id int64) (*model.Library, error) {
 	var l model.Library
 	var kind string
-	var onHome int
-	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), created_at FROM libraries WHERE id = ?`, id).
-		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &l.CreatedAt)
+	var onHome, channelTop int
+	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), created_at FROM libraries WHERE id = ?`, id).
+		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &l.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	l.Kind = model.LibraryKind(kind)
 	l.OnHome = onHome == 1
+	l.ChannelLabelOnTop = channelTop == 1
 	return &l, err
+}
+
+// SetLibraryChannelLabelOnTop togglet das Card-Layout fuer eine Library
+// (siehe model.Library.ChannelLabelOnTop). Wirkt erst nach Neu-Laden der
+// Items-Liste im Client.
+func (s *Store) SetLibraryChannelLabelOnTop(libraryID int64, v bool) error {
+	flag := 0
+	if v {
+		flag = 1
+	}
+	_, err := s.db.Exec(`UPDATE libraries SET channel_label_on_top = ? WHERE id = ?`, flag, libraryID)
+	return err
 }
 
 // SetLibraryOrder schreibt die User-definierte Reihenfolge atomar in einer TX.
@@ -1118,9 +1152,9 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// sonst nach items.title. Sonst kommen Dateinamen mit Release-Präfix
 		// ("a-complete-unknown-1080p") unerwartet vor "Alex" o. ä.
 		if desc {
-			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NOCASE DESC`
+			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATURAL DESC`
 		} else {
-			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NOCASE`
+			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATURAL`
 		}
 	}
 	// Bei aktiver Suche Result kappen — die LIKE+EXISTS-Query auf Cast ist
@@ -1370,7 +1404,7 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 		) f
 		LEFT JOIN folder_metadata fm
 		  ON fm.library_id = f.library_id AND fm.folder = f.folder`+postFilter+`
-		ORDER BY f.folder COLLATE NOCASE
+		ORDER BY f.folder COLLATE NATURAL
 	`, libraryID)
 	if err != nil {
 		return nil, err
