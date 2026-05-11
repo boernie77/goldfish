@@ -376,6 +376,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Folder-gescopter Scan:** `POST /api/scan/{libID}?folder=<rel>` beschränkt Walk +
   Orphan-Delete auf diesen Unterbaum — UI bietet das automatisch wenn man in einem
   Ordner steht (Scan-Button-Default + zwei zusätzliche Einträge im Dropdown).
+- **Card-Layout pro Privat-Lib togglebar** (`libraries.channel_label_on_top`,
+  Default 1): bei aktivem Toggle (YouTube-Style) zeigt die Kachel-Top-Zeile
+  den Top-Folder (Kanal-Name), der Dateiname kommt unten dicker. Bei OFF
+  klassisches Layout (Titel oben). Checkbox „🏷 Ordner oben" im Library-
+  Manager, nur bei `kind=private` sichtbar (bei Filme/Serien ist Titel
+  sowieso oben).
+- **Library-Manager-Row-Layout**: zweizeilig — Zeile 1 hat Name + Kind-
+  Select + 🗑-Icon (Tooltip „Bibliothek löschen"), Zeile 2 hat ▲▼ +
+  Toggle-Pillen (🏠 Startseite, 🏷 Ordner oben). Beide Zeilen mit
+  `flex-wrap` für narrow Modals (`.modal` hat `max-width: 520px`).
 
 ### Scanner & Metadaten
 - ffprobe liefert Container/Codec/Auflösung/Laufzeit/Bitrate.
@@ -408,12 +418,25 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `scale_vaapi` + `hwdownload,format=nv12`). Wird in `main.go` via
   `trickplayWorker.SetHWAccelDevice(hw.Device)` konfiguriert. Ohne HW-Decode
   laufen 4K-60fps-Quellen regelmäßig in den Timeout.
+- **Performance-Flags vor `-i`** (essentiell, NICHT entfernen):
+  - `-skip_frame nokey` — Decoder gibt nur Keyframes raus. Hauptmedizin
+    gegen 4K-60fps-Timeouts: statt hunderttausenden Frames werden nur die
+    wenigen Sekunden-Keyframes verarbeitet (~50× schneller). Bei 10s-
+    Sprite-Intervall und typischem Keyframe-Abstand ≤5s bleibt jeder Slot
+    nah genug am Soll-Timestamp.
+  - `-err_detect ignore_err` + `-fflags +discardcorrupt+genpts` — kaputte
+    NAL-Units / Invalid-Stream-Daten in Release-Encodes brechen den
+    Decoder nicht mehr ab.
 - **Software-Fallback:** Wenn VAAPI zur Laufzeit scheitert (Fehler enthält
-  „hwaccel initialisation", „Function not implemented" oder „No support for
-  codec"), wird derselbe Befehl automatisch ohne `-hwaccel`-Header erneut
-  ausgeführt. Erkennbar im Log: `[trickplay] item X: VAAPI-Init fehlgeschlagen,
-  fallback auf Software`.
-- **Timeout**: `duration/10 + 120s`, max 30 min.
+  „hwaccel initialisation", „Function not implemented", „No support for
+  codec", „Could not find ref", „Failed to inject frame", „Failed to
+  query surface", „hwdownload"), wird derselbe Befehl automatisch ohne
+  `-hwaccel`-Header erneut ausgeführt. Erkennbar im Log:
+  `[trickplay] item X: VAAPI-Init fehlgeschlagen, fallback auf Software`.
+- **Timeout**: `duration/5 + 300s` proportional, Caps 30/60/180 min
+  (default / 1080p+ / 4K+). Bei `tctx.Err() == DeadlineExceeded` schreibt
+  der Handler eine klare Meldung in `items.trickplay_error`
+  (`timeout nach 11m0s …`), statt nichtssagendem `signal: killed ()`.
 - **Filter-Chain VAAPI**: `fps=1/N,scale_vaapi=w=160:h=90:force_original_aspect_ratio=decrease,hwdownload,format=nv12,pad=…color=black,tile=XxY`
 - **Filter-Chain Software-Fallback**: `fps=1/N,scale=160:90:force_original_aspect_ratio=decrease,pad=…color=black,tile=XxY`
 - Asset-Endpoints: `/api/trickplay/{id}/thumbs.vtt`, `/api/trickplay/{id}/sprite.jpg`.
@@ -764,8 +787,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - Globale Zufallswiedergabe mit **History-Navigation**: `state.shuffleHistory` +
   `state.shuffleIdx` — ⏮ geht zurück, ⏭ spielt neues Zufallsitem (oder aus History
   weiterblättern, wenn schon zurückgesprungen wurde).
-- Zufallspool berücksichtigt aktuelle Library/Folder/Search/Watched-Filter.
+- **Kontext-Auswahl (Priorität)** in `randomParams()`:
+  1. **Playlist** (`state.currentPlaylist`) → `playlistId=<id>` an
+     `/api/items/random`. Pool = alle Items dieser Playlist, library-
+     übergreifend.
+  2. **Person-Filter** (`state.personFilter.tmdbId`) → `personId=<tmdb>`.
+     Pool = alle Videos mit diesem Schauspieler, library-übergreifend.
+  3. **Library** (`state.currentLibrary`) → `libraryId` + ggf. `folder`.
+- Zusätzlich greifen IMMER: `search`, `watched`, `favorite`, `match`,
+  Auflösungs-Buckets.
 - `openPlayer(item, {fromShuffle: true})` erhält den Shuffle-State beim Item-Wechsel.
+- Backend: `ItemFilter.PlaylistID` (EXISTS in `playlist_items`) ist neben
+  `PersonTMDB` der zweite optionale Pool-Selektor. Beide werden von
+  `/api/items/random` aus dem Query gelesen.
 
 ### Playlists (per User)
 - Jede Playlist gehört genau einem User; Items werden in `playlist_items` mit
@@ -1132,6 +1166,50 @@ volumes:
 ```
 
 ## Bekannte Probleme & Lösungen (Decision Log)
+
+### ✅ Trickplay 4K-Files schlugen massenhaft mit „signal: killed" fehl (2026-05-10)
+- **Symptom:** 146 Failed-Items im Trickplay-Manager, davon 142× nur
+  `ffmpeg: signal: killed ()` mit leerem stderr. Betroffen fast nur
+  4K-h264-60fps-Files (3840×2160 / 4096×2160), 13–78 min, 20–32 Mbps.
+- **Ursache:** `fps=1/10` ist nur ein Output-Filter — der Decoder muss
+  trotzdem JEDEN Frame durchlaufen, auch wenn nur 1 von 600 ausgegeben
+  wird. Bei 4K-60fps sind das hunderttausende Frames pro File. Timeout
+  `dur/10 + 120s` reichte für 78-min-File nicht (= ~10 min Cap).
+- **Lösung (in `internal/trickplay/worker.go`):**
+  1. **`-skip_frame nokey`** vor `-i` → Decoder gibt nur Keyframes raus,
+     ~50× schneller. Bei typischem Keyframe-Abstand ≤5s bleibt jeder
+     Sprite-Slot (10s-Intervall) nah genug am Soll-Timestamp.
+  2. **`-err_detect ignore_err -fflags +discardcorrupt+genpts`** → kaputte
+     NAL-Units / Invalid-Stream-Daten brechen ffmpeg nicht mehr ab.
+  3. **Erweiterte Fallback-Pattern**: `Could not find ref`, `Failed to
+     inject frame`, `Failed to query surface`, `hwdownload` triggern jetzt
+     auch den Software-Fallback.
+  4. **Klarere Timeout-Meldung**: wenn `tctx.Err() == DeadlineExceeded`,
+     bekommt der User `"timeout nach 10m0s"` statt `signal: killed ()`.
+  5. **Timeout-Bump**: `dur/5 + 5min` statt `dur/10 + 2min` (29-min-File
+     bekommt jetzt ~11 min Timeout, 80-min-4K ~21 min). Caps bleiben.
+- **Resultat:** 146 → 1 Fehler (das eine ist ein kaputtes mp4 ohne
+  Streams). „↻ Fehler erneut versuchen" gerollt — fast alle durch.
+- **NICHT zurückbauen:** `-skip_frame nokey` ist die Hauptmedizin gegen
+  4K-Timeouts; die Fallback-Pattern + Tolerance-Flags fangen den
+  Rest auf.
+
+### ✅ `COLLATE NATURAL` ist SQLite-Reserved-Word — bricht ORDER BY (2026-05-11)
+- **Symptom:** Nach Einbau einer Custom-Collation für Natural-Sort
+  (Zahlen als ganze Werte) reagierte `/api/items?sort=title` mit HTTP 500
+  `SQL logic error: near "NATURAL": syntax error`. User konnte keine
+  Bibliotheken mehr wechseln.
+- **Ursache:** `NATURAL` ist in SQLite reserviertes Keyword (für
+  `NATURAL JOIN`). Bei `ORDER BY … COLLATE NATURAL` parst der Tokenizer
+  das als beginnenden NATURAL-JOIN-Ausdruck und failt.
+- **Lösung:** Collation umbenannt auf `NATSORT` (registriert in
+  `internal/store/sqlite.go` via `sqlite.MustRegisterCollationUtf8`,
+  Impl in `internal/store/collation.go`). Gleiches Verhalten,
+  funktioniert in ORDER-BY-Klauseln.
+- **NICHT zurück auf `NATURAL`** — und generell: bei neuen Custom-SQL-
+  Identifiern (Collations, Funktionen, Spalten-Aliasen) IMMER vor Push
+  einen echten Query gegen die DB feuern, Go-Unit-Tests fangen
+  Reserved-Word-Konflikte nicht.
 
 ### ✅ Sort „Veröffentlicht" sortierte nach Datei-mtime statt Kino-Release (2026-05-08)
 - **Symptom:** „Veröffentlicht"-Sortierung in Filme-Lib gab durcheinandere
@@ -1801,7 +1879,7 @@ DELETE /api/libraries/{id}/paths?path=…
 # Items
 GET    /api/items?libraryId=&folder=&search=&sort=&dateFrom=&dateTo=&watched=&favorite=&match=&duplicates=&bucket=…&personId=
 GET    /api/items/years
-GET    /api/items/random?libraryId=&folder=&search=&watched=
+GET    /api/items/random?libraryId=&folder=&search=&watched=&favorite=&match=&bucket=…&personId=&playlistId=
 GET    /api/items/{id}
 GET    /api/items/{id}/download           (Original-Datei als attachment)
 GET    /api/items/search-path?q=          (Admin) Diagnose: rel_path/path/title-Suche
@@ -1883,6 +1961,7 @@ GET    /api/browse?path=/media/…
 GET    /api/home                           Startseite-Daten: pro Library {continue, nextUp, recent}
 GET    /api/libraries/{id}/seasons?folder=[&refresh=true]  Staffel-Übersicht inkl. Show-Infos, Cast, missing-Episoden (refresh=true invalidiert TMDB-Cache)
 PUT    /api/libraries/{id}/home-visibility {onHome: bool}
+PUT    /api/libraries/{id}/channel-label-on-top {channelLabelOnTop: bool}  (Admin) Card-Layout-Toggle, nur sinnvoll bei kind=private
 
 # Health
 GET    /api/health                         (hwaccel, tmdb.enabled)
