@@ -149,7 +149,11 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 		params = url.Values{}
 	}
 	params.Set("api_key", c.apiKey)
-	params.Set("language", c.language)
+	// Caller-gesetzte language NICHT ueberschreiben — sonst kann ein
+	// English-Fallback-Call nicht den de-Default umgehen.
+	if params.Get("language") == "" {
+		params.Set("language", c.language)
+	}
 	u := baseURL + path + "?" + params.Encode()
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
@@ -544,16 +548,87 @@ func (c *Client) GetSeason(ctx context.Context, showID int64, season int) (*Seas
 	if err := c.get(ctx, path, nil, &s); err != nil {
 		return nil, err
 	}
+	// English-Fallback fuer generische/leere Episodentitel (z.B.
+	// „Folge 1, Folge 2 ..." wenn TMDB keine deutschen Uebersetzungen
+	// hat). Nur ausloesen wenn der Default-Lang nicht eh schon Englisch
+	// ist und tatsaechlich generische Eintraege vorkommen.
+	needsFallback := false
+	if !strings.HasPrefix(c.language, "en") {
+		for _, ep := range s.Episodes {
+			if isGenericEpisodeName(ep.Name, ep.EpisodeNumber) || ep.Overview == "" {
+				needsFallback = true
+				break
+			}
+		}
+	}
+	if needsFallback {
+		var en Season
+		params := url.Values{}
+		params.Set("language", "en-US")
+		if err := c.get(ctx, path, params, &en); err == nil {
+			enByEp := make(map[int]Episode, len(en.Episodes))
+			for _, e := range en.Episodes {
+				enByEp[e.EpisodeNumber] = e
+			}
+			for i, ep := range s.Episodes {
+				if eng, ok := enByEp[ep.EpisodeNumber]; ok {
+					if isGenericEpisodeName(ep.Name, ep.EpisodeNumber) &&
+						eng.Name != "" &&
+						!isGenericEpisodeName(eng.Name, eng.EpisodeNumber) {
+						s.Episodes[i].Name = eng.Name
+					}
+					if ep.Overview == "" && eng.Overview != "" {
+						s.Episodes[i].Overview = eng.Overview
+					}
+				}
+			}
+		}
+	}
 	c.cachePut(key, &s)
 	return &s, nil
 }
 
+// isGenericEpisodeName erkennt TMDB-generische Episoden-Titel die kein
+// echter Folgentitel sind, sondern nur das Fallback-Pattern „Folge N",
+// „Episode N", „Episodio N" o. ae.
+func isGenericEpisodeName(name string, epNum int) bool {
+	n := strings.TrimSpace(name)
+	if n == "" {
+		return true
+	}
+	// Spracheabhaengige Defaults von TMDB
+	for _, prefix := range []string{"Folge ", "Episode ", "Episodio ", "Épisode "} {
+		if n == fmt.Sprintf("%s%d", prefix, epNum) {
+			return true
+		}
+	}
+	return false
+}
+
 // GetEpisode holt eine einzelne Episode (TV-Show-ID + Season + Episode).
+// Macht einen English-Fallback-Call wenn der Default-Lang nicht Englisch ist
+// UND TMDB einen generischen Namen („Folge N") oder leeres Overview liefert.
 func (c *Client) GetEpisode(ctx context.Context, showID int64, season, episode int) (*Episode, error) {
 	var e Episode
 	path := fmt.Sprintf("/tv/%d/season/%d/episode/%d", showID, season, episode)
 	if err := c.get(ctx, path, nil, &e); err != nil {
 		return nil, err
+	}
+	if !strings.HasPrefix(c.language, "en") &&
+		(isGenericEpisodeName(e.Name, e.EpisodeNumber) || e.Overview == "") {
+		var en Episode
+		params := url.Values{}
+		params.Set("language", "en-US")
+		if err := c.get(ctx, path, params, &en); err == nil {
+			if isGenericEpisodeName(e.Name, e.EpisodeNumber) &&
+				en.Name != "" &&
+				!isGenericEpisodeName(en.Name, en.EpisodeNumber) {
+				e.Name = en.Name
+			}
+			if e.Overview == "" && en.Overview != "" {
+				e.Overview = en.Overview
+			}
+		}
 	}
 	return &e, nil
 }
