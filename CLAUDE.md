@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.30)
+# 📱 Android-App (in Testphase, aktuell 1.2.32)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,10 +158,23 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.30)
+## Android-App-Featureliste (Stand 1.2.32)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
+- **Drilldown-Toggle (vC 64):** Long-Press auf eine Folder-Kachel
+  (Admin-only) oeffnet Bestaetigungsdialog "Unterordner als Ebene
+  anzeigen?". Pendant zum Hover-⚙ im Browser. Folder mit aktivem
+  Drilldown bekommen ein ▸-Indicator und navigieren in eine Subfolder-
+  Liste statt flach alle Items zu zeigen. Route haengt `?drilldown=true`
+  als Query-Param an, persistiert sich ueber mehrere Drilldown-Ebenen
+  hinweg.
+- **Bugfix lokale-Lib-Thumbnails (vC 64):** Frame-Vorschaubilder lagen
+  in `cacheDir/local-thumbs`, das Android unter Speicherdruck loescht
+  (= "verschwinden staendig"). Jetzt `filesDir/local-thumbs` plus
+  `recoverMissingThumbnails`-Background-Job beim Library-Open, der
+  fehlende JPEGs neu extrahiert und den Pfad zurueck in die Room-DB
+  schreibt.
 - **Lokale Bibliotheken (SAF)** mit eigener Room-DB, NameParser-Port,
   MediaProbe via MediaMetadataRetriever, TMDB-Anreicherung via
   Server-Proxy, Frame-Thumbnails als Fallback, Show→Staffel→Folge-
