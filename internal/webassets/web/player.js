@@ -194,7 +194,11 @@ async function openDetail(item) {
   // Metadaten-Edit/Anlegen nur für Admins, in nicht-Private-Libs. Bei
   // unmatched Items oeffnet der Pencil-Button die Maske leer und legt
   // beim Speichern einen Custom-Metadata-Eintrag an (tmdb_type=custom).
-  const canEditMeta = (state.me && state.me.isAdmin) && !(itemLib && itemLib.kind === "private");
+  // Edit-Meta-Pencil ist fuer Admins sichtbar — auch in Privat-Libs.
+  // Dort hat man typischerweise keine TMDB-Zuordnung; der Pencil
+  // oeffnet die Maske mit dem Dateinamen als Default-Titel, beim
+  // Speichern wird ein Custom-Metadata-Eintrag angelegt.
+  const canEditMeta = (state.me && state.me.isAdmin);
   $("#detailEditMeta").style.display = canEditMeta ? "" : "none";
   $("#detailEditMeta").title = item.metadataId ? "Metadaten bearbeiten" : "Metadaten manuell anlegen";
   // Scroll-Position merken & nach showModal() wiederherstellen. Browser springt

@@ -408,22 +408,41 @@ function openEditMetaDialog() {
   if (!it) return;
   const f = $("#editMetaForm");
   const isNew = !it.metadataId;
+  const itemLib = (state.libraries || []).find(l => l.id === it.libraryId);
+  const isPrivate = itemLib && itemLib.kind === "private";
   if (isNew) {
-    // Manuelles Anlegen: Vorbefüllung aus dem Filename, damit der User nicht
-    // bei null anfangen muss. Show-Name aus rel_path[0], Titel = Filename
-    // ohne Release-Junk (Best-Effort), Episodencode bleibt im Beschreibungstext.
+    // Manuelles Anlegen: Vorbefüllung je nach Lib-Typ.
+    // Privat-Libs (YouTube/Urlaubsvideos): Default = Dateiname (ohne
+    // Endung), damit der User schnell einen sprechenden Titel daraus
+    // machen kann. Show/Episoden-Heuristik ist hier unsinnig.
+    // Movies/TV: Show-Name aus rel_path[0], Titel = Filename ohne
+    // Release-Junk, Episodencode in der Beschreibung.
     const rel = (it.relPath || "").split("/");
-    const showName = rel.length > 1 ? rel[0] : "";
-    const m = (it.title || "").match(/[Ss](\d{1,2})[Ee](\d{1,3})/);
-    f.title.value = showName || it.title || "";
-    f.originalTitle.value = "";
-    f.year.value = "";
-    f.releaseDate.value = "";
-    f.overview.value = m ? `S${m[1].padStart(2,"0")}E${m[2].padStart(2,"0")}` : "";
-    f.rating.value = 0;
-    f.runtimeMin.value = it.durationSec ? Math.round(it.durationSec / 60) : 0;
-    f.genres.value = "";
-    f.ageRating.value = "";
+    if (isPrivate) {
+      const fname = rel[rel.length - 1] || it.title || "";
+      const titleDefault = fname.replace(/\.[A-Za-z0-9]{2,5}$/, "");  // .ext strippen
+      f.title.value = titleDefault;
+      f.originalTitle.value = "";
+      f.year.value = "";
+      f.releaseDate.value = (it.releasedAt || "").slice(0, 10);
+      f.overview.value = "";
+      f.rating.value = 0;
+      f.runtimeMin.value = it.durationSec ? Math.round(it.durationSec / 60) : 0;
+      f.genres.value = "";
+      f.ageRating.value = "";
+    } else {
+      const showName = rel.length > 1 ? rel[0] : "";
+      const m = (it.title || "").match(/[Ss](\d{1,2})[Ee](\d{1,3})/);
+      f.title.value = showName || it.title || "";
+      f.originalTitle.value = "";
+      f.year.value = "";
+      f.releaseDate.value = "";
+      f.overview.value = m ? `S${m[1].padStart(2,"0")}E${m[2].padStart(2,"0")}` : "";
+      f.rating.value = 0;
+      f.runtimeMin.value = it.durationSec ? Math.round(it.durationSec / 60) : 0;
+      f.genres.value = "";
+      f.ageRating.value = "";
+    }
     $("#editMetaDialog").querySelector("h2").textContent = "Metadaten manuell anlegen";
   } else {
     const m = it.metadata || {};
