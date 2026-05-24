@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.1.3)
+# 📱 Android-App (in Testphase, aktuell 1.2.30)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,7 +158,37 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (alle in 1.1.3 enthalten)
+## Android-App-Featureliste (Stand 1.2.30)
+
+Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
+`project_android_app.md` und `project_feature_local_libraries.md`):
+- **Lokale Bibliotheken (SAF)** mit eigener Room-DB, NameParser-Port,
+  MediaProbe via MediaMetadataRetriever, TMDB-Anreicherung via
+  Server-Proxy, Frame-Thumbnails als Fallback, Show→Staffel→Folge-
+  Navigation, Show-Re-Match-Dialog, Zufallswiedergabe pro Lib/Folder,
+  Long-Press-Delete (SAF + DB), ansicht-scoped Suchfeld in der Lib
+- **Privat-Libs gruppieren nach Channel-Folder**, Items sortiert nach
+  `releasedAtMs ?: modifiedTime` DESC (neueste oben); Container-DATE-Tag
+  (yt-dlp MKV-DATE `YYYYMMDD`, mp4 creation_time) per MediaProbe
+  ausgelesen + in `local_items.releasedAtMs` persistiert
+- **Offline-Verbesserungen**: `library_folder_cache` + `library_seasons_cache`
+  cachen Show-Poster + komplette SeasonResponse persistent (Bilder offline
+  verfuegbar); Offline-Mode filtert Staffel-Ansicht auf owned-Episoden
+- **Re-Match-Sync-Button (↻)** im Show-Header von Server-Libs nach
+  Browser-seitiger Korrektur (`?refresh=true`)
+- **Globale Suche** (🔍 in der HomeScreen-Topbar) ueber Server-Libs +
+  Offline-Downloads + lokale Libs
+- **Long-Press-Delete fuer Downloads** in jeder Lib-Ansicht + Settings-
+  Button „Alle Downloads entfernen" mit bulk-File-Cleanup
+- **`channelLabelOnTop`-Toggle** aus Server respektiert
+- **Datei-Titel im LocalPlayer** mit ControllerVisibility synchron
+- **HomeScreen reagiert auf Item-Mutations** (`itemUpdated`-SharedFlow,
+  300ms debounce) → „Fortsetzen"/„Als naechstes"-Strips refreshen nach
+  watched/favorite/resume statt stale-Items zu behalten
+- Setup-Wizard (Server-URL + Login), Persistent-Auth, Cast/AirPlay aus
+  Browser-only (bewusst nicht in der App)
+
+## Android-App-Featureliste (Snapshot Stand 1.1.3 — Basis)
 
 - Library-Grid (adaptive Spalten Tablet/Phone), Filter (Sort/Watched/Favorit/
   Auflösung/Rating/Flach/Staffeln/Zufall/Auswahl), Detail-Screen mit Cast-Strip
@@ -1081,6 +1111,13 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   verifizieren oder abspielen. Folder-Match öffnet keinen Dialog (kein einzelnes
   Item im Fokus).
 - Privatvideos: `kind=private` → keine TMDB-Calls.
+- **Edit-Metadata-Dialog (✏ Pencil)** im Detail-Dialog fuer Admins, auch in
+  Privat-Libs verfuegbar (seit 2026-05-16). Speichern triggert
+  `POST /api/items/{id}/metadata-manual` → Server legt `tmdb_type=custom`-
+  Eintrag an (`TMDBID = -itemID`) und bindet das Item. Bei Privat-Libs:
+  Vorbefuellung mit Dateiname ohne Endung als Default-Titel, plus
+  releasedAt und durationSec, damit der User schnell einen sprechenden
+  Titel fuer „yt-dlp-2024-03-15.mp4" eintragen kann.
 - Enrichment-Queue: max. 35 req/10 s, läuft non-blocking im Hintergrund.
 
 ### TMDB-Client-Cache
@@ -1166,6 +1203,61 @@ volumes:
 ```
 
 ## Bekannte Probleme & Lösungen (Decision Log)
+
+### ✅ Edit-Metadata fuer Privat-Libs freigegeben (2026-05-16)
+- **Bisher:** Pencil-Button „Metadaten bearbeiten" war in Privat-Libs
+  ausgeblendet (`canEditMeta` checkte `kind !== "private"`). Der Server-
+  Endpoint `POST /api/items/{id}/metadata-manual` funktionierte aber
+  schon fuer alle Lib-Typen.
+- **Aenderung in `player.js`:** `canEditMeta = state.me.isAdmin` — kein
+  Lib-Kind-Check mehr. Admin sieht den Pencil auch in YouTube/Urlaubs-
+  Libs.
+- **Aenderung in `matching.js openEditMetaDialog`:** zwei separate
+  Vorbefuellungs-Branches je Lib-Kind:
+  - Privat-Libs: Default-Titel = Dateiname **ohne Endung** (`.mp4`
+    etc. via Regex gestrippt). releaseDate aus `it.releasedAt` (yt-dlp
+    MKV-DATE), Runtime aus `it.durationSec`.
+  - Movies/TV (unveraendert): Show-Name aus rel_path[0], Episodencode
+    in der Beschreibung.
+- **Wirkung:** User kann fuer ein YouTube-Video „Bauarbeiten\_2024-03-15.mp4"
+  einen sprechenden Titel „Garage aufgeraeumt" eintragen + speichern.
+  Der Server legt einen `tmdb_type=custom`-Eintrag an
+  (`TMDBID = -itemID` fuer Uniqueness) und bindet das Item daran. Die
+  VideoCard zeigt danach den eingegebenen Titel als displayTitle.
+
+### ✅ Generische Episoden-Titel „Folge 1/2/…" bei TMDB-Lücken (2026-05-14)
+- **Symptom:** Bei einigen Serien (z.B. Sullivans Crossing) zeigte das Browser-
+  Frontend statt echter Episodentitel nur „Folge 1", „Folge 2", … —
+  obwohl TMDB die englischen Episodentitel hat.
+- **Ursache:** TMDB API mit `language=de-DE` liefert selbst die generischen
+  Defaults wenn fuer eine Episode keine deutsche Uebersetzung hinterlegt
+  ist. Server hat `ep.Name` 1:1 uebernommen → User sieht den TMDB-Default.
+- **ZWEI Pfade müssen gefixt werden** — wer nur einen patched, kuriert
+  nur die Hälfte:
+  1. `tmdb.Client.GetSeason` — fuer die Browser-Live-Anzeige der
+     Staffel-Liste (api/series.go).
+  2. `tmdb.Client.GetEpisode` — fuer das DB-Enrichment in
+     `enrich/worker.go` Zeile 471 (pro einzelne Episode, schreibt
+     in `metadata`-Tabelle).
+- **Fix:** beide Methoden machen jetzt einen zweiten Call mit
+  `language=en-US`, wenn mindestens eine Episode einen generischen
+  Namen oder leeres Overview hat. Pro Episode wird ein generisches
+  `Name` durch das englische Pendant ersetzt (sofern dort nicht auch
+  generisch), und leeres `Overview` durch das englische gefuellt. Der
+  Merged-Result wird gecached.
+- **Helper:** `isGenericEpisodeName(name, epNum)` erkennt „Folge N",
+  „Episode N", „Episodio N", „Épisode N" und leere Strings.
+- **`c.get`** wurde erweitert: caller-gesetzte `params.language` wird
+  nicht mehr von `c.language` ueberschrieben.
+- **Bestehende DB-Eintraege** mit „Folge N"-Namen werden nicht
+  automatisch korrigiert — User kann via „⚠ Episoden neu zuordnen"
+  im Show-Header die betroffenen Folder neu enrichen (verwendet den
+  jetzt korrigierten GetSeason-Pfad).
+- **NICHT zurueck**: der zweite Call ist conditional + gecached, kostet
+  also nur einen extra Request pro Show-Season bei Erstbesuch von
+  generischen-Title-Shows. Sprachenneutral falls c.language eh „en…".
+
+
 
 ### ✅ Trickplay 4K-Files schlugen massenhaft mit „signal: killed" fehl (2026-05-10)
 - **Symptom:** 146 Failed-Items im Trickplay-Manager, davon 142× nur
