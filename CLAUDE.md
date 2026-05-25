@@ -1217,6 +1217,43 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Android: viele .mp4 mit "Container/Format nicht unterstuetzt" (2026-05-25)
+- **Symptom:** In den lokalen Bibliotheken der Android-App schlugen
+  zahlreiche .mp4 mit "⚠ Wiedergabe nicht moeglich · Container/Format
+  nicht unterstuetzt" fehl. Dieselben Files liefen in VLC bzw. ueber den
+  Datei-Manager ohne Probleme — also klares Codec-Problem, nicht
+  Container-Schaden.
+- **Ursache:** ExoPlayer/Media3 nutzt per Default nur die System-
+  MediaCodec-Decoder. Manche Codecs (AC-3-Audio, DTS, einzelne HEVC-
+  Profile, ProRes, …) sind je nach Geraet/Android-Version nicht im
+  System-MediaCodec verfuegbar — der Decoder lehnt das Format ab. VLC
+  bringt sein eigenes FFmpeg mit und kennt das alles.
+- **Loesung:** `nextlib-media3ext`
+  (`io.github.anilbeesetti:nextlib-media3ext:1.9.3-0.12.0`) als
+  Dependency, vorgebaute FFmpeg-Decoder-Extension fuer Media3. Im
+  ExoPlayer-Builder wird `NextRenderersFactory(context)
+  .setExtensionRendererMode(EXTENSION_RENDERER_MODE_PREFER)` gesetzt —
+  FFmpeg uebernimmt wenn er kann, sonst fall-back auf System-MediaCodec.
+  Standard h264/h265-Files bleiben HW-decoded; nur problematische Files
+  landen bei FFmpeg.
+- **AAB-Wachstum:** 9 MB → 19,5 MB durch native FFmpeg-Binaries fuer
+  arm64-v8a + armeabi-v7a + x86_64.
+- **Zweite Sicherung:** Im Error-State des LocalPlayer gibt es zusaetzlich
+  einen "In anderem Player oeffnen"-Button (ACTION_VIEW + FLAG_GRANT_READ_
+  URI_PERMISSION auf die SAF-URI). Faengt die 10 % Edge-Cases ab, bei
+  denen auch FFmpeg versagt — User waehlt VLC/MX/etc. im System-Chooser.
+- **WICHTIG (Versions-Pinning):** Die nextlib-Version folgt dem Schema
+  `<Media3-Version>-<NextLib-Version>` (z.B. `1.9.3-0.12.0`,
+  `1.10.0-0.12.1`). Bei jedem Media3-Upgrade MUSS nextlib mit der gleichen
+  Major-Minor mitkommen. Compile bleibt sonst gruen (Java-API
+  kompatibel) — Runtime crasht mit `NoClassDefFoundError` weil die
+  nativen .so-Binaries nicht zur Java-API passen. Liste der Releases:
+  https://github.com/anilbeesetti/nextlib/releases.
+- **NICHT zurueckbauen:** Ohne FFmpeg-Extension waeren die User-Files
+  reihenweise nicht mehr spielbar. Wenn das Native-Footprint-Wachstum
+  stoert, ABI-Splits konfigurieren statt die Extension komplett zu
+  entfernen.
+
 ### ✅ Edit-Metadata fuer Privat-Libs freigegeben (2026-05-16)
 - **Bisher:** Pencil-Button „Metadaten bearbeiten" war in Privat-Libs
   ausgeblendet (`canEditMeta` checkte `kind !== "private"`). Der Server-
