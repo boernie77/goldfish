@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.39)
+# 📱 Android-App (in Testphase, aktuell 1.2.40)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,7 +158,7 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.39)
+## Android-App-Featureliste (Stand 1.2.40)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
@@ -1216,6 +1216,35 @@ volumes:
 ```
 
 ## Bekannte Probleme & Lösungen (Decision Log)
+
+### ✅ Android: NoDeclaredBrand-MP4 — Extractor lehnt Sniff ab (2026-05-25)
+- **Symptom:** Manche .mp4 lieferten im LocalPlayer den Fehler
+  `None of the available extractors (g91, np2, e61, a41, xu4, r6, ...)
+  could read the stream. {contentIsMalformed=false, dataType=1}
+  sniff failures: [NoDeclaredBrand]`. Files spielen in VLC einwandfrei.
+- **Ursache:** ExoPlayer's `Mp4Extractor.sniff()` lehnt MP4-Files ab,
+  deren `ftyp`-Box einen unbekannten Brand deklariert (oder gar kein
+  `ftyp` hat). Die Files sind strukturell valides MP4 — nur der
+  Brand-Code ist exotisch oder Custom. Der Default-Sniffer wird sehr
+  konservativ ausgewertet und liefert false, sodass die Datei nie
+  einen Decoder sieht. FFmpeg-Extension hilft NICHT, weil sie Decoder
+  liefert, nicht Demuxer.
+- **Loesung:** Eigene `TolerantExtractorsFactory`
+  (`ui/locallib/TolerantExtractorsFactory.kt`) wrapt
+  `DefaultExtractorsFactory` und haengt einen `ForcedMp4Extractor` ans
+  Ende der Extractor-Liste. Dessen `sniff()` gibt immer `true` zurueck,
+  alle anderen Methoden delegieren auf einen frischen `Mp4Extractor`.
+  Wenn das File wirklich kein MP4 ist, scheitert das Parsen mit klarem
+  Fehler — aber NoDeclaredBrand-Files laufen jetzt.
+- **Wiring:** ExoPlayer.Builder bekommt
+  `setMediaSourceFactory(DefaultMediaSourceFactory(context,
+  TolerantExtractorsFactory()))`. Der Force-Extractor steht NACH den
+  Default-Sniffern, sodass normale Files (auch mkv/webm/avi) weiterhin
+  vom richtigen Default-Extractor uebernommen werden.
+- **Nicht ueberall verallgemeinerbar:** TolerantExtractorsFactory ist
+  ausschliesslich im LocalPlayer (lokale SAF-URIs) aktiv. Der
+  Server-Streaming-PlayerView braucht das nicht — Streams kommen
+  einheitlich von goldfish-Server mit korrektem ftyp.
 
 ### ✅ Android: viele .mp4 mit "Container/Format nicht unterstuetzt" (2026-05-25)
 - **Symptom:** In den lokalen Bibliotheken der Android-App schlugen
