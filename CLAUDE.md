@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.40)
+# 📱 Android-App (in Testphase, aktuell 1.2.41)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,7 +158,7 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.40)
+## Android-App-Featureliste (Stand 1.2.41)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
@@ -1216,6 +1216,33 @@ volumes:
 ```
 
 ## Bekannte Probleme & Lösungen (Decision Log)
+
+### ✅ Android: lokale Bibliotheken zwischen Usern geleakt (2026-05-25)
+- **Symptom:** Auf einem geteilten Tablet sah jeder Goldfish-User in
+  Settings/Home/Suche die lokalen Bibliotheken der anderen User. Konkret:
+  Christian sah Alex' Privat-Lib und konnte deren Inhalte abspielen.
+- **Ursache:** Lokale Libraries lebten in der Room-DB (`goldfish-local.db`)
+  ohne User-Bezug. `LocalLibraryRepository.observeLibraries()` lieferte
+  alle Eintraege, unabhaengig vom aktuell eingeloggten User.
+- **Loesung:** Schema-Bump v3→v4 mit `local_libraries.ownerUsername TEXT`.
+  Beim Anlegen einer Lib wird der aktuell eingeloggte Goldfish-User
+  (via `AuthRepository.authStatus.value?.username`) als Owner gesetzt.
+  Alle UI-Flows (LocalLibrariesViewModel, HomeViewModel, SearchViewModel)
+  nutzen jetzt `observeLibrariesForUser(currentUser)` mit
+  `flatMapLatest(authStatus)` — bei Login-Wechsel switch'ed der Flow
+  automatisch.
+- **Defense-in-depth:** `LocalLibraryViewModel.load` und
+  `LocalPlayerViewModel.load` haben einen harten Owner-Check, falls
+  jemand per Deep-Link auf eine fremde Library-ID navigiert.
+- **Auto-Migration:** Bestehende Libs ohne Owner (NULL) werden beim
+  ersten Aufruf der Settings dem aktuell eingeloggten User assigniert
+  (`claimUnownedFor(username)`). Im Familien-Setup mit Tablet-
+  Primary-User passt das fast immer; sonst kann der User die Lib loeschen.
+- **NICHT zurueck:** `observeLibraries()` (ohne User-Filter) ist im
+  Repository nur noch fuer interne Jobs (recoverMissingThumbnails)
+  exposed. UI-Code MUSS `observeLibrariesForUser` nutzen. Bei jedem
+  weiteren Schema-Bump (v5, v6 …) NICHT vergessen LOCAL_MIGRATION_x_y in
+  AppModule.provideLocalAppDatabase.addMigrations(...) mit zu listen.
 
 ### ✅ Android: NoDeclaredBrand-MP4 — Extractor lehnt Sniff ab (2026-05-25)
 - **Symptom:** Manche .mp4 lieferten im LocalPlayer den Fehler
