@@ -768,6 +768,13 @@ button.primary:hover { background: var(--accent-hover); }
   opacity: 1;
   transform: scale(1.1);
 }
+.season-mark-watched.is-on {
+  background: #4caf50;
+  opacity: 1;
+}
+.season-mark-watched.is-on:hover {
+  background: #d32f2f;  /* roter Hover-Hinweis: Klick wuerde watched zuruecknehmen */
+}
 .season-mark-watched:disabled {
   cursor: default;
   opacity: 0.5;

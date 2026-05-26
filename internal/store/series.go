@@ -50,6 +50,34 @@ func (s *Store) SeriesOwnedEpisodes(libraryID int64, folder string) ([]SeriesOwn
 	return out, showID, rows.Err()
 }
 
+// WatchedItemIDsInFolder liefert die Menge aller item-IDs, die der gegebene
+// User in einem Show-Folder als "gesehen" markiert hat. Wird vom Season-
+// Handler genutzt, damit jede Episode im Response ihren watched-Status
+// mitbekommt (per-User, nicht das Legacy-`items.watched`).
+func (s *Store) WatchedItemIDsInFolder(userID, libraryID int64, folder string) (map[int64]bool, error) {
+	rows, err := s.db.Query(`
+		SELECT us.item_id
+		FROM user_item_state us
+		JOIN items i ON i.id = us.item_id
+		WHERE us.user_id = ? AND us.watched = 1
+		  AND i.library_id = ?
+		  AND i.rel_path LIKE ? ESCAPE '\'
+	`, userID, libraryID, escapeLike(folder)+"/%")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 // UnmatchedEpisodeFiles liefert alle Items eines Top-Level-Ordners ohne
 // TMDB-Metadata (metadata_id IS NULL) mit ihrem Pfad — der Caller parst
 // daraus on-the-fly Season/Episode aus dem Dateinamen. Wird vom

@@ -253,6 +253,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		AirDate    string  `json:"airDate,omitempty"`
 		StillPath  string  `json:"stillPath,omitempty"`
 		Owned      bool    `json:"owned"`
+		Watched    bool    `json:"watched"` // per aktuellem User
 		ItemID     int64   `json:"itemId,omitempty"`
 		ItemIDs    []int64 `json:"itemIds,omitempty"` // alle Files für diese Episode (Duplikate / Varianten)
 		TMDBID     int64   `json:"tmdbId,omitempty"`
@@ -268,7 +269,16 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		AirDate      string        `json:"airDate,omitempty"`
 		Episodes     []episodeOut  `json:"episodes"`
 		OwnedCount   int           `json:"ownedCount"`
+		WatchedCount int           `json:"watchedCount"` // davon gesehen (nur owned, per User)
 		Total        int           `json:"total"`
+	}
+
+	// Watched-Map fuer diesen Folder + User vorbereiten. Wird beim Bauen
+	// jedes Episode-Outputs konsultiert. Bei Fehler: keine watched-Flags
+	// (= alle false), Response bleibt funktional.
+	watchedIDs, werr := s.Store.WatchedItemIDsInFolder(me.ID, libID, folder)
+	if werr != nil || watchedIDs == nil {
+		watchedIDs = map[int64]bool{}
 	}
 
 	// Alle Staffeln parallel holen — bei 10 Staffeln spart das leicht 2-3s
@@ -328,6 +338,22 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 			}
+			// Watched: bei Doppelfolgen (mehrere ItemIDs) gilt die Episode
+			// erst als gesehen wenn ALLE zugehoerigen Files watched sind.
+			watched := false
+			if slot.ItemID > 0 {
+				watched = true
+				ids := slot.ItemIDs
+				if len(ids) == 0 {
+					ids = []int64{slot.ItemID}
+				}
+				for _, id := range ids {
+					if !watchedIDs[id] {
+						watched = false
+						break
+					}
+				}
+			}
 			out := episodeOut{
 				Season:     ep.SeasonNumber,
 				Episode:    ep.EpisodeNumber,
@@ -336,6 +362,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				AirDate:    ep.AirDate,
 				StillPath:  ep.StillPath,
 				Owned:      slot.ItemID > 0,
+				Watched:    watched,
 				ItemID:     slot.ItemID,
 				ItemIDs:    slot.ItemIDs,
 				EpisodeEnd: slot.EpisodeEnd,
@@ -345,6 +372,9 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 			so.Total++
 			if slot.ItemID > 0 {
 				so.OwnedCount++
+				if watched {
+					so.WatchedCount++
+				}
 			}
 		}
 		// Owned-Episoden mit Nummern jenseits der TMDB-Staffel als zusätzliche
@@ -366,16 +396,31 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 			sort.Ints(extraNums)
 			for _, epNum := range extraNums {
 				slot := owned[epNum]
+				watched := true
+				ids := slot.ItemIDs
+				if len(ids) == 0 {
+					ids = []int64{slot.ItemID}
+				}
+				for _, id := range ids {
+					if !watchedIDs[id] {
+						watched = false
+						break
+					}
+				}
 				so.Episodes = append(so.Episodes, episodeOut{
 					Season:     season.SeasonNumber,
 					Episode:    epNum,
 					Owned:      true,
+					Watched:    watched,
 					ItemID:     slot.ItemID,
 					ItemIDs:    slot.ItemIDs,
 					EpisodeEnd: slot.EpisodeEnd,
 				})
 				so.Total++
 				so.OwnedCount++
+				if watched {
+					so.WatchedCount++
+				}
 			}
 		}
 		// Episoden nach Nummer sortieren — sonst landen Bonus-Slots (z. B. eine

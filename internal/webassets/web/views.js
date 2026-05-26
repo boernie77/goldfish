@@ -158,11 +158,19 @@ function renderSeasonFolders(grid, data) {
       }
     }
     const canMark = ownedIds.length > 0;
+    // "Komplett gesehen" wenn alle owned Episoden watched sind. Server
+    // liefert sn.watchedCount; wenn nicht vorhanden, fallback auf 0 →
+    // Button bleibt grau bis Reload.
+    const allWatched = canMark && (sn.watchedCount || 0) >= sn.ownedCount;
+    const btnTitle = allWatched
+      ? "Staffel ist komplett als gesehen markiert — klicken zum Aufheben"
+      : "Ganze Staffel als gesehen markieren";
+    const btnClass = allWatched ? "season-mark-watched is-on" : "season-mark-watched";
     el.innerHTML = `
       <div class="thumb">
         <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${poster}">
         <span class="folder-count">${sn.ownedCount}/${sn.total} Folgen</span>
-        ${canMark ? `<button class="season-mark-watched" title="Ganze Staffel als gesehen markieren" data-ids="${ownedIds.join(",")}">✓</button>` : ""}
+        ${canMark ? `<button class="${btnClass}" title="${btnTitle}" data-ids="${ownedIds.join(",")}" data-all-watched="${allWatched ? "1" : "0"}">✓</button>` : ""}
       </div>
       <div class="card-body">
         <div class="card-title" title="${escapeHTML(sn.name || "")}">${escapeHTML(sn.name || ("Staffel " + sn.seasonNumber))}</div>
@@ -182,7 +190,12 @@ function renderSeasonFolders(grid, data) {
         ev.stopPropagation();
         const ids = ownedIds.slice();
         const seasonLabel = sn.name || ("Staffel " + sn.seasonNumber);
-        const ok = await appConfirm(`${ids.length} Folge${ids.length === 1 ? "" : "n"} der "${escapeHTML(seasonLabel)}" als gesehen markieren?`);
+        // Toggle: wenn alle schon gesehen → als ungesehen markieren, sonst
+        // als gesehen. Confirm fragt den passenden Text.
+        const turningOff = allWatched;
+        const targetWatched = !turningOff;
+        const verb = turningOff ? "als UNgesehen" : "als gesehen";
+        const ok = await appConfirm(`${ids.length} Folge${ids.length === 1 ? "" : "n"} der "${escapeHTML(seasonLabel)}" ${verb} markieren?`);
         if (!ok) return;
         markBtn.disabled = true;
         markBtn.textContent = "…";
@@ -191,15 +204,15 @@ function renderSeasonFolders(grid, data) {
           try {
             await api(`/api/items/${id}/watched`, {
               method: "PUT",
-              body: JSON.stringify({ watched: true }),
+              body: JSON.stringify({ watched: targetWatched }),
             });
             okCnt++;
           } catch { failCnt++; }
         }
-        if (failCnt === 0) showToast(`${okCnt} Folgen als gesehen markiert.`, { kind: "success" });
+        if (failCnt === 0) showToast(`${okCnt} Folgen ${verb} markiert.`, { kind: "success" });
         else showToast(`${okCnt} markiert, ${failCnt} fehlgeschlagen.`, { kind: "error" });
         // Reload via Refresh der Staffel-View — markBtn re-rendert mit
-        // aktuellen owned/watched-Counts.
+        // aktuellen owned/watched-Counts (und gruener Farbe wenn alles).
         loadItems();
       });
     }
