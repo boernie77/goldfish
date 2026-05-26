@@ -145,10 +145,24 @@ function renderSeasonFolders(grid, data) {
     const poster = sn.posterPath
       ? `https://image.tmdb.org/t/p/w342${sn.posterPath}`
       : "/placeholder.svg";
+    // Owned-Episoden mit itemId aus dem Server-Response extrahieren — die
+    // brauchen wir fuer den Bulk-Watched-Toggle. Duplikate via itemIds[].
+    const ownedIds = [];
+    for (const ep of (sn.episodes || [])) {
+      if (ep.owned && ep.itemIds && ep.itemIds.length) {
+        for (const id of ep.itemIds) {
+          if (!ownedIds.includes(id)) ownedIds.push(id);
+        }
+      } else if (ep.owned && ep.itemId) {
+        if (!ownedIds.includes(ep.itemId)) ownedIds.push(ep.itemId);
+      }
+    }
+    const canMark = ownedIds.length > 0;
     el.innerHTML = `
       <div class="thumb">
         <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${poster}">
         <span class="folder-count">${sn.ownedCount}/${sn.total} Folgen</span>
+        ${canMark ? `<button class="season-mark-watched" title="Ganze Staffel als gesehen markieren" data-ids="${ownedIds.join(",")}">✓</button>` : ""}
       </div>
       <div class="card-body">
         <div class="card-title" title="${escapeHTML(sn.name || "")}">${escapeHTML(sn.name || ("Staffel " + sn.seasonNumber))}</div>
@@ -160,6 +174,35 @@ function renderSeasonFolders(grid, data) {
       loadItems();
     });
     el.addEventListener("keydown", e => { if (e.key === "Enter") el.click(); });
+    // Bulk-Mark-Watched: pro Staffel-Card. Hilft beim "schon eh die ganze
+    // Serie gesehen, alle Episoden auf einmal als gesehen markieren".
+    const markBtn = el.querySelector(".season-mark-watched");
+    if (markBtn) {
+      markBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const ids = ownedIds.slice();
+        const seasonLabel = sn.name || ("Staffel " + sn.seasonNumber);
+        const ok = await appConfirm(`${ids.length} Folge${ids.length === 1 ? "" : "n"} der "${escapeHTML(seasonLabel)}" als gesehen markieren?`);
+        if (!ok) return;
+        markBtn.disabled = true;
+        markBtn.textContent = "…";
+        let okCnt = 0, failCnt = 0;
+        for (const id of ids) {
+          try {
+            await api(`/api/items/${id}/watched`, {
+              method: "PUT",
+              body: JSON.stringify({ watched: true }),
+            });
+            okCnt++;
+          } catch { failCnt++; }
+        }
+        if (failCnt === 0) showToast(`${okCnt} Folgen als gesehen markiert.`, { kind: "success" });
+        else showToast(`${okCnt} markiert, ${failCnt} fehlgeschlagen.`, { kind: "error" });
+        // Reload via Refresh der Staffel-View — markBtn re-rendert mit
+        // aktuellen owned/watched-Counts.
+        loadItems();
+      });
+    }
     frag.appendChild(el);
   }
   grid.appendChild(frag);
