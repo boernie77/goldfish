@@ -1168,14 +1168,9 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATSORT`
 		}
 	}
-	// Bei aktiver Suche Result kappen — die LIKE+EXISTS-Query auf Cast ist
-	// quadratisch in der Item-Anzahl. Ohne Limit liefert sie bei kurzen
-	// Queries („h", „a") tausende Zeilen, was den Browser hängen lässt.
-	// 300 reicht für eine sinnvolle Trefferübersicht; spezifischer eintippen
-	// engt die Treffer eh ein.
-	if f.Search != "" && f.Sort != "random" {
-		q += ` LIMIT 300`
-	}
+	// Frueher: bei aktiver Suche LIMIT 300 (LIKE+EXISTS-Cast-Query ist
+	// quadratisch). Auf Wunsch des Users entfernt — Suche liefert jetzt ALLE
+	// Treffer. Bei sehr kurzen Queries kann das viele Zeilen sein.
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
