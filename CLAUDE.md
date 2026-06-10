@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.52)
+# 📱 Android-App (in Testphase, aktuell 1.2.56)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,7 +158,7 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.52)
+## Android-App-Featureliste (Stand 1.2.56)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
@@ -1216,6 +1216,91 @@ volumes:
 ```
 
 ## Bekannte Probleme & Lösungen (Decision Log)
+
+### ✅ Android: Lib-Flash „kein Inhalt" + Privat-Sort stimmt erst nach Toggle — vC 86/87/88 (2026-06-06)
+- **Symptom 1:** Privat-Libs (v. a. YouTube) zeigten beim Öffnen kurz alle
+  Folgen flach, dann verschwand alles → „kein Inhalt gefunden".
+- **Ursache 1:** `LibraryViewModel.doReload` entscheidet anhand
+  `state.library?.kind` zwischen Folders (TV/Privat) und flachen Items
+  (Movies). War `state.library` noch null (reload() aus dem Settings-Collector
+  lief vor load(), oder getLibraries() langsam) → kind="" → usesFolders=false
+  → loadItems() lädt ALLE Items flach. `LibraryScreen` unterdrückte flache
+  Root-Items nur bei bekanntem tv/private-Kind, nicht bei `null`.
+- **Lösung 1:** (a) `doReload` lädt die Library synchron nach wenn
+  `state.library==null`, bevor Folders-vs-Items entschieden wird. (b)
+  `suppressItemsAtRoot` auf `library?.kind != "movies"` umgestellt (statt
+  `tv||private`) → flache Root-Items auch bei unbekanntem Kind unterdrückt.
+- **Symptom 2:** Sort „Veröffentlicht" in Privat-Libs stimmte erst nach
+  Pfeil-Toggle bzw. Sort-Wechsel-und-zurück. Topbar zeigte „Veröffentlicht",
+  die Liste war aber nicht nach Datum. Daten korrekt (Browser sortiert sauber).
+- **Ursache 2 (vC 87, echte Ursache):** Stale-Sort-Race beim ersten Laden. Bei
+  einer neuen Library wurde `sortMode` erst ASYNCHRON im suspend-Block (nach
+  `getLibraries()`) auf `released` gesetzt; bis dahin stand der Data-Class-
+  Default `SORT_TITLE`. Lief in diesem Fenster ein `loadItems` (z. B. paralleles
+  `reload()` aus dem Settings-Collector), gewann dessen title-/unsortiertes
+  Ergebnis per Generation-Guard, während `sortMode` danach auf `released`
+  sprang. (vC 86 — asc-Default + Client-Sort — reichte daher nicht.)
+- **Lösung 2 (vC 87):** (a) Sort/Richtung/Season SYNCHRON in `load()` setzen
+  (vor dem suspend), Kind aus neuem prefs-Cache `kind_<libId>`; Erstbesuch wird
+  im suspend-Block nachkorrigiert + frische `reloadGeneration` gezogen, damit
+  load()s doReload jede parallele Generation schlägt. (b) Default-Richtung asc;
+  `onSortChange`: released→asc NUR in Privat-Libs (sonst desc). (c) Client-
+  `released`-Sort (relKey year→"YYYY-01-01" sonst `releasedAt`, nur Privat)
+  bleibt als Absicherung.
+- **Symptom 3 (vC 88):** In „nur Offline" war Privat-Lib im Folder wieder
+  durcheinander (ohne Offline passte es).
+- **Ursache 3:** Der Offline-Pfad `doReloadOffline` → `offlineRepository.items()`
+  ist eine eigene Strecke, ruft NICHT `loadItems` und sortierte gar nicht
+  (rohe Room-Insert-Reihenfolge).
+- **Lösung 3:** Client-Sort in Helper `sortItemsForDisplay(items)` extrahiert
+  (liest `_state`: Title→Natural, Released+Privat→year/releasedAt) und in BEIDEN
+  Pfaden genutzt (loadItems + doReloadOffline) → identische Reihenfolge
+  online/offline.
+- **NICHT zurückbauen:** Sort MUSS synchron vor dem ersten loadItems stehen —
+  die async-Initialisierung war der Bug. Das doReload-Nachladen der Library ist
+  die primäre Sicherung gegen den Flash (Symptom 1). Offline + online MÜSSEN
+  denselben sortItemsForDisplay-Helper nutzen.
+
+### ✅ Android: Transcode-Seek griff nicht (Drag/Skip blieb stehen) — vC 85 (2026-05-29)
+- **Symptom:** Im Server-Streaming-Player zog der User den Fortschrittsbalken
+  vor, Trickplay-Vorschau erschien korrekt, aber die Wiedergabe sprang NICHT
+  an die neue Stelle. Die 15-s-Skip-Buttons sprangen danach „deutlich weiter
+  zurueck" — gefuehlt an die Position, wo der Player ohne das Fingerspulen
+  waere. Betrifft NUR Transcode (HLS), nicht Direct Play.
+- **Ursache:** Beim Transcode startete die App den HLS-Stream immer mit ffmpeg
+  `start=0` und verliess sich auf `exoPlayer.seekTo()`. Die wachsende EVENT-
+  Playlist enthaelt aber nur die bereits produzierten Segmente. Ein seekTo
+  hinter den produzierten Rand clampt ExoPlayer auf das Seekable-Ende →
+  Wiedergabe bleibt stehen. Die `DurationOverrideTimeline` zeigt zwar die volle
+  Film-Dauer auf der TimeBar (man kann ueberall hinziehen), der reale Stream
+  reicht aber nur bis zur Produktionsfront. Genau das Problem, das der Browser
+  mit „Transcode-Seek (Capture-Handler + Session-Restart)" loest — der App
+  fehlte das Pendant.
+- **Loesung (`ui/player/PlayerScreen.kt`, mirror des Browser-Mechanismus):**
+  1. `virtualOffset`-State (ms): die ffmpeg-`start`-Basis der laufenden
+     Session. `remember(playbackUrl)` → reset auf 0 bei neuem Item/Quality.
+  2. `wrappedPlayer` (ForwardingPlayer) meldet **absolute** Position
+     (`getCurrentPosition/Content/Buffered… + virtualOffset`), damit TimeBar
+     und Skip-Buttons die echte Film-Position sehen — auch wenn die Session
+     mitten im Film gestartet ist.
+  3. Seek-Interception: `seekTo`/`seekForward`/`seekBack` gehen durch
+     `handleAbsoluteSeek`. Liegt das Ziel im bereits produzierten Material
+     (lokal ≤ `super.getDuration()`/buffered + 5 s Toleranz) → lokal seeken;
+     sonst `loadHls(start=Zielsekunde)` → neue ffmpeg-Session, `virtualOffset =
+     Ziel`, lokale Playlist startet wieder bei 0.
+  4. URL-Bau zentral in `loadHls(startSec)`: `…&start=<sec>&_t=<now>` (das `_t`
+     bricht nur den OkHttp-Cache, der Server ignoriert es beim Session-Key
+     `(item,profile,audio,int(startSec),deint)`).
+  5. Transcode-**Resume** ebenfalls gefixt: nicht mehr `seekTo(resumeMs)`
+     (clampte), sondern direkt `start=<resumeSec>` + `virtualOffset` setzen.
+  6. Resume-Speichern beim Verlassen/Pause schreibt jetzt die **absolute**
+     Position (`currentPosition + virtualOffset`).
+- **NICHT zurueckbauen:** Ohne Session-Restart kann die App im Transcode nicht
+  ueber die Produktionsfront hinaus springen. Direct Play (ganze Datei per
+  Range) bleibt unveraendert — dort ist `currentIsTranscode=false`, die Seek-
+  Overrides forwarden 1:1.
+- **Server-Seite unveraendert** — `start`-Param + Session-Keying existierten
+  schon fuer den Browser.
 
 ### ✅ Android: lokale Bibliotheken zwischen Usern geleakt (2026-05-25)
 - **Symptom:** Auf einem geteilten Tablet sah jeder Goldfish-User in
