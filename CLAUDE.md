@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.56)
+# 📱 Android-App (in Testphase, aktuell 1.2.58)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,10 +158,27 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.56)
+## Android-App-Featureliste (Stand 1.2.58)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
+- **Player Favorit + Löschen (vC 89):** Im Server-Player oben rechts ein
+  Favorit-Toggle (♥, optimistisch) und — Admin-only — ein Lösch-Button (🗑)
+  mit Bestätigungsdialog (`DELETE /api/items/{id}?deleteFile=true`); nach
+  Erfolg `state.deleted=true` → Screen navigiert zurueck. Neuer API-Endpoint
+  `deleteItem` + `ItemRepository.deleteItem`, `PlayerViewModel` bekam
+  `AuthRepository` injiziert (isAdmin).
+- **Flache library-weite Sort-Modi (vC 89):** „Zuletzt abgespielt"/„Zuletzt
+  hinzugefügt"/„Laufzeit" zeigen jetzt — wie im Browser — die Top-Videos der
+  GANZEN Library, unabhaengig von Ordner/Staffel. `isFlatSortMode()` in
+  LibraryViewModel: early-Branch in doReload (folderParam=null), `onSortChange`
+  macht vollen reload(), `suppressItemsAtRoot` + Drilldown-Filter respektieren
+  den Flat-Modus. **Offline (vC 90):** auch `doReloadOffline` behandelt die drei
+  Modi via `OfflineRepository.itemsSortedFlat` aus Room. „Zuletzt abgespielt"
+  nutzt ein NEUES lokales `downloads.lastPlayedAt` (DB v6, Migration 5→6), das
+  `PlayerViewModel` beim Abspielen eines Downloads via
+  `DownloadRepository.markPlayed` stempelt (Server-last_played_at ist offline
+  nicht verfuegbar). Nur offline abgespielte Downloads erscheinen dort.
 - **Drilldown-Toggle (vC 64):** Long-Press auf eine Folder-Kachel
   (Admin-only) oeffnet Bestaetigungsdialog "Unterordner als Ebene
   anzeigen?". Pendant zum Hover-⚙ im Browser. Folder mit aktivem
@@ -896,10 +913,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Aktiv → alle Items mit mehrfach vergebener `metadata_id` flach ohne Merge.
 - **Favoriten-Filter** auf „Nur" stellt sofort eine flache Library-weite
   Ansicht (wie Duplikate, aber eigener Pfad in loadItems).
-- **„Zuletzt abgespielt"-Sort** zeigt ebenfalls eine flache Library-Ansicht
-  (gleiche Struktur wie Favoriten). Server-seitig filtert ListItems bei
-  `Sort=="played"` zusätzlich `AND us.last_played_at IS NOT NULL`, damit
-  nur tatsächlich abgespielte Items erscheinen.
+- **Flache library-weite Sort-Modi** „Zuletzt abgespielt" (`played`), „Zuletzt
+  hinzugefügt" (`added`) und „Laufzeit" (`duration`) zeigen die Top-N Videos der
+  GANZEN Library, ignorieren die Ordner-/Staffel-Struktur (keine Folders). Ein
+  gemeinsamer Branch in `grid.js` (`FLAT_SORTS`) holt sie flach, Breadcrumb via
+  `renderBreadcrumb({flatSortView:<mode>})`. Server-seitig filtert ListItems bei
+  `Sort=="played"` zusätzlich `AND us.last_played_at IS NOT NULL`. (App-Pendant:
+  `isFlatSortMode()` in LibraryViewModel.)
 - **Bestätigungs-✅ auf der Kachel** bei Sort „Duplikate" oder „Verdächtige
   Zuordnungen": blauer Button unter dem Watched-Haken, Klick ruft
   `PUT /api/items/:id/confirm` mit `{confirmed:true}` und lädt das Grid neu.
