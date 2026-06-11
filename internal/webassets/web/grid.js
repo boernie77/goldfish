@@ -556,15 +556,22 @@ async function loadItemsBody() {
     return;
   }
 
-  // "Zuletzt abgespielt"-Modus: flache Ansicht innerhalb der aktuellen Library
-  // (gleiche Logik wie Favoriten — keine Folders, keine Subfolder-Struktur).
-  // Nur Items mit einem last_played_at sind interessant; nie gespielte werden
-  // client-seitig ausgefiltert (server liefert sie sonst ans Listenende).
-  if ($("#sortSelect").value === "played" && state.currentLibrary) {
+  // Flache, library-weite Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt"
+  // und "Laufzeit". Alle drei ignorieren die Ordner-Struktur (keine Folders,
+  // keine Subfolder) und zeigen die Top-N Videos der ganzen Library — der User
+  // will die "letzten/längsten" Videos unabhängig vom Ordner sehen. Server
+  // sortiert (bei sort=played zusätzlich Filter auf last_played_at IS NOT NULL).
+  const FLAT_SORTS = {
+    played:   "Noch nichts abgespielt in dieser Bibliothek.",
+    added:    "Keine Videos in dieser Bibliothek.",
+    duration: "Keine Videos in dieser Bibliothek.",
+  };
+  const flatSort = $("#sortSelect").value;
+  if (FLAT_SORTS[flatSort] && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
-      sort: "played",
+      sort: flatSort,
       dir: effectiveSortDir(),
     });
     if (searchQ) p.set("search", searchQ);
@@ -575,10 +582,9 @@ async function loadItemsBody() {
     try { items = await apiGetCached(`/api/items?${p}`); }
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
-    // Server filtert bei sort=played bereits auf last_played_at IS NOT NULL.
-    renderBreadcrumb({ searchCount: items.length, playedView: true });
+    renderBreadcrumb({ searchCount: items.length, flatSortView: flatSort });
     if (!items.length) {
-      grid.innerHTML = `<div class="empty">Noch nichts abgespielt in dieser Bibliothek.</div>`;
+      grid.innerHTML = `<div class="empty">${FLAT_SORTS[flatSort]}</div>`;
       return;
     }
     const merged = groupVariants(items);

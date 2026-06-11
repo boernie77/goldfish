@@ -711,12 +711,18 @@ function renderBreadcrumb(opts) {
     return;
   }
 
-  if (opts.playedView) {
+  if (opts.flatSortView) {
+    const labels = {
+      played:   "🕘 Zuletzt abgespielt",
+      added:    "🆕 Zuletzt hinzugefügt",
+      duration: "⏱ Nach Laufzeit",
+    };
+    const label = labels[opts.flatSortView] || "Sortiert";
     const lib = state.libraries.find(l => l.id == state.currentLibrary);
     const libName = lib ? lib.name : "";
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = libName ? `🕘 Zuletzt abgespielt in ${libIcon(lib)} ${libName}` : "🕘 Zuletzt abgespielt";
+    cur.textContent = libName ? `${label} in ${libIcon(lib)} ${libName}` : label;
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
