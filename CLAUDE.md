@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.58)
+# 📱 Android-App (in Testphase, aktuell 1.2.64)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,10 +158,47 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.58)
+## Android-App-Featureliste (Stand 1.2.64)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
+- **Online-Lib „Zuletzt gespielt" — App rief /played nie (vC 96):** Server
+  trackt `user_item_state.last_played_at` NUR via `POST /api/items/{id}/played`
+  (`TouchLastPlayed`); Resume/Watched setzen es NICHT. Der **Browser** ruft das
+  beim Player-Open (player.js), die **App tat es nicht** → in der App gespielte
+  Videos erschienen nie in der Online-Sortierung „Zuletzt gespielt" (nur im
+  Browser gespielte). Fix: `GoldfishApi.markPlayed` + `ItemRepository.markPlayed`
+  (invalidiert items-/home-Cache), `PlayerViewModel.load` ruft es fire-and-forget
+  beim Öffnen. (Lange als lokales-Lib-Problem fehldiagnostiziert — es war die
+  Online-Lib. Lokale Lib ist eine separate Strecke mit eigenem lastPlayedAt.)
+- **Lokale Lib: Sort „Zuletzt gespielt" (vC 91):** lokale Bibliotheken haben
+  jetzt auch den Sort `LOCAL_SORT_PLAYED` — flache library-weite Liste der
+  zuletzt im lokalen Player geoeffneten Items. Neue Spalte
+  `local_items.lastPlayedAt` (LocalAppDatabase v5, MIGRATION_4_5), beim
+  `LocalPlayerViewModel.load` gestempelt (gilt fuer ExoPlayer + VLC), beim
+  Re-Scan erhalten. Zeigt nur Items mit lastPlayedAt>0.
+  **Fix vC 92:** Nach Player-Rueckkehr wurde die lokale Liste NICHT neu geladen
+  (Idempotenz-Guard in `load()` blockt Refresh zum Scroll-Schutz; kein DB-Flow),
+  daher tauchten frisch abgespielte Videos nicht in „Zuletzt gespielt" auf.
+  vC 92 (LifecycleResumeEffect → `refreshCurrent()`) reichte NICHT zuverlaessig.
+  **Fix vC 93:** `LocalLibraryRepository` hat jetzt einen `itemMutated`-
+  SharedFlow, der nach jedem `updateItem` emittiert; `LocalLibraryViewModel`
+  beobachtet ihn im `init` und ruft `refreshCurrent()` (stilles force-Reload via
+  `silent`-Param). Lifecycle-unabhaengig: der Player stempelt lastPlayedAt via
+  `updateItem` waehrend das Lib-VM im Backstack lebt → Liste ist bei Rueckkehr
+  frisch. Server-Libs nicht betroffen — deren `load()` ruft immer `doReload`.
+  **ECHTE Ursache + Fix vC 94:** vC 92/93 reichten nicht, weil es KEIN Refresh-
+  Problem war — der `lastPlayedAt`-Stempel wurde wieder ueberschrieben.
+  `recoverMissingThumbnails` (laeuft im BG bei jedem Lib-Open, v.a. Privat-Libs
+  mit Frame-Thumbnails) UND `LocalEnricher.applyHit` schrieben Items per
+  `update(item.copy(...))` als GANZE Zeile aus einem VERALTETEN Snapshot zurueck
+  → clobberten den parallel gesetzten lastPlayedAt (und watched/resume) auf 0.
+  Fix: gezielte Einzelspalten-Updates `LocalItemDao.setLastPlayed`/
+  `setThumbnailPath`; Stempel via `repository.markLocalPlayed` (statt
+  updateItem(copy)); recoverMissingThumbnails nutzt setThumbnailPath; applyHit
+  liest das Item frisch (getItem) bevor es die Zeile schreibt. **LEHRE:
+  Hintergrund-Jobs NIE eine ganze Entity-Zeile aus einem alten Snapshot
+  zurueckschreiben — gezielte Spalten-Updates nutzen.**
 - **Player Favorit + Löschen (vC 89):** Im Server-Player oben rechts ein
   Favorit-Toggle (♥, optimistisch) und — Admin-only — ein Lösch-Button (🗑)
   mit Bestätigungsdialog (`DELETE /api/items/{id}?deleteFile=true`); nach
@@ -920,6 +957,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `renderBreadcrumb({flatSortView:<mode>})`. Server-seitig filtert ListItems bei
   `Sort=="played"` zusätzlich `AND us.last_played_at IS NOT NULL`. (App-Pendant:
   `isFlatSortMode()` in LibraryViewModel.)
+  **WICHTIG:** Diese 3 Sorts werden NICHT als Standard-Sortierung pro Library/
+  Folder gespeichert (`FLAT_LIBRARY_SORTS` in app.js — `persistSortForContext`
+  überspringt sie, `restoreSortForContext` ignoriert gespeicherte Werte). Sonst
+  öffnet eine Library dauerhaft flach, obwohl der Flat-Toggle aus ist. Sie sind
+  spontane Ansichten (opt-in pro Aufruf); beim Wieder-Betreten fällt der Kontext
+  auf den normalen Default (title/released → Ordner) zurück.
 - **Bestätigungs-✅ auf der Kachel** bei Sort „Duplikate" oder „Verdächtige
   Zuordnungen": blauer Button unter dem Watched-Haken, Klick ruft
   `PUT /api/items/:id/confirm` mit `{confirmed:true}` und lädt das Grid neu.
