@@ -556,24 +556,23 @@ async function loadItemsBody() {
     return;
   }
 
-  // Flache, library-weite Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt"
-  // und "Laufzeit". Alle drei ignorieren die Ordner-Struktur (keine Folders,
-  // keine Subfolder) und zeigen die Top-N Videos der ganzen Library — der User
-  // will die "letzten/längsten" Videos unabhängig vom Ordner sehen. Server
-  // sortiert (bei sort=played zusätzlich Filter auf last_played_at IS NOT NULL).
-  const FLAT_SORTS = {
-    played:   "Noch nichts abgespielt in dieser Bibliothek.",
-    added:    "Keine Videos in dieser Bibliothek.",
-    duration: "Keine Videos in dieser Bibliothek.",
-  };
+  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt" und "Laufzeit".
+  // Alle drei ignorieren die Ordner-STRUKTUR (keine Folder-Kacheln) und zeigen
+  // eine flache Liste. SCOPE: nur nach unten flach — im Library-Root die ganze
+  // Library, in einem Unterordner NUR dessen Inhalt (rekursiv), nicht library-
+  // weit hochziehen. Server sortiert (bei played zusätzlich Filter auf
+  // last_played_at IS NOT NULL) und filtert `folder` rekursiv via LIKE.
+  const FLAT_SORTS = new Set(["played", "added", "duration"]);
   const flatSort = $("#sortSelect").value;
-  if (FLAT_SORTS[flatSort] && state.currentLibrary) {
+  if (FLAT_SORTS.has(flatSort) && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
       sort: flatSort,
       dir: effectiveSortDir(),
     });
+    // In einem Unterordner: nur diesen Ordner (rekursiv) flach zeigen.
+    if (state.currentFolder) p.set("folder", state.currentFolder);
     if (searchQ) p.set("search", searchQ);
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     applyResolutionFilter(p);
@@ -584,7 +583,9 @@ async function loadItemsBody() {
     if (stale()) return;
     renderBreadcrumb({ searchCount: items.length, flatSortView: flatSort });
     if (!items.length) {
-      grid.innerHTML = `<div class="empty">${FLAT_SORTS[flatSort]}</div>`;
+      const scope = state.currentFolder ? "in diesem Ordner" : "in dieser Bibliothek";
+      const msg = flatSort === "played" ? `Noch nichts abgespielt ${scope}.` : `Keine Videos ${scope}.`;
+      grid.innerHTML = `<div class="empty">${msg}</div>`;
       return;
     }
     const merged = groupVariants(items);

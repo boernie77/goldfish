@@ -720,9 +720,16 @@ function renderBreadcrumb(opts) {
     const label = labels[opts.flatSortView] || "Sortiert";
     const lib = state.libraries.find(l => l.id == state.currentLibrary);
     const libName = lib ? lib.name : "";
+    // Scope anzeigen: im Library-Root die Lib, in einem Unterordner der Ordner
+    // (der Flat-Sort wirkt dann nur nach unten in diesem Ordner, nicht library-weit).
+    let where = libName ? `${libIcon(lib)} ${libName}` : "";
+    if (state.currentFolder) {
+      const folderName = state.currentFolder.split("/").filter(Boolean).pop() || state.currentFolder;
+      where = where ? `${where} / ${folderName}` : folderName;
+    }
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = libName ? `${label} in ${libIcon(lib)} ${libName}` : label;
+    cur.textContent = where ? `${label} in ${where}` : label;
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
