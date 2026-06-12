@@ -603,11 +603,19 @@ const PSEUDO_FILTER_MODES = new Set([
   "unmatched", "favorites", "duplicates", "suspicious", "interlaced",
 ]);
 
+// Sort-Modi, die eine flache, library-weite Liste zeigen (Ordner-Struktur
+// ignorieren). Diese sind als spontane Ansicht gedacht ("zeig mir die letzten/
+// längsten Videos der ganzen Lib") und sollen NICHT als Standard-Sortierung pro
+// Library/Folder gespeichert werden — sonst öffnet die Library dauerhaft flach,
+// obwohl der Flat-Toggle aus ist. Beim Wieder-Betreten fällt der Kontext auf den
+// normalen Default (title/released → Ordner) zurück.
+const FLAT_LIBRARY_SORTS = new Set(["played", "added", "duration"]);
+
 function persistSortForContext() {
   const key = sortStorageKey();
   if (!key) return;
   const s = $("#sortSelect").value;
-  if (PSEUDO_FILTER_MODES.has(s)) return;
+  if (PSEUDO_FILTER_MODES.has(s) || FLAT_LIBRARY_SORTS.has(s)) return;
   const d = state.sortDir;
   try {
     if (!s && !d) localStorage.removeItem(key);
@@ -622,8 +630,14 @@ function restoreSortForContext() {
   if (!key) return;
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) {
-      // Kein gespeicherter Sort für diesen Kontext → Library-spezifischer Default.
+    let parsed = null;
+    if (raw) { try { parsed = JSON.parse(raw); } catch {} }
+    // Gespeicherte Flat-Library-Sorts (played/added/duration) NICHT wiederher-
+    // stellen — sonst bleibt eine Library dauerhaft flach. Wie "kein Sort
+    // gespeichert" behandeln → Default (Ordner). Deckt auch Bestands-
+    // localStorage aus der Zeit ab, als diese Sorts noch gespeichert wurden.
+    if (!raw || !parsed || !parsed.sort || FLAT_LIBRARY_SORTS.has(parsed.sort)) {
+      // Kein (verwendbarer) gespeicherter Sort für diesen Kontext → Library-spezifischer Default.
       // Private Libraries (YouTube-Downloads, Urlaubsvideos etc.) sollen nach
       // „Veröffentlicht" absteigend sortiert sein — Chronologie ist dort die
       // sinnvolle Reihenfolge. Alle anderen bleiben auf "title" aufsteigend.
@@ -641,7 +655,7 @@ function restoreSortForContext() {
       updateSortDirIcon();
       return;
     }
-    const { sort, dir } = JSON.parse(raw);
+    const { sort, dir } = parsed;
     if (sort) $("#sortSelect").value = sort;
     state.sortDir = dir || "";
     updateSortDirIcon();
