@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.64)
+# 📱 Android-App (in Testphase, aktuell 1.2.65)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,7 +158,7 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.64)
+## Android-App-Featureliste (Stand 1.2.65)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
@@ -963,6 +963,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   öffnet eine Library dauerhaft flach, obwohl der Flat-Toggle aus ist. Sie sind
   spontane Ansichten (opt-in pro Aufruf); beim Wieder-Betreten fällt der Kontext
   auf den normalen Default (title/released → Ordner) zurück.
+  **Scope = nur nach unten flach (Browser + App vC 97):** im Library-Root
+  library-weit, in einem Unterordner NUR dessen Inhalt (rekursiv) — nicht die
+  ganze Library hochziehen. Browser: `grid.js` setzt `folder=state.currentFolder`
+  wenn gesetzt (Breadcrumb zeigt den Ordner-Scope). App: `loadItems` folderParam
+  = `if (st.flatView) null else currentFolder` (kein isFlatSortMode-null-Zwang
+  mehr); offline `itemsSortedFlat(..., folder)`.
 - **Bestätigungs-✅ auf der Kachel** bei Sort „Duplikate" oder „Verdächtige
   Zuordnungen": blauer Button unter dem Watched-Haken, Klick ruft
   `PUT /api/items/:id/confirm` mit `{confirmed:true}` und lädt das Grid neu.
