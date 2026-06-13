@@ -918,6 +918,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   die Zeit-/Progress-Anzeigen mit `techTime + virtualOffset`, damit die
   Oberfläche absolute Positionen zeigt. Video.js' eigene TimeDisplay-Updates
   werden im Transcode-Modus als No-Op gepatched, um Flicker zu verhindern.
+  **Ebenso die SeekBar:** `progressControl.seekBar.update` wird im Transcode-
+  Modus zum No-Op gepatched. Sonst schreibt Video.js die `.vjs-play-progress`-
+  Breite parallel zum RAF-Loop — und rechnet dabei gegen die wachsende EVENT-
+  Playlist-/Live-Dauer statt der forcierten Filmlänge → der Fortschrittsbalken
+  flackert während der Wiedergabe (nicht im Pausenzustand). Direct Play
+  unverändert (RAF-Loop ist dort inaktiv, Video.js steuert den Balken).
 - **Wichtig — HLS-Segment-URLs:** Der Playlist-Handler schreibt die m3u8
   on-the-fly um und hängt die Query-Parameter (`profile`/`start`/`audio`) an
   jede `seg*.ts`-Zeile. Ohne das verlieren Segment-Requests ihre Parameter

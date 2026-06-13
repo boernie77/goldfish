@@ -1196,6 +1196,24 @@ function syncTranscodeDisplays(vjs) {
       };
       c._patchedForTranscode = true;
     }
+    // Genauso die SeekBar: Video.js aktualisiert die `.vjs-play-progress`-
+    // Breite selbst (timeupdate + eigener RAF), rechnet dabei aber gegen die
+    // wachsende EVENT-Playlist-/Live-Dauer statt der forcierten Filmlaenge.
+    // Parallel setzt unser RAF-Loop unten dieselbe Breite auf den korrekten
+    // (absoluten) Wert → die beiden schreiben abwechselnd unterschiedliche
+    // Positionen → Fortschrittsbalken flackert waehrend der Wiedergabe. Im
+    // Transcode-Modus deshalb Video.js' SeekBar-Update aussetzen, unser RAF
+    // uebernimmt; Direct Play laeuft unveraendert ueber Video.js.
+    const pc = cb.getChild("progressControl");
+    const sb = pc && pc.getChild("seekBar");
+    if (sb && typeof sb.update === "function" && !sb._patchedForTranscode) {
+      const origUpdate = sb.update.bind(sb);
+      sb.update = function () {
+        if (state.playback && state.playback.mode === "transcode") return;
+        return origUpdate();
+      };
+      sb._patchedForTranscode = true;
+    }
   }
   // Display-Span-Update OHNE textContent — sonst loggt Video.js
   // „TimeDisplay#updateTextnode_: Prevented replacement of text node element"
