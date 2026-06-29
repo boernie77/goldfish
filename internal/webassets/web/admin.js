@@ -727,111 +727,207 @@ function downloadRenamesCSV() {
   window.location.href = "/api/admin/renames.csv";
 }
 
-// --- Auto-Scan-Einstellungen ---
+// --- Auto-Scan-Einstellungen (mehrere Aufgaben) ---
+
+// Arbeitskopie der Aufgabenliste — wird beim Speichern an den Server gesendet.
+let autoScanTasks = [];
+let autoScanLibs  = [];
 
 async function openAutoScan() {
   const dlg = $("#autoScanDialog");
   if (!dlg) return;
 
-  // Libraries für Dropdown laden
+  // Libraries laden
   try {
-    const libs = await apiGetCached("/api/libraries");
-    const sel = $("#autoScanLibrary");
-    sel.innerHTML = '<option value="0">Alle Bibliotheken</option>';
-    for (const l of libs) {
-      const opt = document.createElement("option");
-      opt.value = l.id;
-      opt.textContent = l.name;
-      sel.appendChild(opt);
-    }
-  } catch {}
+    autoScanLibs = await apiGetCached("/api/libraries");
+  } catch { autoScanLibs = []; }
 
-  // Aktuelle Einstellungen laden
-  let cfg = { enabled: false, schedule: "daily:03:00", libraryId: 0 };
-  try { cfg = await api("/api/settings/autoscan"); } catch {}
+  // Aufgaben laden
+  try {
+    const data = await api("/api/settings/autoscan");
+    autoScanTasks = Array.isArray(data) ? data : [];
+  } catch { autoScanTasks = []; }
 
-  // UI befüllen
-  $("#autoScanEnabled").checked = !!cfg.enabled;
-  updateAutoScanFields();
+  autoScanRenderTasks();
 
-  // Schedule parsen
-  const parts = (cfg.schedule || "daily:03:00").split(":");
-  const mode = parts[0] || "daily";
-  const modeEl = $("#autoScanMode");
-  if (modeEl) modeEl.value = mode;
-  autoScanModeChange(mode);
-
-  if (mode === "daily" && parts.length >= 3) {
-    const t = `${parts[1].padStart(2,"0")}:${parts[2].padStart(2,"0")}`;
-    $("#autoScanDailyTime").value = t;
-  } else if (mode === "every" && parts.length >= 2) {
-    const h = parts[1].replace("h", "");
-    const ev = $("#autoScanEveryH");
-    if (ev) ev.value = h;
-  } else if (mode === "weekly" && parts.length >= 4) {
-    const wd = $("#autoScanWeekday");
-    if (wd) wd.value = parts[1];
-    const t = `${parts[2].padStart(2,"0")}:${parts[3].padStart(2,"0")}`;
-    $("#autoScanWeeklyTime").value = t;
-  }
-
-  // Library
-  const libSel = $("#autoScanLibrary");
-  if (libSel) libSel.value = cfg.libraryId ?? 0;
-
-  updateAutoScanNextInfo(cfg);
-
-  // Event-Listener (idempotent via _asWired-Flag)
+  // Event-Listener einmalig verdrahten
   if (!dlg._asWired) {
     dlg._asWired = true;
-    $("#autoScanEnabled").addEventListener("change", () => updateAutoScanFields());
-    $("#autoScanMode").addEventListener("change", (e) => autoScanModeChange(e.target.value));
+    $("#autoScanAddBtn").addEventListener("click", autoScanAddTask);
     $("#autoScanSaveBtn").addEventListener("click", saveAutoScan);
   }
 
   if (!dlg.open) dlg.showModal();
 }
 
-function updateAutoScanFields() {
-  const enabled = $("#autoScanEnabled").checked;
-  const fieldsEl = $("#autoScanFields");
-  if (fieldsEl) fieldsEl.style.opacity = enabled ? "1" : "0.4";
-  if (fieldsEl) fieldsEl.style.pointerEvents = enabled ? "" : "none";
-}
-
-function autoScanModeChange(mode) {
-  $("#autoScanDailyFields").style.display  = mode === "daily"  ? "" : "none";
-  $("#autoScanEveryFields").style.display  = mode === "every"  ? "" : "none";
-  const wf = $("#autoScanWeeklyFields");
-  if (wf) wf.style.display = mode === "weekly" ? "flex" : "none";
-}
-
-function autoScanBuildSchedule() {
-  const mode = $("#autoScanMode").value;
-  if (mode === "daily") {
-    const t = ($("#autoScanDailyTime").value || "03:00").split(":");
-    return `daily:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
-  } else if (mode === "every") {
-    const h = $("#autoScanEveryH").value || "6";
-    return `every:${h}h`;
-  } else if (mode === "weekly") {
-    const wd = $("#autoScanWeekday").value || "sun";
-    const t = ($("#autoScanWeeklyTime").value || "03:00").split(":");
-    return `weekly:${wd}:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+function autoScanRenderTasks() {
+  const list = $("#autoScanTaskList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (autoScanTasks.length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:.85em">Noch keine Aufgaben. Klicke „+ Aufgabe hinzufügen".</p>';
+    return;
   }
-  return "daily:3:0";
+  autoScanTasks.forEach((task, idx) => {
+    list.appendChild(autoScanTaskCard(task, idx));
+  });
+}
+
+function autoScanTaskCard(task, idx) {
+  const card = document.createElement("div");
+  card.className = "autoscan-task-card";
+  card.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;position:relative";
+
+  // Enabled-Toggle + Löschen in einer Zeile
+  const head = document.createElement("div");
+  head.style.cssText = "display:flex;align-items:center;gap:8px";
+  const chk = document.createElement("input");
+  chk.type = "checkbox"; chk.checked = !!task.enabled;
+  chk.title = "Aufgabe aktiv"; chk.style.cssText = "width:15px;height:15px;cursor:pointer";
+  chk.addEventListener("change", () => { autoScanTasks[idx].enabled = chk.checked; });
+  const lbl = document.createElement("span");
+  lbl.style.cssText = "font-weight:600;flex:1";
+  lbl.textContent = `Aufgabe ${idx + 1}`;
+  const del = document.createElement("button");
+  del.textContent = "🗑"; del.title = "Aufgabe löschen";
+  del.style.cssText = "background:none;border:none;cursor:pointer;opacity:.6;font-size:1em;padding:2px 4px";
+  del.addEventListener("click", () => { autoScanTasks.splice(idx, 1); autoScanRenderTasks(); });
+  head.append(chk, lbl, del);
+  card.appendChild(head);
+
+  // Zeitplan
+  const schedRow = document.createElement("div");
+  schedRow.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+  const modeSel = autoScanModeSelect(task, idx);
+  schedRow.appendChild(modeSel.container);
+  card.appendChild(schedRow);
+
+  // Zeitfeld (wird vom modeSel befüllt/versteckt)
+  const timeRow = modeSel.timeRow;
+  card.appendChild(timeRow);
+
+  // Library + Scan-Typ
+  const botRow = document.createElement("div");
+  botRow.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+
+  const libSel = autoScanLibSelect(task, idx);
+  botRow.appendChild(libSel);
+
+  const forceLbl = document.createElement("label");
+  forceLbl.style.cssText = "display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85em;white-space:nowrap";
+  const forceChk = document.createElement("input");
+  forceChk.type = "checkbox"; forceChk.checked = !!task.force;
+  forceChk.addEventListener("change", () => { autoScanTasks[idx].force = forceChk.checked; });
+  forceLbl.append(forceChk, document.createTextNode("Vollständig (force)"));
+  botRow.appendChild(forceLbl);
+
+  card.appendChild(botRow);
+
+  // Zusammenfassung
+  const sum = document.createElement("div");
+  sum.style.cssText = "font-size:.8em;color:var(--muted)";
+  sum.textContent = autoScanTaskSummary(task);
+  card.appendChild(sum);
+
+  return card;
+}
+
+function autoScanModeSelect(task, idx) {
+  const container = document.createElement("div");
+  container.style.cssText = "display:flex;gap:6px;align-items:center";
+
+  const modeSel = document.createElement("select");
+  modeSel.style.cssText = "padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.85em";
+  [["daily","Täglich"],["every","Alle X Stunden"],["weekly","Wöchentlich"]].forEach(([v,l]) => {
+    const o = document.createElement("option"); o.value = v; o.textContent = l; modeSel.appendChild(o);
+  });
+  const parts = (task.schedule || "daily:03:00").split(":");
+  modeSel.value = parts[0] || "daily";
+  container.appendChild(modeSel);
+
+  // Zeitfeld-Container — Inhalt wird je nach Modus gewechselt
+  const timeRow = document.createElement("div");
+  timeRow.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+
+  const rebuildTime = (mode) => {
+    timeRow.innerHTML = "";
+    if (mode === "daily") {
+      const p = task.schedule.startsWith("daily:") ? task.schedule.split(":") : ["daily","3","0"];
+      const inp = document.createElement("input"); inp.type = "time";
+      inp.value = `${(p[1]||"3").padStart(2,"0")}:${(p[2]||"0").padStart(2,"0")}`;
+      inp.style.cssText = "padding:4px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.85em";
+      inp.addEventListener("change", () => {
+        const t = inp.value.split(":");
+        autoScanTasks[idx].schedule = `daily:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+      });
+      timeRow.appendChild(inp);
+    } else if (mode === "every") {
+      const hSel = document.createElement("select");
+      hSel.style.cssText = modeSel.style.cssText;
+      [[1,"1 Stunde"],[2,"2 Stunden"],[3,"3 Stunden"],[4,"4 Stunden"],[6,"6 Stunden"],[8,"8 Stunden"],[12,"12 Stunden"]].forEach(([v,l]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = l; hSel.appendChild(o);
+      });
+      const cur = task.schedule.startsWith("every:") ? parseInt(task.schedule.split(":")[1]) : 6;
+      hSel.value = cur;
+      hSel.addEventListener("change", () => { autoScanTasks[idx].schedule = `every:${hSel.value}h`; });
+      timeRow.appendChild(hSel);
+    } else if (mode === "weekly") {
+      const dowSel = document.createElement("select");
+      dowSel.style.cssText = modeSel.style.cssText;
+      [["mon","Mo"],["tue","Di"],["wed","Mi"],["thu","Do"],["fri","Fr"],["sat","Sa"],["sun","So"]].forEach(([v,l]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = l; dowSel.appendChild(o);
+      });
+      const wp = task.schedule.startsWith("weekly:") ? task.schedule.split(":") : ["weekly","sun","3","0"];
+      dowSel.value = wp[1] || "sun";
+      const inp = document.createElement("input"); inp.type = "time";
+      inp.value = `${(wp[2]||"3").padStart(2,"0")}:${(wp[3]||"0").padStart(2,"0")}`;
+      inp.style.cssText = modeSel.style.cssText.replace("select","input");
+      const sync = () => {
+        const t = inp.value.split(":");
+        autoScanTasks[idx].schedule = `weekly:${dowSel.value}:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+      };
+      dowSel.addEventListener("change", sync); inp.addEventListener("change", sync);
+      timeRow.append(dowSel, inp);
+    }
+  };
+
+  modeSel.addEventListener("change", () => { rebuildTime(modeSel.value); });
+  rebuildTime(modeSel.value);
+
+  return { container, timeRow };
+}
+
+function autoScanLibSelect(task, idx) {
+  const sel = document.createElement("select");
+  sel.style.cssText = "padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.85em;flex:1;min-width:0";
+  const all = document.createElement("option"); all.value = "0"; all.textContent = "Alle Bibliotheken"; sel.appendChild(all);
+  for (const l of autoScanLibs) {
+    const o = document.createElement("option"); o.value = l.id; o.textContent = l.name; sel.appendChild(o);
+  }
+  sel.value = task.libraryId ?? 0;
+  sel.addEventListener("change", () => { autoScanTasks[idx].libraryId = parseInt(sel.value, 10) || 0; });
+  return sel;
+}
+
+function autoScanTaskSummary(task) {
+  if (!task.enabled) return "⏸ Deaktiviert";
+  const sched = autoScanScheduleLabel(task.schedule);
+  const lib = task.libraryId === 0 ? "Alle Bibliotheken" : (autoScanLibs.find(l => l.id === task.libraryId)?.name || `Lib ${task.libraryId}`);
+  const type = task.force ? "vollständig" : "inkrementell";
+  return `⏱ ${sched} · ${lib} · ${type}`;
+}
+
+function autoScanAddTask() {
+  const maxId = autoScanTasks.reduce((m, t) => Math.max(m, t.id || 0), 0);
+  autoScanTasks.push({ id: maxId + 1, enabled: true, schedule: "daily:3:0", libraryId: 0, force: false });
+  autoScanRenderTasks();
 }
 
 async function saveAutoScan() {
-  const payload = {
-    enabled:   $("#autoScanEnabled").checked,
-    schedule:  autoScanBuildSchedule(),
-    libraryId: parseInt($("#autoScanLibrary").value, 10) || 0,
-  };
   try {
-    const result = await api("/api/settings/autoscan", { method: "PUT", body: JSON.stringify(payload) });
-    updateAutoScanNextInfo(result);
-    updateAutoScanMenuSub(result);
+    const result = await api("/api/settings/autoscan", { method: "PUT", body: JSON.stringify(autoScanTasks) });
+    autoScanTasks = Array.isArray(result) ? result : autoScanTasks;
+    updateAutoScanMenuSub(autoScanTasks);
     showToast("Auto-Scan gespeichert ✓", { kind: "success" });
     $("#autoScanDialog").close();
   } catch (e) {
@@ -839,44 +935,26 @@ async function saveAutoScan() {
   }
 }
 
-function updateAutoScanNextInfo(cfg) {
-  const el = $("#autoScanNextInfo");
-  if (!el) return;
-  if (!cfg || !cfg.enabled) {
-    el.style.display = "none";
-    return;
-  }
-  el.style.display = "block";
-  const desc = autoScanScheduleLabel(cfg.schedule);
-  el.textContent = `⏱ Zeitplan: ${desc}`;
-}
-
 function autoScanScheduleLabel(schedule) {
   if (!schedule) return "–";
   const parts = schedule.split(":");
   const days = { mon:"Montag", tue:"Dienstag", wed:"Mittwoch", thu:"Donnerstag",
                  fri:"Freitag", sat:"Samstag", sun:"Sonntag" };
-  if (parts[0] === "daily" && parts.length >= 3) {
+  if (parts[0] === "daily" && parts.length >= 3)
     return `Täglich um ${parts[1].padStart(2,"0")}:${parts[2].padStart(2,"0")} Uhr`;
-  }
   if (parts[0] === "every" && parts.length >= 2) {
     const h = parseInt(parts[1]);
     return `Alle ${h} Stunde${h === 1 ? "" : "n"}`;
   }
-  if (parts[0] === "weekly" && parts.length >= 4) {
-    const wd = days[parts[1]] || parts[1];
-    return `${wd}s um ${parts[2].padStart(2,"0")}:${parts[3].padStart(2,"0")} Uhr`;
-  }
+  if (parts[0] === "weekly" && parts.length >= 4)
+    return `${(days[parts[1]] || parts[1])}s um ${parts[2].padStart(2,"0")}:${parts[3].padStart(2,"0")} Uhr`;
   return schedule;
 }
 
-function updateAutoScanMenuSub(cfg) {
+function updateAutoScanMenuSub(tasks) {
   const el = $("#autoScanMenuSub");
   if (!el) return;
-  if (cfg && cfg.enabled) {
-    el.textContent = `✓ ${autoScanScheduleLabel(cfg.schedule)}`;
-  } else {
-    el.textContent = "Zeitgesteuerte Bibliotheks-Scans";
-  }
+  const active = Array.isArray(tasks) ? tasks.filter(t => t.enabled).length : 0;
+  el.textContent = active > 0 ? `✓ ${active} aktive Aufgabe${active === 1 ? "" : "n"}` : "Zeitgesteuerte Bibliotheks-Scans";
 }
 

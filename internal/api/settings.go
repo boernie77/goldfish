@@ -10,51 +10,59 @@ import (
 	"github.com/boernie77/goldfish/internal/tmdb"
 )
 
-// getAutoScan liefert die aktuellen Auto-Scan-Einstellungen.
+// getAutoScan liefert alle Auto-Scan-Aufgaben.
 func (s *Server) getAutoScan(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, autoScanSettingsFromStore(s.Store))
+	tasks := loadAutoScanTasks(s.Store)
+	if tasks == nil {
+		tasks = []AutoScanTask{}
+	}
+	writeJSON(w, 200, tasks)
 }
 
-// putAutoScan speichert die Auto-Scan-Einstellungen.
+// putAutoScan ersetzt die Aufgabenliste (PUT mit Array).
 func (s *Server) putAutoScan(w http.ResponseWriter, r *http.Request) {
-	var body autoScanDTO
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, 400, "ungültiges JSON")
+	var tasks []AutoScanTask
+	if err := json.NewDecoder(r.Body).Decode(&tasks); err != nil {
+		writeError(w, 400, "ungültiges JSON (Array von Aufgaben erwartet)")
 		return
 	}
-	// Schedule validieren
-	if body.Enabled && body.Schedule != "" {
-		parts := strings.Split(body.Schedule, ":")
-		valid := false
-		switch {
-		case len(parts) == 3 && parts[0] == "daily":
-			_, e1 := strconv.Atoi(parts[1])
-			_, e2 := strconv.Atoi(parts[2])
-			valid = e1 == nil && e2 == nil
-		case len(parts) == 2 && parts[0] == "every":
-			raw := strings.TrimSuffix(parts[1], "h")
-			n, e := strconv.Atoi(raw)
-			valid = e == nil && n >= 1 && n <= 23
-		case len(parts) == 4 && parts[0] == "weekly":
-			_, e1 := strconv.Atoi(parts[2])
-			_, e2 := strconv.Atoi(parts[3])
-			valid = e1 == nil && e2 == nil
+	// Validieren + IDs normalisieren
+	for i := range tasks {
+		if tasks[i].ID <= 0 {
+			tasks[i].ID = i + 1
 		}
-		if !valid {
-			writeError(w, 400, "ungültiges Schedule-Format (daily:HH:MM | every:Nh | weekly:DOW:HH:MM)")
-			return
+		if tasks[i].Enabled && tasks[i].Schedule != "" {
+			if !validSchedule(tasks[i].Schedule) {
+				writeError(w, 400, "ungültiges Schedule-Format in Aufgabe "+strconv.Itoa(tasks[i].ID)+
+					" (daily:HH:MM | every:Nh | weekly:DOW:HH:MM)")
+				return
+			}
 		}
 	}
-	enabledStr := "false"
-	if body.Enabled {
-		enabledStr = "true"
+	if err := saveAutoScanTasks(s.Store, tasks); err != nil {
+		writeError(w, 500, err.Error())
+		return
 	}
-	_ = s.Store.SetSetting("auto_scan_enabled", enabledStr)
-	if body.Schedule != "" {
-		_ = s.Store.SetSetting("auto_scan_schedule", body.Schedule)
+	writeJSON(w, 200, tasks)
+}
+
+func validSchedule(schedule string) bool {
+	parts := strings.Split(schedule, ":")
+	switch {
+	case len(parts) == 3 && parts[0] == "daily":
+		_, e1 := strconv.Atoi(parts[1])
+		_, e2 := strconv.Atoi(parts[2])
+		return e1 == nil && e2 == nil
+	case len(parts) == 2 && parts[0] == "every":
+		raw := strings.TrimSuffix(parts[1], "h")
+		n, e := strconv.Atoi(raw)
+		return e == nil && n >= 1 && n <= 23
+	case len(parts) == 4 && parts[0] == "weekly":
+		_, e1 := strconv.Atoi(parts[2])
+		_, e2 := strconv.Atoi(parts[3])
+		return e1 == nil && e2 == nil
 	}
-	_ = s.Store.SetSetting("auto_scan_library_id", strconv.Itoa(body.LibraryID))
-	writeJSON(w, 200, autoScanSettingsFromStore(s.Store))
+	return false
 }
 
 type settingsDTO struct {

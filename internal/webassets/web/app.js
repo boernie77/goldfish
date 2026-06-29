@@ -985,8 +985,8 @@ async function loadSettings() {
   try { state.settings = await api("/api/settings"); } catch {}
   // Auto-Scan-Status für Menü-Subtitle laden (nicht blockierend)
   try {
-    const asCfg = await api("/api/settings/autoscan");
-    if (typeof updateAutoScanMenuSub === "function") updateAutoScanMenuSub(asCfg);
+    const asTasks = await api("/api/settings/autoscan");
+    if (typeof updateAutoScanMenuSub === "function") updateAutoScanMenuSub(asTasks);
   } catch {}
 }
 
