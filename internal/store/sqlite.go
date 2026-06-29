@@ -861,7 +861,8 @@ func (s *Store) DeleteItemsInFolderNotInSet(libraryID int64, folder string, keep
 
 // ItemFilter fasst optionale Filter für ListItems zusammen.
 type ItemFilter struct {
-	LibraryID int64
+	LibraryID  int64   // einzelne Library (Legacy)
+	LibraryIDs []int64 // mehrere Libraries (virtuelle Zusammenlegung); wird mit LibraryID ODER verknüpft
 	Search    string
 	Sort      string
 	SortDir   string // "asc" | "desc" | "" (= Default-Richtung des Sort-Feldes)
@@ -901,7 +902,15 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 	      WHERE 1=1`
 	args := []any{f.UserID}
-	if f.LibraryID > 0 {
+	if len(f.LibraryIDs) > 0 {
+		// Mehrere Libraries (virtuelle Zusammenlegung): IN-Klausel
+		ph := make([]string, len(f.LibraryIDs))
+		for i, id := range f.LibraryIDs {
+			ph[i] = "?"
+			args = append(args, id)
+		}
+		q += ` AND i.library_id IN (` + strings.Join(ph, ",") + `)`
+	} else if f.LibraryID > 0 {
 		q += ` AND i.library_id = ?`
 		args = append(args, f.LibraryID)
 	}

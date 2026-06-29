@@ -316,10 +316,21 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		TrickplayStatus: q.Get("trickplay"),
 		UserID:     me.ID,
 	}
-	if v := q.Get("libraryId"); v != "" {
-		f.LibraryID, _ = strconv.ParseInt(v, 10, 64)
-		if f.LibraryID > 0 && !s.requireLibAccess(w, r, f.LibraryID) {
-			return
+	if ids := q["libraryId"]; len(ids) > 0 {
+		for _, v := range ids {
+			id, _ := strconv.ParseInt(v, 10, 64)
+			if id <= 0 {
+				continue
+			}
+			if !s.requireLibAccess(w, r, id) {
+				return
+			}
+			f.LibraryIDs = append(f.LibraryIDs, id)
+		}
+		// Abwärtskompatibilität: einzelner Wert → LibraryID setzen
+		if len(f.LibraryIDs) == 1 {
+			f.LibraryID = f.LibraryIDs[0]
+			f.LibraryIDs = nil
 		}
 	}
 	if v := q.Get("personId"); v != "" {
@@ -366,8 +377,17 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 			f.MaxAgeRating = *me.MaxAgeRating
 		}
 	}
-	if v := q.Get("libraryId"); v != "" {
-		f.LibraryID, _ = strconv.ParseInt(v, 10, 64)
+	if ids := q["libraryId"]; len(ids) > 0 {
+		for _, v := range ids {
+			id, _ := strconv.ParseInt(v, 10, 64)
+			if id > 0 {
+				f.LibraryIDs = append(f.LibraryIDs, id)
+			}
+		}
+		if len(f.LibraryIDs) == 1 {
+			f.LibraryID = f.LibraryIDs[0]
+			f.LibraryIDs = nil
+		}
 	}
 	if v := q.Get("personId"); v != "" {
 		f.PersonTMDB, _ = strconv.ParseInt(v, 10, 64)
