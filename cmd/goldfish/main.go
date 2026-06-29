@@ -121,6 +121,7 @@ func main() {
 			log.Fatalf("http: %v", err)
 		}
 	}()
+	go srv.RunAutoScan(workerCtx)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

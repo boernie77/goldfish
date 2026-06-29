@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.65)
+# 📱 Android-App (in Testphase, aktuell 1.2.66)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,10 +158,18 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.65)
+## Android-App-Featureliste (Stand 1.2.66)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
+- **Bibliotheken zusammenlegen (vC 98):** In den Einstellungen können 2 Server-
+  Bibliotheken virtuell zusammengelegt werden. Im HomeScreen erscheint eine
+  „🔗 Lib1 + Lib2"-Kachel; wenn eine Lib nicht verfügbar ist, ist sie ausgegraut
+  (kein Fehler). Zufallsplay, Sortierung etc. funktionieren über beide. Server:
+  `ItemFilter.LibraryIDs []int64` + `IN (…)`-Klausel in `ListItems`/`randomItem`;
+  API akzeptiert mehrere `?libraryId=` Query-Params. App: `SettingsDataStore.
+  mergedServerLibraryIds`, `GoldfishApi` + `ItemRepository` mit `List<Int>?`,
+  `LibraryViewModel.loadMerged()`, neue Routen `MergedLibrary`/`PlayerRandomMerged`.
 - **Online-Lib „Zuletzt gespielt" — App rief /played nie (vC 96):** Server
   trackt `user_item_state.last_played_at` NUR via `POST /api/items/{id}/played`
   (`TouchLastPlayed`); Resume/Watched setzen es NICHT. Der **Browser** ruft das
@@ -2279,6 +2287,10 @@ GET    /api/poster/collection/{id}
 POST   /api/scan/{libraryId}
 GET    /api/scan/status
 POST   /api/scan/cancel
+
+# Auto-Scan
+GET    /api/settings/autoscan          {enabled, schedule, libraryId}
+PUT    /api/settings/autoscan          {enabled, schedule, libraryId}
 
 # Playlists (per User)
 GET    /api/playlists

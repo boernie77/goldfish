@@ -983,6 +983,11 @@ async function loadHealth() {
 
 async function loadSettings() {
   try { state.settings = await api("/api/settings"); } catch {}
+  // Auto-Scan-Status für Menü-Subtitle laden (nicht blockierend)
+  try {
+    const asCfg = await api("/api/settings/autoscan");
+    if (typeof updateAutoScanMenuSub === "function") updateAutoScanMenuSub(asCfg);
+  } catch {}
 }
 
 function wire() {
@@ -1157,6 +1162,7 @@ function wire() {
       case "missing": openMissingDialog(); break;
       case "refreshallmeta": runRefreshAllMetadata(); break;
       case "renames": openRenamesManager(); break;
+      case "autoscan": openAutoScan(); break;
     }
   });
   // Home/Sammlungen/Playlists/Library-Wechsel laufen über die pinned Lib-Nav

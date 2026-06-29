@@ -134,6 +134,8 @@ func (s *Server) Router() http.Handler {
 
 		r.Get("/settings", s.getSettings)
 		r.Put("/settings", requireAdmin(s.putSettings))
+		r.Get("/settings/autoscan", requireAdmin(s.getAutoScan))
+		r.Put("/settings/autoscan", requireAdmin(s.putAutoScan))
 
 		// TMDB-Integration
 		r.Put("/libraries/{id}/kind", requireAdmin(s.updateLibraryKind))

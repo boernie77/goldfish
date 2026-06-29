@@ -32,6 +32,7 @@ function renderUserMenu() {
   wrap.appendChild(lo);
   // Admin-Menüeinträge nur für Admins sichtbar
   $("#settingsMenuUsers").classList.toggle("hidden", !state.me.isAdmin);
+  $("#settingsMenuAutoScan").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuTrickplay").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuWhisper").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuPathSearch").classList.toggle("hidden", !state.me.isAdmin);
@@ -724,5 +725,158 @@ async function runBulkRenameConfirmed() {
 function downloadRenamesCSV() {
   // Cookie-Auth: einfach Browser-Download via Location-Change.
   window.location.href = "/api/admin/renames.csv";
+}
+
+// --- Auto-Scan-Einstellungen ---
+
+async function openAutoScan() {
+  const dlg = $("#autoScanDialog");
+  if (!dlg) return;
+
+  // Libraries für Dropdown laden
+  try {
+    const libs = await apiGetCached("/api/libraries");
+    const sel = $("#autoScanLibrary");
+    sel.innerHTML = '<option value="0">Alle Bibliotheken</option>';
+    for (const l of libs) {
+      const opt = document.createElement("option");
+      opt.value = l.id;
+      opt.textContent = l.name;
+      sel.appendChild(opt);
+    }
+  } catch {}
+
+  // Aktuelle Einstellungen laden
+  let cfg = { enabled: false, schedule: "daily:03:00", libraryId: 0 };
+  try { cfg = await api("/api/settings/autoscan"); } catch {}
+
+  // UI befüllen
+  $("#autoScanEnabled").checked = !!cfg.enabled;
+  updateAutoScanFields();
+
+  // Schedule parsen
+  const parts = (cfg.schedule || "daily:03:00").split(":");
+  const mode = parts[0] || "daily";
+  const modeEl = $("#autoScanMode");
+  if (modeEl) modeEl.value = mode;
+  autoScanModeChange(mode);
+
+  if (mode === "daily" && parts.length >= 3) {
+    const t = `${parts[1].padStart(2,"0")}:${parts[2].padStart(2,"0")}`;
+    $("#autoScanDailyTime").value = t;
+  } else if (mode === "every" && parts.length >= 2) {
+    const h = parts[1].replace("h", "");
+    const ev = $("#autoScanEveryH");
+    if (ev) ev.value = h;
+  } else if (mode === "weekly" && parts.length >= 4) {
+    const wd = $("#autoScanWeekday");
+    if (wd) wd.value = parts[1];
+    const t = `${parts[2].padStart(2,"0")}:${parts[3].padStart(2,"0")}`;
+    $("#autoScanWeeklyTime").value = t;
+  }
+
+  // Library
+  const libSel = $("#autoScanLibrary");
+  if (libSel) libSel.value = cfg.libraryId ?? 0;
+
+  updateAutoScanNextInfo(cfg);
+
+  // Event-Listener (idempotent via _asWired-Flag)
+  if (!dlg._asWired) {
+    dlg._asWired = true;
+    $("#autoScanEnabled").addEventListener("change", () => updateAutoScanFields());
+    $("#autoScanMode").addEventListener("change", (e) => autoScanModeChange(e.target.value));
+    $("#autoScanSaveBtn").addEventListener("click", saveAutoScan);
+  }
+
+  if (!dlg.open) dlg.showModal();
+}
+
+function updateAutoScanFields() {
+  const enabled = $("#autoScanEnabled").checked;
+  const fieldsEl = $("#autoScanFields");
+  if (fieldsEl) fieldsEl.style.opacity = enabled ? "1" : "0.4";
+  if (fieldsEl) fieldsEl.style.pointerEvents = enabled ? "" : "none";
+}
+
+function autoScanModeChange(mode) {
+  $("#autoScanDailyFields").style.display  = mode === "daily"  ? "" : "none";
+  $("#autoScanEveryFields").style.display  = mode === "every"  ? "" : "none";
+  const wf = $("#autoScanWeeklyFields");
+  if (wf) wf.style.display = mode === "weekly" ? "flex" : "none";
+}
+
+function autoScanBuildSchedule() {
+  const mode = $("#autoScanMode").value;
+  if (mode === "daily") {
+    const t = ($("#autoScanDailyTime").value || "03:00").split(":");
+    return `daily:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+  } else if (mode === "every") {
+    const h = $("#autoScanEveryH").value || "6";
+    return `every:${h}h`;
+  } else if (mode === "weekly") {
+    const wd = $("#autoScanWeekday").value || "sun";
+    const t = ($("#autoScanWeeklyTime").value || "03:00").split(":");
+    return `weekly:${wd}:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+  }
+  return "daily:3:0";
+}
+
+async function saveAutoScan() {
+  const payload = {
+    enabled:   $("#autoScanEnabled").checked,
+    schedule:  autoScanBuildSchedule(),
+    libraryId: parseInt($("#autoScanLibrary").value, 10) || 0,
+  };
+  try {
+    const result = await api("/api/settings/autoscan", { method: "PUT", body: JSON.stringify(payload) });
+    updateAutoScanNextInfo(result);
+    updateAutoScanMenuSub(result);
+    showToast("Auto-Scan gespeichert ✓", { kind: "success" });
+    $("#autoScanDialog").close();
+  } catch (e) {
+    appAlert("Fehler beim Speichern: " + e.message);
+  }
+}
+
+function updateAutoScanNextInfo(cfg) {
+  const el = $("#autoScanNextInfo");
+  if (!el) return;
+  if (!cfg || !cfg.enabled) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "block";
+  const desc = autoScanScheduleLabel(cfg.schedule);
+  el.textContent = `⏱ Zeitplan: ${desc}`;
+}
+
+function autoScanScheduleLabel(schedule) {
+  if (!schedule) return "–";
+  const parts = schedule.split(":");
+  const days = { mon:"Montag", tue:"Dienstag", wed:"Mittwoch", thu:"Donnerstag",
+                 fri:"Freitag", sat:"Samstag", sun:"Sonntag" };
+  if (parts[0] === "daily" && parts.length >= 3) {
+    return `Täglich um ${parts[1].padStart(2,"0")}:${parts[2].padStart(2,"0")} Uhr`;
+  }
+  if (parts[0] === "every" && parts.length >= 2) {
+    const h = parseInt(parts[1]);
+    return `Alle ${h} Stunde${h === 1 ? "" : "n"}`;
+  }
+  if (parts[0] === "weekly" && parts.length >= 4) {
+    const wd = days[parts[1]] || parts[1];
+    return `${wd}s um ${parts[2].padStart(2,"0")}:${parts[3].padStart(2,"0")} Uhr`;
+  }
+  return schedule;
+}
+
+function updateAutoScanMenuSub(cfg) {
+  const el = $("#autoScanMenuSub");
+  if (!el) return;
+  if (cfg && cfg.enabled) {
+    el.textContent = `✓ ${autoScanScheduleLabel(cfg.schedule)}`;
+  } else {
+    el.textContent = "Zeitgesteuerte Bibliotheks-Scans";
+  }
 }
 

@@ -4,10 +4,58 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/boernie77/goldfish/internal/omdb"
 	"github.com/boernie77/goldfish/internal/tmdb"
 )
+
+// getAutoScan liefert die aktuellen Auto-Scan-Einstellungen.
+func (s *Server) getAutoScan(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, autoScanSettingsFromStore(s.Store))
+}
+
+// putAutoScan speichert die Auto-Scan-Einstellungen.
+func (s *Server) putAutoScan(w http.ResponseWriter, r *http.Request) {
+	var body autoScanDTO
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	// Schedule validieren
+	if body.Enabled && body.Schedule != "" {
+		parts := strings.Split(body.Schedule, ":")
+		valid := false
+		switch {
+		case len(parts) == 3 && parts[0] == "daily":
+			_, e1 := strconv.Atoi(parts[1])
+			_, e2 := strconv.Atoi(parts[2])
+			valid = e1 == nil && e2 == nil
+		case len(parts) == 2 && parts[0] == "every":
+			raw := strings.TrimSuffix(parts[1], "h")
+			n, e := strconv.Atoi(raw)
+			valid = e == nil && n >= 1 && n <= 23
+		case len(parts) == 4 && parts[0] == "weekly":
+			_, e1 := strconv.Atoi(parts[2])
+			_, e2 := strconv.Atoi(parts[3])
+			valid = e1 == nil && e2 == nil
+		}
+		if !valid {
+			writeError(w, 400, "ungültiges Schedule-Format (daily:HH:MM | every:Nh | weekly:DOW:HH:MM)")
+			return
+		}
+	}
+	enabledStr := "false"
+	if body.Enabled {
+		enabledStr = "true"
+	}
+	_ = s.Store.SetSetting("auto_scan_enabled", enabledStr)
+	if body.Schedule != "" {
+		_ = s.Store.SetSetting("auto_scan_schedule", body.Schedule)
+	}
+	_ = s.Store.SetSetting("auto_scan_library_id", strconv.Itoa(body.LibraryID))
+	writeJSON(w, 200, autoScanSettingsFromStore(s.Store))
+}
 
 type settingsDTO struct {
 	BufferSeconds        int    `json:"bufferSeconds"`

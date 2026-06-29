@@ -167,6 +167,17 @@
   </div>
 
   <div class="drawer-section">
+    <div class="drawer-section-label">Automatisierung</div>
+    <button class="drawer-item" data-action="autoscan" id="settingsMenuAutoScan">
+      <span class="drawer-icon">🕐</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Auto-Scan</span>
+        <span class="drawer-item-sub" id="autoScanMenuSub">Zeitgesteuerte Bibliotheks-Scans</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="drawer-section">
     <div class="drawer-section-label">Bibliothek & Medien</div>
     <button class="drawer-item" data-action="trickplay" id="settingsMenuTrickplay">
       <span class="drawer-icon">🎞</span>
@@ -792,6 +803,78 @@
       Metadaten + Poster stammen von <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">The Movie Database</a>. Dieses Produkt nutzt die TMDB-API, ist aber nicht von TMDB unterstützt oder zertifiziert.
     </div>
   </form>
+</dialog>
+
+<dialog id="autoScanDialog" class="modal" style="max-width:520px">
+  <h3>🕐 Auto-Scan</h3>
+  <p style="margin:0 0 12px;color:var(--muted)">Zeitgesteuerte Bibliotheks-Scans — läuft auf dem Server zur eingestellten Zeit.</p>
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <input type="checkbox" id="autoScanEnabled" style="width:16px;height:16px">
+      <span>Auto-Scan aktivieren</span>
+    </label>
+
+    <div id="autoScanFields" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="display:block;margin-bottom:4px;font-size:.85em;color:var(--muted)">Zeitplan</label>
+        <select id="autoScanMode" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+          <option value="daily">Täglich</option>
+          <option value="every">Alle X Stunden</option>
+          <option value="weekly">Wöchentlich</option>
+        </select>
+      </div>
+
+      <div id="autoScanDailyFields">
+        <label style="display:block;margin-bottom:4px;font-size:.85em;color:var(--muted)">Uhrzeit (24h)</label>
+        <input type="time" id="autoScanDailyTime" value="03:00" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+      </div>
+
+      <div id="autoScanEveryFields" style="display:none">
+        <label style="display:block;margin-bottom:4px;font-size:.85em;color:var(--muted)">Intervall</label>
+        <select id="autoScanEveryH" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+          <option value="1">Jede Stunde</option>
+          <option value="2">Alle 2 Stunden</option>
+          <option value="3">Alle 3 Stunden</option>
+          <option value="4">Alle 4 Stunden</option>
+          <option value="6" selected>Alle 6 Stunden</option>
+          <option value="8">Alle 8 Stunden</option>
+          <option value="12">Alle 12 Stunden</option>
+        </select>
+      </div>
+
+      <div id="autoScanWeeklyFields" style="display:none;gap:8px;flex-direction:column">
+        <div>
+          <label style="display:block;margin-bottom:4px;font-size:.85em;color:var(--muted)">Wochentag</label>
+          <select id="autoScanWeekday" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+            <option value="mon">Montag</option>
+            <option value="tue">Dienstag</option>
+            <option value="wed">Mittwoch</option>
+            <option value="thu">Donnerstag</option>
+            <option value="fri">Freitag</option>
+            <option value="sat">Samstag</option>
+            <option value="sun" selected>Sonntag</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:4px;font-size:.85em;color:var(--muted)">Uhrzeit (24h)</label>
+          <input type="time" id="autoScanWeeklyTime" value="03:00" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+
+      <div>
+        <label style="display:block;margin-bottom:4px;font-size:.85em;color:var(--muted)">Bibliothek</label>
+        <select id="autoScanLibrary" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+          <option value="0">Alle Bibliotheken</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="autoScanNextInfo" style="display:none;font-size:.85em;color:var(--muted)"></div>
+  </div>
+  <div class="modal-actions" style="margin-top:16px">
+    <button id="autoScanSaveBtn" class="btn-primary">Speichern</button>
+    <button onclick="this.closest('dialog').close()">Abbrechen</button>
+  </div>
 </dialog>
 
 <script src="/helpers.js" defer></script>
