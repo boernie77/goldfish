@@ -19,6 +19,8 @@
 //   syncTranscodeDisplays  — RAF-Loop fuer absolute Zeit-Anzeige bei Transcode
 //   attachTrickplayHover   — Hover-VTT-Plugin
 //   parseThumbVTT
+//   startPausePrefetch, stopPausePrefetch — laedt waehrend Pause bereits
+//     transkodierte HLS-Segmente vor, die VHS selbst im Pause-Zustand nicht holt
 //
 // Referenziert state und globale Funktionen aus app.js (shufflePrev/Next,
 // openAddToPlaylist, openPersonView, etc.) und cards.js (renderCard etc.).
@@ -959,6 +961,15 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     };
     vjs.on("timeupdate", saveResume);
     vjs.on("pause", saveResume);
+    // Pause-Prefetch: VHS laedt im Pause-Zustand selbst nur ~1 Segment vor.
+    // Der Server transkodiert im Hintergrund aber unabhaengig weiter — waehrend
+    // der Pause holen wir die bereits fertigen, aber noch nicht abgespielten
+    // Segmente per eigenem fetch() in den Browser-HTTP-Cache. VHS bedient sich
+    // beim Weiterspielen dann daraus statt erneut ueber die (ggf. langsame)
+    // Leitung zu muessen.
+    vjs.on("pause", () => startPausePrefetch(vjs));
+    vjs.on("play", stopPausePrefetch);
+    vjs.on("ended", stopPausePrefetch);
     // Dialog-Resize → Video.js intern neu layouten (ControlBar-Breite, Tech-Size).
     // Ohne diesen Push reagiert der Player nicht auf manuelles Ziehen der Dialog-Ecke.
     attachPlayerResizeObserver(vjs);
@@ -1135,6 +1146,7 @@ function detachPlayerResizeObserver(vjs) {
 function disposePlayer() {
   hideBufferOverlay();
   clearStartBufferGate();
+  stopPausePrefetch();
   if (state.vjs) {
     detachTrickplayHover(state.vjs);
     detachPlayerResizeObserver(state.vjs);
@@ -1361,6 +1373,8 @@ async function restartTranscodeAt(absoluteStart) {
   forcePlayerDuration(vjs, item.durationSec || 0);
   // Buffer-Overlay mit neuer Session neu starten (Progress-Polling mit neuem start)
   stopTranscodeProgress();
+  // Alter Prefetch zielt noch auf die alte Session-URL (anderer start=) — verwerfen.
+  stopPausePrefetch();
   // Neue Source laden
   vjs.src({ src: newUrl, type: "application/vnd.apple.mpegurl" });
   vjs.one("loadedmetadata", () => {
@@ -1601,6 +1615,69 @@ function clearStartBufferGate() {
   }
   const overlay = $("#prebufferOverlay");
   if (overlay) overlay.classList.add("hidden");
+}
+
+// --- Pause-Prefetch (Transcode) ---
+//
+// Video.js/VHS laedt im Pause-Zustand bewusst nur ~1 Segment voraus (siehe
+// Kommentar in applyStartBufferGate). Der ffmpeg-Prozess auf dem
+// Server transkodiert aber unabhaengig vom Player-Zustand weiter — das
+// "Server +Ns"-Overlay zeigt genau diesen Vorsprung an. Waehrend der Pause
+// pollen wir die m3u8-Playlist und laden neu erschienene Segmente per
+// eigenem fetch() in den Browser-HTTP-Cache (die Segment-Route liefert dafuer
+// `Cache-Control: max-age=300`, siehe stream.go). VHS bedient sich beim
+// Weiterspielen daraus, ohne erneut ueber eine ggf. langsame Leitung zu muessen.
+let pausePrefetchTimer = null;
+let pausePrefetchSeen = null;
+
+function stopPausePrefetch() {
+  if (pausePrefetchTimer) {
+    clearInterval(pausePrefetchTimer);
+    pausePrefetchTimer = null;
+  }
+  pausePrefetchSeen = null;
+}
+
+function startPausePrefetch(vjs) {
+  stopPausePrefetch();
+  if (!state.playback || state.playback.mode !== "transcode") return;
+  const item = state.currentItem;
+  if (!item) return;
+  pausePrefetchSeen = new Set();
+  const params = new URLSearchParams({ profile: state.playback.profile || "orig" });
+  const aIdx = state.playback.audioIdx;
+  if (aIdx !== undefined && aIdx !== null && aIdx >= 0) params.set("audio", String(aIdx));
+  const off = state.playback.virtualOffset;
+  if (off && off > 0) params.set("start", String(Math.floor(off)));
+  const dei = state.playback.deinterlace;
+  if (dei && dei !== "auto") params.set("deinterlace", dei);
+  const playlistUrl = `/api/transcode/${item.id}/index.m3u8?${params}`;
+
+  const tick = async () => {
+    // Sicherheitsnetz: Player kann zwischen Timer-Ticks weitergespielt oder
+    // geschlossen worden sein, ohne dass stopPausePrefetch() zwischenzeitlich
+    // gegriffen hat (z.B. Source-Wechsel ohne "play"-Event).
+    if (!state.vjs || state.vjs !== vjs || !vjs.paused()) { stopPausePrefetch(); return; }
+    let text;
+    try {
+      const res = await fetch(playlistUrl, { credentials: "same-origin" });
+      if (!res.ok) return;
+      text = await res.text();
+    } catch { return; }
+    const segUrls = text.split("\n")
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith("#"));
+    for (const rel of segUrls) {
+      if (!pausePrefetchSeen || !vjs.paused()) return;
+      let abs;
+      try { abs = new URL(rel, location.href).toString(); } catch { continue; }
+      if (pausePrefetchSeen.has(abs)) continue;
+      pausePrefetchSeen.add(abs);
+      try { await fetch(abs, { credentials: "same-origin" }); } catch { /* still */ }
+    }
+  };
+  tick();
+  pausePrefetchTimer = setInterval(tick, 4000);
 }
 
 function startBufferDisplay(item, mode, profile, audioIdx) {

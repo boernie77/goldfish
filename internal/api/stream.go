@@ -441,6 +441,14 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 	sess.Touch()
 	path := filepath.Join(sess.Dir, seg)
 	w.Header().Set("Content-Type", "video/mp2t")
+	// Einmal geschriebene Segmente ändern sich für die Lebensdauer der Session
+	// nicht mehr — der Browser darf sie cachen. max-age deckt sich mit dem
+	// GC-Idle-Timeout (5 min, siehe gcLoop in playback/ffmpeg.go): ein Segment
+	// kann in diesem Fenster garantiert noch von derselben Session bedient
+	// werden. Ermöglicht das Pause-Prefetching in player.js — der Browser
+	// lädt bereits transkodierte, aber noch nicht abgespielte Segmente
+	// während der Pause vor, ohne bei Resume erneut über die Leitung zu müssen.
+	w.Header().Set("Cache-Control", "private, max-age=300")
 	http.ServeFile(w, r, path)
 }
 
