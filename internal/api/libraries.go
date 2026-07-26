@@ -200,6 +200,30 @@ func (s *Server) libraryStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, resp)
 }
 
+// libraryStatDetail liefert die detaillierte Statistik (Auflösung/Filetyp/
+// Länge-Verteilung + Gesamtgröße/-laufzeit) für den "📊 Statistik"-Menüpunkt.
+// Scope wie überall sonst: kein `folder` = ganze Bibliothek, sonst rekursiv
+// ab diesem Unterordner (Konvention "nur nach unten flach", siehe CLAUDE.md).
+// Rein aggregierende SQL-Query im Store — keine zusätzliche Last für den
+// normalen Grid-Betrieb, läuft nur wenn der Dialog geöffnet wird.
+func (s *Server) libraryStatDetail(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	if !s.requireLibAccess(w, r, id) {
+		return
+	}
+	folder := r.URL.Query().Get("folder")
+	detail, err := s.Store.GetLibraryStatDetail(id, folder)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, detail)
+}
+
 func (s *Server) deleteLibrary(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")
 	if err != nil {

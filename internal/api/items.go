@@ -312,6 +312,7 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		Favorite:   q.Get("favorite"),
 		MatchState: q.Get("match"),
 		DupesOnly:  q.Get("duplicates") == "yes",
+		FileDupesOnly: q.Get("fileDuplicates") == "yes",
 		Interlaced: q.Get("interlaced") == "yes",
 		TrickplayStatus: q.Get("trickplay"),
 		UserID:     me.ID,

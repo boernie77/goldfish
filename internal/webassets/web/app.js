@@ -41,6 +41,7 @@ const state = {
   scrollPositions: new Map(), // navKey → scrollY für Zurück-Navigation
   lastNavKey: null,            // navKey der zuletzt gerenderten Ansicht
   alphaFilter: null,           // null oder "A".."Z"|"#" — Anfangsbuchstaben-Filter via Sidebar-Klick
+  moveContext: null,           // {mode:"single",item} oder {mode:"bulk",ids,libId} während #moveDialog offen ist
 };
 
 // captureNavSnapshot: merkt sich die aktuelle Nav-Position (Library, Folder,
@@ -214,6 +215,15 @@ function cardFileName(it) {
   return name;
 }
 
+// cardFolderPath: Ordnerpfad ohne Dateinamen — für die Duplikate-Ansicht, wo
+// der Speicherort die relevante Info ist (Titel/Dateiname stehen schon
+// darüber). Leerer String bei Root-Dateien ohne Unterordner.
+function cardFolderPath(it) {
+  const segs = (it.relPath || it.path || "").split("/").filter(Boolean);
+  segs.pop();
+  return segs.join("/");
+}
+
 // variantLabel: Beschreibung einer Datei-Variante für den Dropdown.
 // Enthält Dateiname + technische Details, damit man auch bei gleicher
 // Auflösung/Größe noch unterscheiden kann, welche Datei gemeint ist.
@@ -328,19 +338,29 @@ function setupDialogDrag() {
   window.addEventListener("mouseup", () => { dragging = false; });
 }
 
-// --- Alphabet-Sidebar (rechter Schnellsprung bei Name-Sortierung) ---
+// --- Alphabet-Sidebar (rechter Schnellsprung/Filter) ---
 
-// Nach jedem Render aufgerufen. Zeigt A-Z-Leiste nur bei Namen-Sortierung in
-// Movie/TV-Libraries, sonst macht Alphabet keinen Sinn.
+// Per-Ordner-Toggle: localStorage `alphaSidebar:<libID>:<folder|root>` = "0"
+// blendet die Leiste für GENAU diesen Ordner aus. Fehlt der Key → sichtbar
+// (Default an). Analog zu sortStorageKey()/seasonView-Keys, aber eigener
+// Namespace, da die Sidebar unabhängig vom Sort-Feld ist.
+function alphaSidebarStorageKey() {
+  if (!state.currentLibrary) return null;
+  return `alphaSidebar:${state.currentLibrary}:${state.currentFolder || "root"}`;
+}
+
+function alphaSidebarHiddenHere() {
+  const key = alphaSidebarStorageKey();
+  if (!key) return false;
+  try { return localStorage.getItem(key) === "0"; } catch { return false; }
+}
+
+// Nach jedem Render aufgerufen. Zeigt die A-Z-Leiste immer, solange Items/
+// Folder da sind und der User sie für diesen Ordner nicht ausgeblendet hat —
+// wirkt als Filter (nicht Scroll-Sprung), macht daher bei jeder Sortierung Sinn.
 function updateAlphaSidebar() {
   const bar = $("#alphaSidebar");
   if (!bar) return;
-  const sort = ($("#sortSelect").value || "title");
-  const sortByName = sort === "title";
-  // In der Collections-Root-Ansicht sind die Kacheln immer alphabetisch nach
-  // Sammlungsname sortiert — Alphabet-Sidebar dort unabhängig vom Sort-Feld
-  // erlauben.
-  const collectionsRoot = !!(state.collectionsView && !state.currentCollection);
   const items = state.lastRenderedItems || [];
   // Folder-Kacheln (z. B. Serien-Ordner in TV-Library-Root oder Show-Ordner
   // in Movies-Library) zählen für die Alphabet-Sidebar mit. Sonst hätte die
@@ -348,9 +368,22 @@ function updateAlphaSidebar() {
   // Folder gerendert werden, keine Items.
   const folders = state.lastRenderedFolders || [];
   const totalCount = items.length + folders.length;
-  // Sidebar erscheint, sobald nach Name sortiert wird (oder in Collections-Root),
-  // egal ob 1 oder 1000 Kacheln. Bei leerer Liste blenden wir sie aus.
-  if ((!sortByName && !collectionsRoot) || totalCount === 0) {
+  // Collections-Root hat keine Library (state.currentLibrary === null dort)
+  // und damit auch keinen Storage-Key für den Per-Ordner-Toggle — bleibt wie
+  // bisher unconditional sichtbar, kein Toggle-Button.
+  const collectionsRoot = !!(state.collectionsView && !state.currentCollection);
+  const toggleBtn = $("#alphaToggleBtn");
+  const eligible = (!!state.currentLibrary || collectionsRoot) && totalCount > 0;
+  const toggleable = !!state.currentLibrary; // Collections-Root: kein Toggle
+  if (toggleBtn) toggleBtn.classList.toggle("hidden", !eligible || !toggleable);
+  const hiddenHere = toggleable && alphaSidebarHiddenHere();
+  if (toggleBtn) {
+    toggleBtn.classList.toggle("active", !hiddenHere);
+    toggleBtn.title = hiddenHere
+      ? "Buchstabenleiste für diesen Ordner einblenden"
+      : "Buchstabenleiste für diesen Ordner ausblenden";
+  }
+  if (!eligible || hiddenHere) {
     bar.classList.add("hidden");
     bar.innerHTML = "";
     document.body.classList.remove("has-alpha-sidebar");
@@ -578,8 +611,12 @@ function seasonViewEffective() {
       if (perFolder === "1") return true;
       if (perFolder === "0") return false;
     }
-    return localStorage.getItem(`seasonView:lib:${state.currentLibrary || 0}`) === "1";
-  } catch { return false; }
+    // Default: AN für TV-Bibliotheken (Serien sollen automatisch in der
+    // Staffel-Ansicht öffnen), außer der User hat sie für diese Library
+    // explizit ausgeschaltet (gespeichert als "0"). Vorher war der Default
+    // "0"/aus, bis man einmal manuell umschaltete.
+    return localStorage.getItem(`seasonView:lib:${state.currentLibrary || 0}`) !== "0";
+  } catch { return true; }
 }
 
 function sortStorageKey() {
@@ -604,18 +641,28 @@ const PSEUDO_FILTER_MODES = new Set([
 ]);
 
 // Sort-Modi, die eine flache, library-weite Liste zeigen (Ordner-Struktur
-// ignorieren). Diese sind als spontane Ansicht gedacht ("zeig mir die letzten/
-// längsten Videos der ganzen Lib") und sollen NICHT als Standard-Sortierung pro
-// Library/Folder gespeichert werden — sonst öffnet die Library dauerhaft flach,
-// obwohl der Flat-Toggle aus ist. Beim Wieder-Betreten fällt der Kontext auf den
-// normalen Default (title/released → Ordner) zurück.
+// ignorieren). Werden pro Library/Folder gespeichert — ABER NUR in einem
+// Kontext, der sowieso nie Unterordner-Kacheln zeigt. Kacheln erscheinen
+// laut Navigationskonzept ausschließlich im Library-Root (state.currentFolder
+// === null) oder in einem Ordner mit aktiviertem Drilldown
+// (state.currentFolderDrilldown); jeder normale Unterordner zeigt ohnehin
+// IMMER eine flache Dateiliste (siehe grid.js "Standard: Subfolder ohne
+// Drilldown"). Dort ist "flach sortiert" == "normal", also unproblematisch
+// zu speichern. Im Root/Drilldown-Fall würde die gespeicherte flache Sortierung
+// die Ordner-Kacheln beim Wiederbetreten dauerhaft verstecken — das war der
+// ursprüngliche Grund, warum diese Sorts früher nie gespeichert wurden.
 const FLAT_LIBRARY_SORTS = new Set(["played", "added", "duration"]);
+
+function currentContextShowsFolderTiles() {
+  return state.currentFolder === null || !!state.currentFolderDrilldown;
+}
 
 function persistSortForContext() {
   const key = sortStorageKey();
   if (!key) return;
   const s = $("#sortSelect").value;
-  if (PSEUDO_FILTER_MODES.has(s) || FLAT_LIBRARY_SORTS.has(s)) return;
+  if (PSEUDO_FILTER_MODES.has(s)) return;
+  if (FLAT_LIBRARY_SORTS.has(s) && currentContextShowsFolderTiles()) return;
   const d = state.sortDir;
   try {
     if (!s && !d) localStorage.removeItem(key);
@@ -632,11 +679,14 @@ function restoreSortForContext() {
     const raw = localStorage.getItem(key);
     let parsed = null;
     if (raw) { try { parsed = JSON.parse(raw); } catch {} }
-    // Gespeicherte Flat-Library-Sorts (played/added/duration) NICHT wiederher-
-    // stellen — sonst bleibt eine Library dauerhaft flach. Wie "kein Sort
-    // gespeichert" behandeln → Default (Ordner). Deckt auch Bestands-
-    // localStorage aus der Zeit ab, als diese Sorts noch gespeichert wurden.
-    if (!raw || !parsed || !parsed.sort || FLAT_LIBRARY_SORTS.has(parsed.sort)) {
+    // Falls sich der Ordner seit dem Speichern geändert hat (z. B. Drilldown
+    // nachträglich aktiviert) und jetzt Unterordner-Kacheln zeigt: einen
+    // gespeicherten Flat-Sort NICHT übernehmen, sonst blieben die Kacheln
+    // dauerhaft versteckt. Wie "kein Sort gespeichert" behandeln.
+    if (parsed && parsed.sort && FLAT_LIBRARY_SORTS.has(parsed.sort) && currentContextShowsFolderTiles()) {
+      parsed = null;
+    }
+    if (!raw || !parsed || !parsed.sort) {
       // Kein (verwendbarer) gespeicherter Sort für diesen Kontext → Library-spezifischer Default.
       // Private Libraries (YouTube-Downloads, Urlaubsvideos etc.) sollen nach
       // „Veröffentlicht" absteigend sortiert sein — Chronologie ist dort die
@@ -1065,6 +1115,16 @@ function wire() {
     loadItems();
   });
   $("#selectModeBtn").addEventListener("click", () => setSelectionMode(!state.selectionMode));
+  $("#alphaToggleBtn").addEventListener("click", () => {
+    const key = alphaSidebarStorageKey();
+    if (!key) return;
+    const next = alphaSidebarHiddenHere();
+    try {
+      if (next) localStorage.removeItem(key); // wieder einblenden → Default (an)
+      else localStorage.setItem(key, "0");
+    } catch {}
+    updateAlphaSidebar();
+  });
   $("#bulkSelectAll").addEventListener("click", selectAllVisible);
   $("#bulkSelectNone").addEventListener("click", () => setSelectionMode(false));
   $("#bulkFavorite").addEventListener("click", bulkSetFavorite);
@@ -1163,6 +1223,7 @@ function wire() {
       case "refreshallmeta": runRefreshAllMetadata(); break;
       case "renames": openRenamesManager(); break;
       case "autoscan": openAutoScan(); break;
+      case "statistik": openStatistikDialog(); break;
     }
   });
   // Home/Sammlungen/Playlists/Library-Wechsel laufen über die pinned Lib-Nav
@@ -1388,6 +1449,15 @@ function wire() {
       loadItems();
     } catch (e) { appAlert(e.message); }
   });
+  $("#detailMove").addEventListener("click", () => {
+    if (!state.currentItem) return;
+    openMoveDialog({ mode: "single", item: state.currentItem });
+  });
+  $("#bulkMove").addEventListener("click", () => {
+    if (!state.selection.size) return;
+    openMoveDialog({ mode: "bulk", ids: Array.from(state.selection) });
+  });
+  $("#moveForm").addEventListener("submit", handleMoveSubmit);
   $("#detailWatched").addEventListener("click", async () => {
     if (!state.currentItem) return;
     const it = state.currentItem;

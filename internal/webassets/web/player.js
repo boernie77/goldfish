@@ -191,6 +191,8 @@ async function openDetail(item) {
   $("#detailRefreshMeta").style.display = ((state.me && state.me.isAdmin) && item.metadataId && !(itemLib && itemLib.kind === "private")) ? "" : "none";
   // Delete nur für Admins
   $("#detailDelete").style.display = (state.me && state.me.isAdmin) ? "" : "none";
+  // Verschieben nur für Admins
+  $("#detailMove").style.display = (state.me && state.me.isAdmin) ? "" : "none";
   // Metadaten-Edit/Anlegen nur für Admins, in nicht-Private-Libs. Bei
   // unmatched Items oeffnet der Pencil-Button die Maske leer und legt
   // beim Speichern einen Custom-Metadata-Eintrag an (tmdb_type=custom).

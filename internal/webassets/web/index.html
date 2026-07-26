@@ -101,6 +101,7 @@
     <button id="flatViewBtn" title="Flache Ansicht ohne Ordner" class="toggle-btn">📂 Flach</button>
     <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
+    <button id="alphaToggleBtn" title="Buchstabenleiste für diesen Ordner ausblenden" class="toggle-btn active">🔤 A-Z</button>
     <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
     <span class="btn-group scan-group">
       <button id="scanBtn" title="Bibliothek scannen (inkrementell)">⟳ Scan</button>
@@ -180,7 +181,7 @@
   <div class="drawer-section">
     <div class="drawer-section-label">Bibliothek & Medien</div>
     <button class="drawer-item" data-action="trickplay" id="settingsMenuTrickplay">
-      <span class="drawer-icon">🎞</span>
+      <span class="drawer-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg></span>
       <span class="drawer-text">
         <span class="drawer-item-title">Trickplay</span>
         <span class="drawer-item-sub">Hover-Vorschau verwalten</span>
@@ -205,6 +206,13 @@
       <span class="drawer-text">
         <span class="drawer-item-title">Umbenennungen</span>
         <span class="drawer-item-sub">History, Undo, CSV-Export</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="statistik" id="settingsMenuStatistik">
+      <span class="drawer-icon">📊</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Statistik</span>
+        <span class="drawer-item-sub" id="statistikMenuSub">Auflösung, Filetyp, Länge</span>
       </span>
     </button>
   </div>
@@ -245,7 +253,8 @@
   <button id="bulkWatched" title="Als gesehen markieren">✓ Gesehen</button>
   <button id="bulkPlaylist" title="Zu Playlist hinzufügen">📋 Playlist</button>
   <button id="bulkDownload" title="Alle herunterladen">⬇ Download</button>
-  <button id="bulkDelete" class="danger" title="Dateien löschen">🗑 Löschen</button>
+  <button id="bulkMove" title="In anderen Ordner verschieben">📁 Verschieben</button>
+  <button id="bulkDelete" class="danger" title="Dateien löschen"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg> Löschen</button>
 </div>
 <main id="grid" class="grid" aria-live="polite"></main>
 
@@ -365,6 +374,26 @@
   </form>
 </dialog>
 
+<!-- Verschieben (Einzel- oder Bulk) -->
+<dialog id="moveDialog" class="modal">
+  <h2 id="moveDialogTitle">Verschieben</h2>
+  <p class="hint" id="moveDialogHint"></p>
+  <form id="moveForm" class="form">
+    <label>Ziel-Bibliothek
+      <select id="moveLibrarySelect"></select>
+    </label>
+    <label>Zielordner (relativ zur Bibliothek, leer = Wurzel)
+      <input id="moveFolderInput" name="targetFolder" placeholder="z.B. Anime/Staffel 2" autocomplete="off" />
+    </label>
+    <div id="moveFolderTree" class="move-tree"></div>
+    <p class="hint">Ordner muss nicht existieren — wird bei Bedarf angelegt (z. B. neuen Namen oben eintippen). Klick auf einen Ordner im Baum übernimmt ihn ins Feld. Bestehende Namenskonflikte am Ziel werden automatisch mit " (2)", " (3)", … aufgelöst.</p>
+    <div class="row">
+      <button type="submit" class="primary">Verschieben</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Path browser -->
 <dialog id="browseDialog" class="modal">
   <h2>Ordner wählen</h2>
@@ -392,7 +421,8 @@
     <button type="button" id="detailNFO" class="icon-btn hidden" title="NFO aktualisieren (wird beim ✅ automatisch geschrieben)" aria-label="NFO aktualisieren">💾</button>
     <button type="button" id="detailRename" class="icon-btn hidden" title="Datei zu Titel (Jahr) umbenennen" aria-label="Umbenennen">🏷</button>
     <button type="button" id="detailSubGen" class="icon-btn hidden" title="Untertitel generieren (Whisper KI)" aria-label="Untertitel generieren">🎤</button>
-    <button type="button" id="detailDelete" class="icon-btn danger" title="Datei löschen" aria-label="Löschen">🗑</button>
+    <button type="button" id="detailMove" class="icon-btn hidden" title="In anderen Ordner verschieben" aria-label="Verschieben">📁</button>
+    <button type="button" id="detailDelete" class="icon-btn danger" title="Datei löschen" aria-label="Löschen"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
     <button type="button" class="icon-btn" data-close title="Schließen" aria-label="Schließen">✕</button>
   </div>
   <!-- Whisper-Untertitel-Popover (erscheint über dem 🎤-Button) -->
@@ -629,7 +659,7 @@
 
 <!-- Trickplay verwalten -->
 <dialog id="trickplayDialog" class="modal trickplay-modal">
-  <h2>🎞 Trickplay verwalten</h2>
+  <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.1em" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg> Trickplay verwalten</h2>
   <div id="trickplayStats" class="trickplay-stats"></div>
   <div class="row" style="margin:8px 0">
     <button type="button" data-tp-tab="done" class="tp-tab primary">Erfolgreich</button>
@@ -640,7 +670,7 @@
   <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
     <button type="button" id="tpShowFailed">📺 Fehler im Grid anzeigen</button>
     <button type="button" id="tpRetryFailed">↻ Fehler erneut versuchen</button>
-    <button type="button" id="tpDeleteAll" class="danger">🗑 Alle Trickplay-Dateien löschen</button>
+    <button type="button" id="tpDeleteAll" class="danger"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg> Alle Trickplay-Dateien löschen</button>
     <button type="button" data-close>Schließen</button>
   </div>
 </dialog>
@@ -705,8 +735,8 @@
 
 <!-- Settings -->
 <dialog id="renamesDialog" class="modal" style="max-width:1100px">
-  <h2>Umbenennungen verwalten</h2>
-  <p class="hint">Protokoll aller Datei-Umbenennungen. Einzeln rückgängig machbar oder als CSV exportierbar.</p>
+  <h2>Umbenennungen &amp; Verschiebungen verwalten</h2>
+  <p class="hint">Protokoll aller Datei-Umbenennungen und -Verschiebungen. Einzeln rückgängig machbar oder als CSV exportierbar.</p>
   <div class="row" style="gap:8px;margin-bottom:12px">
     <button type="button" id="renamesBulkBtn" class="primary">Alle bestätigten Filme jetzt umbenennen</button>
     <button type="button" id="renamesCsvBtn">⬇ CSV exportieren</button>
@@ -715,6 +745,16 @@
     <button type="button" data-close>Schließen</button>
   </div>
   <div id="renamesBody" style="max-height:60vh;overflow-y:auto"></div>
+</dialog>
+
+<dialog id="statistikDialog" class="modal" style="max-width:700px">
+  <h2>📊 Statistik</h2>
+  <p class="hint" id="statistikScope"></p>
+  <div id="statistikBody" style="max-height:65vh;overflow-y:auto"></div>
+  <div class="row" style="margin-top:12px">
+    <span style="flex:1"></span>
+    <button type="button" data-close>Schließen</button>
+  </div>
 </dialog>
 
 <dialog id="settingsDialog" class="modal">

@@ -78,7 +78,7 @@ function showScanSummary(s) {
     { label: "🆕 Neu",          value: s.new || 0,     cls: "stat-new",  kind: "new" },
     { label: "🔄 Aktualisiert", value: s.updated || 0, cls: "stat-upd",  kind: "updated" },
     { label: "⏭ Übersprungen", value: s.skipped || 0, cls: "stat-skip", kind: null },
-    { label: "🗑 Entfernt",     value: s.removed || 0, cls: "stat-del",  kind: "removed" },
+    { label: `${ICON_TRASH_SVG} Entfernt`, value: s.removed || 0, cls: "stat-del",  kind: "removed" },
     { label: "Gesamt",          value: s.total || 0,   cls: "stat-total", kind: null },
   ];
   stats.innerHTML = cells.map(c => {
@@ -138,7 +138,7 @@ function showScanDetail(kind, folderFilter) {
   const detail = $("#scanSummaryDetail");
   if (!detail) return;
   const map = { new: s.newPaths || [], updated: s.updatedPaths || [], removed: s.removedPaths || [] };
-  const labels = { new: "🆕 Neu", updated: "🔄 Aktualisiert", removed: "🗑 Entfernt" };
+  const labels = { new: "🆕 Neu", updated: "🔄 Aktualisiert", removed: `${ICON_TRASH_SVG} Entfernt` };
   let paths = map[kind] || [];
   if (folderFilter !== null && folderFilter !== undefined) {
     paths = paths.filter(p => {
@@ -208,7 +208,7 @@ function showScanAllSummary(summaries, force) {
     { label: "🆕 Neu",          value: totals.new,     cls: "stat-new" },
     { label: "🔄 Aktualisiert", value: totals.updated, cls: "stat-upd" },
     { label: "⏭ Übersprungen", value: totals.skipped, cls: "stat-skip" },
-    { label: "🗑 Entfernt",     value: totals.removed, cls: "stat-del" },
+    { label: `${ICON_TRASH_SVG} Entfernt`, value: totals.removed, cls: "stat-del" },
     { label: "Gesamt",          value: totals.total,   cls: "stat-total" },
   ];
   stats.innerHTML = cells.map(c => `
@@ -359,7 +359,7 @@ function pollTrickplayWorker() {
 function renderTrickplayWorkerStatus(st) {
   const bar = $("#trickplayStatus");
   if (!st.running) {
-    bar.innerHTML = `🎞 Trickplay-Lauf fertig: ${st.processed || 0} erfolgreich, ${st.failed || 0} Fehler`;
+    bar.innerHTML = `${ICON_FILM_SVG} Trickplay-Lauf fertig: ${st.processed || 0} erfolgreich, ${st.failed || 0} Fehler`;
     return;
   }
   const total = st.total || 0;
@@ -368,7 +368,7 @@ function renderTrickplayWorkerStatus(st) {
   const cur = st.currentTitle ? ` · ${escapeHTML(st.currentTitle)}` : "";
   bar.innerHTML = `
     <div class="statusbar-row">
-      <div class="statusbar-text">🎞 Trickplay: ${st.processed || 0}/${total} verarbeitet${st.failed ? ` · ⚠ ${st.failed}` : ""}${cur}</div>
+      <div class="statusbar-text">${ICON_FILM_SVG} Trickplay: ${st.processed || 0}/${total} verarbeitet${st.failed ? ` · ⚠ ${st.failed}` : ""}${cur}</div>
       <button class="statusbar-cancel" data-action="cancel-trickplay" title="Trickplay abbrechen">✕</button>
     </div>
     <div class="bar"><div style="width:${pct}%"></div></div>

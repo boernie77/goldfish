@@ -122,7 +122,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 📱 Android-App (in Testphase, aktuell 1.2.66)
+# 📱 Android-App (in Testphase, aktuell 1.2.67)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
@@ -158,18 +158,21 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.66)
+## Android-App-Featureliste (Stand 1.2.67)
 
 Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
 `project_android_app.md` und `project_feature_local_libraries.md`):
-- **Bibliotheken zusammenlegen (vC 98):** In den Einstellungen können 2 Server-
-  Bibliotheken virtuell zusammengelegt werden. Im HomeScreen erscheint eine
-  „🔗 Lib1 + Lib2"-Kachel; wenn eine Lib nicht verfügbar ist, ist sie ausgegraut
-  (kein Fehler). Zufallsplay, Sortierung etc. funktionieren über beide. Server:
-  `ItemFilter.LibraryIDs []int64` + `IN (…)`-Klausel in `ListItems`/`randomItem`;
-  API akzeptiert mehrere `?libraryId=` Query-Params. App: `SettingsDataStore.
-  mergedServerLibraryIds`, `GoldfishApi` + `ItemRepository` mit `List<Int>?`,
-  `LibraryViewModel.loadMerged()`, neue Routen `MergedLibrary`/`PlayerRandomMerged`.
+- **Bibliotheken zusammenlegen (vC 98 Server+App, vC 99 lokale Libs):** In den
+  Einstellungen können je 2 Bibliotheken gleichen Typs virtuell zusammengelegt
+  werden (Server+Server ODER Lokal+Lokal). Im HomeScreen erscheinen separate
+  „🔗 Lib1 + Lib2"-Kacheln; wenn eine Lib nicht verfügbar ist, ausgegraut (kein
+  Fehler). Zufallsplay, Sortierung etc. funktionieren über beide. Server: `ItemFilter.
+  LibraryIDs []int64` + `IN (…)`-Klausel in `ListItems`/`randomItem`; API akzeptiert
+  mehrere `?libraryId=` Query-Params. App: `mergedServerLibraryIds` + `mergedLocal
+  LibraryIds` in SettingsDataStore; `GoldfishApi`/`ItemRepository` mit `List<Int>?`;
+  `LibraryViewModel.loadMerged()`, `LocalLibraryViewModel.loadMerged()` (Items aus
+  beiden Libs kombiniert flach); Routen `MergedLibrary`, `PlayerRandomMerged`,
+  `MergedLocalLibrary`. Settings-UI in zwei Gruppen (📡 Server, 📁 Lokal).
 - **Online-Lib „Zuletzt gespielt" — App rief /played nie (vC 96):** Server
   trackt `user_item_state.last_played_at` NUR via `POST /api/items/{id}/played`
   (`TouchLastPlayed`); Resume/Watched setzen es NICHT. Der **Browser** ruft das
@@ -369,7 +372,7 @@ internal/webassets/web/
   index.html                      — HTML-Skeleton + Dialog-Definitionen + Cast-SDK + Script-Tags
   login.html                      — Login + Setup-Form + OIDC-Button
   style.css                       — komplette App-Styles
-  helpers.js          ~63 LOC     — fmtDuration/fmtSize/fmtDate/resLabel/escapeHTML
+  helpers.js          ~75 LOC     — fmtDuration/fmtSize/fmtDate/resLabel/escapeHTML/ICON_TRASH_SVG/ICON_FILM_SVG
   dialogs.js         ~124 LOC     — appAlert/appConfirm/appPrompt/appDialog/showToast
   api.js              ~63 LOC     — api()/apiGetCached + 30s-LRU-Cache + 401-Redirect
   cast.js            ~142 LOC     — Google-Cast-SDK-Init + startCastSession (Token-Auth)
@@ -467,9 +470,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   metadata_id=E23, episode_end=24). 0 = keine Range. Staffel-Ansicht zeigt alle
   abgedeckten Episoden als owned (gleiches Item).
 - `rename_history(id, item_id, old_path, new_path, old_rel_path, new_rel_path,
-  renamed_at, undone_at, triggered_by)` — Audit-Log für Auto-Rename. Jedes
-  Rename schreibt einen Eintrag (auto/manual/bulk); Undo setzt `undone_at`
-  und schreibt `items.path` zurück. Siehe „Auto-Rename bestätigter Filme".
+  old_library_id, new_library_id, renamed_at, undone_at, triggered_by)` —
+  Audit-Log für Auto-Rename UND Verschieben (triggered_by ∈ {auto, manual,
+  bulk, move}). `old_library_id`/`new_library_id` sind 0/0 wenn kein
+  Bibliotheks-Wechsel stattfand (Normalfall + alle Einträge vor der
+  2026-07-12-Migration). Undo setzt `undone_at` und schreibt `items.path`
+  (+ ggf. `items.library_id`) zurück. Siehe „Auto-Rename bestätigter Filme"
+  und „Verschieben in andere Ordner / Bibliotheken".
 
 ## Features
 
@@ -491,6 +498,20 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Select + 🗑-Icon (Tooltip „Bibliothek löschen"), Zeile 2 hat ▲▼ +
   Toggle-Pillen (🏠 Startseite, 🏷 Ordner oben). Beide Zeilen mit
   `flex-wrap` für narrow Modals (`.modal` hat `max-width: 520px`).
+
+### Auto-Scan (zeitgesteuert, Browser-Admin-Menü)
+- Mehrere unabhängige **Scan-Aufgaben**, jede mit eigenem Zeitplan, Bibliothek und
+  Scan-Typ. Erreichbar über Zahnrad → „🕐 Auto-Scan".
+- **Zeitplan-Formate:** `daily:HH:MM` | `every:Nh` (alle N Stunden, N 1–23) |
+  `weekly:DOW:HH:MM` (Wochentag mon–sun).
+- **Scan-Typ:** inkrementell (mtime-Vergleich, Default) oder vollständig (force=true).
+- **Bibliothek:** einzelne Lib oder alle (libraryId=0).
+- **Speicherung:** JSON-Array in `settings.auto_scan_tasks`. Legacy-Migration:
+  alte Einzel-Settings (`auto_scan_enabled`/`schedule`/`library_id`) werden beim
+  ersten Laden automatisch in eine Aufgabe konvertiert.
+- **Server:** `RunAutoScan`-Goroutine prüft jede Minute alle aktiven Aufgaben
+  unabhängig; feuert pro Aufgaben-ID max. einmal pro Minute.
+- **Menü-Subtitle** zeigt „✓ N aktive Aufgabe(n)" wenn mindestens eine aktiv.
 
 ### Scanner & Metadaten
 - ffprobe liefert Container/Codec/Auflösung/Laufzeit/Bitrate.
@@ -612,6 +633,20 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Manueller Bulk-Merge (API)**: `POST /api/items/merge` mit `{ids:[…]}` —
   erstes Item mit metadata_id ist canonical, andere übernehmen. Endpoint
   existiert, aber UI-Button dafür ist nicht mehr in der Bulk-Bar.
+- **Duplikate-Filter (Sort-Dropdown „Duplikate", seit 2026-07-12 zweigeteilt):**
+  Movies/TV nutzen weiterhin die bisherige metadata_id-basierte, **library-
+  übergreifende** Erkennung (`ItemFilter.DupesOnly`, alle Libs mit gleichem
+  `kind`, z. B. Bluray + Filme zusammen). **Privat-Libraries** (`kind=private`)
+  haben normalerweise KEINE TMDB/Custom-Zuordnung (`metadata_id` meist NULL) —
+  dort greift DupesOnly praktisch nie. Neuer paralleler Mechanismus
+  `ItemFilter.FileDupesOnly` (`?fileDuplicates=yes`) erkennt Duplikate anhand
+  **gleicher `size_bytes` + `duration_sec`** (starkes Signal für „dieselbe
+  Datei versehentlich zweimal"), gescoped auf **eine** Library + optional
+  Ordner rekursiv (Konvention „nur nach unten flach" wie bei den Flat-Sorts,
+  NICHT library-übergreifend — anders als bei Movies/TV). Frontend-Branch in
+  `grid.js` wählt anhand `lib.kind === "private"` zwischen beiden. Fängt keine
+  inhaltlich identischen, aber unterschiedlich großen/re-encodeten Dateien ab
+  (bewusst konservativ, um False-Positives zu vermeiden).
 
 ### Flat-View & Bulk-Selection
 - **Flat-View-Toggle** im Toolbar (📂) — blendet die Ordner-Navigation aus und
@@ -655,11 +690,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Suchfeld** trifft Titel **und** Schauspielernamen. SQL joined
   `metadata_cast` via `people.name LIKE ?`, inkl. Parent-Show bei Episoden.
   In Collections-Views client-seitig zusätzlich auf Collection-Name / Part-Titel.
-- **Alphabet-Sidebar rechts** (`#alphaSidebar`): zeigt A-Z + `#` bei Sort=title
-  und ≥10 Items, in Collections-Root unabhängig vom Sort. `jumpToLetter()`
-  scrollt zur ersten Kachel mit passendem Anfangsbuchstaben (Cards haben
-  `data-item-id`). Body bekommt Klasse `has-alpha-sidebar`, dann nimmt
-  das Grid 36px Rand rechts frei.
+- **Alphabet-Sidebar rechts** (`#alphaSidebar`, seit 2026-07-12 immer sichtbar):
+  zeigt A-Z + `#`, unabhängig vom Sort-Feld — wirkt als **Filter** (nicht
+  Scroll-Sprung): `jumpToLetter()` → `setAlphaFilter()` blendet Kacheln, die
+  nicht mit dem gewählten Buchstaben starten, per `.alpha-hidden`-Klasse aus
+  (Toggle bei erneutem Klick, ✕-Chip im Breadcrumb-Banner hebt den Filter
+  ebenfalls auf). Body bekommt Klasse `has-alpha-sidebar`, dann nimmt das
+  Grid 36px Rand rechts frei.
+  **Per-Ordner-Toggle:** Button `🔤 A-Z` in der Topbar-Toolbar blendet die
+  Leiste NUR für den aktuell offenen Ordner aus/ein — localStorage
+  `alphaSidebar:<libID>:<folder|"root">` = `"0"` (ausgeblendet) oder kein Key
+  (Default an). Eigener Namespace, unabhängig von `sort:lib:…`/`seasonView:…`.
+  In der Collections-Root-Ansicht (`state.currentLibrary === null` dort) gibt
+  es keinen Toggle-Button — die Leiste bleibt dort wie bisher unconditional an.
 - Favoriten-Filter zeigt flach innerhalb der aktuellen Library (ohne Ordner-Ebenen).
 - **Library-Wechsel** setzt alle Filter/Suche/Sortierung zurück.
 - **Request-Sequencing** in `loadItems` (`state.loadSeq`): verhindert, dass bei
@@ -720,6 +763,11 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   - **Library-Default**: localStorage `seasonView:lib:<libID>` = "1"/"0"
   - **Pro-Serie-Override**: localStorage `seasonView:<libID>:<folder>`
   - Effective = per-Folder if set, else library-Default
+  - **Default seit 2026-07-11: AN.** `seasonViewEffective()` in app.js gibt
+    ohne gespeicherten Wert `true` zurück (`!== "0"` statt `=== "1"`) — Serien
+    öffnen automatisch in der Staffel-Ansicht. Explizites Ausschalten pro
+    Library (Toggle-Button in Library-Root) bleibt als "0" gespeichert und
+    respektiert.
 - In einem Show-Ordner mit aktivem Toggle: Staffeln als **Folder-Kacheln**
   (Poster + „x/y Folgen"-Badge). Klick öffnet Staffel → normales Grid mit
   owned + „Fehlt"-Kacheln.
@@ -971,12 +1019,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `renderBreadcrumb({flatSortView:<mode>})`. Server-seitig filtert ListItems bei
   `Sort=="played"` zusätzlich `AND us.last_played_at IS NOT NULL`. (App-Pendant:
   `isFlatSortMode()` in LibraryViewModel.)
-  **WICHTIG:** Diese 3 Sorts werden NICHT als Standard-Sortierung pro Library/
-  Folder gespeichert (`FLAT_LIBRARY_SORTS` in app.js — `persistSortForContext`
-  überspringt sie, `restoreSortForContext` ignoriert gespeicherte Werte). Sonst
-  öffnet eine Library dauerhaft flach, obwohl der Flat-Toggle aus ist. Sie sind
-  spontane Ansichten (opt-in pro Aufruf); beim Wieder-Betreten fällt der Kontext
-  auf den normalen Default (title/released → Ordner) zurück.
+  **Persistenz (seit 2026-07-11):** Diese 3 Sorts werden pro Library/Folder
+  gespeichert (`FLAT_LIBRARY_SORTS` in app.js), aber NUR in einem Kontext, der
+  ohnehin nie Unterordner-Kacheln zeigt — `currentContextShowsFolderTiles()`
+  prüft `state.currentFolder === null` (Library-Root) oder
+  `state.currentFolderDrilldown` (Drilldown-Ordner); dort würde eine
+  gespeicherte flache Sortierung die Ordner-Kacheln beim Wiederbetreten
+  dauerhaft verstecken, also wird dort NICHT persistiert (`persistSortForContext`
+  überspringt, `restoreSortForContext` verwirft einen dort gespeicherten
+  Flat-Sort als "kein Sort gespeichert"). In einem normalen Unterordner ohne
+  Drilldown (die häufigste Situation — zeigt ohnehin immer flach) ist "flach
+  sortiert" == "normal", wird also ganz normal gespeichert/wiederhergestellt
+  wie jeder andere Sort.
   **Scope = nur nach unten flach (Browser + App vC 97):** im Library-Root
   library-weit, in einem Unterordner NUR dessen Inhalt (rekursiv) — nicht die
   ganze Library hochziehen. Browser: `grid.js` setzt `folder=state.currentFolder`
@@ -1155,6 +1209,27 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 - **Löschen** (Admin-only, `DELETE /api/items/:id?deleteFile=true|false`): Item aus DB
   und optional auch die Datei von Disk entfernen.
 
+### Statistik (seit 2026-07-10)
+- Menüpunkt „📊 Statistik" im Zahnrad-Drawer (`data-action="statistik"`, admin-only
+  wie der Rest des Drawers). Scope ist immer der Kontext, aus dem der Dialog
+  geöffnet wird — `state.currentLibrary` + `state.currentFolder`, gleiche
+  Konvention wie der Folder-gescopte Scan-Button: Library-Root = ganze Bibliothek,
+  in einem Unterordner nur dessen Inhalt rekursiv.
+- Zeigt Gesamtzahl Dateien, Gesamtgröße, Gesamtlaufzeit + drei Balken-Verteilungen
+  (Auflösung, Filetyp/Container, Länge-Buckets).
+- **Performance:** rein aggregierende SQL (`COUNT`/`SUM`/`CASE WHEN`), keine
+  Item-Rows werden nach Go geladen. Auflösungs-Bucket-Grenzen identisch zum
+  bestehenden `ResBuckets`-Filter (`MAX(height, width*9/16)`). Zwei indexierte
+  Scans (`items_library_idx` bzw. `items_lib_relpath_idx` bei Folder-Scope),
+  läuft nur on-demand beim Öffnen des Dialogs — keine Zusatzlast im normalen
+  Grid-Betrieb.
+- Code: `internal/store/stats.go` (`GetLibraryStatDetail`), Handler
+  `internal/api/libraries.go` (`libraryStatDetail`), Route
+  `GET /api/libraries/{id}/stats-detail?folder=`. **Nicht** verwechseln mit dem
+  bestehenden `GET /api/libraries/{id}/stats` (liefert nur `totalItems`/
+  `folderCount` für Folder-Kachel-Badges — separater, unveränderter Endpoint).
+  Frontend: `openStatistikDialog()` in `admin.js`.
+
 ### Auto-Rename bestätigter Filme (seit 2026-04-30)
 - Setting `auto_rename_confirmed_movies` (Toggle in Settings → „Datei-Umbenennung",
   iOS-Style Slider rechts in der Zeile). Wenn an: jede ✅-Bestätigung eines
@@ -1194,6 +1269,64 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   "movies"`) ist explizit gewünscht. Bei Refactor-Versuchen, „warum prüft
   ihr das doppelt (movie-metadata + movie-lib)" — der Lib-Filter ist die
   *primäre* Schutzmaßnahme; metadata.tmdb_type ist redundant aber harmlos.
+
+### Verschieben in andere Ordner / Bibliotheken (seit 2026-07-12)
+- Wiederverwendet dieselbe `rename_history`-Infrastruktur wie Auto-Rename —
+  ein Move ist serverseitig nur ein Rename mit geändertem Verzeichnisanteil
+  (+ optional geändertem `library_id`). Undo im „📝 Umbenennungen & Verschiebungen
+  verwalten"-Manager funktioniert dadurch für Moves automatisch mit.
+- **Ziel-Bibliothek wählbar** (`targetLibraryId` im Move-Dialog-Dropdown,
+  Default = Quell-Library): Move funktioniert sowohl innerhalb derselben
+  Library (nur Ordner ändert sich) als auch bibliotheksübergreifend (z. B.
+  Privat-Lib → TV-Lib). `library_id`/`kind`-Mismatch wird NICHT geprüft —
+  Admin trägt Verantwortung; bestehende TMDB/Custom-Metadata-Zuordnung des
+  Items bleibt unverändert (kein Auto-Rematch beim Move).
+- **Root-Auflösung — zwei Fälle** (`executeMove` in
+  `internal/api/admin_rename.go`):
+  - **Gleiche Library:** der physische Root wird NICHT aus `library_paths`
+    nachgeschlagen, sondern direkt aus dem Item selbst abgeleitet
+    (`root = Path` minus `"/"+RelPath`-Suffix) — bleibt dadurch immer im
+    selben physischen Quellordner wie zuvor, auch bei Multi-Path-Bibliotheken.
+    Verschieben ÜBER zwei verschiedene Quellordner DERSELBEN Library hinweg
+    ist bewusst NICHT unterstützt (Storage-Grenzen könnte der User nicht im
+    Kopf haben — sonst landet die Datei überraschend auf einem anderen Volume).
+  - **Andere Ziel-Library:** nutzt deren ERSTEN `library_paths`-Eintrag
+    (`Store.LibraryPaths`, Fallback `libraries.path` bei Single-Path-Libs) als
+    Root. Bei Multi-Path-Ziel landet die Datei immer im ersten Quellordner —
+    bei Bedarf per zweitem Move innerhalb der Ziel-Library weiterverschiebbar.
+- **`rename_history.old_library_id`/`new_library_id`** (Migration, addCol):
+  0/0 = kein Library-Wechsel (deckt auch alle historischen Einträge vor der
+  Migration ab). `Store.RecordMove` (ersetzt/erweitert `RecordRename`, das
+  jetzt ein Wrapper mit old=new=0 ist) schreibt bei echtem Wechsel zusätzlich
+  `items.library_id`; `MarkRenameUndone` macht das beim Undo symmetrisch rückgängig.
+- **Zielordner:** muss nicht existieren, wird per `os.MkdirAll` angelegt.
+  Namenskonflikte am Ziel werden wie beim Rename automatisch aufgelöst
+  (` (2)`, ` (3)`, … via `rename.ResolveConflict`).
+- **Einzel-Move:** 📁-Button im Detail-Dialog (admin-only, neben 🗑) öffnet
+  `#moveDialog` mit Ziel-Bibliotheks-Dropdown + Zielordner-Textfeld
+  (vorausgefüllt mit aktuellem Ordner) + **Ordner-Baum darunter** (seit
+  2026-07-12, ersetzt die anfängliche Datalist-Autocomplete): zeigt alle
+  vorhandenen Ordnerpfade der Ziel-Library hierarchisch (auf-/zuklappbar,
+  Vorfahren des aktuellen Pfads automatisch aufgeklappt), Klick auf eine
+  Zeile übernimmt den Pfad ins Textfeld — für neue Ordnernamen bleibt das
+  Textfeld frei eintippbar. Baum wird clientseitig aus der flachen
+  `GET /api/libraries/{id}/all-folders`-Liste (`Store.AllFolderPaths` — leitet
+  alle Ordnerpfade aus den vorhandenen `rel_path`-Werten ab, Goldfish legt
+  Ordner nicht explizit an) aufgebaut (`buildFolderTree`/`renderMoveTree` in
+  `admin.js`), bei Dropdown-Wechsel neu geladen für die neue Lib.
+- **Bulk-Move:** 📁-Button in der Bulk-Auswahl-Leiste, `POST /api/items/move`
+  mit `{ids, targetFolder, targetLibraryId}`. Bricht bei gemischter
+  QUELL-Library-Auswahl mit Fehlermeldung ab (Ordnerpfad ist relativ zu genau
+  einem Root) — Frontend prüft das VOR dem Öffnen des Dialogs. Ziel-Library
+  darf natürlich abweichen.
+- **Thumbnails/Trickplay unberührt:** beide sind item-ID-keyed unter
+  `/config/...`, nicht pfad-abhängig — ein Move invalidiert sie nicht.
+- Code: `internal/api/admin_rename.go` (`moveItem`, `moveItemsBulk`,
+  `executeMove`, `listAllFolders`), `internal/store/sqlite.go`
+  (`AllFolderPaths`), `internal/store/rename_history.go` (`RecordMove`).
+  Routen: `POST /api/items/{id}/move`, `POST /api/items/move`,
+  `GET /api/libraries/{id}/all-folders` (alle admin-only). Frontend:
+  `openMoveDialog()`/`loadMoveFolderList()`/`handleMoveSubmit()` in `admin.js`.
 
 ### TMDB-Integration
 - Suche & Detail für Filme, Serien, Episoden (deutsche Sprache).
@@ -1300,935 +1433,18 @@ volumes:
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 
-### ✅ Android: Lib-Flash „kein Inhalt" + Privat-Sort stimmt erst nach Toggle — vC 86/87/88 (2026-06-06)
-- **Symptom 1:** Privat-Libs (v. a. YouTube) zeigten beim Öffnen kurz alle
-  Folgen flach, dann verschwand alles → „kein Inhalt gefunden".
-- **Ursache 1:** `LibraryViewModel.doReload` entscheidet anhand
-  `state.library?.kind` zwischen Folders (TV/Privat) und flachen Items
-  (Movies). War `state.library` noch null (reload() aus dem Settings-Collector
-  lief vor load(), oder getLibraries() langsam) → kind="" → usesFolders=false
-  → loadItems() lädt ALLE Items flach. `LibraryScreen` unterdrückte flache
-  Root-Items nur bei bekanntem tv/private-Kind, nicht bei `null`.
-- **Lösung 1:** (a) `doReload` lädt die Library synchron nach wenn
-  `state.library==null`, bevor Folders-vs-Items entschieden wird. (b)
-  `suppressItemsAtRoot` auf `library?.kind != "movies"` umgestellt (statt
-  `tv||private`) → flache Root-Items auch bei unbekanntem Kind unterdrückt.
-- **Symptom 2:** Sort „Veröffentlicht" in Privat-Libs stimmte erst nach
-  Pfeil-Toggle bzw. Sort-Wechsel-und-zurück. Topbar zeigte „Veröffentlicht",
-  die Liste war aber nicht nach Datum. Daten korrekt (Browser sortiert sauber).
-- **Ursache 2 (vC 87, echte Ursache):** Stale-Sort-Race beim ersten Laden. Bei
-  einer neuen Library wurde `sortMode` erst ASYNCHRON im suspend-Block (nach
-  `getLibraries()`) auf `released` gesetzt; bis dahin stand der Data-Class-
-  Default `SORT_TITLE`. Lief in diesem Fenster ein `loadItems` (z. B. paralleles
-  `reload()` aus dem Settings-Collector), gewann dessen title-/unsortiertes
-  Ergebnis per Generation-Guard, während `sortMode` danach auf `released`
-  sprang. (vC 86 — asc-Default + Client-Sort — reichte daher nicht.)
-- **Lösung 2 (vC 87):** (a) Sort/Richtung/Season SYNCHRON in `load()` setzen
-  (vor dem suspend), Kind aus neuem prefs-Cache `kind_<libId>`; Erstbesuch wird
-  im suspend-Block nachkorrigiert + frische `reloadGeneration` gezogen, damit
-  load()s doReload jede parallele Generation schlägt. (b) Default-Richtung asc;
-  `onSortChange`: released→asc NUR in Privat-Libs (sonst desc). (c) Client-
-  `released`-Sort (relKey year→"YYYY-01-01" sonst `releasedAt`, nur Privat)
-  bleibt als Absicherung.
-- **Symptom 3 (vC 88):** In „nur Offline" war Privat-Lib im Folder wieder
-  durcheinander (ohne Offline passte es).
-- **Ursache 3:** Der Offline-Pfad `doReloadOffline` → `offlineRepository.items()`
-  ist eine eigene Strecke, ruft NICHT `loadItems` und sortierte gar nicht
-  (rohe Room-Insert-Reihenfolge).
-- **Lösung 3:** Client-Sort in Helper `sortItemsForDisplay(items)` extrahiert
-  (liest `_state`: Title→Natural, Released+Privat→year/releasedAt) und in BEIDEN
-  Pfaden genutzt (loadItems + doReloadOffline) → identische Reihenfolge
-  online/offline.
-- **NICHT zurückbauen:** Sort MUSS synchron vor dem ersten loadItems stehen —
-  die async-Initialisierung war der Bug. Das doReload-Nachladen der Library ist
-  die primäre Sicherung gegen den Flash (Symptom 1). Offline + online MÜSSEN
-  denselben sortItemsForDisplay-Helper nutzen.
-
-### ✅ Android: Transcode-Seek griff nicht (Drag/Skip blieb stehen) — vC 85 (2026-05-29)
-- **Symptom:** Im Server-Streaming-Player zog der User den Fortschrittsbalken
-  vor, Trickplay-Vorschau erschien korrekt, aber die Wiedergabe sprang NICHT
-  an die neue Stelle. Die 15-s-Skip-Buttons sprangen danach „deutlich weiter
-  zurueck" — gefuehlt an die Position, wo der Player ohne das Fingerspulen
-  waere. Betrifft NUR Transcode (HLS), nicht Direct Play.
-- **Ursache:** Beim Transcode startete die App den HLS-Stream immer mit ffmpeg
-  `start=0` und verliess sich auf `exoPlayer.seekTo()`. Die wachsende EVENT-
-  Playlist enthaelt aber nur die bereits produzierten Segmente. Ein seekTo
-  hinter den produzierten Rand clampt ExoPlayer auf das Seekable-Ende →
-  Wiedergabe bleibt stehen. Die `DurationOverrideTimeline` zeigt zwar die volle
-  Film-Dauer auf der TimeBar (man kann ueberall hinziehen), der reale Stream
-  reicht aber nur bis zur Produktionsfront. Genau das Problem, das der Browser
-  mit „Transcode-Seek (Capture-Handler + Session-Restart)" loest — der App
-  fehlte das Pendant.
-- **Loesung (`ui/player/PlayerScreen.kt`, mirror des Browser-Mechanismus):**
-  1. `virtualOffset`-State (ms): die ffmpeg-`start`-Basis der laufenden
-     Session. `remember(playbackUrl)` → reset auf 0 bei neuem Item/Quality.
-  2. `wrappedPlayer` (ForwardingPlayer) meldet **absolute** Position
-     (`getCurrentPosition/Content/Buffered… + virtualOffset`), damit TimeBar
-     und Skip-Buttons die echte Film-Position sehen — auch wenn die Session
-     mitten im Film gestartet ist.
-  3. Seek-Interception: `seekTo`/`seekForward`/`seekBack` gehen durch
-     `handleAbsoluteSeek`. Liegt das Ziel im bereits produzierten Material
-     (lokal ≤ `super.getDuration()`/buffered + 5 s Toleranz) → lokal seeken;
-     sonst `loadHls(start=Zielsekunde)` → neue ffmpeg-Session, `virtualOffset =
-     Ziel`, lokale Playlist startet wieder bei 0.
-  4. URL-Bau zentral in `loadHls(startSec)`: `…&start=<sec>&_t=<now>` (das `_t`
-     bricht nur den OkHttp-Cache, der Server ignoriert es beim Session-Key
-     `(item,profile,audio,int(startSec),deint)`).
-  5. Transcode-**Resume** ebenfalls gefixt: nicht mehr `seekTo(resumeMs)`
-     (clampte), sondern direkt `start=<resumeSec>` + `virtualOffset` setzen.
-  6. Resume-Speichern beim Verlassen/Pause schreibt jetzt die **absolute**
-     Position (`currentPosition + virtualOffset`).
-- **NICHT zurueckbauen:** Ohne Session-Restart kann die App im Transcode nicht
-  ueber die Produktionsfront hinaus springen. Direct Play (ganze Datei per
-  Range) bleibt unveraendert — dort ist `currentIsTranscode=false`, die Seek-
-  Overrides forwarden 1:1.
-- **Server-Seite unveraendert** — `start`-Param + Session-Keying existierten
-  schon fuer den Browser.
-
-### ✅ Android: lokale Bibliotheken zwischen Usern geleakt (2026-05-25)
-- **Symptom:** Auf einem geteilten Tablet sah jeder Goldfish-User in
-  Settings/Home/Suche die lokalen Bibliotheken der anderen User. Konkret:
-  Christian sah Alex' Privat-Lib und konnte deren Inhalte abspielen.
-- **Ursache:** Lokale Libraries lebten in der Room-DB (`goldfish-local.db`)
-  ohne User-Bezug. `LocalLibraryRepository.observeLibraries()` lieferte
-  alle Eintraege, unabhaengig vom aktuell eingeloggten User.
-- **Loesung:** Schema-Bump v3→v4 mit `local_libraries.ownerUsername TEXT`.
-  Beim Anlegen einer Lib wird der aktuell eingeloggte Goldfish-User
-  (via `AuthRepository.authStatus.value?.username`) als Owner gesetzt.
-  Alle UI-Flows (LocalLibrariesViewModel, HomeViewModel, SearchViewModel)
-  nutzen jetzt `observeLibrariesForUser(currentUser)` mit
-  `flatMapLatest(authStatus)` — bei Login-Wechsel switch'ed der Flow
-  automatisch.
-- **Defense-in-depth:** `LocalLibraryViewModel.load` und
-  `LocalPlayerViewModel.load` haben einen harten Owner-Check, falls
-  jemand per Deep-Link auf eine fremde Library-ID navigiert.
-- **Auto-Migration:** Bestehende Libs ohne Owner (NULL) werden beim
-  ersten Aufruf der Settings dem aktuell eingeloggten User assigniert
-  (`claimUnownedFor(username)`). Im Familien-Setup mit Tablet-
-  Primary-User passt das fast immer; sonst kann der User die Lib loeschen.
-- **NICHT zurueck:** `observeLibraries()` (ohne User-Filter) ist im
-  Repository nur noch fuer interne Jobs (recoverMissingThumbnails)
-  exposed. UI-Code MUSS `observeLibrariesForUser` nutzen. Bei jedem
-  weiteren Schema-Bump (v5, v6 …) NICHT vergessen LOCAL_MIGRATION_x_y in
-  AppModule.provideLocalAppDatabase.addMigrations(...) mit zu listen.
-
-### ✅ Android: NoDeclaredBrand-MP4 — Extractor lehnt Sniff ab (2026-05-25)
-- **Symptom:** Manche .mp4 lieferten im LocalPlayer den Fehler
-  `None of the available extractors (g91, np2, e61, a41, xu4, r6, ...)
-  could read the stream. {contentIsMalformed=false, dataType=1}
-  sniff failures: [NoDeclaredBrand]`. Files spielen in VLC einwandfrei.
-- **Ursache:** ExoPlayer's `Mp4Extractor.sniff()` lehnt MP4-Files ab,
-  deren `ftyp`-Box einen unbekannten Brand deklariert (oder gar kein
-  `ftyp` hat). Die Files sind strukturell valides MP4 — nur der
-  Brand-Code ist exotisch oder Custom. Der Default-Sniffer wird sehr
-  konservativ ausgewertet und liefert false, sodass die Datei nie
-  einen Decoder sieht. FFmpeg-Extension hilft NICHT, weil sie Decoder
-  liefert, nicht Demuxer.
-- **Loesung:** Eigene `TolerantExtractorsFactory`
-  (`ui/locallib/TolerantExtractorsFactory.kt`) wrapt
-  `DefaultExtractorsFactory` und haengt einen `ForcedMp4Extractor` ans
-  Ende der Extractor-Liste. Dessen `sniff()` gibt immer `true` zurueck,
-  alle anderen Methoden delegieren auf einen frischen `Mp4Extractor`.
-  Wenn das File wirklich kein MP4 ist, scheitert das Parsen mit klarem
-  Fehler — aber NoDeclaredBrand-Files laufen jetzt.
-- **Wiring:** ExoPlayer.Builder bekommt
-  `setMediaSourceFactory(DefaultMediaSourceFactory(context,
-  TolerantExtractorsFactory()))`. Der Force-Extractor steht NACH den
-  Default-Sniffern, sodass normale Files (auch mkv/webm/avi) weiterhin
-  vom richtigen Default-Extractor uebernommen werden.
-- **Nicht ueberall verallgemeinerbar:** TolerantExtractorsFactory ist
-  ausschliesslich im LocalPlayer (lokale SAF-URIs) aktiv. Der
-  Server-Streaming-PlayerView braucht das nicht — Streams kommen
-  einheitlich von goldfish-Server mit korrektem ftyp.
-
-### ✅ Android: viele .mp4 mit "Container/Format nicht unterstuetzt" (2026-05-25)
-- **Symptom:** In den lokalen Bibliotheken der Android-App schlugen
-  zahlreiche .mp4 mit "⚠ Wiedergabe nicht moeglich · Container/Format
-  nicht unterstuetzt" fehl. Dieselben Files liefen in VLC bzw. ueber den
-  Datei-Manager ohne Probleme — also klares Codec-Problem, nicht
-  Container-Schaden.
-- **Ursache:** ExoPlayer/Media3 nutzt per Default nur die System-
-  MediaCodec-Decoder. Manche Codecs (AC-3-Audio, DTS, einzelne HEVC-
-  Profile, ProRes, …) sind je nach Geraet/Android-Version nicht im
-  System-MediaCodec verfuegbar — der Decoder lehnt das Format ab. VLC
-  bringt sein eigenes FFmpeg mit und kennt das alles.
-- **Loesung:** `nextlib-media3ext`
-  (`io.github.anilbeesetti:nextlib-media3ext:1.9.3-0.12.0`) als
-  Dependency, vorgebaute FFmpeg-Decoder-Extension fuer Media3. Im
-  ExoPlayer-Builder wird `NextRenderersFactory(context)
-  .setExtensionRendererMode(EXTENSION_RENDERER_MODE_PREFER)` gesetzt —
-  FFmpeg uebernimmt wenn er kann, sonst fall-back auf System-MediaCodec.
-  Standard h264/h265-Files bleiben HW-decoded; nur problematische Files
-  landen bei FFmpeg.
-- **AAB-Wachstum:** 9 MB → 19,5 MB durch native FFmpeg-Binaries fuer
-  arm64-v8a + armeabi-v7a + x86_64.
-- **Zweite Sicherung:** Im Error-State des LocalPlayer gibt es zusaetzlich
-  einen "In anderem Player oeffnen"-Button (ACTION_VIEW + FLAG_GRANT_READ_
-  URI_PERMISSION auf die SAF-URI). Faengt die 10 % Edge-Cases ab, bei
-  denen auch FFmpeg versagt — User waehlt VLC/MX/etc. im System-Chooser.
-- **WICHTIG (Versions-Pinning):** Die nextlib-Version folgt dem Schema
-  `<Media3-Version>-<NextLib-Version>` (z.B. `1.9.3-0.12.0`,
-  `1.10.0-0.12.1`). Bei jedem Media3-Upgrade MUSS nextlib mit der gleichen
-  Major-Minor mitkommen. Compile bleibt sonst gruen (Java-API
-  kompatibel) — Runtime crasht mit `NoClassDefFoundError` weil die
-  nativen .so-Binaries nicht zur Java-API passen. Liste der Releases:
-  https://github.com/anilbeesetti/nextlib/releases.
-- **NICHT zurueckbauen:** Ohne FFmpeg-Extension waeren die User-Files
-  reihenweise nicht mehr spielbar. Wenn das Native-Footprint-Wachstum
-  stoert, ABI-Splits konfigurieren statt die Extension komplett zu
-  entfernen.
-
-### ✅ Edit-Metadata fuer Privat-Libs freigegeben (2026-05-16)
-- **Bisher:** Pencil-Button „Metadaten bearbeiten" war in Privat-Libs
-  ausgeblendet (`canEditMeta` checkte `kind !== "private"`). Der Server-
-  Endpoint `POST /api/items/{id}/metadata-manual` funktionierte aber
-  schon fuer alle Lib-Typen.
-- **Aenderung in `player.js`:** `canEditMeta = state.me.isAdmin` — kein
-  Lib-Kind-Check mehr. Admin sieht den Pencil auch in YouTube/Urlaubs-
-  Libs.
-- **Aenderung in `matching.js openEditMetaDialog`:** zwei separate
-  Vorbefuellungs-Branches je Lib-Kind:
-  - Privat-Libs: Default-Titel = Dateiname **ohne Endung** (`.mp4`
-    etc. via Regex gestrippt). releaseDate aus `it.releasedAt` (yt-dlp
-    MKV-DATE), Runtime aus `it.durationSec`.
-  - Movies/TV (unveraendert): Show-Name aus rel_path[0], Episodencode
-    in der Beschreibung.
-- **Wirkung:** User kann fuer ein YouTube-Video „Bauarbeiten\_2024-03-15.mp4"
-  einen sprechenden Titel „Garage aufgeraeumt" eintragen + speichern.
-  Der Server legt einen `tmdb_type=custom`-Eintrag an
-  (`TMDBID = -itemID` fuer Uniqueness) und bindet das Item daran. Die
-  VideoCard zeigt danach den eingegebenen Titel als displayTitle.
-
-### ✅ Generische Episoden-Titel „Folge 1/2/…" bei TMDB-Lücken (2026-05-14)
-- **Symptom:** Bei einigen Serien (z.B. Sullivans Crossing) zeigte das Browser-
-  Frontend statt echter Episodentitel nur „Folge 1", „Folge 2", … —
-  obwohl TMDB die englischen Episodentitel hat.
-- **Ursache:** TMDB API mit `language=de-DE` liefert selbst die generischen
-  Defaults wenn fuer eine Episode keine deutsche Uebersetzung hinterlegt
-  ist. Server hat `ep.Name` 1:1 uebernommen → User sieht den TMDB-Default.
-- **ZWEI Pfade müssen gefixt werden** — wer nur einen patched, kuriert
-  nur die Hälfte:
-  1. `tmdb.Client.GetSeason` — fuer die Browser-Live-Anzeige der
-     Staffel-Liste (api/series.go).
-  2. `tmdb.Client.GetEpisode` — fuer das DB-Enrichment in
-     `enrich/worker.go` Zeile 471 (pro einzelne Episode, schreibt
-     in `metadata`-Tabelle).
-- **Fix:** beide Methoden machen jetzt einen zweiten Call mit
-  `language=en-US`, wenn mindestens eine Episode einen generischen
-  Namen oder leeres Overview hat. Pro Episode wird ein generisches
-  `Name` durch das englische Pendant ersetzt (sofern dort nicht auch
-  generisch), und leeres `Overview` durch das englische gefuellt. Der
-  Merged-Result wird gecached.
-- **Helper:** `isGenericEpisodeName(name, epNum)` erkennt „Folge N",
-  „Episode N", „Episodio N", „Épisode N" und leere Strings.
-- **`c.get`** wurde erweitert: caller-gesetzte `params.language` wird
-  nicht mehr von `c.language` ueberschrieben.
-- **Bestehende DB-Eintraege** mit „Folge N"-Namen werden nicht
-  automatisch korrigiert — User kann via „⚠ Episoden neu zuordnen"
-  im Show-Header die betroffenen Folder neu enrichen (verwendet den
-  jetzt korrigierten GetSeason-Pfad).
-- **NICHT zurueck**: der zweite Call ist conditional + gecached, kostet
-  also nur einen extra Request pro Show-Season bei Erstbesuch von
-  generischen-Title-Shows. Sprachenneutral falls c.language eh „en…".
-
-
-
-### ✅ Trickplay 4K-Files schlugen massenhaft mit „signal: killed" fehl (2026-05-10)
-- **Symptom:** 146 Failed-Items im Trickplay-Manager, davon 142× nur
-  `ffmpeg: signal: killed ()` mit leerem stderr. Betroffen fast nur
-  4K-h264-60fps-Files (3840×2160 / 4096×2160), 13–78 min, 20–32 Mbps.
-- **Ursache:** `fps=1/10` ist nur ein Output-Filter — der Decoder muss
-  trotzdem JEDEN Frame durchlaufen, auch wenn nur 1 von 600 ausgegeben
-  wird. Bei 4K-60fps sind das hunderttausende Frames pro File. Timeout
-  `dur/10 + 120s` reichte für 78-min-File nicht (= ~10 min Cap).
-- **Lösung (in `internal/trickplay/worker.go`):**
-  1. **`-skip_frame nokey`** vor `-i` → Decoder gibt nur Keyframes raus,
-     ~50× schneller. Bei typischem Keyframe-Abstand ≤5s bleibt jeder
-     Sprite-Slot (10s-Intervall) nah genug am Soll-Timestamp.
-  2. **`-err_detect ignore_err -fflags +discardcorrupt+genpts`** → kaputte
-     NAL-Units / Invalid-Stream-Daten brechen ffmpeg nicht mehr ab.
-  3. **Erweiterte Fallback-Pattern**: `Could not find ref`, `Failed to
-     inject frame`, `Failed to query surface`, `hwdownload` triggern jetzt
-     auch den Software-Fallback.
-  4. **Klarere Timeout-Meldung**: wenn `tctx.Err() == DeadlineExceeded`,
-     bekommt der User `"timeout nach 10m0s"` statt `signal: killed ()`.
-  5. **Timeout-Bump**: `dur/5 + 5min` statt `dur/10 + 2min` (29-min-File
-     bekommt jetzt ~11 min Timeout, 80-min-4K ~21 min). Caps bleiben.
-- **Resultat:** 146 → 1 Fehler (das eine ist ein kaputtes mp4 ohne
-  Streams). „↻ Fehler erneut versuchen" gerollt — fast alle durch.
-- **NICHT zurückbauen:** `-skip_frame nokey` ist die Hauptmedizin gegen
-  4K-Timeouts; die Fallback-Pattern + Tolerance-Flags fangen den
-  Rest auf.
-
-### ✅ `COLLATE NATURAL` ist SQLite-Reserved-Word — bricht ORDER BY (2026-05-11)
-- **Symptom:** Nach Einbau einer Custom-Collation für Natural-Sort
-  (Zahlen als ganze Werte) reagierte `/api/items?sort=title` mit HTTP 500
-  `SQL logic error: near "NATURAL": syntax error`. User konnte keine
-  Bibliotheken mehr wechseln.
-- **Ursache:** `NATURAL` ist in SQLite reserviertes Keyword (für
-  `NATURAL JOIN`). Bei `ORDER BY … COLLATE NATURAL` parst der Tokenizer
-  das als beginnenden NATURAL-JOIN-Ausdruck und failt.
-- **Lösung:** Collation umbenannt auf `NATSORT` (registriert in
-  `internal/store/sqlite.go` via `sqlite.MustRegisterCollationUtf8`,
-  Impl in `internal/store/collation.go`). Gleiches Verhalten,
-  funktioniert in ORDER-BY-Klauseln.
-- **NICHT zurück auf `NATURAL`** — und generell: bei neuen Custom-SQL-
-  Identifiern (Collations, Funktionen, Spalten-Aliasen) IMMER vor Push
-  einen echten Query gegen die DB feuern, Go-Unit-Tests fangen
-  Reserved-Word-Konflikte nicht.
-
-### ✅ Sort „Veröffentlicht" sortierte nach Datei-mtime statt Kino-Release (2026-05-08)
-- **Symptom:** „Veröffentlicht"-Sortierung in Filme-Lib gab durcheinandere
-  Reihenfolge — Kachel zeigt z. B. "2025", Sortierung packt den Film
-  irgendwo zwischen 1990er-Filme. Browser + App gleichermaßen betroffen.
-- **Ursache:** `internal/store/sqlite.go` `case "released"` sortierte nach
-  `COALESCE(i.released_at, i.mod_time)` — also ffprobe-creation_time bzw.
-  File-mtime der Datei auf Disk. Das ist meist das Encoding-/Download-
-  Datum, NICHT das Kino-Release. Aber die Kachel zeigt `metadata.year`
-  vom TMDB. → Sortierung passte nie zum Anzeige-Datum.
-- **Lösung:** SortKey auf `metadata.release_date` umgestellt mit
-  Fallback-Kette:
-  ```sql
-  COALESCE(
-    NULLIF(m.release_date, ''),                            -- TMDB primary
-    CASE WHEN m.year>0 THEN printf('%d-01-01', m.year) END, -- Jahr-only
-    (SELECT mp.release_date FROM metadata mp                -- Episoden
-       WHERE mp.id = m.parent_id AND mp.release_date != ''),
-    i.released_at,                                          -- YouTube/yt-dlp
-    i.mod_time                                              -- last resort
-  )
-  ```
-- **NICHT** zurück auf `i.released_at` — da steht das Wrong Date drin.
-  Wer einen TMDB-Match hat, soll TMDB-Datum sehen UND danach sortieren.
-
-### ✅ Stack-Update via Portainer-API zerstört Stack-Env-Variablen (2026-05-08)
-- **Symptom:** Nach mehreren `PUT /api/stacks/37`-Calls antwortete
-  `https://goldfish.<your-domain>/api/auth/oidc/login` mit **503 „SSO nicht
-  konfiguriert"**. Browser-SSO-Login tot. App war nicht betroffen, weil sie
-  Email/Passwort nutzt.
-- **Ursache:** Portainer-Stack-Update löscht das `Env`-Array, wenn der
-  PUT-Body nur `{"stackFileContent": ..., "prune": false, "pullImage": false}`
-  enthält. Das Compose-File nutzt `${OIDC_*:-}`-Substitution → bei leerer
-  Stack-Env wird der Container mit leeren OIDC-Werten gestartet → goldfish.go
-  schaltet OIDC-Routes auf 503.
-- **Lösung:** Beim Stack-Redeploy IMMER das `env`-Array mitsenden — entweder
-  vorher per `GET /api/stacks/37` rausziehen und 1:1 zurück schreiben, oder
-  explizit die 4 OIDC-Vars setzen. Memory: `project_stack_env_pitfall.md`.
-- **NICHT** wieder vergessen — der Bug zerstört SSO ohne Vorwarnung.
-
-### ✅ DeepL-API-Key wurde als maskierter String in der DB gespeichert (2026-05-08)
-- **Symptom:** Whisper-VTTs für `de` und `en` waren bytegleich, kein
-  Übersetzungsfehler im Log, aber Text war englisch. DeepL-Test mit dem
-  echten Key (vom User-Screenshot) lieferte 200, vom Server aus 403.
-- **Ursache:** Klassischer Mask-Save-Roundtrip-Bug. `whisperGetSettings`
-  gab `deeplKey` maskiert (`a22e…d:fx`) zurück. Frontend füllte das
-  `<input>`-Feld damit. Beim Save schickte die UI den maskierten Wert
-  zurück → Server überschrieb DB-Wert mit der Maske → DeepL antwortet
-  auf den Müll-Key mit 403. Mein zweiter Bugfix in `TranslateVTT`
-  (Original-Zeile bei Fehler behalten) maskierte das zusätzlich, weil
-  alle Cues unverändert blieben.
-- **Lösung:** Server gibt API-Keys NICHT mehr zurück, nur ein bool
-  `deeplKeySet`/`libreKeySet`. Save überschreibt Keys nur wenn das Feld
-  nicht leer ist und keine Maske (`…` oder `***`) enthält. Frontend zeigt
-  Placeholder „(gespeichert — leer lassen zum Behalten)".
-- **NICHT** auf den maskKey-Roundtrip zurück. Wenn ein neues Setting einen
-  Secret-Wert hat: bool-Indikator + leeres Eingabefeld, nie maskieren-und-
-  zurückschicken.
-
-### ✅ Server-Buffer springt zyklisch alle ~60 s auf 0, Wiedergabe stallt (2026-05-02)
-- **Symptom:** Bei Transcode-Wiedergabe alle ~60 s Sprung der
-  Server-Buffer-Anzeige auf 0, Browser-Buffer waechst nicht weiter,
-  Video stoppt. Sehr wiederkehrend, betrifft jede Wiedergabe ueber 1 min.
-- **Ursache:** `Manager.ConsumeFresh` hatte als Idempotenz ein 60-s-
-  Wallclock-Fenster. VHS laedt aber EVENT-Playlists **kontinuierlich**
-  mit `fresh=1` in der URL. Nach 60 s lief das Fenster ab, die naechste
-  Reload kam durch, ConsumeFresh sagte „OK", `StopSession` killte die
-  laufende ffmpeg-Session, `StartOrGet` startete frisch von vorn →
-  Browser-Buffer leer, Stall. Loop alle 60 s.
-- **Fix:** Discriminator von Wallclock auf den `_t`-URL-Token umstellen.
-  Das Frontend setzt `_t=Date.now()` einmalig pro `applyPlayback`-Aufruf.
-  VHS-Reloads behalten denselben Token (= no-op), ein echter Player-Open
-  generiert einen neuen Token (= killen+neu starten ist erlaubt).
-  Manager-Field `freshHandledAt map[string]time.Time` →
-  `freshTokens map[string]string`. Caller in `transcodePlaylist`
-  uebergibt `r.URL.Query().Get("_t")` als Token.
-- **Niemals zurueck auf Wallclock-Fenster** — das ist der Bug, den wir
-  gerade beseitigt haben. Der Token ist die einzige zuverlaessige
-  Discrimination zwischen VHS-Reload und echtem User-Open.
-
-### ✅ Buffer-Counter steht 4–5 s, dann springt er hoch (HLS-Segment-Time + Keyframe-Intervall)
-- **Symptom:** Beim Klick auf „Abspielen" zeigt der Buffer-Counter im
-  Player ~4–5 s lang Null, dann springt er auf 4 oder 5. Manchmal
-  kurzer Hänger direkt nach diesen Sekunden.
-- **Ursache (zwei Schichten):**
-  1. Wir hatten `-hls_time 4` → ffmpeg liefert Segmente mit ~4 s Dauer.
-     Bis das erste fertig ist, gibt's nichts zum Abspielen.
-  2. Selbst nach dem Senken auf `-hls_time 2` blieben die Segmente
-     4–5 s lang. Grund: `-hls_time` schneidet **nur an Keyframes**.
-     Wenn die Quelle Keyframes alle 4–5 s hat (typisch fuer Releases),
-     ist das Segment-Minimum eben dieser Abstand. Ohne erzwungene
-     Keyframes greift `-hls_time` nicht wirklich.
-- **Fix:**
-  1. `-hls_time 2`.
-  2. **Plus** `-force_key_frames "expr:gte(t,n_forced*2)"` —
-     erzwingt beim Re-Encode einen Keyframe alle 2 s. Frame-Rate-
-     unabhaengig, funktioniert auf VAAPI / NVENC / libx264. Damit
-     greift `-hls_time 2` tatsaechlich.
-- **NICHT entfernen** ohne den Counter-Verzoegerungs-Bug zu kennen —
-  beides zusammen ist das Programm.
-
-### ✅ Transcode-Playback hängt nach genau 4 Sekunden (fresh=1 vs. VHS-Reloads)
-- **Symptom:** Beim Start eines Videos im Transcode-Modus läuft das Bild ~4 s
-  und stoppt dann. Skip-nach-vorn macht es wieder lauffähig. Sehr
-  reproduzierbar, betrifft fast jeden Initial-Play.
-- **Ursache:** Frontend hängt an die Initial-Playlist-URL `&fresh=1` an,
-  damit der Server eine evtl. stehengebliebene ffmpeg-Session beim
-  „Von Anfang"-Pfad zwangsstop'd. **Aber:** Video.js/VHS lädt eine HLS-
-  EVENT-Playlist periodisch neu — mit derselben URL inklusive `fresh=1`.
-  Der Playlist-Handler hat damit bei jedem Reload erneut `StopSession +
-  StartOrGet` ausgeführt → ffmpeg-Prozess wurde gekillt, neue Session
-  startete bei Null, hatte erst seg00000 in der Playlist (4 s Material)
-  → VHS spielte seg0, wollte seg1, das gab's nie weil die Session schon
-  wieder weg war. Skip-Nach-Vorn (`restartTranscodeAt` in `app.js`) baut
-  eine neue URL **ohne** `fresh=1` → idempotent, läuft sauber.
-- **Lösung:** `Session.StartedAt` als Wallclock-Timestamp eingeführt,
-  `Manager.SessionAge(...)` exposed die Lebensdauer. Im Playlist-Handler
-  (`internal/api/stream.go`, `transcodePlaylist`) wird `fresh=1` nur noch
-  honoriert, wenn keine Session läuft ODER die laufende ≥ 4 s alt ist
-  (= ein Segment, garantiert nicht aus dem aktuellen VHS-Reload-Zyklus).
-- **Was NICHT zu tun ist:**
-  - **NICHT** den `fresh=1`-Mechanismus „aufräumen" oder durch ein
-    One-Time-Token ersetzen, ohne den Decision-Log-Eintrag „Von Anfang
-    startet mitten im Film" weiter unten zu kennen — `fresh=1` ist
-    fundamental für korrektes „Von Anfang"-Verhalten.
-  - **NICHT** die 4-Sekunden-Schwelle für Idempotenz tiefer setzen
-    (z. B. 1 s) — VHS-Reload-Frequenz für EVENT-Playlists liegt bei
-    `target_duration` (= unsere `-hls_time 4`), tiefere Werte würden
-    Reloads als „neuer Play" missinterpretieren und das Symptom
-    zurückbringen.
-  - **NICHT** `fresh=1` clientseitig nach dem ersten Load aus der URL
-    strippen — die URL ist VHS' interne Quelle, ein nachträglicher
-    `vjs.src({...})` würde den Player komplett neu initialisieren und
-    den ggf. aktiven Fullscreen-Modus verlieren.
-  - **NICHT** das `StartedAt`-Feld aus `Session` entfernen oder
-    `SessionAge` aus `Manager` löschen — beides ist genau für diese
-    Idempotenz-Prüfung da.
-
-### ✅ „Ohne TMDB-Zuordnung"-Filter zeigt Serien, in denen man nichts findet
-- **Symptom:** Im TV-Library-Root mit Sort=„Ohne TMDB-Zuordnung" erscheinen
-  Serien wie Blacklist oder Alias als Folder-Kacheln, obwohl sie aus User-
-  Sicht vollständig gemappt sind. Beim Reinklicken sind alle Episoden mit
-  Poster da, kein Hinweis auf eine unmatched Datei. User reportet „ich finde
-  nichts".
-- **Ursachen (zwei kompoundiert):**
-  1. Der Filter sitzt im Sort-Dropdown (`unmatched` ist eine Pseudo-
-     Sortierung, semantisch aber globaler Filter). `loadItems()` ruft beim
-     Folder-Wechsel `restoreSortForContext()` auf, das pro-Folder gespeicherte
-     Sort-Einstellungen aus localStorage lädt — und überschreibt damit die
-     `unmatched`-Auswahl. Folge: Filter ist beim Eintritt weg, Grid zeigt
-     ALLE Episoden inkl. der gemappten.
-  2. Falls Staffel-Ansicht aktiv ist (per-Library-Default oder per-Folder-
-     Override), springt `loadItems()` früh in den Seasons-API-Branch und
-     ignoriert `match=unmatched` komplett. `series.go` zieht zwar unmatched
-     Items in die Owned-Map, aber NUR wenn der Parser ein `SxxExx` aus dem
-     rel_path bekommt (`p.IsEpisode && p.Season > 0 && p.Episode > 0`). Eine
-     Datei wie `Blacklist/Behind The Scenes.mkv` oder `Blacklist/Extras/
-     Trailer.mkv` hat keine Episoden-Nummerierung und taucht in der Staffel-
-     Ansicht nirgends auf.
-- **Lösung (`internal/webassets/web/app.js`):**
-  1. Neuer Set `PSEUDO_FILTER_MODES = {unmatched, favorites, duplicates,
-     suspicious, interlaced}`. `persistSortForContext` speichert diese Modi
-     nicht mehr per-Folder (sind globale Filter, keine Sortierung).
-     `restoreSortForContext` returnt früh, wenn aktuell ein Pseudo-Modus
-     gewählt ist — der Filter bleibt beim Folder-Wechsel aktiv.
-  2. Vor dem Staffel-Ansicht-Branch wird `currentMatchMode()` einmal
-     berechnet (`matchMode`). Bei `matchMode === "unmatched"` wird der
-     Branch übersprungen, das normale flache Items-Grid rendert mit dem
-     Filter — unmatched Bonus-/Extras-Dateien sind sichtbar.
-- **Generelles Pattern:** UI-States, die im selben Widget wohnen aber
-  unterschiedliche Semantik haben (Sortierung vs. Filter), brauchen
-  getrennte Persistenz-Strategien. „Per-Folder gespeichert" ist nur für
-  echte Sortier-Vorlieben sinnvoll, nicht für Filter, die der User global
-  aktiviert hat.
-
-### ✅ „Von Anfang" startet mitten im Film (HLS-Live-Edge + Server-Session-Carryover)
-- **Symptom:** User wählt „⟲ Von Anfang" im Resume-Dialog, Film startet aber
-  mitten drin (manchmal Minuten voraus). Erster Versuch nach Container-Start
-  klappt oft, jeder weitere springt immer weiter rein. Bei Direct Play
-  gelegentlich ähnlich.
-- **Ursachen (mehrere Schichten, alle aufgesetzt):**
-  1. HLS-Playlist ohne `#EXT-X-PLAYLIST-TYPE` → VHS erkennt sie als Live-
-     Stream und snappt beim `play()` zur Live-Edge.
-  2. ffmpeg `-hls_flags append_list` schreibt `#EXT-X-DISCONTINUITY` vor das
-     erste Segment → VHS sieht das als Gap am Start und lädt bei time=0 nichts.
-  3. Video.js reuse path: `vjs.src({...})` reset currentTime zwar theoretisch,
-     aber bei manchen Szenarien bleibt die alte Position hängen.
-  4. Kein expliziter `currentTime(0)`-Call bei Direct-Play-„Von Anfang" —
-     browser startet bei undefined position.
-  5. **Root-Cause für die zweiten/dritten Versuche (2026-04-27):**
-     `Manager.StartOrGet` cached Sessions per `(itemID, profile, audio,
-     startSec, deinterlace)`. Eine Session bei `startSec=0` lebt nach
-     Player-Close noch 5 Min weiter (Idle-GC) und transkodiert in der Zeit
-     ungefragt weiter — Material akkumuliert. Beim zweiten „Von Anfang"-
-     Klick matched StartOrGet die alte Session mit der bereits langen
-     Playlist. Browser bekommt eine Playlist mit z. B. 530 s Material,
-     VHS springt da rein.
-- **Lösung (alle 5 Punkte zusammen, jeder einzelne reicht NICHT):**
-  1. ffmpeg-Args: `-hls_playlist_type event` + `-hls_flags independent_segments`
-     (append_list raus, EVENT-Type rein).
-  2. Playlist-Rewriter strippt eine leading `#EXT-X-DISCONTINUITY`.
-  3. Direct Play UND Transcode: `vjs.one("loadedmetadata", () => currentTime(localStart))`
-     wird IMMER registriert in beiden Branches (Reuse + Neu) — `localStart=0`
-     bei Transcode (Resume-Offset steckt in der URL), bei Direct Play =
-     resumeForDirectPlay.
-  4. Beim „Von Anfang"-Klick im Resume-Dialog: sofort `PUT /api/items/:id/resume`
-     mit `{positionSec: 0}` um die alte DB-Position zu clearen.
-  5. **Server-Session-Reset bei „Von Anfang":** Frontend hängt `&fresh=1`
-     an die Transcode-URL wenn `resumeSec===0`. Server liest den Param,
-     ruft `Manager.StopSession(...)` BEVOR `StartOrGet` — alte Session wird
-     beendet, `cleanDir` löscht den Cache-Ordner, ffmpeg startet komplett
-     neu mit leerer Playlist. Plus `_t=<timestamp>` Cache-Bust an der URL
-     verhindert dass VHS bei identischer URL eine alte Source-Position aus
-     dem Browser-Memory wiederverwendet.
-- **NICHT-Funktioniert (vermeiden, schon probiert):**
-  - Nur `currentTime(0)` im Frontend setzen — half nicht, weil Server immer noch
-    fortgeschrittene Playlist liefert und VHS dort irgendwo landet.
-  - Nur `_t=<timestamp>` Cache-Bust — half nicht, weil Server-Side bei
-    `start=0` die exakt gleiche Session matched (`_t` ist nur URL-Cosmetics).
-  - `currentTime(0)` aggressiv im Buffer-Gate-Polling setzen — VHS' Segment-
-    Loader gerät dadurch in einen Seek-Loop, Buffer wächst nicht.
-  - Den Reuse-Pfad komplett vermeiden (`disposePlayer` immer) — kostet
-    Vollbild-Modus beim Shuffle-Next, der User hat das beim Test gemerkt.
-  - Lösung steht und fällt mit Punkt 5: ohne Server-Side-Reset gibt es
-    keinen verlässlichen Weg, die alte Session-Position auf 0 zu zwingen.
-
-### ✅ Duplikate-Filter zeigte falsche / fehlende Filme (2026-04-28)
-- **Symptom:** „Sort = Duplikate" in einer Library zeigte nicht alle Filme,
-  von denen der User wusste, dass er 2 Versionen hat. Im Standard-Grid
-  hatten dieselben Filme aber `×2`-Badges. Plus: nach späterem Fix wurden
-  auch Episoden + Privatvideos eingemischt, wenn man in einer Movies-Lib
-  war (Wildes Kanada in Bluray-Duplikaten o. ä.).
-- **Ursachen (in der Entdeckungs-Reihenfolge):**
-  1. **Frontend mischt eigene Filter rein.** Der Duplikate-Branch schickte
-     bisher zusätzlich `watched`, `favorite` und `resolution`-Buckets an den
-     Server. Bei aktivem „nur ungesehen"-Watched-Filter UND zwei gesehenen
-     Versionen verschwand der Film komplett. Bei „nur 1080p"-Filter +
-     einem Film mit 1080p+4K war nur eine Version sichtbar.
-  2. **Inkonsistenz Server-Filter vs. Variant-Count.** Eine andere
-     Session hat heute Mittag `attachVariantCounts` eingebaut, das
-     library-übergreifend zählt — daher zeigte das Badge `×2` auch für
-     Filme, deren zweite Version in einer anderen Library liegt (Bluray-
-     Variante + Filme-Variante). Der DupesOnly-SQL-Filter prüfte aber
-     nur library-spezifisch (`WHERE library_id = i.library_id` in der
-     HAVING-Subquery) → Filme mit cross-library-Duplikaten wurden NICHT
-     gefunden.
-  3. **Library-Type-Mismatch nach erstem Fix.** Sobald der DupesOnly-
-     Subquery-Library-Filter raus war, kamen Episoden-Duplikate aus
-     Serien-Lib und Doku-Duplikate aus Privat-Libs in den Bluray-View
-     mit rein.
-- **Lösung (drei zusammenwirkende Schritte):**
-  1. **Frontend (loadItems duplicates-Branch):** keine `libraryId`,
-     keine `watched`, keine Resolution-Buckets mitsenden — nur
-     `duplicates=yes` + Suche. Damit kommen alle Versionen aller
-     Duplikate vom Server zurück, ohne dass User-Filter Versionen aus
-     dem Vergleichs-View kicken.
-  2. **Server (DupesOnly-Filter):** HAVING-Subquery ohne `library_id`-
-     Bedingung → Duplikat = `metadata_id` taucht global ≥2× auf,
-     konsistent zu `attachVariantCounts`.
-  3. **Frontend (kind-aware Filterung nach Empfang):**
-     `currentLib.kind` bestimmt, welche Libraries einbezogen sind:
-     `kind=movies` (Bluray + Filme zusammen), `tv` (alle Serien-Libs),
-     `private` (alle Privat-Libs). Nach diesem Filter wird die
-     `metadata_id`-Häufigkeit nochmal client-seitig nachgezählt — sonst
-     bleiben „Geister-Singletons" zurück, deren Geschwister durch den
-     Kind-Filter rausgefallen ist. Breadcrumb: „⧉ Duplikate (alle
-     Filme/Serien/Privatvideos)".
-- **NICHT-Funktioniert (vermeiden, schon probiert):**
-  - Nur Frontend-Filter weglassen → `watched`/`resolution`-Probleme
-    behoben, aber library-übergreifende Duplikate fehlen weiter.
-  - Nur Server-SQL global machen → cross-library erkannt, aber Episoden
-    + Privatvideos kontaminieren den Movies-Duplikate-View.
-  - Server-side neuen `library_kind`-Filter einführen → mehr Schema/API-
-    Fläche; client-seitige Kind-Filterung ist einfacher und reicht.
-
-### ✅ Buffer-Overlay ignoriert Docked-Position
-- **Symptom:** Nach Einführung der Docked-Darstellung (Streifen unter Bild im
-  eingebetteten Modus) saß das Overlay weiterhin oben rechts ÜBER dem Video,
-  als wäre `--docked` nie gesetzt worden. DevTools zeigte das Element im
-  richtigen DOM-Parent (`.player-wrap`), aber ohne die Klasse.
-- **Ursache:** `startBufferDisplay.setClass` machte `el.className = "transcode-ahead"`
-  bei jedem Poll-Tick (mehrmals pro Sekunde). Das löschte `transcode-ahead--docked`
-  sofort wieder, direkt nach dem Setzen durch `positionBufferOverlay`.
-- **Lösung:** `setClass` toggelt nur noch die Status-Marker (`behind`/`low`)
-  via `classList.add/remove`. Generell: wenn mehrere Codepfade Klassen auf
-  demselben Element pflegen, `className =` niemals benutzen.
-
-### ✅ Billions Staffel 2 komplett um eins verschoben
-- **Symptom:** In einer TV-Show (konkret Billions S2) waren alle Dateien um
-  eine Episode verschoben gematcht — File E7 zeigte auf TMDB-E6, File E6 auf
-  E5, usw. „↻ TMDB neu laden" half nicht (Problem lag in den persistierten
-  `items.metadata_id`, nicht im TMDB-Cache). Manuelles Umzuordnen einzelner
-  Files erzeugte Kaskaden-Probleme, weil dann die Nachbarposition frei wurde.
-- **Ursache:** Systematischer Enricher-Fehler für diese Show — vermutlich
-  Parser-Missinterpretation eines Release-Tokens in den Dateinamen, der
-  einen anderen Episoden-Code suggerierte.
-- **Lösung:** Neuer Admin-Endpoint + Button „⚠ Episoden neu zuordnen" im
-  Show-Header. Setzt für ALLE Episoden-Items im Ordner (auch bestätigte!)
-  `metadata_id=NULL`, `metadata_confirmed=0`, `episode_end=0` und triggert
-  `EnrichFolderNow`. Show-Folder-Zuordnung bleibt unangetastet. Nach 4 s lädt
-  die Ansicht mit `?refresh=true` neu. Für Billions sofort gelöst.
-
-### ✅ DOM-Builder async gemacht → komplett schwarze Seite
-- **Symptom:** Nach einem Bulk-Replace von `alert/confirm/prompt` auf die
-  neuen App-Dialoge rendert das Grid nichts mehr. Die Kacheln erscheinen
-  nicht, obwohl die Items geladen sind.
-- **Ursache:** Mein Sed-Skript hat alle `function foo()`, deren Body
-  textuell `await` enthält, auf `async function` umgestellt. Das hat auch
-  `renderCard`, `renderFolderCard`, `resLabel`, `hidePartButton` erwischt —
-  deren inner event-handler haben await, aber die äußere Funktion selbst
-  nicht. Async-gemachte Builder geben `Promise<Element>` statt `Element`
-  zurück, `frag.appendChild(promise)` produziert einen leeren Node.
-- **Lösung:** Die vier Builder explizit zurück auf `function` setzen. Für
-  zukünftige Refactors: Body-Scope korrekt parsen (Klammer-Matching), nicht
-  textuelle Suche. DOM-Builder DÜRFEN NICHT async werden, egal was intern
-  passiert.
-
-### ✅ NVENC-Trickplay crasht mit „Failed to inject frame into filter network"
-- **Symptom:** Mit `-hwaccel cuda -hwaccel_output_format cuda` und der
-  normalen Trickplay-Filter-Chain bricht ffmpeg mit
-  „Impossible to convert between the formats supported by the filter
-  'Parsed_fps_0' and the filter 'auto_scale_0' Error reinitializing
-  filters! Failed to inject frame into filter network: Function not
-  implemented".
-- **Ursache:** `-hwaccel_output_format cuda` hält die Frames nach dem Decode
-  auf der GPU. Unsere Software-Filter (fps/scale/pad/tile) erwarten
-  CPU-Frames und können das cuda-Frame-Format nicht lesen.
-- **Lösung:** `-hwaccel_output_format cuda` weglassen → Frames werden
-  automatisch ins CPU-RAM kopiert (was bei fps=1/10 vernachlässigbar ist,
-  weil nur wenige Frames anfallen). Die Software-Filter-Chain funktioniert
-  unverändert. Gleiches Pattern beim Transcode: `-hwaccel cuda -i … -vf
-  <scale> -c:v h264_nvenc` — ffmpeg lädt automatisch zum Encoder hoch.
-
-### ✅ Container crasht mit „driver not loaded" beim ersten NVIDIA-Deploy
-- **Symptom:** Nach Aktivierung von `runtime: nvidia` in der Compose schlägt
-  Stack-Update mit `nvidia-container-cli: initialization error: nvml error:
-  driver not loaded` fehl. Container startet gar nicht.
-- **Ursache:** NVIDIA-Plugin auf dem Unraid-Host war installiert, aber der
-  Kernel-Treiber noch nicht geladen (z. B. weil das Plugin nach einem
-  Kernel-Update noch auf Install-State stand).
-- **Lösung:** Auf Unraid-WebUI den Treiber-Status prüfen, ggf. neu laden
-  (oder Host neustarten). `nvidia-smi` auf dem Host muss funktionieren,
-  bevor `runtime: nvidia` im Compose gesetzt werden kann. Für Default-
-  Template: `runtime: nvidia`-Zeile als Kommentar drin lassen, damit Nutzer
-  ohne NVIDIA das Template ohne Änderungen starten können.
-
-### ✅ Episoden ohne TMDB-Still-Image zeigen Release-Filename als Titel
-- **Symptom:** NCIS Sydney S03E16 „Folge 16" (TMDB-Platzhalter ohne
-  still_path) rendert im Grid mit `NCIS.Sydney.S03E16.GERMAN.DL.720p.WEB.
-  h264-SAUERKRAUT` als Titel, statt „NCIS Sydney" + S03E16 wie die
-  anderen Folgen.
-- **Ursache:** In `renderCard` war das Episode-Handling gekoppelt an
-  `if (it.metadata && it.metadata.posterPath)`. Wenn TMDB keinen
-  still_path liefert, fällt der Code in den else-Zweig (thumb/placeholder)
-  und überspringt das gesamte Episode-Styling.
-- **Lösung:** Die Episode-Logik (showName aus rel_path[0] als Titel,
-  SxxExx + Episodentitel als Meta) läuft jetzt unabhängig vom
-  posterPath-Check. Poster/Thumb-URL wird separat bestimmt.
-
-### ✅ Manueller Show-Re-Match zeigt alle Folgen als „Fehlt"
-- **Symptom:** User ordnet einen TV-Folder via „Manuell zuordnen" einer
-  anderen Show zu. `folder_metadata` wird korrekt aktualisiert, aber in
-  der Staffel-Ansicht erscheinen alle Folgen als „Fehlt".
-- **Ursache:** Die einzelnen Episoden-Items behalten ihre alten
-  `metadata_id`-Verweise auf Episoden der **alten** Show. Die
-  Staffel-API vergleicht parent_id mit der neuen showTMDBID → keine Treffer.
-  Der Enricher würde sie neu matchen, skippt aber `metadata_id > 0`.
-- **Lösung:** `UnmatchEpisodesInFolder(libID, folder, newShowTMDB)` setzt
-  alle Items mit Episoden-Metadata, deren Parent-Show eine andere
-  TMDB-ID hat, auf `metadata_id=NULL`. Respektiert
-  `metadata_confirmed=1` (bestätigte Items bleiben). Wird automatisch
-  aus `setFolderMetadata` aufgerufen, danach `EnrichFolderNow`.
-
-### ✅ VAAPI schlägt zur Laufzeit fehl trotz whitelisted Codec
-- **Symptom:** Trickplay-Jobs für bestimmte h264-Files brechen mit
-  `Failed setup for format vaapi: hwaccel initialisation returned error.`
-  oder `Function not implemented` ab. Betrifft zufällig einzelne Dateien,
-  obwohl Codec=h264 ist und `vaapiSupportsCodec()` true liefert.
-- **Lösung:** Im `ffmpeg`-Runner nach VAAPI-Fehler automatisch ohne
-  `-hwaccel`-Header erneut ausführen. Trigger-Substrings: „hwaccel
-  initialisation", „Function not implemented", „No support for codec".
-  Implementiert im Trickplay-Worker; gleiches Pattern sollte auf andere
-  ffmpeg-Runner übertragen werden, falls sie auf HW setzen.
-
-### ✅ `-vf` vor `-i` bricht ffmpeg sofort ab
-- **Symptom:** Alle Trickplays scheitern mit „Option vf (set video filters)
-  cannot be applied to input url … Move this option before the file it
-  belongs to".
-- **Ursache:** Beim Refactor wurde `-vf` vor `-i` gestellt. ffmpeg wertet
-  Optionen relativ zu den Input-/Output-URLs — `-vf` muss IMMER **nach**
-  `-i <input>` stehen, sonst ist es ein Input-Filter, der nicht implementiert
-  ist.
-- **Lösung:** Strikte Reihenfolge: `[-hwaccel …] -i <input> -vf <filter>
-  [output-opts] <output>`.
-
-### ✅ Cinemascope-Filme (21:9) landen im 720p-Bucket
-- **Symptom:** 1920×800-Filme wie Robin Hood 2010 werden als 720p angezeigt
-  und vom 1080p-Filter ausgeschlossen.
-- **Ursache:** `resLabel` und Bucket-SQL haben nur `height` betrachtet. Bei
-  Cinemascope ist die Pixel-Höhe ~800, obwohl die horizontale Auflösung volles
-  1080p-Niveau hat.
-- **Lösung:** Effektive Höhe = `MAX(height, width * 9 / 16)`. Greift
-  sowohl im Client (`resLabel`) als auch in der Server-Bucket-Filter-SQL.
-
-### ✅ Buffer-Overlay verschwindet nach 2 s Inaktivität
-- **Symptom:** Anzeige „Buffer +N s · Auflösung" nur kurz sichtbar, kommt
-  nicht zuverlässig beim Mouse-Move wieder.
-- **Ursache:** Overlay war an Video.js-Events `useractive`/`userinactive`
-  gekoppelt — bei 2 s Idle entfernt Video.js die `is-active`-Klasse und CSS
-  blendet auf Opacity 0. Bei wiederkehrendem Hover kam die Klasse nur kurz
-  zurück.
-- **Lösung:** `is-active` beim Player-Start permanent setzen, kein Binding
-  an die Aktivitäts-Events mehr. Außerdem `stopTranscodeProgress` stoppt
-  nur den Poll-Timer; die Klasse `hidden` wird ausschließlich in
-  `hideBufferOverlay` (Player-Close) gesetzt.
-
-### ✅ Sammlungen zeigen Pseudo-Collections mit nur 1 Film
-- **Symptom:** 385 Sammlungen in der UI, viele davon mit movieCount=1 —
-  TMDBs `belongs_to_collection` markiert jeden Franchise-Fortsetzungs-Film,
-  auch ohne weitere Teile in der Lib. User möchte aber auch 1-Film-Sammlungen
-  sehen (vielleicht kommt ja noch was dazu).
-- **Lösung Iteration 1 (abgelehnt):** `HAVING COUNT(m.id) >= 2`.
-- **Lösung Iteration 2 (final):** `EXISTS (≥1 Film)` — 1-Film-Sammlungen
-  bleiben drin. **Aber** `movieCount = COUNT(DISTINCT m.id)` statt
-  `COUNT(DISTINCT i.id)` — so zählt Merge-Duplikate nicht als 2 Filme.
-
-### ✅ Missing Parts nicht klickbar
-- **Symptom:** „Fehlt"-Kacheln in Sammlungen waren tote Placeholder — keine
-  Plot/Cast-Info, obwohl TMDB diese Daten hätte.
-- **Lösung:** Neuer Endpoint `GET /api/tmdb/movie/{tmdbId}` proxy't Movie +
-  Credits. Frontend-Dialog `#missingMovieDialog` rendert Poster/Plot/Rating/
-  Cast/IMDb-Link; Klassen `modal detail-modal` halten das Layout identisch
-  mit dem echten Detail-Dialog.
-
-### ✅ Intel Quick Sync (`h264_qsv`) schlägt fehl
-- **Symptom:** `Error initializing an internal MFX session: unsupported (-3)` trotz
-  vorhandenem iHD-Driver.
-- **Ursache:** libmfx-Runtime und Intel Media Driver nicht kompatibel in diesem Container.
-- **Lösung:** Stattdessen **VAAPI** (`h264_vaapi` mit `-vaapi_device /dev/dri/renderD128`
-  und `-vf format=nv12,hwupload`) verwenden — gleiche iGPU-Hardware, robusterer Pfad.
-- **UI-Hinweis:** Wird trotzdem als „Intel Quick Sync (VAAPI)" angezeigt, weil
-  Marketing-Name = Hardware-Feature.
-
-### ✅ Port 8096 blockiert durch Jellyfin im host-network-Mode
-- **Symptom:** Deploy schlägt fehl mit „bind: address already in use" obwohl `docker ps`
-  keinen 8096-Eintrag zeigt.
-- **Ursache:** Jellyfin läuft im `host`-Netzwerkmodus → belegt Host-Ports ohne in der
-  Docker-API-Ports-Liste zu erscheinen.
-- **Lösung:** Videoplayer auf Port **8098** (Mapping `8098:8096`).
-- **Mitigation:** Vor Deploys Container mit `HostConfig.NetworkMode == "host"`
-  zusätzlich prüfen.
-
-### ✅ TopLevelFolders liefert nur 1 falschen Ordner
-- **Symptom:** Youtube-Bibliothek zeigte 1 Ordner „Wilma Hofleben" mit 257 Videos statt
-  26 Kanal-Ordner.
-- **Ursache:** `SELECT SUBSTR(...) AS folder ... GROUP BY folder` mit LEFT JOIN auf
-  `folder_metadata.folder` — SQLite resolved den Alias zweideutig, gruppierte nach dem
-  NULL-fm.folder statt dem Items-Alias.
-- **Lösung:** Aggregation in Subquery, JOIN erst danach:
-  ```sql
-  SELECT f.folder, f.cnt, ... FROM (
-    SELECT SUBSTR(rel_path, ...) AS folder, COUNT(*) AS cnt, ...
-    FROM items WHERE ... GROUP BY folder
-  ) f
-  LEFT JOIN folder_metadata fm ON fm.library_id = f.library_id AND fm.folder = f.folder
-  ```
-
-### ✅ Migration scheitert bei Bestands-DB
-- **Symptom:** Container-Restart-Loop mit `no such column: released_at` — Index auf
-  noch-nicht-existierender Spalte.
-- **Ursache:** `CREATE INDEX ON items(released_at)` wurde VOR `ALTER TABLE items
-  ADD COLUMN released_at` ausgeführt.
-- **Lösung:** Baseline-Statements (CREATE TABLE), dann idempotente `ALTER TABLE ADD
-  COLUMN` (duplicate-column-Fehler wird ignoriert), dann erst die Indizes.
-
-### ✅ YouTube-Upload-Datum wurde nicht erkannt
-- **Symptom:** `releasedAt` war identisch mit File-mtime (Download-Datum).
-- **Ursache:** yt-dlp schreibt das Upload-Datum als MKV-Tag **`DATE`** im Format
-  `YYYYMMDD` (keine Bindestriche). Mein Parser suchte nur nach `creation_time` und
-  bekannten RFC-Formaten.
-- **Lösung:** Case-insensitive Tag-Lookup inkl. `DATE`, zusätzliches Layout `"20060102"`.
-
-### ✅ Go-Embed-Pfad war falsch
-- **Symptom:** `//go:embed all:web: no matching files found` beim Docker-Build.
-- **Ursache:** `//go:embed all:web` in `cmd/videoplayer/main.go` suchte `cmd/videoplayer/web/`.
-- **Lösung:** Eigenes Package `internal/webassets/` mit `web/`-Unterordner und Embed-Direktive.
-
-### ✅ macOS-xattrs blockieren Docker-Build
-- **Symptom:** Build bricht mit `lsetxattr com.apple.provenance ...: operation not supported`.
-- **Lösung:** Tar mit `COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata …`.
-
-### ✅ Manuelles Show-Matching triggert keine Episoden
-- **Symptom:** Nach manuellem TMDB-Match einer Serie blieben die Episoden lange
-  ungematcht.
-- **Ursache:** `Trigger()` stieß den allgemeinen Worker-Loop an, der viele andere
-  Items zuerst abarbeitete.
-- **Lösung:** `Worker.EnrichFolderNow(libraryID, folder)` — dedizierte Goroutine nur
-  für diesen Ordner, umgeht die 5-Minuten-Ticker-Latenz.
-
-### ✅ chi registriert HEAD nicht automatisch für GET-Routen
-- **Symptom:** Trickplay-Hover erschien nie, obwohl `sprite.jpg` + `thumbs.vtt`
-  auf Disk vorhanden waren.
-- **Ursache:** Client-seitiger `fetch(url, { method: "HEAD" })` gegen
-  `/api/trickplay/{id}/thumbs.vtt` bekam 405 zurück (chi v5 matcht nur die
-  registrierte Methode). `checkRes.ok` wurde false → Plugin-Init übersprungen.
-- **Lösung:** HEAD-Check raus, stattdessen `item.trickplayStatus === "done"`
-  aus der DB als Gate nutzen.
-
-### ✅ HLS-Segment-URIs verlieren Query-Parameter
-- **Symptom:** Beim Seek-Restart im Transcode startete das Video ab 0, obwohl
-  die neue Playlist `start=<X>` an den Server übergab.
-- **Ursache:** Die von ffmpeg geschriebene `index.m3u8` enthält relative
-  Segment-Dateinamen (`seg00000.ts`). Der Browser löst diese gegen die
-  Playlist-URL auf und lässt dabei die Query-Parameter weg → die
-  Segment-Handler-Requests hatten kein `?start=X` → fielen auf die Default-Session
-  mit startSec=0 zurück → Video spielte von vorne.
-- **Lösung:** `transcodePlaylist`-Handler liest die Playlist ein, hängt an jede
-  nicht-Kommentar-Zeile (Segment-URIs) die Query-Parameter an, und liefert
-  die umgeschriebene Version aus.
-
-### ✅ Go RE2 unterstützt keine Lookaheads
-- **Symptom:** Container im Crash-Loop nach Deploy. Panic:
-  `invalid or unsupported Perl syntax: '(?='`.
-- **Ursache:** Ich hatte ein Regex mit Lookahead `(?=[a-zA-Z])` in
-  `variants.go` verwendet — Go's `regexp`/RE2 unterstützt das nicht.
-- **Lösung:** Capture-Group statt Lookahead:
-  `^[a-z0-9]{2,7}-([a-zA-Z])` — der Rest beginnt an der Capture-Position.
-
-### ✅ Endlos-Backfill bei Cast-Einträgen ohne TMDB-Credits
-- **Symptom:** Filme bekamen nie Cast-Einträge, obwohl `backfillCast` lief.
-- **Ursache:** `MetadataIDsMissingCast` lieferte Metadata ohne
-  `metadata_cast`-Einträgen. Filme, bei denen TMDB leere Credits zurückgab,
-  blieben daher für immer auf der Backfill-Liste — jeder Run machte den
-  gleichen leeren Call.
-- **Lösung:** Neue Spalte `metadata.cast_fetched_at`. Nach jedem
-  `fetchMovieCast`/`fetchShowCast`/`fetchEpisodeGuests` wird sie gesetzt.
-  Der Backfill-Filter schaut darauf, nicht auf tatsächliche Cast-Zeilen.
-
-### ✅ Video.js Live-UI versteckt Progress-Bar bei progressiven HLS
-- **Symptom:** Beim Transcode verschwand die Progress-Bar sobald Wiedergabe
-  startete.
-- **Ursache:** Unsere wachsende Playlist ohne `#EXT-X-ENDLIST` wird von
-  Video.js als Live-Stream erkannt — `.vjs-live` wird gesetzt, und die
-  Default-CSS blendet Progress-Bar + Zeit-Controls aus.
-- **Lösung:** `liveui: false` in den Player-Optionen, zusätzlich CSS-Override
-  (`.vjs-progress-control { display: flex !important; }` etc.).
-  `forcePlayerDuration(vjs, total)` setzt zusätzlich eine stabile Dauer in
-  den `duration`-Cache, damit SeekBar und Zeit-Anzeigen sinnvoll arbeiten.
-
-### ✅ Jahr-als-Titel-Bug im Parser (1917, 1992)
-- **Symptom:** Filme mit Jahr als Titel (z. B. `1917.2019.German…`) blieben
-  unmatched; der Parser extrahierte „1917" als Release-Jahr und der Titel
-  wurde leer.
-- **Lösung:** Wenn das erste gefundene Jahr direkt am Anfang steht und ein
-  zweites Jahr existiert, wird das zweite als Release-Jahr genutzt und das
-  erste bleibt Titel-Teil.
-
-### ✅ Parser mismatch bei Release-Dateinamen wie `tvs-911-…-108.mkv`
-- **Symptom:** 28 verschiedene Dateien in 9-1-1 landeten alle auf derselben
-  Episode-Metadata (S9E11) → Grid zeigte eine Kachel mit `×28` statt
-  individuelle Episoden.
-- **Ursache:** Der Parser las aus der kryptischen Datei die „911" als 3-
-  stelligen Episoden-Code und interpretierte sie als S9E11. Jede Datei hatte
-  diese Zahl → alle wurden auf dieselbe Episode gematcht.
-- **Lösung:** `matchItem` prüft TV-Kontext nun dreistufig —
-  (1) strikter SxxExx/NxN im Dateinamen, (2) strikter SxxExx in Eltern-
-  Ordnern (die haben fast immer den korrekten Code), (3) erst zuletzt der
-  aggressive Parser mit numerischen Codes.
-- Zusätzlich Cleanup-Endpoint `POST /api/enrich/unmatch-duplicates?threshold=3`
-  → setzt `metadata_id=NULL` für TV-Items, deren `metadata_id` mehr als N mal
-  vorkommt; Re-Enrich läuft dann mit der neuen Parser-Logik.
-
-### ✅ SxxExx ohne Wort-Grenze davor (The MiddleS1E01.avi)
-- **Symptom:** Dateinamen ohne Trenner zwischen Titel und Episode-Code blieben
-  unmatched.
-- **Lösung:** `reSxxExx` ohne Anfangs-`\b` — `(?i)S(\d{1,2})\s*E(\d{1,3})…`.
-  `S+Digits+E+Digits` ist spezifisch genug, falsche Treffer in normalen
-  Wörtern unwahrscheinlich.
-
-### ✅ Fullscreen geht beim Shuffle-Next verloren
-- **Symptom:** Shuffle-Weiterschalten (⏭) im Vollbildmodus bricht Fullscreen.
-- **Ursache:** `applyPlayback` hat die Video.js-Instanz disposed und neu erzeugt →
-  Fullscreen ist an das alte `<video>`-Element gebunden, das weg ist.
-- **Lösung:** Wenn `state.vjs` existiert und nicht disposed ist, nur `vjs.src({...})` +
-  `vjs.play()` aufrufen; alte Remote-Text-Tracks vorher entfernen. Nur beim erstmaligen
-  Öffnen wird `new videojs()` aufgerufen (Events `timeupdate`/`ended` dort gebunden).
-
-### ✅ Obfuskierte Release-Namen werden nicht erkannt
-- **Symptom:** Filme wie `Sitrb.Langsam.1988.1080p.GERMAN.DL-group.mkv` blieben unmatched,
-  auch `empire-weho`-Varianten scheiterten.
-- **Ursachen:** (a) Datei-Parser lieferte nur Release-Group-Gibberish; (b) kein Fallback
-  auf Ordner-Namen; (c) keine Deleet-/Typo-Variante.
-- **Lösung:** `enrich.Worker` baut Kandidatenliste aus Datei + allen rel_path-Segmenten
-  rückwärts; pro Kandidat zusätzlich `ExpandCandidates` mit Deleet + Longest-Token-
-  Fallback. Dedup per Lowercase-Key.
-
-### ✅ Sample-Ordner verschmutzen Library und Enrichment
-- **Symptom:** Redundante „Sample"-Kacheln, zusätzliche Enrichment-Queue-Einträge.
-- **Lösung:** Scanner skippt Ordner mit Namen `Sample`/`Samples` per
-  `filepath.SkipDir` (case-insensitive).
-
-### ✅ whisper-cli: libwhisper.so.1 nicht gefunden (2026-05-05)
-- **Symptom:** `exit status 127 — whisper-cli: error while loading shared libraries: libwhisper.so.1`
-- **Ursache:** cmake baut whisper.cpp default als dynamische Library. Die `.so` wird
-  in den Build-Stage kopiert, aber nicht in den Runtime-Stage.
-- **Lösung:** `-DBUILD_SHARED_LIBS=OFF` in cmake → statisches Binary, keine `.so` nötig.
-- **NICHT** zurück auf dynamisches Linking ohne auch `libwhisper.so.1` in den Runtime-Stage zu kopieren.
-
-### ✅ whisper-cli: exit status 3 — Modell nicht geladen (2026-05-05)
-- **Symptom:** Job schlägt sofort fehl, Meldung „exit status 3".
-- **Ursache:** Falscher Download-URL — Format-String hatte `ggml-%s.bin` statt `%s.bin`,
-  was zu `ggml-ggml-small.bin` führte. Datei existierte nicht auf Disk.
-- **Lösung:** URL-Format auf `%s.bin` korrigiert; Modellname inkl. `ggml-`-Präfix.
-  Klare Fehlermeldung für exit status 3: „Modell nicht gefunden — bitte im Admin-Menü herunterladen".
-
-### ✅ Whisper-Timeout killt 4K-Trickplay (signal: killed) (2026-05-05)
-- **Symptom:** Trickplay-Generierung für 4K-Dateien schlägt mit `ffmpeg: signal: killed` fehl,
-  obwohl genug RAM vorhanden ist.
-- **Ursache:** Trickplay-Timeout-Cap war 30 Minuten. Für 4K-Dateien bei Software-Decode-Fallback
-  (z.B. HEVC Main10 mit VAAPI-Quirks) kann ffmpeg deutlich länger brauchen.
-- **Lösung:** Timeout-Cap nach Auflösung gestaffelt: 4K (≥2160p) → 3h, 1080p → 60min, Rest → 30min.
-
-### ✅ VAAPI Trickplay schlägt bei 10-bit HDR (HEVC Main10) fehl (2026-05-05)
-- **Symptom:** VAAPI-Trickplay für HEVC Main10 (HDR) Dateien schlägt fehl;
-  Software-Fallback greift, der für 4K langsam ist und in den Timeout läuft.
-- **Ursache:** `hwdownload,format=nv12` erwartet 8-bit Input, HEVC Main10 liefert 10-bit.
-  `scale_vaapi` ohne `format=nv12` gibt `p010le` aus statt `nv12`.
-- **Lösung:** `scale_vaapi=...:format=nv12` explizit setzen — erzwingt 8-bit Ausgabe
-  vor hwdownload. Filter-Chain: `fps=1/N,scale_vaapi=w=W:h=H:...:format=nv12,hwdownload,format=nv12,...`
-
-### ✅ Video.js Untertitel werden nicht angezeigt (2026-05-05)
-- **Symptom:** Untertitel-Track ist im Dropdown wählbar, wird aber nicht im Video angezeigt.
-- **Ursachen (zwei):**
-  1. `addRemoteTextTrack({default: true})` aktiviert den Track in Video.js nicht zuverlässig.
-  2. Kein Change-Handler auf `#subSelect` — Dropdown-Änderungen hatten keinen Effekt.
-- **Lösung:** `applySubtitleChoice(vjs, item, subs)` als eigene Funktion; entfernt alle
-  alten Tracks, fügt neuen hinzu, ruft dann `tracks[i].mode = "showing"` explizit auf
-  (sofort + nach 300ms Timeout). Change-Handler auf `#subSelect` verdrahtet beim Player-Open.
-  Flag `subSel.dataset.subHandlerAttached` verhindert doppelte Handler-Registrierung.
-
-### ✅ SubtitleJob-Felder nicht in camelCase (undefined in UI) (2026-05-05)
-- **Symptom:** Whisper-Popover zeigte „? undefined" statt Job-Status.
-- **Ursache:** Go-Struct `SubtitleJob` hatte keine JSON-Tags → Felder als `Status`, `Language`
-  serialisiert; JavaScript erwartete `status`, `language` (lowercase).
-- **Lösung:** JSON-Tags hinzugefügt: `json:"status"`, `json:"language"` etc.
-
-### ✅ Numerische Episoden-Codes (104 = S1E04)
-- **Symptom:** Dateien wie `Derrick 104.avi` wurden nicht als Episoden erkannt.
-- **Ursache:** Parser kannte nur SxxExx und NxN.
-- **Lösung:** `ParseEpisodeFile` für TV-Kontext mit zusätzlicher Regex für 3–4-stellige
-  Zahlen; Jahres-Ausschluss (1900–2099) und Plausibilitäts-Check (S 1–29, E 1–99).
-  Bei Filmen **nicht** aktiv (`Matrix 1999 1080.mkv` soll nicht S10E80 sein).
-
+> Vollständiger Decision-Log ausgelagert in **`DECISIONS.md`** (wird nicht automatisch
+> in den Kontext geladen — bei konkreten Debugging-Fragen gezielt lesen).
+>
+> Kurz-Index der wichtigsten Einträge (nach Kategorie):
+> - **Transcode/HLS:** fresh=1-Mechanismus, Buffer-Cycling (_t-Token), Von-Anfang-Session-Reset, HLS-Segment-Query-Params, liveui:false, forcePlayerDuration, Pause>5Min-Session-GC (fehlendes Touch() im Progress-Poll)
+> - **Frontend/Emoji:** 🗑/🎞 als Tofu-Box (Font-Fallback-Bug) — VS16 reichte NICHT, final als SVG-Icons gelöst (ICON_TRASH_SVG/ICON_FILM_SVG in helpers.js)
+> - **Frontend/CSS-Sticky:** body{height:100%} killt position:sticky nach 1 Viewport-Höhe — body{min-height:100%} verwenden
+> - **Trickplay:** -skip_frame nokey, VAAPI-format=nv12 für 10-bit HDR, Software-Fallback-Trigger, Timeout-Caps nach Auflösung
+> - **Android:** Transcode-Seek (virtualOffset+Session-Restart), Lib-Flash/Privat-Sort (sync load), User-Isolation (ownerUsername), FFmpeg-Extension (nextlib), NoDeclaredBrand-MP4
+> - **Parser/Enricher:** Numerische Episoden-Codes, Obfuskierte Dateinamen (Deleet+Longest-Token), Sample-Skip, Re2-Lookahead-Verbot
+> - **DB/SQL:** NATSORT (nicht NATURAL!), Migration-Reihenfolge (ALTER vor INDEX), Endlos-Backfill (cast_fetched_at)
+> - **Sonstiges:** Mask-Save-Roundtrip (API-Keys nicht zurückgeben), DOM-Builder nicht async, chi HEAD 405, Stack-Env mitsenden
 ## API-Referenz (Kurzform)
 
 ```
@@ -2243,7 +1459,7 @@ POST   /api/libraries/{id}/paths          {path}
 DELETE /api/libraries/{id}/paths?path=…
 
 # Items
-GET    /api/items?libraryId=&folder=&search=&sort=&dateFrom=&dateTo=&watched=&favorite=&match=&duplicates=&bucket=…&personId=
+GET    /api/items?libraryId=&folder=&search=&sort=&dateFrom=&dateTo=&watched=&favorite=&match=&duplicates=&fileDuplicates=&bucket=…&personId=
 GET    /api/items/years
 GET    /api/items/random?libraryId=&folder=&search=&watched=&favorite=&match=&bucket=…&personId=&playlistId=
 GET    /api/items/{id}
@@ -2258,6 +1474,9 @@ POST   /api/items/{id}/write-nfo          (Admin) manueller NFO-Refresh
 POST   /api/items/write-all-nfos          (Admin) alle bestätigten Items NFO-schreiben
 GET    /api/items/{id}/playlists          (IDs der Playlists, in denen Item liegt)
 POST   /api/items/merge                   (Admin) {ids:[…]} — Items unter erster metadata_id zusammenführen
+POST   /api/items/{id}/move                (Admin) {targetFolder, targetLibraryId?} — Datei in anderen Ordner/Bibliothek verschieben (rename_history)
+POST   /api/items/move                     (Admin) {ids:[…], targetFolder, targetLibraryId?} — Bulk-Move, eine QUELL-Library pro Aufruf
+GET    /api/libraries/{id}/all-folders     (Admin) alle Ordnerpfade der Lib (Autocomplete für Move-Dialog)
 
 # Playback
 GET    /api/playback/{id}?mode=auto|direct|transcode&profile=orig|1080p|720p|480p|360p
@@ -2288,9 +1507,12 @@ POST   /api/scan/{libraryId}
 GET    /api/scan/status
 POST   /api/scan/cancel
 
-# Auto-Scan
-GET    /api/settings/autoscan          {enabled, schedule, libraryId}
-PUT    /api/settings/autoscan          {enabled, schedule, libraryId}
+# Auto-Scan (mehrere Aufgaben)
+GET    /api/settings/autoscan          → []AutoScanTask
+PUT    /api/settings/autoscan          ← []AutoScanTask → []AutoScanTask gespeichert
+# AutoScanTask: {id, enabled, schedule, libraryId, force}
+# schedule: "daily:HH:MM" | "every:Nh" | "weekly:DOW:HH:MM"
+# force: false=inkrementell, true=vollständig; libraryId=0=alle
 
 # Playlists (per User)
 GET    /api/playlists
@@ -2330,6 +1552,7 @@ GET    /api/browse?path=/media/…
 # Home & Serien-Strukturen
 GET    /api/home                           Startseite-Daten: pro Library {continue, nextUp, recent}
 GET    /api/libraries/{id}/seasons?folder=[&refresh=true]  Staffel-Übersicht inkl. Show-Infos, Cast, missing-Episoden (refresh=true invalidiert TMDB-Cache)
+GET    /api/libraries/{id}/stats-detail?folder=  Statistik-Dialog: Gesamtgröße/-laufzeit + Verteilung nach Auflösung/Filetyp/Länge (rein SQL-aggregiert)
 PUT    /api/libraries/{id}/home-visibility {onHome: bool}
 PUT    /api/libraries/{id}/channel-label-on-top {channelLabelOnTop: bool}  (Admin) Card-Layout-Toggle, nur sinnvoll bei kind=private
 

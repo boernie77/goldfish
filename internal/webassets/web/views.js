@@ -677,7 +677,7 @@ function renderBreadcrumb(opts) {
   if (opts.tpFailedView) {
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = "🎞 Trickplay-Fehler";
+    cur.innerHTML = `${ICON_FILM_SVG} Trickplay-Fehler`;
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
@@ -720,6 +720,27 @@ function renderBreadcrumb(opts) {
     const label = labels[opts.flatSortView] || "Sortiert";
     const lib = state.libraries.find(l => l.id == state.currentLibrary);
     const libName = lib ? lib.name : "";
+    // Zurück-Button: nur in einem Unterordner (im Library-Root gibt's nichts,
+    // wohin man zurückgehen könnte). Gleiche "eine Ebene hoch"-Logik wie die
+    // normale Ordner-Navigation weiter unten.
+    if (state.currentFolder) {
+      const back = document.createElement("button");
+      back.className = "back-btn";
+      back.title = "Eine Ebene zurück";
+      back.textContent = "←";
+      back.addEventListener("click", () => {
+        const segs = (state.currentFolder || "").split("/");
+        if (segs.length > 1) {
+          state.currentFolder = segs.slice(0, -1).join("/");
+          state.currentFolderDrilldown = true;
+        } else {
+          state.currentFolder = null;
+          state.currentFolderDrilldown = false;
+        }
+        loadItems();
+      });
+      bc.appendChild(back);
+    }
     // Scope anzeigen: im Library-Root die Lib, in einem Unterordner der Ordner
     // (der Flat-Sort wirkt dann nur nach unten in diesem Ordner, nicht library-weit).
     let where = libName ? `${libIcon(lib)} ${libName}` : "";
@@ -741,15 +762,46 @@ function renderBreadcrumb(opts) {
   }
 
   if (opts.duplicatesView) {
-    // Duplikate-Modus ist library-übergreifend, aber begrenzt auf Bibliotheken
-    // mit demselben Kind wie die aktive (siehe loadItems-Branch).
+    // Zwei Varianten: fileDupes = Datei-basiert, gescoped auf DIESE Library +
+    // aktuellen Ordner (braucht Zurück-Pfeil wie die Flat-Sorts). Sonst =
+    // metadata_id-basiert, library-übergreifend über alle Libs gleichen Kinds
+    // (kein sinnvoller "zurück"-Zielort, kein Pfeil).
+    if (opts.fileDupes && state.currentFolder) {
+      const back = document.createElement("button");
+      back.className = "back-btn";
+      back.title = "Eine Ebene zurück";
+      back.textContent = "←";
+      back.addEventListener("click", () => {
+        const segs = (state.currentFolder || "").split("/");
+        if (segs.length > 1) {
+          state.currentFolder = segs.slice(0, -1).join("/");
+          state.currentFolderDrilldown = true;
+        } else {
+          state.currentFolder = null;
+          state.currentFolderDrilldown = false;
+        }
+        loadItems();
+      });
+      bc.appendChild(back);
+    }
     const kindLabel = opts.duplicatesKind === "movies" ? "Filme"
       : opts.duplicatesKind === "tv" ? "Serien"
       : opts.duplicatesKind === "private" ? "Privatvideos"
       : "Bibliotheken";
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = `⧉ Duplikate (alle ${kindLabel})`;
+    if (opts.fileDupes) {
+      const lib = state.libraries.find(l => l.id == state.currentLibrary);
+      const libName = lib ? lib.name : "";
+      let where = libName ? `${libIcon(lib)} ${libName}` : "";
+      if (state.currentFolder) {
+        const folderName = state.currentFolder.split("/").filter(Boolean).pop() || state.currentFolder;
+        where = where ? `${where} / ${folderName}` : folderName;
+      }
+      cur.textContent = `⧉ Duplikate in ${where}`;
+    } else {
+      cur.textContent = `⧉ Duplikate (alle ${kindLabel})`;
+    }
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";

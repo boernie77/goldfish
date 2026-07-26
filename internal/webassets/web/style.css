@@ -15,11 +15,20 @@
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
   background: var(--bg);
   color: var(--text);
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+html { height: 100%; }
+/* body NICHT auf height:100% fixieren: bei langen Grids (hunderte/tausende
+   Kacheln) überragt der Inhalt eine Viewport-Höhe deutlich, aber position:sticky
+   spannt sein "Sticky-Fenster" über die tatsächliche Box-Höhe des Elternelements
+   (body) auf — nicht über den sichtbar überlaufenden Inhalt. Mit height:100%
+   endete diese Box nach einer Viewport-Höhe, danach hörte .breadcrumb/.bulk-bar
+   auf zu kleben (Bug 2026-07-10). min-height:100% lässt body mit dem Inhalt
+   mitwachsen (volle Bildschirmhöhe bleibt trotzdem als Minimum erhalten) und
+   behebt das ohne sonst etwas zu verändern. */
+body { min-height: 100%; }
 
 .hidden { display: none !important; }
 
@@ -202,6 +211,16 @@ button.primary:hover { background: var(--accent-hover); }
   font-size: 20px;
   color: var(--text-dim);
   font-weight: 400;
+  /* Bleibt beim Scrollen unter Topbar + Lib-Nav sichtbar (Zurück-Pfeil,
+     Ordner-Anzahl, Trickplay-Fortschritt) statt mit dem Grid wegzuscrollen.
+     Gleiche --topbar-h/--lib-nav-h-Variablen wie .lib-nav, siehe app.js
+     ResizeObserver-Sync in boot(). Eigener Hintergrund nötig, sonst
+     scheint das Grid beim Sticky-Zustand durch. */
+  position: sticky;
+  top: calc(var(--topbar-h, 60px) + var(--lib-nav-h, 0px));
+  z-index: 8;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
 }
 .breadcrumb a {
   color: var(--accent);
@@ -909,6 +928,17 @@ button.primary:hover { background: var(--accent-hover); }
   font-size: 10px;
   line-height: 11px;
 }
+/* Ordnerpfad (ohne Dateinamen) — nur in der Duplikate-Ansicht, damit man auf
+   einen Blick sieht, wo die jeweilige Kopie liegt (Titel/Dateiname steht
+   schon in .card-filename darüber). */
+.card-duppath {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Dateiname unter der Meta-Zeile — wichtig für Release-spezifische Unterscheidung */
 .card-filename {
   margin-top: 4px;
@@ -1290,6 +1320,51 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .browse-list li:hover { background: var(--card-2); }
 .browse-list li.up { color: var(--text-dim); }
 
+/* Ordner-Baum im Verschieben-Dialog — zeigt alle vorhandenen Ordner der
+   Ziel-Bibliothek hierarchisch, Klick auf eine Zeile übernimmt den Pfad
+   ins Textfeld darüber. */
+.move-tree {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+  padding: 4px 0;
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+.move-tree-list { list-style: none; margin: 0; padding: 0; }
+.move-tree-list .move-tree-list { padding-left: 18px; }
+.move-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.move-tree-row:hover { background: var(--card-2); }
+.move-tree-row.is-selected {
+  background: rgba(59, 130, 246, 0.25);
+  color: var(--text);
+  font-weight: 600;
+}
+.move-tree-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  width: 16px;
+  flex-shrink: 0;
+  padding: 0;
+  font-size: 10px;
+  transition: transform .12s;
+}
+.move-tree-toggle--leaf { visibility: hidden; }
+.move-tree-toggle.is-open { transform: rotate(90deg); }
+.move-tree-label { white-space: nowrap; }
+.move-tree-empty { padding: 10px 12px; color: var(--text-dim); }
+
 /* Player mode switch */
 .player-modeswitch {
   display: flex;
@@ -1335,8 +1410,7 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .video-js .vjs-favorite .vjs-icon-placeholder::before,
 .video-js .vjs-addplaylist .vjs-icon-placeholder::before,
 .video-js .vjs-cast-button .vjs-icon-placeholder::before,
-.video-js .vjs-airplay-button .vjs-icon-placeholder::before,
-.video-js .vjs-delete .vjs-icon-placeholder::before {
+.video-js .vjs-airplay-button .vjs-icon-placeholder::before {
   font-family: inherit;
   font-size: 1.6em;
   line-height: 2.2;
@@ -1344,10 +1418,39 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 /* Skip-30-Buttons nutzen die nativen Video.js-Icons (vjs-icon-replay-30 /
    vjs-icon-forward-30) — keine eigenen Glyph- oder font-Overrides, sonst
    sehen sie nicht aus wie Play/Pause. */
-/* Dezenter Delete-Button: grau im Idle, rötlich bei Hover. */
+/* Dezenter Delete-Button: grau im Idle, rötlich bei Hover.
+   SVG-Mask statt Emoji-Glyph: 🗑 (U+1F5D1) hat Emoji_Presentation=No und
+   landet auf manchen Plattformen/Browsern selbst MIT Variation-Selector
+   als leere Tofu-Box (Last-Resort-Font-Fallback). Mask-Image mit
+   background-color:currentColor ist von Font-Fallback-Verhalten komplett
+   unabhängig und erbt trotzdem die opacity/color-Hover-Logik unverändert. */
+.video-js .vjs-delete .vjs-icon-placeholder {
+  position: relative;
+}
 .video-js .vjs-delete .vjs-icon-placeholder::before {
-  content: "🗑";
+  content: "";
+  /* Absolut + transform-zentriert statt über line-height/vertical-align wie
+     die Emoji-Nachbarn — die Font-Metrik-Zentrierung (line-height: 2.2 vom
+     gemeinsamen Block oben) passt nur für Text-Glyphen, nicht für eine
+     inline-block-Mask-Box, dadurch saß der Papierkorb zu hoch. Feste
+     Pixelgröße statt em, damit Größe/Position unabhängig von ererbter
+     font-size sind. */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
   opacity: 0.65;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'%3E%3C/polyline%3E%3Cpath d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'%3E%3C/path%3E%3Cline x1='10' y1='11' x2='10' y2='17'%3E%3C/line%3E%3Cline x1='14' y1='11' x2='14' y2='17'%3E%3C/line%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'%3E%3C/polyline%3E%3Cpath d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'%3E%3C/path%3E%3Cline x1='10' y1='11' x2='10' y2='17'%3E%3C/line%3E%3Cline x1='14' y1='11' x2='14' y2='17'%3E%3C/line%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 .video-js .vjs-delete:hover .vjs-icon-placeholder::before {
   opacity: 1;
@@ -1572,7 +1675,11 @@ body.selection-mode .card { cursor: pointer; }
 /* Sticky Bulk-Action-Bar */
 .bulk-bar {
   position: sticky;
-  top: 60px;
+  /* War fest auf 60px verdrahtet — Topbar+Lib-Nav sind zusammen aber meist
+     höher (Umbruch, mehrere Zeilen), dadurch klebte die Bar UNTER dem
+     fixed Header statt sichtbar knapp darunter. Gleiche Variablen wie
+     .breadcrumb/.lib-nav verwenden. */
+  top: calc(var(--topbar-h, 60px) + var(--lib-nav-h, 0px));
   z-index: 10;
   display: flex;
   gap: 8px;
@@ -1835,12 +1942,19 @@ body.selection-mode .card { cursor: pointer; }
 .alpha-sidebar {
   position: fixed;
   right: 4px;
-  top: 110px;
+  /* War fest auf 110px verdrahtet — Topbar+Lib-Nav sind zusammen oft höher
+     (Umbruch, mehrere Zeilen), dadurch lagen A/B unter dem fixed Header
+     verdeckt. Gleiche dynamische Variablen wie .breadcrumb/.lib-nav/.bulk-bar. */
+  top: calc(var(--topbar-h, 60px) + var(--lib-nav-h, 0px) + 8px);
   bottom: 40px;
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  z-index: 5;
+  /* War z-index:5 — die (jetzt sticky) .breadcrumb hat z-index:8 und ein
+     deckendes background, malt in der Überlappungszone am oberen Rand über
+     die Sidebar drüber → A/# wirkten "halb verdeckt". Höher als breadcrumb,
+     gleiche Ebene wie .lib-nav. */
+  z-index: 9;
   font-size: 11px;
   padding: 4px 2px;
   background: rgba(17, 24, 39, 0.7);

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -379,6 +380,16 @@ func (s *Store) migrate() error {
 	// Hinweis genutzt; künftiger Deinterlace-Filter im Transcode-Pfad liest
 	// dasselbe Feld.
 	if err := addCol("item_streams", "field_order", "TEXT"); err != nil {
+		return err
+	}
+	// Bibliotheks-übergreifendes Verschieben (seit 2026-07-12): rename_history
+	// protokolliert jetzt auch einen library_id-Wechsel, damit Undo ihn
+	// zurücksetzen kann. 0 = kein Wechsel (deckt auch alle historischen
+	// Einträge ab, die vor dieser Migration entstanden sind).
+	if err := addCol("rename_history", "old_library_id", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addCol("rename_history", "new_library_id", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	// Indizes erst nach ALTER
@@ -863,25 +874,31 @@ func (s *Store) DeleteItemsInFolderNotInSet(libraryID int64, folder string, keep
 type ItemFilter struct {
 	LibraryID  int64   // einzelne Library (Legacy)
 	LibraryIDs []int64 // mehrere Libraries (virtuelle Zusammenlegung); wird mit LibraryID ODER verknüpft
-	Search    string
-	Sort      string
-	SortDir   string // "asc" | "desc" | "" (= Default-Richtung des Sort-Feldes)
-	DateFrom  time.Time
-	DateTo    time.Time
-	Folder    string
-	Watched   string
-	Favorite  string
+	Search     string
+	Sort       string
+	SortDir    string // "asc" | "desc" | "" (= Default-Richtung des Sort-Feldes)
+	DateFrom   time.Time
+	DateTo     time.Time
+	Folder     string
+	Watched    string
+	Favorite   string
 	MatchState string
-	DupesOnly  bool  // true = nur Items mit mehrfach vergebener metadata_id
-	MetadataID int64 // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
-	PersonTMDB int64 // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
-	PlaylistID int64 // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
-	MinHeight  int   // 0 = aus; sonst nur Items mit height >= MinHeight
-	MaxHeight  int   // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
-	ResBuckets []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
-	Interlaced bool  // true = nur Items, deren Video-Stream field_order ∉ {progressive, unknown, ""}
-	TrickplayStatus string // "" | "failed" | "pending" | "done" — Filter im Trickplay-Manager
-	UserID    int64 // 0 = ungesetzt (Worker-Kontext); sonst pro-User-Zustand laden
+	DupesOnly  bool // true = nur Items mit mehrfach vergebener metadata_id
+	// FileDupesOnly: nur Items, deren (size_bytes, duration_sec) mit einem
+	// anderen Item im selben Scope (LibraryID/LibraryIDs + Folder) übereinstimmt.
+	// Ergänzung zu DupesOnly für Bibliotheken ohne TMDB-Metadata (kind=private) —
+	// dort ist metadata_id meist NULL, sodass DupesOnly nie greift. Erkennt
+	// z.B. versehentlich zweimal heruntergeladene identische Videodateien.
+	FileDupesOnly   bool
+	MetadataID      int64    // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
+	PersonTMDB      int64    // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
+	PlaylistID      int64    // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
+	MinHeight       int      // 0 = aus; sonst nur Items mit height >= MinHeight
+	MaxHeight       int      // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
+	ResBuckets      []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
+	Interlaced      bool     // true = nur Items, deren Video-Stream field_order ∉ {progressive, unknown, ""}
+	TrickplayStatus string   // "" | "failed" | "pending" | "done" — Filter im Trickplay-Manager
+	UserID          int64    // 0 = ungesetzt (Worker-Kontext); sonst pro-User-Zustand laden
 	// MaxAgeRating: wenn > 0, werden Items mit metadata.age_rating > Max
 	// ausgeblendet. 0 = keine Beschränkung (Admin-Default).
 	MaxAgeRating int
@@ -988,6 +1005,34 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			WHERE metadata_id IS NOT NULL
 			GROUP BY metadata_id HAVING COUNT(*) > 1
 		)`
+	}
+	if f.FileDupesOnly {
+		// Gleicher Scope wie die äußere Query (Library/Libraries + Folder),
+		// damit ein "Duplikat" nur zählt, wenn beide Kopien im gerade
+		// betrachteten Bereich liegen (Library-Root = ganze Lib, Unterordner =
+		// nur dessen Inhalt rekursiv — Konvention wie bei den Flat-Sorts).
+		scope := ` WHERE size_bytes > 0 AND duration_sec > 0`
+		var scopeArgs []any
+		if len(f.LibraryIDs) > 0 {
+			ph := make([]string, len(f.LibraryIDs))
+			for i, id := range f.LibraryIDs {
+				ph[i] = "?"
+				scopeArgs = append(scopeArgs, id)
+			}
+			scope += ` AND library_id IN (` + strings.Join(ph, ",") + `)`
+		} else if f.LibraryID > 0 {
+			scope += ` AND library_id = ?`
+			scopeArgs = append(scopeArgs, f.LibraryID)
+		}
+		if f.Folder != "" {
+			scope += ` AND rel_path LIKE ? ESCAPE '\'`
+			scopeArgs = append(scopeArgs, escapeLike(f.Folder)+"/%")
+		}
+		q += ` AND i.size_bytes > 0 AND i.duration_sec > 0 AND (i.size_bytes || ':' || i.duration_sec) IN (
+			SELECT size_bytes || ':' || duration_sec FROM items` + scope + `
+			GROUP BY size_bytes, duration_sec HAVING COUNT(*) > 1
+		)`
+		args = append(args, scopeArgs...)
 	}
 	if f.MinHeight > 0 {
 		q += ` AND i.height >= ?`
@@ -1385,6 +1430,39 @@ type Folder struct {
 	Drilldown   bool            `json:"drilldown"` // true = Klick zeigt Subfolder statt flacher Liste
 }
 
+// AllFolderPaths liefert ALLE Ordnerpfade einer Bibliothek (jede Ebene, nicht
+// nur Top-Level) als sortierte, eindeutige Liste — für die Autocomplete-Liste
+// im "Verschieben"-Dialog. Leitet die Ordner aus den vorhandenen rel_path-
+// Verzeichnisanteilen ab (inkl. aller Zwischenebenen), nicht aus einer
+// separaten Ordner-Tabelle — Goldfish legt Ordner nicht explizit an.
+func (s *Store) AllFolderPaths(libraryID int64) ([]string, error) {
+	rows, err := s.db.Query(`SELECT rel_path FROM items WHERE library_id = ?`, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	seen := map[string]bool{}
+	for rows.Next() {
+		var rel string
+		if err := rows.Scan(&rel); err != nil {
+			return nil, err
+		}
+		segs := strings.Split(rel, "/")
+		for i := 1; i < len(segs); i++ {
+			seen[strings.Join(segs[:i], "/")] = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(seen))
+	for f := range seen {
+		out = append(out, f)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
 // TopLevelFolders liefert alle direkten Unterordner einer Bibliothek mit Item-Zählung.
 // Bei TV-Bibliotheken wird zusätzlich die Show-Metadata aus folder_metadata angehängt.
 func (s *Store) TopLevelFolders(libraryID int64) ([]Folder, error) {
@@ -1740,7 +1818,7 @@ func (s *Store) FolderTrickplayStatus(libraryID int64, folder string) (Trickplay
 }
 
 // PendingTrickplayItems liefert Items in aktivierten Ordnern, die noch kein Trickplay haben.
-// Spezialfall: tf.folder = '' aktiviert Trickplay für die gesamte Bibliothek.
+// Spezialfall: tf.folder = ” aktiviert Trickplay für die gesamte Bibliothek.
 //
 // Sortierung: Folder-für-Folder. Der Top-Level-Ordner mit dem neuesten Item
 // kommt zuerst, alle seine pending-Items werden komplett abgearbeitet bevor

@@ -479,7 +479,7 @@ function renderCard(it, opts = {}) {
   const fav = `<button type="button" class="fav-toggle ${it.favorite ? "is-on" : ""}" title="${it.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}" data-toggle-fav aria-label="${it.favorite ? "Favorit" : "Kein Favorit"}">${it.favorite ? "♥" : "♡"}</button>`;
   let tp = "";
   if (it.trickplayStatus === "done") {
-    tp = `<span class="tp-badge" title="Trickplay vorhanden">🎞</span>`;
+    tp = `<span class="tp-badge" title="Trickplay vorhanden">${ICON_FILM_SVG}</span>`;
   } else if (it.trickplayStatus === "pending") {
     tp = `<span class="tp-badge tp-pending" title="Trickplay wird generiert…">⋯</span>`;
   } else if (it.trickplayStatus === "failed") {
@@ -522,6 +522,7 @@ function renderCard(it, opts = {}) {
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
       <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : cardFileName(it))}</div>
+      ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
     </div>
   `;
   el.addEventListener("click", (ev) => {

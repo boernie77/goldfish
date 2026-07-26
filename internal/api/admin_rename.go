@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,12 +26,13 @@ const renameSettingKey = "auto_rename_confirmed_movies"
 // Auch erreichbar fuer Non-Admins, weil rein lesend.
 //
 // Response:
-//   {target: "/abs/path/to/Inception (2010).mkv",
-//    targetBase: "Inception (2010).mkv",
-//    alreadyOK: false,    // true = Datei traegt schon den Wunschnamen
-//    canRename: true,     // false = wuerde fehlschlagen (Title leer etc.)
-//    reason: "..."        // bei canRename=false: Begruendung
-//   }
+//
+//	{target: "/abs/path/to/Inception (2010).mkv",
+//	 targetBase: "Inception (2010).mkv",
+//	 alreadyOK: false,    // true = Datei traegt schon den Wunschnamen
+//	 canRename: true,     // false = wuerde fehlschlagen (Title leer etc.)
+//	 reason: "..."        // bei canRename=false: Begruendung
+//	}
 func (s *Server) renamePreview(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")
 	if err != nil {
@@ -241,7 +244,7 @@ func (s *Server) renameAllConfirmed(w http.ResponseWriter, r *http.Request) {
 	stats := struct {
 		Total    int      `json:"total"`
 		Renamed  int      `json:"renamed"`
-		Skipped  int      `json:"skipped"`  // bereits im Wunschnamen
+		Skipped  int      `json:"skipped"` // bereits im Wunschnamen
 		Failed   int      `json:"failed"`
 		Failures []string `json:"failures,omitempty"`
 	}{Total: len(items)}
@@ -263,6 +266,196 @@ func (s *Server) renameAllConfirmed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 200, stats)
+}
+
+// moveItem verschiebt eine Datei in einen anderen Ordner — optional auch in
+// eine andere Bibliothek (targetLibraryId, seit 2026-07-12). Admin-only.
+//
+// Body: {targetFolder: "Anime/Staffel 2", targetLibraryId?: 3} —
+// targetFolder ist relativ zur (Ziel-)Library-Wurzel, "" = Wurzel.
+// targetLibraryId fehlt/0 → bleibt in derselben Library. Zielordner muss
+// nicht existieren, wird bei Bedarf angelegt.
+func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil || it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	var body struct {
+		TargetFolder    string `json:"targetFolder"`
+		TargetLibraryID int64  `json:"targetLibraryId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiger Body")
+		return
+	}
+	if body.TargetLibraryID > 0 && body.TargetLibraryID != it.LibraryID {
+		if !s.requireLibAccess(w, r, body.TargetLibraryID) {
+			return
+		}
+	}
+	histID, target, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move")
+	if code != 0 {
+		writeError(w, code, msg)
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"renameHistoryId": histID,
+		"newPath":         target,
+	})
+}
+
+// executeMove: gemeinsamer Pfad für Einzel- und Bulk-Move. Liefert
+// (historyID, newPath, errMsg, httpStatusCode) — status=0 bedeutet OK.
+// targetLibraryID=0 → bleibt in it.LibraryID (Standardfall).
+//
+// Root-Auflösung:
+//   - Gleiche Library: der "Root" eines Items (welcher der ggf. mehreren
+//     library_paths-Quellordner es physisch ist) wird aus Path/RelPath selbst
+//     abgeleitet (Path minus "/"+RelPath-Suffix) statt aus library_paths
+//     nachgeschlagen — dadurch bleibt ein verschobenes Item im selben
+//     physischen Quellordner wie zuvor, auch bei Multi-Path-Bibliotheken.
+//     Verschieben ÜBER zwei verschiedene Quellordner DERSELBEN Library
+//     hinweg ist bewusst nicht unterstützt (Storage-Grenzen könnte der User
+//     nicht im Kopf haben — sonst landet die Datei überraschend auf einem
+//     anderen Volume).
+//   - Andere Ziel-Library: nutzt deren ERSTEN `library_paths`-Eintrag (bzw.
+//     `libraries.path` als Fallback bei Single-Path-Libs) als Root. Bei
+//     Multi-Path-Ziel-Libraries landet die Datei immer im ersten Quellordner —
+//     der User kann sie danach bei Bedarf per erneutem Move innerhalb der
+//     Ziel-Library weiter verschieben.
+func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder, triggeredBy string) (int64, string, string, int) {
+	targetFolder = strings.Trim(strings.TrimSpace(targetFolder), "/")
+	// Traversal-Schutz: keine ".."-Segmente, kein Backslash.
+	for _, seg := range strings.Split(targetFolder, "/") {
+		if seg == ".." || strings.ContainsAny(seg, "\\\x00") {
+			return 0, "", "ungültiger Zielordner", 400
+		}
+	}
+	destLibraryID := it.LibraryID
+	if targetLibraryID > 0 {
+		destLibraryID = targetLibraryID
+	}
+	var root string
+	if destLibraryID == it.LibraryID {
+		relSlash := filepath.ToSlash(it.RelPath)
+		root = strings.TrimSuffix(filepath.ToSlash(it.Path), "/"+relSlash)
+		if root == filepath.ToSlash(it.Path) {
+			return 0, "", "Item-Pfad/RelPath inkonsistent — Move abgebrochen", 500
+		}
+	} else {
+		paths, err := s.Store.LibraryPaths(destLibraryID)
+		if err != nil {
+			return 0, "", "Ziel-Bibliothek konnte nicht gelesen werden: " + err.Error(), 500
+		}
+		if len(paths) > 0 {
+			root = paths[0]
+		} else {
+			lib, err := s.Store.GetLibrary(destLibraryID)
+			if err != nil || lib == nil {
+				return 0, "", "Ziel-Bibliothek nicht gefunden", 404
+			}
+			root = lib.Path
+		}
+	}
+	base := filepath.Base(it.Path)
+	newDir := filepath.Join(root, targetFolder)
+	newPath := filepath.Join(newDir, base)
+	if newPath == it.Path && destLibraryID == it.LibraryID {
+		return 0, it.Path, "", 0 // schon dort — no-op
+	}
+	// Konflikt am Ziel auflösen (gleiches Schema wie beim Umbenennen: " (2)", " (3)", …).
+	resolved := rename.ResolveConflict(newDir, base, it.Path)
+	if resolved == "" {
+		return 0, "", "Zielordner voll — alle Namens-Varianten belegt", 409
+	}
+	newPath = resolved
+	newRelPath := filepath.Join(targetFolder, filepath.Base(resolved))
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		return 0, "", "Zielordner konnte nicht angelegt werden: " + err.Error(), 500
+	}
+	if err := rename.RenameOnDisk(it.Path, newPath); err != nil {
+		return 0, "", "Verschieben auf Disk fehlgeschlagen: " + err.Error(), 500
+	}
+	histID, err := s.Store.RecordMove(it.ID, it.Path, newPath, it.RelPath, newRelPath, it.LibraryID, destLibraryID, triggeredBy)
+	if err != nil {
+		_ = rename.RenameOnDisk(newPath, it.Path)
+		return 0, "", "DB-Update fehlgeschlagen: " + err.Error(), 500
+	}
+	return histID, newPath, "", 0
+}
+
+// moveItemsBulk verschiebt mehrere Items auf einmal in denselben Zielordner.
+// Admin-only. Fehler pro Item werden gesammelt, ein einzelner Fehlschlag
+// bricht die restlichen Items nicht ab (analog Bulk-Delete/-Favorite im Frontend).
+func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs             []int64 `json:"ids"`
+		TargetFolder    string  `json:"targetFolder"`
+		TargetLibraryID int64   `json:"targetLibraryId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiger Body")
+		return
+	}
+	if body.TargetLibraryID > 0 {
+		if !s.requireLibAccess(w, r, body.TargetLibraryID) {
+			return
+		}
+	}
+	stats := struct {
+		Total    int      `json:"total"`
+		Moved    int      `json:"moved"`
+		Failed   int      `json:"failed"`
+		Failures []string `json:"failures,omitempty"`
+	}{Total: len(body.IDs)}
+	for _, id := range body.IDs {
+		it, err := s.Store.GetItem(id)
+		if err != nil || it == nil {
+			stats.Failed++
+			continue
+		}
+		_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move")
+		if code != 0 {
+			stats.Failed++
+			if len(stats.Failures) < 20 {
+				stats.Failures = append(stats.Failures, fmt.Sprintf("[%d] %s: %s", it.ID, filepath.Base(it.Path), msg))
+			}
+			continue
+		}
+		stats.Moved++
+	}
+	writeJSON(w, 200, stats)
+}
+
+// listAllFolders: alle Ordnerpfade (jede Ebene) einer Bibliothek, für die
+// Autocomplete-Liste im "Verschieben"-Dialog.
+func (s *Server) listAllFolders(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	if !s.requireLibAccess(w, r, id) {
+		return
+	}
+	folders, err := s.Store.AllFolderPaths(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if folders == nil {
+		folders = []string{}
+	}
+	writeJSON(w, 200, folders)
 }
 
 // settingAutoRenameOn liefert true, wenn der Auto-Rename-Hook aktiv ist.

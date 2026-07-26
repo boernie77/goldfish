@@ -52,6 +52,18 @@ function resLabel(it) {
   return "";
 }
 
+// ICON_TRASH_SVG / ICON_FILM_SVG: Feather-Icon-Style-SVGs statt der Emoji
+// 🗑/🎞. Grund: beide Codepoints (U+1F5D1, U+1F39E) haben laut Unicode
+// Emoji_Presentation=No — Browser routen sie ohne Variation-Selector NICHT
+// zuverlässig auf die Farb-Emoji-Schriftart. Selbst MIT VS16 (️) zeigte
+// Chrome/macOS in der Praxis weiterhin eine leere Tofu-Box mit Hex-Codepoint
+// (Last-Resort-Font) — offenbar ein Blink-internes Fallback-Problem für
+// diese speziellen Codepoints, nicht bloß ein Presentation-Property-Thema.
+// SVG mit stroke="currentColor" umgeht das komplett und erbt Farbe/Opacity
+// von den bestehenden Button-Styles unverändert.
+const ICON_TRASH_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+const ICON_FILM_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>';
+
 // escapeHTML: minimal-sichere HTML-Escape fuer Strings, die wir in
 // innerHTML interpolieren. Nicht fuer Attribute (dort waeren noch andere
 // Codepoints relevant) — fuer unseren Use-Case (Titel/Texte als Body-Text)

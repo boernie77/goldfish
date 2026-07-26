@@ -107,7 +107,7 @@ function renderUserCard(u) {
             <button type="button" class="user-btn user-admin-btn" title="${u.isAdmin ? "Admin-Rechte entziehen" : "Zu Admin machen"}">
               ${u.isAdmin ? "👤 Admin entfernen" : "👑 Zu Admin machen"}
             </button>
-            <button type="button" class="user-btn danger user-del-btn" title="Benutzer löschen">🗑 Löschen</button>
+            <button type="button" class="user-btn danger user-del-btn" title="Benutzer löschen">${ICON_TRASH_SVG} Löschen</button>
           `}
         </div>
       </div>
@@ -290,7 +290,7 @@ async function openManage() {
     const del = document.createElement("button");
     del.className = "danger lib-del";
     del.title = "Bibliothek löschen";
-    del.textContent = "🗑";
+    del.innerHTML = ICON_TRASH_SVG;
     del.addEventListener("click", async () => {
       if (!(await appConfirm(`Bibliothek "${l.name}" löschen?`))) return;
       await api(`/api/libraries/${l.id}`, { method: "DELETE" });
@@ -625,11 +625,278 @@ async function updateEnrichStatus() {
   }
 }
 
+// --- Verschieben (Einzel- oder Bulk) ---
+//
+// Nutzt dieselbe rename_history-Infrastruktur wie der Auto-Rename: ein Move
+// ist serverseitig einfach ein Rename mit geändertem Verzeichnisanteil
+// (internal/api/admin_rename.go executeMove). Ziel-Ordner-Auswahl als
+// Baumstruktur (alle vorhandenen Ordnerpfade der Ziel-Library), Klick auf
+// eine Zeile übernimmt den Pfad ins Textfeld; neue Ordnernamen bleiben frei
+// eintippbar.
+
+let moveTreeFolders = [];      // Ordnerpfade der aktuell im Dialog gewählten Ziel-Library
+let moveTreeExpanded = new Set(); // Set von Pfaden, die im Baum aufgeklappt sind
+
+// buildFolderTree: flache Pfadliste ("a", "a/Urlaub", "a/Urlaub/2024", …) zu
+// einem verschachtelten Objektbaum {children:{name:{path,children:{...}}}}.
+function buildFolderTree(paths) {
+  const root = { children: {} };
+  for (const p of paths) {
+    const segs = p.split("/").filter(Boolean);
+    let node = root;
+    const acc = [];
+    for (const seg of segs) {
+      acc.push(seg);
+      const key = acc.join("/");
+      node.children = node.children || {};
+      if (!node.children[seg]) node.children[seg] = { name: seg, path: key, children: null };
+      node = node.children[seg];
+    }
+  }
+  return root;
+}
+
+function renderMoveTreeChildren(node, selectedPath) {
+  if (!node.children) return "";
+  const keys = Object.keys(node.children).sort((a, b) => a.localeCompare(b, "de", { numeric: true, sensitivity: "base" }));
+  return keys.map(k => {
+    const child = node.children[k];
+    const hasChildren = !!(child.children && Object.keys(child.children).length);
+    const isSelected = child.path === selectedPath;
+    // Vorfahren des ausgewählten Pfads immer aufklappen, damit der aktuelle
+    // Ordner beim Öffnen/Auswählen sichtbar ist, nicht in eingeklappten Ästen versteckt.
+    const isAncestor = !!selectedPath && selectedPath.startsWith(child.path + "/");
+    const expanded = hasChildren && (moveTreeExpanded.has(child.path) || isAncestor);
+    return `
+      <li class="move-tree-item">
+        <div class="move-tree-row ${isSelected ? "is-selected" : ""}" data-path="${escapeHTML(child.path)}">
+          <button type="button" class="move-tree-toggle ${hasChildren ? (expanded ? "is-open" : "") : "move-tree-toggle--leaf"}" ${hasChildren ? `data-toggle="${escapeHTML(child.path)}"` : ""}>▸</button>
+          <span class="move-tree-label">📁 ${escapeHTML(k)}</span>
+        </div>
+        ${hasChildren ? `<ul class="move-tree-list" style="${expanded ? "" : "display:none"}">${renderMoveTreeChildren(child, selectedPath)}</ul>` : ""}
+      </li>`;
+  }).join("");
+}
+
+function renderMoveTree(selectedPath) {
+  const container = $("#moveFolderTree");
+  const tree = buildFolderTree(moveTreeFolders);
+  const rootRow = `
+    <div class="move-tree-row ${!selectedPath ? "is-selected" : ""}" data-path="">
+      <button type="button" class="move-tree-toggle move-tree-toggle--leaf"></button>
+      <span class="move-tree-label">🏠 (Bibliotheks-Wurzel)</span>
+    </div>`;
+  const childrenHtml = renderMoveTreeChildren(tree, selectedPath);
+  container.innerHTML = moveTreeFolders.length
+    ? `${rootRow}<ul class="move-tree-list">${childrenHtml}</ul>`
+    : `${rootRow}<div class="move-tree-empty">Noch keine Unterordner in dieser Bibliothek.</div>`;
+  if (!container.dataset.wired) {
+    container.dataset.wired = "1";
+    container.addEventListener("click", (e) => {
+      const toggle = e.target.closest("[data-toggle]");
+      if (toggle) {
+        e.stopPropagation();
+        const path = toggle.dataset.toggle;
+        if (moveTreeExpanded.has(path)) moveTreeExpanded.delete(path);
+        else moveTreeExpanded.add(path);
+        renderMoveTree($("#moveFolderInput").value.trim());
+        return;
+      }
+      const row = e.target.closest(".move-tree-row");
+      if (row) {
+        $("#moveFolderInput").value = row.dataset.path || "";
+        renderMoveTree(row.dataset.path || "");
+      }
+    });
+    // Manuell getipptes Ziel im Baum mit-highlighten/aufklappen.
+    $("#moveFolderInput").addEventListener("input", (e) => {
+      renderMoveTree(e.target.value.trim());
+    });
+  }
+}
+
+// loadMoveFolderList: lädt alle Ordnerpfade der gewählten Ziel-Bibliothek neu
+// und baut den Baum — initial und bei jedem Wechsel des Ziel-Bibliotheks-Dropdowns.
+async function loadMoveFolderList(libId, selectedPath) {
+  moveTreeFolders = [];
+  moveTreeExpanded = new Set();
+  try {
+    moveTreeFolders = await api(`/api/libraries/${libId}/all-folders`);
+  } catch {}
+  renderMoveTree(selectedPath || "");
+}
+
+async function openMoveDialog(ctx) {
+  state.moveContext = ctx;
+  const dlg = $("#moveDialog");
+  const title = $("#moveDialogTitle");
+  const hint = $("#moveDialogHint");
+  const input = $("#moveFolderInput");
+  const libSelect = $("#moveLibrarySelect");
+  let libId, currentFolder = "";
+  if (ctx.mode === "single") {
+    const it = ctx.item;
+    libId = it.libraryId;
+    title.textContent = "Verschieben";
+    hint.textContent = (it.metadata && it.metadata.title) || it.title || it.relPath || "";
+    const segs = (it.relPath || "").split("/").filter(Boolean);
+    segs.pop();
+    currentFolder = segs.join("/");
+  } else {
+    // Alle ausgewählten Items müssen aus derselben Quell-Library kommen —
+    // Verschieben liest den Ordnerpfad relativ zu genau einem Root.
+    const selectedItems = (state.lastRenderedItems || []).filter(it => ctx.ids.includes(it.id));
+    const libIds = new Set(selectedItems.map(it => it.libraryId));
+    if (libIds.size > 1) {
+      appAlert("Verschieben funktioniert nur mit Items aus derselben Quell-Bibliothek — die Auswahl enthält Items aus mehreren Bibliotheken.");
+      return;
+    }
+    libId = selectedItems[0] ? selectedItems[0].libraryId : state.currentLibrary;
+    title.textContent = `${ctx.ids.length} Videos verschieben`;
+    hint.textContent = `${ctx.ids.length} ausgewählte Datei${ctx.ids.length === 1 ? "" : "en"}`;
+    currentFolder = state.currentFolder || "";
+  }
+  state.moveContext.libId = libId;
+  // Ziel-Bibliothek: Dropdown mit allen Libraries, Default = Quell-Library
+  // (bleibt normalerweise gleich — Ziel-Wechsel ist der Ausnahmefall).
+  libSelect.innerHTML = state.libraries.map(l =>
+    `<option value="${l.id}" ${l.id == libId ? "selected" : ""}>${libIcon(l)} ${escapeHTML(l.name)}</option>`
+  ).join("");
+  libSelect.onchange = () => {
+    input.value = ""; // Ordner der Quell-Library ergibt in einer anderen Lib meist keinen Sinn
+    loadMoveFolderList(Number(libSelect.value), "");
+  };
+  input.value = currentFolder;
+  await loadMoveFolderList(libId, currentFolder);
+  dlg.showModal();
+  input.focus();
+  input.select();
+}
+
+async function handleMoveSubmit(e) {
+  e.preventDefault();
+  const ctx = state.moveContext;
+  if (!ctx) return;
+  const targetFolder = $("#moveFolderInput").value.trim();
+  const targetLibraryId = Number($("#moveLibrarySelect").value);
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  try {
+    if (ctx.mode === "single") {
+      await api(`/api/items/${ctx.item.id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ targetFolder, targetLibraryId }),
+      });
+      showToast("Verschoben", { kind: "success" });
+      $("#moveDialog").close();
+      $("#detailDialog").close();
+      invalidateItemsCache();
+      loadItems();
+    } else {
+      const res = await api(`/api/items/move`, {
+        method: "POST",
+        body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId }),
+      });
+      $("#moveDialog").close();
+      if (res.failed > 0) {
+        showToast(`${res.moved} verschoben, ${res.failed} fehlgeschlagen`, { kind: res.moved ? "info" : "error" });
+      } else {
+        showToast(`${res.moved} verschoben`, { kind: "success" });
+      }
+      setSelectionMode(false);
+      invalidateItemsCache();
+      loadItems();
+    }
+  } catch (err) {
+    appAlert("Verschieben fehlgeschlagen: " + err.message);
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
 // --- Auto-Rename: Umbenennungen-Manager ---
 //
 // Liste aller Datei-Umbenennungen, einzeln rueckgaengig machbar, plus
 // CSV-Export und „Alle bestaetigten umbenennen"-Bulk-Button. Nutzt die
 // /api/admin/renames-Endpoints (admin-only).
+
+// --- Statistik ---
+
+// openStatistikDialog: Scope ist immer der Kontext, aus dem der User das
+// Menü öffnet — state.currentLibrary + state.currentFolder (gleiche
+// Konvention wie der Folder-gescopte Scan-Button: im Library-Root zählt die
+// ganze Bibliothek, in einem Unterordner nur dessen Inhalt rekursiv).
+async function openStatistikDialog() {
+  const dlg = $("#statistikDialog");
+  const scopeEl = $("#statistikScope");
+  const body = $("#statistikBody");
+  if (!state.currentLibrary) {
+    scopeEl.textContent = "";
+    body.innerHTML = `<div class="hint">Bitte zuerst eine Bibliothek öffnen — die Statistik bezieht sich immer auf die aktuell geöffnete Bibliothek oder den aktuellen Ordner.</div>`;
+    dlg.showModal();
+    return;
+  }
+  const lib = (state.libraries || []).find(l => l.id == state.currentLibrary);
+  const folder = state.currentFolder || "";
+  scopeEl.textContent = folder
+    ? `${lib ? lib.name : "Bibliothek"} → ${folder}`
+    : (lib ? lib.name : "Bibliothek") + " (gesamt)";
+  body.innerHTML = `<div class="hint">Lade…</div>`;
+  dlg.showModal();
+  let d;
+  try {
+    const q = folder ? `?folder=${encodeURIComponent(folder)}` : "";
+    d = await api(`/api/libraries/${state.currentLibrary}/stats-detail${q}`);
+  } catch (e) {
+    body.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
+    return;
+  }
+  body.innerHTML = renderStatistikBody(d);
+}
+
+function renderStatBarSection(title, buckets) {
+  if (!buckets || !buckets.length) return "";
+  const max = Math.max(...buckets.map(b => b.count));
+  const rows = buckets.map(b => {
+    const pct = max > 0 ? Math.round((b.count / max) * 100) : 0;
+    return `
+      <div class="stat-bar-row" style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <div style="width:90px;font-size:12px;color:#94a3b8;text-align:right;flex-shrink:0">${escapeHTML(b.label)}</div>
+        <div style="flex:1;background:#1e293b;border-radius:4px;overflow:hidden;height:18px">
+          <div style="width:${pct}%;background:#3b82f6;height:100%"></div>
+        </div>
+        <div style="width:44px;font-size:12px;text-align:right;flex-shrink:0">${b.count}</div>
+      </div>`;
+  }).join("");
+  return `<h3 style="margin:16px 0 4px;font-size:14px">${escapeHTML(title)}</h3>${rows}`;
+}
+
+// Gesamtlaufzeit einer Bibliothek/eines Ordners kann tausende Stunden sein —
+// fmtDuration() (für Player-Zeitanzeigen gedacht, "H:MM:SS") wäre hier
+// unleserlich. Eigenes Format "X Std Y Min".
+function fmtTotalDuration(sec) {
+  const total = Math.round(sec || 0);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (h === 0) return `${m} Min`;
+  return `${h} Std ${m} Min`;
+}
+
+function renderStatistikBody(d) {
+  if (!d.totalCount) {
+    return `<div class="hint">Keine Dateien in diesem Bereich.</div>`;
+  }
+  const totals = `
+    <div class="row" style="gap:20px;margin-bottom:8px">
+      <div><strong>${d.totalCount}</strong> Datei${d.totalCount === 1 ? "" : "en"}</div>
+      <div><strong>${fmtSize(d.totalSizeBytes)}</strong></div>
+      <div><strong>${fmtTotalDuration(d.totalDurationSec)}</strong> Gesamtlaufzeit</div>
+    </div>`;
+  return totals
+    + renderStatBarSection("Auflösung", d.byResolution)
+    + renderStatBarSection("Filetyp", d.byContainer)
+    + renderStatBarSection("Länge", d.byDuration);
+}
 
 async function openRenamesManager() {
   $("#renamesDialog").showModal();
@@ -662,7 +929,7 @@ async function refreshRenamesManager() {
     const action = undone
       ? ""
       : `<button type="button" class="rename-undo-btn" data-id="${e.id}" title="Rückgängig">↩</button>`;
-    const triggerLabel = ({auto: "auto", manual: "manuell", bulk: "bulk"})[e.triggeredBy] || e.triggeredBy;
+    const triggerLabel = ({auto: "auto", manual: "manuell", bulk: "bulk", move: "verschoben"})[e.triggeredBy] || e.triggeredBy;
     return `
       <tr>
         <td style="white-space:nowrap;font-size:12px">${escapeHTML(dt)}</td>
@@ -789,7 +1056,7 @@ function autoScanTaskCard(task, idx) {
   lbl.style.cssText = "font-weight:600;flex:1";
   lbl.textContent = `Aufgabe ${idx + 1}`;
   const del = document.createElement("button");
-  del.textContent = "🗑"; del.title = "Aufgabe löschen";
+  del.innerHTML = ICON_TRASH_SVG; del.title = "Aufgabe löschen";
   del.style.cssText = "background:none;border:none;cursor:pointer;opacity:.6;font-size:1em;padding:2px 4px";
   del.addEventListener("click", () => { autoScanTasks.splice(idx, 1); autoScanRenderTasks(); });
   head.append(chk, lbl, del);

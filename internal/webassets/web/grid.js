@@ -471,49 +471,73 @@ async function loadItemsBody() {
   // und ggf. löschen zu können.
   if ($("#sortSelect").value === "duplicates" && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
-    // Duplikate-Modus: zeige alle Versionen eines duplizierten Items als
-    // eigene Kachel — aber nur aus Bibliotheken mit demselben „kind" wie
-    // die gerade aktive (Bluray + Filme zusammen wenn beide movies, Serien
-    // separat, Private separat). Sonst würde z.B. in Bluray ein Episoden-
-    // Duplikat aus „Serien" mit auftauchen.
     const currentLib = state.libraries.find(l => l.id == state.currentLibrary);
     const currentKind = currentLib ? currentLib.kind : null;
-    const sameKindLibIds = new Set(
-      state.libraries.filter(l => l.kind === currentKind).map(l => l.id)
-    );
-    const p = new URLSearchParams({
-      duplicates: "yes",
-      sort: "title",
-      dir: "asc",
-    });
-    if (searchQ) p.set("search", searchQ);
-    $("#searchClear").classList.toggle("hidden", searchQ === "");
+    // Privat-Libraries haben normalerweise keine TMDB/Custom-Zuordnung
+    // (metadata_id meist NULL) — die metadata_id-basierte Erkennung unten
+    // findet dort praktisch nie etwas. Stattdessen Datei-basiert erkennen
+    // (gleiche Größe + Laufzeit = mit hoher Sicherheit dieselbe Datei
+    // zweimal vorhanden), gescoped auf DIESE Library + aktuellen Ordner
+    // (Scope "nur nach unten flach", wie die anderen Flat-Sorts).
+    const isFileDupes = currentKind === "private";
     let items = [];
-    try { items = await apiGetCached(`/api/items?${p}`); }
-    catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
-    if (stale()) return;
-    // Filter auf Libraries gleichen Kinds (siehe Kommentar oben).
-    items = items.filter(it => sameKindLibIds.has(it.libraryId));
-    // Server zählt Duplikate global — wenn zwei Versionen library-übergreifend
-    // existieren aber durch den Kind-Filter rausfallen, ist eine ggf. allein.
-    // Solche „nicht-mehr-doppelten" Items entfernen, damit keine 1er-Kacheln
-    // im Duplikate-View landen.
-    {
+    if (isFileDupes) {
+      const p = new URLSearchParams({
+        libraryId: state.currentLibrary,
+        fileDuplicates: "yes",
+        sort: "title",
+        dir: "asc",
+      });
+      if (state.currentFolder) p.set("folder", state.currentFolder);
+      if (searchQ) p.set("search", searchQ);
+      $("#searchClear").classList.toggle("hidden", searchQ === "");
+      try { items = await apiGetCached(`/api/items?${p}`); }
+      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      items.sort((a, b) => {
+        if (a.sizeBytes !== b.sizeBytes) return a.sizeBytes - b.sizeBytes;
+        return (a.relPath || "").localeCompare(b.relPath || "");
+      });
+    } else {
+      // Duplikate-Modus (Filme/Serien): zeige alle Versionen eines duplizierten
+      // Items als eigene Kachel — aber nur aus Bibliotheken mit demselben
+      // „kind" wie die gerade aktive (Bluray + Filme zusammen wenn beide
+      // movies, Serien separat). Sonst würde z.B. in Bluray ein Episoden-
+      // Duplikat aus „Serien" mit auftauchen. Bewusst library-übergreifend,
+      // nicht folder-gescoped (Filme/Serien haben keine sinnvolle
+      // "gleicher Ordner"-Grenze für Duplikate).
+      const sameKindLibIds = new Set(
+        state.libraries.filter(l => l.kind === currentKind).map(l => l.id)
+      );
+      const p = new URLSearchParams({
+        duplicates: "yes",
+        sort: "title",
+        dir: "asc",
+      });
+      if (searchQ) p.set("search", searchQ);
+      $("#searchClear").classList.toggle("hidden", searchQ === "");
+      try { items = await apiGetCached(`/api/items?${p}`); }
+      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      // Filter auf Libraries gleichen Kinds (siehe Kommentar oben).
+      items = items.filter(it => sameKindLibIds.has(it.libraryId));
+      // Server zählt Duplikate global — wenn zwei Versionen library-übergreifend
+      // existieren aber durch den Kind-Filter rausfallen, ist eine ggf. allein.
+      // Solche „nicht-mehr-doppelten" Items entfernen, damit keine 1er-Kacheln
+      // im Duplikate-View landen.
       const cnt = new Map();
       for (const it of items) cnt.set(it.metadataId, (cnt.get(it.metadataId) || 0) + 1);
       items = items.filter(it => (cnt.get(it.metadataId) || 0) >= 2);
+      items.sort((a, b) => {
+        if (a.metadataId !== b.metadataId) return a.metadataId - b.metadataId;
+        return (a.relPath || "").localeCompare(b.relPath || "");
+      });
     }
-    renderBreadcrumb({ searchCount: items.length, duplicatesView: true, duplicatesKind: currentKind });
+    renderBreadcrumb({ searchCount: items.length, duplicatesView: true, duplicatesKind: currentKind, fileDupes: isFileDupes });
     if (!items.length) {
       grid.innerHTML = `<div class="empty">Keine Duplikate gefunden.</div>`;
       return;
     }
-    // Kein Merge — Gruppierung nach metadata_id für visuelle Bündelung,
-    // aber jede Datei bekommt ihre eigene Kachel.
-    items.sort((a, b) => {
-      if (a.metadataId !== b.metadataId) return a.metadataId - b.metadataId;
-      return (a.relPath || "").localeCompare(b.relPath || "");
-    });
     state.lastRenderedItems = items;
     const frag = document.createDocumentFragment();
     items.forEach(it => frag.appendChild(renderCard(it)));

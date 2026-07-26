@@ -369,6 +369,17 @@ func (s *Server) transcodeProgress(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Touch() ist hier essentiell: der Client pollt /progress durchgehend,
+	// auch während der Player pausiert ist (kein Gate auf vjs.paused() in
+	// player.js). Ohne Touch hier hält NICHTS die Session während einer
+	// Pause am Leben — nur transcodeSegment touched, und bei Pause kommen
+	// keine Segment-Requests mehr rein. Nach 5 Min Pause killt der GC-Loop
+	// dann die ffmpeg-Session; beim Fortsetzen spielt der Client noch den
+	// Restbuffer, dann 404 auf ein nicht mehr existierendes Segment →
+	// Wiedergabe bricht ab. Mit Touch hier bleibt eine offene Player-Session
+	// beliebig lange am Leben (GC greift erst wieder, wenn der Player-Dialog
+	// geschlossen wird und stopTranscodeProgress() den Poll-Timer stoppt).
+	sess.Touch()
 	pos, err := sess.Position()
 	if err != nil {
 		pos = 0
