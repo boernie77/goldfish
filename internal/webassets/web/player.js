@@ -135,25 +135,30 @@ async function openDetail(item) {
   if (meta && meta.ageRating) {
     fskBadge = `<span class="fsk-badge fsk-${meta.ageRating}">FSK ${meta.ageRating}</span>`;
   }
-  const variants = Array.isArray(item._variants) ? item._variants : [item];
-  const hasVariants = variants.length > 1;
-  // Trennen/Zusammenlegen: nur sinnvoll wenn es Geschwister gibt (gleiche
-  // metadataId). "Trennen" setzt variantSplit für ALLE Geschwister auf true
-  // (jedes bekommt eine eigene Kachel), "Zusammenlegen" hebt es für alle
-  // wieder auf. allSplit entscheidet, welche der beiden Aktionen als
-  // nächstes sinnvoll ist.
+  // siblings: ALLE Items mit gleicher metadataId, unabhängig vom Split-Status
+  // — Grundlage für den Trennen/Zusammenlegen-Button (der wirkt immer auf die
+  // komplette ursprüngliche Gruppe).
+  const siblings = Array.isArray(item._variants) ? item._variants : [item];
+  const hasSiblings = siblings.length > 1;
   const isAdmin = !!(state.me && state.me.isAdmin);
-  const allSplit = hasVariants && variants.every(v => v.variantSplit);
-  const variantSplitBtn = (hasVariants && isAdmin) ? `
+  const allSplit = hasSiblings && siblings.every(v => v.variantSplit);
+  const variantSplitBtn = (hasSiblings && isAdmin) ? `
     <button type="button" id="detailVariantSplit" class="link-btn">
       ${allSplit ? "🔗 Wieder zusammenlegen" : "🔀 Als eigene Kacheln trennen"}
     </button>
   ` : "";
+  // dropdownVariants: nur noch die NICHT getrennten Geschwister — ein bereits
+  // getrenntes Item ist bewusst eigenständig und soll im "Variante"-Dropdown
+  // nicht mehr mit (ggf. völlig anderen, nur falsch zugeordneten) Geschwistern
+  // zusammen auftauchen. Ist das aktuell geöffnete Item selbst getrennt,
+  // gibt's für dieses Item gar keinen Dropdown mehr (nur sich selbst).
+  const dropdownVariants = item.variantSplit ? [item] : siblings.filter(v => !v.variantSplit);
+  const hasVariants = dropdownVariants.length > 1;
   const variantDropdown = hasVariants ? `
     <div class="variant-row">
       <label>Variante
         <select id="detailVariant">
-          ${variants.map(v => {
+          ${dropdownVariants.map(v => {
             const label = escapeHTML(variantLabel(v));
             return `<option value="${v.id}" title="${label}">${label}</option>`;
           }).join("")}
@@ -161,7 +166,7 @@ async function openDetail(item) {
       </label>
       ${variantSplitBtn}
     </div>
-  ` : "";
+  ` : (variantSplitBtn ? `<div class="variant-row">${variantSplitBtn}</div>` : "");
   $("#detailContent").innerHTML = `
     <div class="detail-wrap">
       <div class="detail-poster" style="background-image:url('${posterUrl}')"></div>
@@ -183,23 +188,23 @@ async function openDetail(item) {
     const sel = $("#detailVariant");
     sel.value = String(item.id);
     sel.addEventListener("change", () => {
-      const pick = variants.find(v => String(v.id) === sel.value);
+      const pick = dropdownVariants.find(v => String(v.id) === sel.value);
       if (!pick) return;
       // state.currentItem auf ausgewählte Variante setzen (Play/Download/Favorit)
-      pick._variants = variants;
+      pick._variants = siblings;
       state.currentItem = pick;
       $("#detailFileHint").innerHTML = fileHintHTML(pick);
       updateDetailWatchedBtn();
       updateDetailFavBtn();
     });
   }
-  if (hasVariants && isAdmin) {
+  if (hasSiblings && isAdmin) {
     const splitBtn = $("#detailVariantSplit");
     if (splitBtn) splitBtn.addEventListener("click", async () => {
       const makeSplit = !allSplit;
       splitBtn.disabled = true;
       try {
-        await Promise.all(variants.map(v => api(`/api/items/${v.id}/variant-split`, {
+        await Promise.all(siblings.map(v => api(`/api/items/${v.id}/variant-split`, {
           method: "PUT",
           body: JSON.stringify({ split: makeSplit }),
         })));
