@@ -26,10 +26,18 @@ async function loadItems() {
   const targetKey = navKey();
   // Bei Navigations-Wechsel den Anfangsbuchstaben-Filter zurücksetzen — er
   // ist immer kontextspezifisch (z. B. „M in Filme") und macht in einer
-  // anderen Library/Ordner keinen Sinn mehr. setAlphaFilter pflegt
-  // gleichzeitig das Banner und die Sidebar-Markierung.
+  // anderen Library/Ordner keinen Sinn mehr.
+  // NUR State + Banner zurücksetzen, NICHT setAlphaFilter() rufen: das würde
+  // synchron applyAlphaFilter() auf das noch alte, gerade verlassene Grid
+  // anwenden und kurz alle vorher ausgeblendeten Kacheln wieder einblenden
+  // (sichtbares Aufflackern der vollen Übersicht), bevor der asynchrone
+  // Sprung ins Ziel (z. B. eine über die Buchstaben-Sidebar gewählte Serie)
+  // überhaupt fertig geladen ist. Die neuen Kacheln bekommen ihren Filter-
+  // Zustand ohnehin frisch über den applyAlphaFilter()-Aufruf im finally-Block.
   if (state.lastNavKey && state.lastNavKey !== targetKey && state.alphaFilter) {
-    setAlphaFilter(null);
+    state.alphaFilter = null;
+    const banner = $("#alphaFilterBanner");
+    if (banner) banner.classList.add("hidden");
   }
   state.lastNavKey = targetKey;
   try {
