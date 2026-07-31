@@ -204,7 +204,12 @@ async function openDetail(item) {
           body: JSON.stringify({ split: makeSplit }),
         })));
         showToast(makeSplit ? "Als eigene Kacheln getrennt" : "Wieder zusammengelegt", { kind: "success" });
-        closePlayer();
+        // Wichtig: #detailDialog schliessen, NICHT closePlayer() — das würde
+        // #playerDialog (den Video-Player) schliessen, ein komplett anderes
+        // <dialog>-Element. Der Button lebt im Detail-Dialog; ohne diesen Fix
+        // blieb er nach dem Klick einfach offen stehen (Grid re-renderte im
+        // Hintergrund, sichtbar passierte scheinbar nichts).
+        try { $("#detailDialog").close(); } catch {}
         loadItems();
       } catch (e) {
         showToast(`Fehler: ${e.message}`, { kind: "error" });
