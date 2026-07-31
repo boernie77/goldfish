@@ -148,7 +148,10 @@ function groupVariants(items) {
   const groups = new Map();
   const out = [];
   for (const it of items) {
-    if (!it.metadataId) { out.push(it); continue; }
+    // variantSplit: Item wurde bewusst aus der Gruppierung genommen (siehe
+    // "🔀 Als eigene Kacheln trennen" im Detail-Dialog) — immer als eigene
+    // Kachel behandeln, obwohl es dieselbe metadataId wie Geschwister hat.
+    if (!it.metadataId || it.variantSplit) { out.push(it); continue; }
     const key = it.metadataId;
     if (!groups.has(key)) {
       const rep = { ...it, _variants: [it] };

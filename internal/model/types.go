@@ -139,6 +139,11 @@ type Item struct {
 	// dann anzeigen, wenn das Geschwister in einer anderen Library liegt und
 	// im aktuellen Grid-Render nicht enthalten ist.
 	VariantCount int `json:"variantCount,omitempty"`
+	// VariantSplit: true = dieses Item ist bewusst aus der automatischen
+	// ×N-Varianten-Gruppierung herausgenommen (groupVariants in app.js
+	// überspringt es) und erscheint immer als eigene Kachel, obwohl es
+	// dieselbe metadata_id wie Geschwister-Items hat.
+	VariantSplit bool `json:"variantSplit,omitempty"`
 }
 
 

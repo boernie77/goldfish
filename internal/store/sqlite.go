@@ -392,6 +392,16 @@ func (s *Store) migrate() error {
 	if err := addCol("rename_history", "new_library_id", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Varianten-Trennung (seit 2026-07-31): Items mit gleicher metadata_id
+	// werden im Grid client-seitig automatisch zu einer ×N-Kachel gruppiert
+	// (groupVariants in app.js). variant_split=1 nimmt ein einzelnes Item
+	// bewusst aus dieser automatischen Gruppierung heraus, ohne die
+	// metadata_id (und damit TMDB-Zuordnung/Poster) zu verändern — es bleibt
+	// derselbe Film, erscheint aber als eigene Kachel statt im Varianten-
+	// Dropdown zu verschwinden.
+	if err := addCol("items", "variant_split", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Indizes erst nach ALTER
 	idxStmts := []string{
 		`CREATE INDEX IF NOT EXISTS items_released_idx ON items(released_at)`,
@@ -913,7 +923,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       COALESCE(i.metadata_id, 0),
 	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 	       COALESCE(i.trickplay_status, ''),
-	       COALESCE(i.episode_end, 0)
+	       COALESCE(i.episode_end, 0),
+	       COALESCE(i.variant_split, 0)
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -1233,17 +1244,18 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	var out []model.Item
 	for rows.Next() {
 		var it model.Item
-		var hasThumb, watched, favorite int
+		var hasThumb, watched, favorite, variantSplit int
 		var released sql.NullString
 		var watchedAt, favoritedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd); err != nil {
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
 		it.Watched = watched == 1
 		it.Favorite = favorite == 1
+		it.VariantSplit = variantSplit == 1
 		if watchedAt.Valid {
 			it.WatchedAt = watchedAt.Time
 		}
@@ -1386,9 +1398,12 @@ func (s *Store) attachVariantCounts(items []model.Item) {
 		placeholders = append(placeholders, "?")
 		args = append(args, id)
 	}
+	// variant_split-Items zählen nicht mit — sie sind bewusst aus der
+	// Gruppierung genommen und sollen weder selbst einen ×N-Badge zeigen
+	// noch die Zählung der verbleibenden Geschwister aufblähen.
 	rows, err := s.db.Query(`
 		SELECT metadata_id, COUNT(*) FROM items
-		WHERE metadata_id IN (`+strings.Join(placeholders, ",")+`)
+		WHERE metadata_id IN (`+strings.Join(placeholders, ",")+`) AND COALESCE(variant_split, 0) = 0
 		GROUP BY metadata_id`, args...)
 	if err != nil {
 		return
@@ -1406,7 +1421,7 @@ func (s *Store) attachVariantCounts(items []model.Item) {
 		}
 	}
 	for i := range items {
-		if items[i].MetadataID > 0 {
+		if items[i].MetadataID > 0 && !items[i].VariantSplit {
 			if n, ok := counts[items[i].MetadataID]; ok {
 				items[i].VariantCount = n
 			}
@@ -1574,7 +1589,7 @@ func (s *Store) GetItem(id int64) (*model.Item, error) { return s.GetItemFor(0, 
 // userID=0 liefert globale Defaults (für Worker-Kontext).
 func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 	var it model.Item
-	var hasThumb, watched, favorite int
+	var hasThumb, watched, favorite, variantSplit int
 	var released sql.NullString
 	var watchedAt, favoritedAt sql.NullTime
 	var confirmed int
@@ -1585,14 +1600,15 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		       COALESCE(i.metadata_confirmed, 0),
 		       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 		       COALESCE(i.trickplay_status, ''),
-		       COALESCE(i.episode_end, 0)
+		       COALESCE(i.episode_end, 0),
+		       COALESCE(i.variant_split, 0)
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.id = ?`, userID, id).
 		Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&confirmed,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd)
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit)
 	it.MetadataConfirmed = confirmed == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -1603,6 +1619,7 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 	it.HasThumb = hasThumb == 1
 	it.Watched = watched == 1
 	it.Favorite = favorite == 1
+	it.VariantSplit = variantSplit == 1
 	if watchedAt.Valid {
 		it.WatchedAt = watchedAt.Time
 	}
@@ -2181,6 +2198,20 @@ func (s *Store) SetItemMetadataConfirmed(itemID int64, confirmed bool) error {
 		v = 1
 	}
 	_, err := s.db.Exec(`UPDATE items SET metadata_confirmed = ? WHERE id = ?`, v, itemID)
+	return err
+}
+
+// SetItemVariantSplit nimmt ein Item aus der automatischen ×N-Varianten-
+// Gruppierung heraus (split=true) oder legt es wieder mit Geschwister-Items
+// gleicher metadata_id zusammen (split=false). Ändert NICHT die metadata_id
+// selbst — es bleibt derselbe Film, nur die Anzeige als eigene vs. gruppierte
+// Kachel wird umgeschaltet.
+func (s *Store) SetItemVariantSplit(itemID int64, split bool) error {
+	v := 0
+	if split {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE items SET variant_split = ? WHERE id = ?`, v, itemID)
 	return err
 }
 

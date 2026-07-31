@@ -633,6 +633,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Manueller Bulk-Merge (API)**: `POST /api/items/merge` mit `{ids:[…]}` —
   erstes Item mit metadata_id ist canonical, andere übernehmen. Endpoint
   existiert, aber UI-Button dafür ist nicht mehr in der Bulk-Bar.
+- **Varianten trennen (seit 2026-07-31, Admin-only):** `items.variant_split`
+  nimmt ein Item aus der automatischen ×N-Gruppierung heraus, OHNE die
+  metadata_id zu ändern — bleibt derselbe Film, erscheint aber als eigene
+  Kachel statt im Varianten-Dropdown zu verschwinden. Button
+  „🔀 Als eigene Kacheln trennen" im Detail-Dialog (nur sichtbar wenn
+  Varianten vorhanden + Admin) setzt das Flag für ALLE Geschwister-Items
+  gleichzeitig; „🔗 Wieder zusammenlegen" hebt es wieder auf. `PUT
+  /api/items/{id}/variant-split {split: bool}`. `attachVariantCounts`
+  (Store) ignoriert gesplittete Items bei der ×N-Zählung der verbleibenden
+  Gruppe. Der Varianten-Dropdown selbst bleibt unverändert sichtbar (holt
+  weiterhin ALLE Geschwister per metadata_id über `/api/items/{id}/variants`,
+  unabhängig vom Split-Flag) — man kann also von einer getrennten Kachel aus
+  jederzeit wieder zusammenlegen.
 - **Duplikate-Filter (Sort-Dropdown „Duplikate", seit 2026-07-12 zweigeteilt):**
   Movies/TV nutzen weiterhin die bisherige metadata_id-basierte, **library-
   übergreifende** Erkennung (`ItemFilter.DupesOnly`, alle Libs mit gleichem
@@ -1470,6 +1483,7 @@ DELETE /api/items/{id}?deleteFile=…       (Admin)
 PUT    /api/items/{id}/watched            {watched: bool}
 PUT    /api/items/{id}/favorite           {favorite: bool}
 PUT    /api/items/{id}/confirm            {confirmed: bool} — auto-NFO bei confirmed=true
+PUT    /api/items/{id}/variant-split      (Admin) {split: bool} — aus ×N-Varianten-Gruppierung nehmen/wieder zusammenlegen
 POST   /api/items/{id}/write-nfo          (Admin) manueller NFO-Refresh
 POST   /api/items/write-all-nfos          (Admin) alle bestätigten Items NFO-schreiben
 GET    /api/items/{id}/playlists          (IDs der Playlists, in denen Item liegt)

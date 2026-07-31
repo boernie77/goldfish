@@ -137,6 +137,18 @@ async function openDetail(item) {
   }
   const variants = Array.isArray(item._variants) ? item._variants : [item];
   const hasVariants = variants.length > 1;
+  // Trennen/Zusammenlegen: nur sinnvoll wenn es Geschwister gibt (gleiche
+  // metadataId). "Trennen" setzt variantSplit für ALLE Geschwister auf true
+  // (jedes bekommt eine eigene Kachel), "Zusammenlegen" hebt es für alle
+  // wieder auf. allSplit entscheidet, welche der beiden Aktionen als
+  // nächstes sinnvoll ist.
+  const isAdmin = !!(state.me && state.me.isAdmin);
+  const allSplit = hasVariants && variants.every(v => v.variantSplit);
+  const variantSplitBtn = (hasVariants && isAdmin) ? `
+    <button type="button" id="detailVariantSplit" class="link-btn">
+      ${allSplit ? "🔗 Wieder zusammenlegen" : "🔀 Als eigene Kacheln trennen"}
+    </button>
+  ` : "";
   const variantDropdown = hasVariants ? `
     <div class="variant-row">
       <label>Variante
@@ -147,6 +159,7 @@ async function openDetail(item) {
           }).join("")}
         </select>
       </label>
+      ${variantSplitBtn}
     </div>
   ` : "";
   $("#detailContent").innerHTML = `
@@ -178,6 +191,25 @@ async function openDetail(item) {
       $("#detailFileHint").innerHTML = fileHintHTML(pick);
       updateDetailWatchedBtn();
       updateDetailFavBtn();
+    });
+  }
+  if (hasVariants && isAdmin) {
+    const splitBtn = $("#detailVariantSplit");
+    if (splitBtn) splitBtn.addEventListener("click", async () => {
+      const makeSplit = !allSplit;
+      splitBtn.disabled = true;
+      try {
+        await Promise.all(variants.map(v => api(`/api/items/${v.id}/variant-split`, {
+          method: "PUT",
+          body: JSON.stringify({ split: makeSplit }),
+        })));
+        showToast(makeSplit ? "Als eigene Kacheln getrennt" : "Wieder zusammengelegt", { kind: "success" });
+        closePlayer();
+        loadItems();
+      } catch (e) {
+        showToast(`Fehler: ${e.message}`, { kind: "error" });
+        splitBtn.disabled = false;
+      }
     });
   }
   updateDetailWatchedBtn();

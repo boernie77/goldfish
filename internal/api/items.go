@@ -261,6 +261,39 @@ func (s *Server) confirmItemMetadata(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// setItemVariantSplit nimmt ein Item aus der automatischen ×N-Varianten-
+// Gruppierung heraus (oder legt es wieder zusammen) — ändert NICHT die
+// metadata_id, nur die Anzeige. Admin-only, analog zu Merge/Move: eine
+// globale Anzeige-Entscheidung, kein pro-User-Zustand.
+// PUT /api/items/{id}/variant-split  {"split": bool}
+func (s *Server) setItemVariantSplit(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil || it == nil {
+		writeError(w, 404, "Item nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	var body struct {
+		Split bool `json:"split"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetItemVariantSplit(id, body.Split); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
 // searchItemsByPath: Admin-Diagnose-Endpunkt. Sucht in rel_path + path
 // (Dateiname/Ordnerpfad), um falsch zugeordnete Items zu finden, die im
 // normalen Titel-Search nicht auftauchen (z.B. weil TMDB sie einem völlig
