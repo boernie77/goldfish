@@ -13,7 +13,8 @@ const homeItemCols = `
 	COALESCE(i.thumb_path,''), i.has_thumb, i.mod_time, i.released_at, i.added_at,
 	COALESCE(i.metadata_id, 0),
 	COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
-	COALESCE(i.trickplay_status, '')
+	COALESCE(i.trickplay_status, ''),
+	COALESCE(i.variant_split, 0)
 `
 
 func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
@@ -25,17 +26,19 @@ func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
 		var hasThumb int
 		var watched int
 		var favorite int
+		var variantSplit int
 		var watchedAt, favoritedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title,
 			&it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps,
 			&it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus); err != nil {
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &variantSplit); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
 		it.Watched = watched == 1
 		it.Favorite = favorite == 1
+		it.VariantSplit = variantSplit == 1
 		if watchedAt.Valid {
 			it.WatchedAt = watchedAt.Time
 		}

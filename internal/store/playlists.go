@@ -178,7 +178,8 @@ func (s *Store) PlaylistItems(playlistID int64) ([]model.Item, error) {
 		       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb,
 		       i.mod_time, i.released_at, i.added_at, COALESCE(i.metadata_id, 0),
 		       i.watched, i.watched_at, i.favorite, i.favorited_at,
-		       COALESCE(i.trickplay_status, '')
+		       COALESCE(i.trickplay_status, ''),
+		       COALESCE(i.variant_split, 0)
 		FROM playlist_items pi
 		JOIN items i ON i.id = pi.item_id
 		WHERE pi.playlist_id = ?
@@ -191,17 +192,18 @@ func (s *Store) PlaylistItems(playlistID int64) ([]model.Item, error) {
 	out := []model.Item{}
 	for rows.Next() {
 		var it model.Item
-		var hasThumb, watched, favorite int
+		var hasThumb, watched, favorite, variantSplit int
 		var released sql.NullString
 		var watchedAt, favoritedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb,
 			&it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus); err != nil {
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &variantSplit); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
 		it.Watched = watched == 1
+		it.VariantSplit = variantSplit == 1
 		it.Favorite = favorite == 1
 		if watchedAt.Valid {
 			it.WatchedAt = watchedAt.Time

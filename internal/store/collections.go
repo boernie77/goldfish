@@ -142,6 +142,7 @@ func (s *Store) ListItemsInCollection(collectionID, userID int64) ([]any, error)
 		       COALESCE(i.metadata_id, 0),
 		       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 		       COALESCE(i.trickplay_status, ''),
+		       COALESCE(i.variant_split, 0),
 		       m.title, COALESCE(m.year,0), COALESCE(m.poster_path,''), m.tmdb_type, COALESCE(m.rating,0)
 		FROM items i
 		JOIN metadata m ON m.id = i.metadata_id
@@ -162,7 +163,7 @@ func (s *Store) ListItemsInCollection(collectionID, userID int64) ([]any, error)
 			DurationSec                                              float64
 			SizeBytes                                                int64
 			ThumbPath                                                string
-			HasThumb, Watched, Favorite                              int
+			HasThumb, Watched, Favorite, VariantSplit                int
 			ModTime, AddedAt                                         time.Time
 			ReleasedAt                                               sql.NullTime
 			WatchedAt, FavoritedAt                                   sql.NullTime
@@ -177,7 +178,7 @@ func (s *Store) ListItemsInCollection(collectionID, userID int64) ([]any, error)
 			&r.DurationSec, &r.SizeBytes, &r.BitrateKbps, &r.ThumbPath, &r.HasThumb,
 			&r.ModTime, &r.ReleasedAt, &r.AddedAt, &r.MetadataID,
 			&r.Watched, &r.WatchedAt, &r.Favorite, &r.FavoritedAt,
-			&r.TrickplayStatus,
+			&r.TrickplayStatus, &r.VariantSplit,
 			&r.MetaTitle, &r.MetaYear, &r.MetaPosterPath, &r.MetaTmdbType, &r.MetaRating,
 		); err != nil {
 			return nil, err
@@ -205,6 +206,7 @@ func (s *Store) ListItemsInCollection(collectionID, userID int64) ([]any, error)
 			"watched":         r.Watched == 1,
 			"favorite":        r.Favorite == 1,
 			"trickplayStatus": r.TrickplayStatus,
+			"variantSplit":    r.VariantSplit == 1,
 			"metadata": map[string]any{
 				"id":         r.MetadataID,
 				"title":      r.MetaTitle,
