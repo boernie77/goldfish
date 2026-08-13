@@ -419,23 +419,30 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   einer Serie automatisch durch **Audio- UND Bild-Fingerprint-Vergleich**
   zwischen den Episoden derselben Show, mit **echtem Paarweise-Vergleichen**
   (jede Episode gegen jede andere) — an Jellyfins „Intro Skipper"-Plugin
-  angelehnt (`ConfusedPolarBear/intro-skipper` auf GitHub, öffentlich
-  einsehbar; Schwellenwerte in `correlate.go` sind von dort übernommen, mit
-  Quellenangabe im Code-Kommentar). Kein manuelles Markieren nötig.
-- **Explizite User-Anforderung (2026-08-12), die zu diesem Redesign führte:**
-  "Zuverlässigkeit ist mir sehr wichtig. Kann man Ton nicht mit Bild
-  kombinieren und auf Paarweise umsteigen." — längere Laufzeit wurde
-  bewusst gegen höhere Verlässlichkeit eingetauscht.
+  angelehnt (`ConfusedPolarBear/intro-skipper` auf GitHub; Schwellenwerte in
+  `correlate.go` von dort übernommen, Quellenangabe im Code-Kommentar).
+  Kein manuelles Markieren nötig. Auslöser für das Redesign: User-Anforderung
+  "Zuverlässigkeit ist mir sehr wichtig, Ton mit Bild kombinieren und auf
+  Paarweise umsteigen" — längere Laufzeit bewusst gegen Verlässlichkeit
+  eingetauscht. Ältere, mittlerweile abgelöste Algorithmus-Iterationen (reines
+  Audio-Delta-Voting, verschiedene Ausreißer-Filter) siehe Git-Historie/Memory
+  `project_feature_introskip`, nicht mehr im Code vorhanden.
 - **Aktivierung ist strikt pro einzelnem Serien-Ordner** (Top-Level-Ordner
   einer TV-Library) — es gibt bewusst **keinen** „ganze Bibliothek
   aktivieren"-Schalter. `folder == ""` wird von Store UND API-Handler
   zurückgewiesen (`SetIntroSkipFolder`, `setIntroSkipFolder`).
 - **Optionale Staffel-Beschränkung** (`intro_skip_folders.season`, `0` =
   alle Staffeln): ein aktivierter Ordner kann auf EINE Staffel eingeschränkt
-  werden (`SetIntroSkipFolderSeason`), für kontrolliertes Testen an einer
-  Show ohne gleich die ganze Serie zu verarbeiten. `PUT
-  /api/libraries/{id}/introskip` nimmt dafür optional `season` im Body an
-  (0/weggelassen = alle Staffeln).
+  werden (`SetIntroSkipFolderSeason`), z.B. für kontrolliertes Testen. `PUT
+  /api/libraries/{id}/introskip` nimmt optional `season` im Body an. UI:
+  kleines Zahlenfeld neben jeder aktivierten Serie in `introskip.js`
+  (`.introskip-season-input`, Platzhalter „alle"). **Wichtig:** `season` ist
+  im API-Body ein **Zeiger** (`*int`), nicht ein normaler int — ein reiner
+  Checkbox-Toggle sendet `{folder, enabled}` OHNE `season`-Feld; würde der
+  Handler das als `season=0` lesen, würde JEDES An/Aus-Toggle die
+  Staffel-Beschränkung heimlich löschen (real passiert, 2026-08-13). Mit dem
+  Zeiger wird `SetIntroSkipFolderSeason` nur bei explizit mitgeschicktem Feld
+  aufgerufen.
 - **Voraussetzung: mindestens 2 Episoden** (nach Staffel-Filter, falls
   gesetzt) im Ordner — die Erkennung vergleicht immer mehrere Episoden
   gegeneinander. Serien mit nur einer Episode bekommen keinen Skip-Button;
@@ -450,83 +457,48 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      tatsächlich fingerprintete Länge — die Sekunden-pro-Frame-Dauer wird
      deshalb über `min(DURATION, prefixSeconds) / Anzahl Fingerprint-Werte`
      berechnet, sonst verfälscht das die Umrechnung.
-  2. **Echtes Paarweise-Vergleichen:** für jede Kandidaten-Episode wird
-     GEGEN JEDE andere Episode im Job einzeln korreliert (nicht nur gegen
-     eine kleine Referenz-Auswahl wie in der ersten Fassung) — bei N
-     Episoden N·(N-1) Audio-Korrelationen. Pro Paarung:
+  2. **Echtes Paarweise-Vergleichen:** jede Kandidaten-Episode wird gegen
+     JEDE andere Episode im Job einzeln korreliert (N·(N-1) Korrelationen
+     bei N Episoden). Pro Paarung:
      - `correlateAudio` (Jellyfin-Algorithmus): Inverted-Index-Shift-Search
        (`buildInvertedIndex32`/`candidateShifts32`, Suchradius
-       `invertedIndexShift=2`) statt Brute-Force über alle Zeitversätze —
-       schneller UND präziser, weil nur echte Ausrichtungs-Kandidaten
-       geprüft werden. `maxHammingPerFrame=6` (von 32 Bit, deutlich
-       strenger als der frühere Wert 15). Längster zusammenhängender Lauf
+       `invertedIndexShift=2`) statt Brute-Force über alle Zeitversätze.
+       `maxHammingPerFrame=6` (von 32 Bit). Längster zusammenhängender Lauf
        gewinnt (`findLongestContiguous`, lückentolerant bis
        `maxTimeSkipSec=3.5s`). `maxIntroDurationSec=120` verhindert lange
-       wiederverwendete Szenen-Musik als Fehltreffer (fehlte in der ersten
-       Eigenkonstruktion komplett).
+       wiederverwendete Szenen-Musik als Fehltreffer.
      - **Bild-Gegenprüfung** (`verifyVideoMatch`): der audio-gefundene
-       Zeitbereich wird zusätzlich per dHash-Vergleich (Hamming-Distanz
-       ≤12 von 64 Bit, ≥60% der Frames im Fenster müssen matchen) bestätigt
-       — nutzt den von `correlateAudio` gelieferten Zeitversatz direkt,
-       keine zweite unabhängige Bildsuche nötig. Verwirft Fälle, wo Audio
-       zufällig matcht, aber der Bildinhalt offensichtlich unterschiedlich
-       ist (z. B. wiederverwendete Score-Musik über verschiedenen Szenen).
+       Zeitbereich wird per dHash-Vergleich (Hamming-Distanz ≤12/64 Bit,
+       ≥60% Frame-Übereinstimmung) bestätigt — nutzt den von `correlateAudio`
+       gelieferten Zeitversatz direkt, keine zweite unabhängige Bildsuche.
+       Verwirft Fälle, wo Audio zufällig matcht, aber der Bildinhalt
+       offensichtlich unterschiedlich ist (z.B. wiederverwendete Score-Musik).
      - Nur wenn BEIDE Signale übereinstimmen, zählt die Paarung als
        Beobachtung.
   3. **Konsens über mehrere Beobachtungen** (`aggregateObservations`,
      `minAgreeObservations=2`): mindestens 2 unabhängige Referenz-Episoden
      müssen für dieselbe Kandidaten-Episode ein zeitlich nahes Ergebnis
-     liefern (`agreementToleranceSec=20`), sonst gilt die Episode als „kein
-     Intro erkannt". Median von Start/Ende des größten Clusters gewinnt.
-     **Bewusst PRO Kandidaten-Episode isoliert** (nicht global über die
-     ganze Show) — ein früherer Cluster-Ansatz über alle Episoden hinweg
-     bestrafte Serien mit legitim schwankender Cold-Open-Länge (Chuck fiel
-     von 86/91 auf 23/91 Treffer).
+     liefern (`agreementToleranceSec=20`). Median von Start/Ende des größten
+     Clusters gewinnt. **Bewusst PRO Kandidaten-Episode isoliert** (nicht
+     global über die ganze Show) — ein früherer Cluster-Ansatz über alle
+     Episoden hinweg bestrafte Serien mit legitim schwankender
+     Cold-Open-Länge.
   4. Ergebnis pro Episode landet in `items.intro_start_sec`/
      `intro_end_sec` (NULL = nicht analysiert/kein Treffer).
      `items.intro_checked_at` markiert „Analyse-Versuch gemacht" auch ohne
      Treffer — verhindert Endlosschleifen im Rescan, analog
      `metadata.cast_fetched_at`.
-  - **Vorgeschichte der Algorithmus-Iterationen** (chronologisch, alle vor
-    2026-08-13 durch das Jellyfin-Redesign abgelöst): (a) strenger
-    zusammenhängender Lauf ohne Toleranz → 0/91 Treffer; (b) festes
-    ±10s-Offset-Fenster → verpasste Treffer nach langem Cold Open; (c)
-    Delta-Voting mit "frühester Treffer gewinnt" → besser, aber traf
-    gelegentlich falsche wiederkehrende Audio-Motive (z. B. Abspann-Musik
-    bei "Abbott Elementary", ~67% statt ~5% der Laufzeit); (d)
-    positions-relativer Ausreißer-Filter (`introMaxDurationFraction`,
-    35%-Grenze) als Fix für (c) — funktionierte, wurde aber durch die
-    Bild-Gegenprüfung + Konsens-Mechanismus des Jellyfin-Redesigns ersetzt,
-    die dasselbe Problem robuster lösen (visuell bestätigt statt nur
-    positions-heuristisch).
-  - **Verifikations-Zwischenfall 2026-08-13 (aufgeklärt, kein Bug):** bei
-    einer visuellen Stichprobe wurde ein E04-Treffer fälschlich als
-    "Werbespot" interpretiert und daraufhin ein Konfundierungsrisiko durch
-    eingebettete TV-Werbung in den Datei-Rips vermutet. Erneute Prüfung
-    zeigte: es war ein Fehler bei der Bildauswertung, der Treffer zeigte
-    tatsächlich den echten Chuck-Vorspann (Cast-Credits). Es gibt **keinen**
-    bekannten Hinweis auf eingebettete Werbung in den Rips — die
-    Bild-Gegenprüfung wurde trotzdem wie geplant eingebaut (unabhängig
-    davon als allgemeine Zuverlässigkeits-Verbesserung angefordert).
-  - **Zwei ältere Startup-Backfills** (`cmd/goldfish/main.go`) — Historie:
-    v1 filterte nachträglich am schon gespeicherten Ergebnis mit einem
-    globalen Median, was RICHTIGE Treffer löschte statt falsche
-    (Mehrheits-Bias). v2 nutzte zum Neu-Einreihen `UpsertIntroSkipJob` (nur
-    `status='failed'`→`pending`, bei `status='done'` No-op) — Items wurden
-    geleert, Jobs aber nie neu gezogen. v3 (`backfillIntroSkipOutliers`)
-    nutzt `ForceRetryIntroSkipJob` (setzt IMMER auf `pending`) — bei
-    künftigen Reset-Backfills immer diese Funktion verwenden, nie
-    `UpsertIntroSkipJob`.
-  - **Aktueller Backfill (`backfillIntroSkipDisableAllExceptChuckS2`,
-    Settings-Key `intro_skip_disable_all_except_chuck_s2_v1`):** läuft
-    EINMALIG nach dem Jellyfin-Redesign, deaktiviert alle bisher
-    aktivierten Serien-Ordner bis auf Chuck (Namensvergleich am letzten
-    Pfadsegment) und beschränkt Chuck auf Staffel 2 — explizite
-    User-Anweisung, den neuen Algorithmus erst kontrolliert an einer
-    bekannten Staffel zu verifizieren, bevor er wieder für alle
-    bisher aktivierten Serien läuft. **Sobald das verifiziert ist**: andere
-    Serien müssen im Admin-Dialog wieder manuell aktiviert werden (macht
-    dieser Backfill bewusst NICHT automatisch rückgängig).
+  - **Backfills** (`cmd/goldfish/main.go`, je ein Settings-Key als
+    Einmal-Gate): `backfillIntroSkipOutliers` (v3, nutzt
+    `ForceRetryIntroSkipJob` — setzt IMMER auf `pending`; bei künftigen
+    Reset-Backfills IMMER diese Funktion nutzen, NIE `UpsertIntroSkipJob`,
+    das nur `failed`-Jobs zurücksetzt und `done`-Jobs still ignoriert).
+    `backfillIntroSkipDisableAllExceptChuckS2` lief einmalig nach dem
+    Jellyfin-Redesign: deaktivierte alle bisher aktivierten Serien-Ordner bis
+    auf Chuck (Namensvergleich am letzten Pfadsegment), beschränkte Chuck auf
+    Staffel 2 — kontrollierte Erstverifikation des neuen Algorithmus. Nach
+    erfolgreichem Test hat der User alle 211 Serien wieder aktiviert (läuft
+    im Hintergrund weiter).
 - **Trigger:** Ordner-Aktivierung reiht sofort einen Job ein
   (`UpsertIntroSkipJob` + `Trigger()`). Nach jedem Scan werden bereits
   aktivierte Ordner mit neuen unanalysierten Episoden automatisch erneut
@@ -546,40 +518,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   POST    /api/introskip/folders/{id}/retry         {folder}
   POST    /api/introskip/retry-failed
   ```
-  **Staffel-Feld im Admin-Dialog** (seit 2026-08-13): kleines Zahlenfeld
-  neben jeder aktivierten Serie in `introskip.js` (`.introskip-season-input`,
-  Platzhalter „alle"). `season` ist im API-Body ein **Zeiger** (`*int` in
-  `internal/api/introskip.go`), NICHT ein normaler int — Grund: ein reiner
-  Checkbox-Toggle sendet `{folder, enabled}` OHNE `season`-Feld, und wenn
-  der Handler das als `season=0` interpretiert hätte, hätte JEDES simple
-  An/Aus-Toggle die Staffel-Beschränkung stillschweigend gelöscht (real
-  passiert, 2026-08-13: Chuck stand korrekt auf season=2, ein späteres
-  Checkbox-Toggle beim Explorieren des Dialogs setzte es unbemerkt auf 0
-  zurück). Mit dem Zeiger wird `SetIntroSkipFolderSeason` nur aufgerufen,
-  wenn der Request das Feld **explizit** mitschickt.
 - **Deaktivierte Serien werden vom Worker wirklich ignoriert** (seit
-  2026-08-13): `Store.ListPendingIntroSkipJobs` joint jetzt gegen
-  `intro_skip_folders`, sodass nur Jobs aktivierter Ordner gezogen werden.
-  Vorher hätte das bloße Löschen der `intro_skip_folders`-Zeile (Ordner
-  deaktivieren) einen bereits `pending` stehenden Job NICHT gestoppt — der
-  Worker hätte ihn beim nächsten Tick trotzdem abgearbeitet (real
-  beobachtet: nach „alle deaktivieren außer Chuck" standen noch ~30 alte
-  pending-Jobs anderer Serien in der Tabelle).
-- **Pausiert automatisch während eines Library-Scans** (seit 2026-08-13,
-  `Worker.SetPauseCheck` in `cmd/goldfish/main.go`, gespeist aus
-  `sc.Status().Running`): Introskip ist sehr I/O-intensiv (ffmpeg+fpcalc
-  pro Episode) und kollidierte mit gleichzeitigen Scans auf demselben
-  Netzwerk-Mount — real beobachtet massenhaft `ffprobe: exit status 1`
-  während eines Scans, weil zeitgleich ein Introskip-Job mit 125 Episoden
-  lief. Pause wirkt an zwei Stellen: `runOnce()` startet keinen neuen Job,
-  UND die Episoden-Fingerprint-Schleife in `processShow` pausiert
-  zwischen zwei Episoden (`waitWhilePaused`) — ein bereits laufender,
-  potenziell sehr langer Job muss also nicht erst fertig werden, bevor ein
-  dazwischen gestarteter Scan Vorrang bekommt. Kein Datenverlust beim
-  Scan selbst (Orphan-Löschung betrifft nur Dateien, die vorher schon in
-  der DB standen — neue/geänderte Dateien mit fehlgeschlagenem `ffprobe`
-  werden einfach übersprungen und beim nächsten Scan automatisch erneut
-  versucht, da ihr mtime-Abgleich nicht "unverändert" ergibt).
+  2026-08-13): `Store.ListPendingIntroSkipJobs` joint gegen
+  `intro_skip_folders`, sodass nur Jobs aktivierter Ordner gezogen werden —
+  vorher hätte ein bereits `pending` stehender Job trotz Deaktivierung
+  weitergelaufen.
+- **Pausiert automatisch während eines Library-Scans** (`Worker.SetPauseCheck`
+  in `cmd/goldfish/main.go`, gespeist aus `sc.Status().Running`): Introskip
+  ist sehr I/O-intensiv (ffmpeg+fpcalc pro Episode) und kollidierte mit
+  gleichzeitigen Scans auf demselben Netzwerk-Mount (real beobachtet:
+  massenhaft `ffprobe: exit status 1` während eines Scans). Pause wirkt an
+  zwei Stellen: `runOnce()` startet keinen neuen Job, UND die
+  Episoden-Fingerprint-Schleife in `processShow` pausiert zwischen zwei
+  Episoden (`waitWhilePaused`) — ein bereits laufender langer Job muss also
+  nicht erst fertig werden, bevor ein dazwischen gestarteter Scan Vorrang
+  bekommt. Kein Datenverlust beim Scan selbst (Orphan-Löschung betrifft nur
+  Dateien, die vorher schon in der DB standen).
 - **Episoden-Detailliste:** jede Serien-Zeile im Job-Tab (Fertig/Fehler/
   Ausstehend) lässt sich über ein ▸-Toggle aufklappen (`toggleIntroSkipEpisodeList`
   in `introskip.js`, lazy geladen bei erstem Klick) — zeigt pro Episode
