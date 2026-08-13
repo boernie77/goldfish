@@ -42,6 +42,7 @@ const state = {
   lastNavKey: null,            // navKey der zuletzt gerenderten Ansicht
   alphaFilter: null,           // null oder "A".."Z"|"#" — Anfangsbuchstaben-Filter via Sidebar-Klick
   moveContext: null,           // {mode:"single",item} oder {mode:"bulk",ids,libId} während #moveDialog offen ist
+  shuffleFolders: [],          // [{libraryId,libraryName,folder,label}] — Ordner-Scoping für Zufallswiedergabe (leer = aktueller Kontext)
 };
 
 // captureNavSnapshot: merkt sich die aktuelle Nav-Position (Library, Folder,
@@ -628,6 +629,7 @@ function sortStorageKey() {
     return `sort:lib:${state.currentLibrary}:${folder}`;
   }
   if (state.collectionsView) return "sort:collections";
+  if (state.currentPlaylist) return `sort:playlist:${state.currentPlaylist}`;
   if (state.playlistsView) return "sort:playlists";
   if (state.personFilter) return "sort:person";
   return "";
@@ -1159,6 +1161,9 @@ function wire() {
   const tpShowFailed = $("#tpShowFailed");
   if (tpShowFailed) tpShowFailed.addEventListener("click", openTrickplayFailedView);
   $("#shuffleBtn").addEventListener("click", playRandom);
+  $("#shuffleScopeBtn").addEventListener("click", openShuffleScopeDialog);
+  $("#shuffleScopeApply").addEventListener("click", applyShuffleScope);
+  $("#shuffleScopeReset").addEventListener("click", resetShuffleScope);
   $("#scanBtn").addEventListener("click", () => {
     // Inside einem Ordner: Default ist ordner-gescopt. Am Library-Root: gesamte Library.
     startScan(state.currentFolder ? "folder" : "incremental");
@@ -1221,6 +1226,7 @@ function wire() {
       case "users":     openUsersManager(); break;
       case "trickplay": openTrickplayManager(); break;
       case "whisper":   openWhisperDialog(); break;
+      case "introskip": openIntroSkipDialog(); break;
       case "pathsearch": openPathSearch(); break;
       case "missing": openMissingDialog(); break;
       case "refreshallmeta": runRefreshAllMetadata(); break;
@@ -1520,7 +1526,12 @@ async function checkAuth() {
 (async function boot() {
   if (!await checkAuth()) return;
   try { state.flatView = localStorage.getItem("flatView") === "1"; } catch {}
+  try {
+    const raw = localStorage.getItem("shuffleFolders");
+    if (raw) state.shuffleFolders = JSON.parse(raw) || [];
+  } catch {}
   wire();
+  updateShuffleScopeIndicator();
   // Alphabet-Leiste automatisch nach jedem Grid-Render aktualisieren.
   const gridEl = $("#grid");
   if (gridEl && window.MutationObserver) {

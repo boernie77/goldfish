@@ -207,6 +207,13 @@ function randomParams() {
   } else if (state.personFilter && state.personFilter.tmdbId) {
     // Person-Filter: alle Videos mit diesem Schauspieler, library-uebergreifend.
     params.set("personId", state.personFilter.tmdbId);
+  } else if (state.shuffleFolders && state.shuffleFolders.length) {
+    // Manuelle Ordner-Auswahl (shuffleScopeDialog): library-uebergreifend
+    // kombinierbar, hat Vorrang vor dem aktuell geoeffneten Bibliotheks-/
+    // Ordner-Kontext, solange eine Auswahl aktiv ist.
+    for (const sel of state.shuffleFolders) {
+      params.append("folderSel", `${sel.libraryId}:${sel.folder}`);
+    }
   } else if (state.currentLibrary) {
     params.set("libraryId", state.currentLibrary);
     if (state.currentFolder !== null) params.set("folder", state.currentFolder);
@@ -222,10 +229,12 @@ function randomParams() {
 }
 
 async function playRandom() {
-  // Mindestens einer der drei Kontexte muss aktiv sein: Library, Playlist oder
-  // Person-Filter. Sonst gibt es nichts, woraus zufaellig gewaehlt werden kann.
+  // Mindestens einer der Kontexte muss aktiv sein: Library, Playlist,
+  // Person-Filter oder eine manuelle Ordner-Auswahl. Sonst gibt es nichts,
+  // woraus zufaellig gewaehlt werden kann.
   if (!state.currentLibrary && !state.currentPlaylist &&
-      !(state.personFilter && state.personFilter.tmdbId)) {
+      !(state.personFilter && state.personFilter.tmdbId) &&
+      !(state.shuffleFolders && state.shuffleFolders.length)) {
     appAlert("Bitte erst eine Bibliothek, Playlist oder einen Schauspieler-Filter waehlen.");
     return;
   }
@@ -263,5 +272,200 @@ function shufflePrev() {
   if (!state.shuffleMode || state.shuffleIdx <= 0) return;
   state.shuffleIdx--;
   openPlayer(state.shuffleHistory[state.shuffleIdx], { fromShuffle: true });
+}
+
+// --- Zufallswiedergabe: Ordner-Auswahl (shuffleScopeDialog) ---
+//
+// Erlaubt, die Zufallswiedergabe auf eine frei kombinierbare Auswahl aus
+// Ordnern/Unterordnern (auch aus verschiedenen Ordnern oder Bibliotheken)
+// zu beschränken, statt nur auf die aktuell geöffnete Library/Ordner.
+// Persistiert in state.shuffleFolders + localStorage "shuffleFolders".
+//
+// Der Ordner-Baum wird lazy geladen (ein Level pro Expand-Klick) über
+// GET /api/libraries/{id}/folders?parent=… — dieselbe Route wie die normale
+// Ordner-Navigation, funktioniert also auch für Non-Admin-User (anders als
+// /all-folders, das admin-only ist und im Verschieben-Dialog genutzt wird).
+
+let shuffleScopePending = [];   // Arbeitskopie von state.shuffleFolders, während der Dialog offen ist
+let shuffleTreeCache = {};      // `${libId}:${parent}` → Folder[] (vermeidet Re-Fetch beim Auf-/Zuklappen)
+let shuffleTreeExpanded = new Set(); // Set von `${libId}:${path}` — aufgeklappte Knoten im Dialog
+
+async function openShuffleScopeDialog() {
+  if (!state.libraries || !state.libraries.length) {
+    appAlert("Keine Bibliothek verfügbar.");
+    return;
+  }
+  shuffleScopePending = state.shuffleFolders.map(x => ({ ...x }));
+  shuffleTreeCache = {};
+  shuffleTreeExpanded = new Set();
+  const sel = $("#shuffleScopeLibrarySelect");
+  sel.innerHTML = state.libraries.map(l => `<option value="${l.id}">${escapeHTML(l.name)}</option>`).join("");
+  const preferred = (state.currentLibrary && state.libraries.some(l => l.id == state.currentLibrary))
+    ? state.currentLibrary : state.libraries[0].id;
+  sel.value = preferred;
+  if (!sel.dataset.wired) {
+    sel.dataset.wired = "1";
+    sel.addEventListener("change", () => renderShuffleScopeTree());
+  }
+  renderShuffleScopeChips();
+  await renderShuffleScopeTree();
+  $("#shuffleScopeDialog").showModal();
+}
+
+async function fetchShuffleTreeChildren(libId, parent) {
+  const key = `${libId}:${parent}`;
+  if (shuffleTreeCache[key]) return shuffleTreeCache[key];
+  try {
+    const folders = await api(`/api/libraries/${libId}/folders?parent=${encodeURIComponent(parent)}`);
+    shuffleTreeCache[key] = folders || [];
+  } catch {
+    shuffleTreeCache[key] = [];
+  }
+  return shuffleTreeCache[key];
+}
+
+async function renderShuffleTreeLevel(libId, parent) {
+  const folders = await fetchShuffleTreeChildren(libId, parent);
+  if (!folders.length) return "";
+  const rows = await Promise.all(folders.map(async (f) => {
+    const path = f.name;
+    const checked = shuffleScopePending.some(x => x.libraryId === libId && x.folder === path);
+    const key = `${libId}:${path}`;
+    const expanded = shuffleTreeExpanded.has(key);
+    const label = path.split("/").pop();
+    const childrenHtml = expanded
+      ? `<ul class="move-tree-list">${await renderShuffleTreeLevel(libId, path)}</ul>`
+      : "";
+    return `
+      <li class="move-tree-item">
+        <div class="move-tree-row ${checked ? "is-checked" : ""}" data-lib="${libId}" data-path="${escapeHTML(path)}">
+          <button type="button" class="move-tree-toggle ${expanded ? "is-open" : ""}" data-lib="${libId}" data-toggle="${escapeHTML(path)}">▸</button>
+          <label class="move-tree-label"><input type="checkbox" data-lib="${libId}" data-path="${escapeHTML(path)}" ${checked ? "checked" : ""}> 📁 ${escapeHTML(label)}</label>
+        </div>
+        ${childrenHtml}
+      </li>`;
+  }));
+  return rows.join("");
+}
+
+async function renderShuffleScopeTree() {
+  const libId = Number($("#shuffleScopeLibrarySelect").value);
+  const container = $("#shuffleScopeTree");
+  const rootChecked = shuffleScopePending.some(x => x.libraryId === libId && x.folder === "");
+  const childrenHtml = await renderShuffleTreeLevel(libId, "");
+  const rootRow = `
+    <div class="move-tree-row ${rootChecked ? "is-checked" : ""}" data-lib="${libId}" data-path="">
+      <button type="button" class="move-tree-toggle move-tree-toggle--leaf"></button>
+      <label class="move-tree-label"><input type="checkbox" data-lib="${libId}" data-path="" ${rootChecked ? "checked" : ""}> 🏠 (ganze Bibliothek)</label>
+    </div>`;
+  container.innerHTML = childrenHtml
+    ? `${rootRow}<ul class="move-tree-list">${childrenHtml}</ul>`
+    : `${rootRow}<div class="move-tree-empty">Keine Unterordner in dieser Bibliothek.</div>`;
+  if (!container.dataset.wired) {
+    container.dataset.wired = "1";
+    container.addEventListener("click", handleShuffleTreeToggle);
+    container.addEventListener("change", handleShuffleTreeCheck);
+  }
+}
+
+async function handleShuffleTreeToggle(e) {
+  const toggle = e.target.closest("[data-toggle]");
+  if (!toggle) return;
+  e.stopPropagation();
+  const libId = Number(toggle.dataset.lib);
+  const path = toggle.dataset.toggle;
+  const key = `${libId}:${path}`;
+  if (shuffleTreeExpanded.has(key)) shuffleTreeExpanded.delete(key);
+  else shuffleTreeExpanded.add(key);
+  await renderShuffleScopeTree();
+}
+
+function handleShuffleTreeCheck(e) {
+  const cb = e.target.closest('input[type="checkbox"]');
+  if (!cb) return;
+  const libId = Number(cb.dataset.lib);
+  const path = cb.dataset.path;
+  toggleShuffleFolderSelection(libId, path, cb.checked);
+  const row = cb.closest(".move-tree-row");
+  if (row) row.classList.toggle("is-checked", cb.checked);
+  renderShuffleScopeChips();
+}
+
+function toggleShuffleFolderSelection(libId, path, checked) {
+  if (checked) {
+    if (shuffleScopePending.some(x => x.libraryId === libId && x.folder === path)) return;
+    const lib = state.libraries.find(l => l.id === libId);
+    const libName = lib ? lib.name : `Lib ${libId}`;
+    shuffleScopePending.push({
+      libraryId: libId,
+      libraryName: libName,
+      folder: path,
+      label: path === "" ? `${libName} (ganze Bibliothek)` : `${libName} / ${path}`,
+    });
+  } else {
+    shuffleScopePending = shuffleScopePending.filter(x => !(x.libraryId === libId && x.folder === path));
+  }
+}
+
+function renderShuffleScopeChips() {
+  const box = $("#shuffleScopeChips");
+  if (!shuffleScopePending.length) {
+    box.innerHTML = `<span class="shuffle-chip-empty">Keine Auswahl — aktueller Kontext wird verwendet.</span>`;
+    return;
+  }
+  box.innerHTML = shuffleScopePending.map((x, i) =>
+    `<span class="shuffle-chip">${escapeHTML(x.label)}<button type="button" data-idx="${i}" title="Entfernen">✕</button></span>`
+  ).join("");
+  if (!box.dataset.wired) {
+    box.dataset.wired = "1";
+    box.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-idx]");
+      if (!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const removed = shuffleScopePending[idx];
+      shuffleScopePending.splice(idx, 1);
+      renderShuffleScopeChips();
+      if (removed && removed.libraryId === Number($("#shuffleScopeLibrarySelect").value)) {
+        await renderShuffleScopeTree();
+      }
+    });
+  }
+}
+
+function applyShuffleScope() {
+  state.shuffleFolders = shuffleScopePending.map(x => ({ ...x }));
+  try { localStorage.setItem("shuffleFolders", JSON.stringify(state.shuffleFolders)); } catch {}
+  updateShuffleScopeIndicator();
+  $("#shuffleScopeDialog").close();
+  showToast(
+    state.shuffleFolders.length
+      ? `Zufallswiedergabe auf ${state.shuffleFolders.length} Ordner beschränkt`
+      : "Zufallswiedergabe-Auswahl zurückgesetzt",
+    { kind: "success" }
+  );
+}
+
+async function resetShuffleScope() {
+  shuffleScopePending = [];
+  renderShuffleScopeChips();
+  await renderShuffleScopeTree();
+}
+
+// updateShuffleScopeIndicator: spiegelt eine aktive Ordner-Auswahl in Titel +
+// Hervorhebung der Shuffle-Buttons — Aufruf beim Boot (persistierte Auswahl)
+// und nach jedem Übernehmen/Zurücksetzen.
+function updateShuffleScopeIndicator() {
+  const n = state.shuffleFolders.length;
+  const scopeBtn = $("#shuffleScopeBtn");
+  if (scopeBtn) {
+    scopeBtn.classList.toggle("active", n > 0);
+    scopeBtn.title = n > 0
+      ? `Zufallswiedergabe: ${n} Ordner ausgewählt (Klick zum Ändern)`
+      : "Ordner für Zufallswiedergabe auswählen";
+  }
+  const shuffleBtn = $("#shuffleBtn");
+  if (shuffleBtn) {
+    shuffleBtn.title = n > 0 ? `Zufällige Wiedergabe (${n} Ordner ausgewählt)` : "Zufällige Wiedergabe";
+  }
 }
 

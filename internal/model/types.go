@@ -144,6 +144,10 @@ type Item struct {
 	// überspringt es) und erscheint immer als eigene Kachel, obwohl es
 	// dieselbe metadata_id wie Geschwister-Items hat.
 	VariantSplit bool `json:"variantSplit,omitempty"`
+	// IntroStartSec/IntroEndSec: erkannte Vorspann-/Opening-Zeitspanne
+	// (internal/introskip). nil = nicht analysiert oder kein Intro erkannt.
+	IntroStartSec *float64 `json:"introStartSec,omitempty"`
+	IntroEndSec   *float64 `json:"introEndSec,omitempty"`
 }
 
 

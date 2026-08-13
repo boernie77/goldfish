@@ -1364,6 +1364,39 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .move-tree-toggle.is-open { transform: rotate(90deg); }
 .move-tree-label { white-space: nowrap; }
 .move-tree-empty { padding: 10px 12px; color: var(--text-dim); }
+.move-tree-row.is-checked { background: rgba(59, 130, 246, 0.18); }
+.move-tree-row input[type="checkbox"] { flex-shrink: 0; cursor: pointer; }
+
+/* Zufallswiedergabe-Ordnerauswahl: ausgewählte Ordner als entfernbare Chips */
+.shuffle-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+  margin-bottom: 10px;
+}
+.shuffle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(59, 130, 246, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+.shuffle-chip button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.shuffle-chip button:hover { color: var(--text); }
+.shuffle-chip-empty { color: var(--text-dim); font-size: 13px; }
 
 /* Player mode switch */
 .player-modeswitch {
@@ -1401,24 +1434,45 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .player-head { position: relative; padding-right: 44px; }
 /* ---- Custom-Player-Buttons einheitlich ---------------------------------
    Favorit, Playlist, Delete, Shuffle — und implizit auch der native
-   FullscreenToggle. Gleiche Metrik damit alle vertikal zentriert sind und
-   gleich groß aussehen. font-size 1.6em matcht visuell den Icon-Font der
-   nativen Video.js-Buttons; line-height 2.2 = Control-Bar-Höhe, damit die
-   Glyphen exakt auf der Mittelachse sitzen. */
+   FullscreenToggle.
+   WICHTIG (korrigiert 2026-08-13, vorherige Fassung war fehlerhaft): Video.js
+   zentriert sein Icon-Font-Glyph NICHT über normalen Textfluss, sondern über
+   `.vjs-icon-placeholder:before { position:absolute; inset:0 (top/left/width/
+   height); text-align:center; line-height:1.67 }` (aus video-js.min.css).
+   Ein `display:flex` auf dem ELTERN-`.vjs-icon-placeholder` hat deshalb GAR
+   KEINE Wirkung — das `::before` ist durch position:absolute aus dem Flow
+   des Elternteils raus und wird von dessen align-items nicht erfasst. Die
+   erste Korrekturfassung dieses Blocks hatte genau diesen Denkfehler.
+   Richtige Lösung: `display:flex;align-items:center;justify-content:center`
+   direkt auf dem `::before` SELBST setzen — das funktioniert in Kombination
+   mit position:absolute (orthogonale Eigenschaften: absolute bestimmt die
+   Platzierung/Größe relativ zum Elternteil, flex bestimmt wie der eigene
+   Inhalt – hier der Content-Text – darin ausgerichtet wird). Zentriert
+   zuverlässig unabhängig von font-size/line-height-Rechnerei. */
 .video-js .vjs-shuffle-prev .vjs-icon-placeholder::before,
 .video-js .vjs-shuffle-next .vjs-icon-placeholder::before,
 .video-js .vjs-favorite .vjs-icon-placeholder::before,
 .video-js .vjs-addplaylist .vjs-icon-placeholder::before,
 .video-js .vjs-cast-button .vjs-icon-placeholder::before,
 .video-js .vjs-airplay-button .vjs-icon-placeholder::before {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: inherit;
   font-size: 1.6em;
-  line-height: 2.2;
 }
-/* Skip-30-Buttons nutzen die nativen Video.js-Icons (vjs-icon-replay-30 /
-   vjs-icon-forward-30) — keine eigenen Glyph- oder font-Overrides, sonst
-   sehen sie nicht aus wie Play/Pause. */
-/* Dezenter Delete-Button: grau im Idle, rötlich bei Hover.
+/* Skip15Back/Skip30Forward nutzen beide den nativen Video.js-Icon-Font
+   (vjs-icon-replay-10 bzw. vjs-icon-forward-30, siehe player-components.js)
+   — kein eigener Glyph-Override, damit sie exakt wie Play/Pause aussehen
+   (User-Feedback 2026-08-13: ein Text-Icon "↺15" sah "völlig anders" aus
+   als der native 30s-Button). replay-10 zeigt "10" statt "15" im Icon —
+   einziger Kompromiss, da Video.js kein 15er-Glyph mitbringt; der Tooltip
+   ("15 Sekunden zurück") und das tatsächliche Skip-Verhalten sind korrekt. */
+
+/* Dezenter Delete-Button: grau im Idle, rötlich bei Hover. Zentrierung via
+   position:absolute + transform (NICHT wie oben, weil hier eine leere
+   content:""-Box mit fester Pixelgröße zentriert wird, kein Text) —
+   .vjs-icon-placeholder braucht dafür position:relative als Bezugsrahmen.
    SVG-Mask statt Emoji-Glyph: 🗑 (U+1F5D1) hat Emoji_Presentation=No und
    landet auf manchen Plattformen/Browsern selbst MIT Variation-Selector
    als leere Tofu-Box (Last-Resort-Font-Fallback). Mask-Image mit
@@ -1429,12 +1483,6 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 }
 .video-js .vjs-delete .vjs-icon-placeholder::before {
   content: "";
-  /* Absolut + transform-zentriert statt über line-height/vertical-align wie
-     die Emoji-Nachbarn — die Font-Metrik-Zentrierung (line-height: 2.2 vom
-     gemeinsamen Block oben) passt nur für Text-Glyphen, nicht für eine
-     inline-block-Mask-Box, dadurch saß der Papierkorb zu hoch. Feste
-     Pixelgröße statt em, damit Größe/Position unabhängig von ererbter
-     font-size sind. */
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1561,7 +1609,8 @@ details.hint p { margin: 6px 0; }
 }
 
 /* Flat-View + Selection-Mode Toggles */
-.toggle-btn.active {
+.toggle-btn.active,
+#shuffleScopeBtn.active {
   background: #1e3a8a;
   color: #fff;
   border-color: #3b82f6;
@@ -2165,6 +2214,85 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
 .trickplay-log-entry .tp-row-retry:hover { background: #2563eb; color: #fff; }
 .trickplay-log-entry .tp-row-retry:disabled { opacity: 0.5; cursor: default; }
 
+/* Intro-Erkennung: flache Serien-Ordner-Liste mit Checkbox + Status-Badge */
+.introskip-folder-list {
+  list-style: none;
+  margin: 4px 0 10px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.introskip-folder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.introskip-folder-row:last-child { border-bottom: none; }
+.introskip-folder-trailing { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.introskip-folder-trailing .tp-row-retry { font-size: 13px; padding: 2px 8px; }
+.introskip-season-input {
+  width: 44px;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+}
+.introskip-folder-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.introskip-empty { padding: 10px 12px; color: var(--text-dim); font-size: 13px; list-style: none; }
+.introskip-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.introskip-badge--done { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+.introskip-badge--failed { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+.introskip-badge--pending, .introskip-badge--running { background: rgba(234, 179, 8, 0.2); color: #fde68a; }
+
+/* Aufklappbare Episoden-Liste pro Serie im Job-Tab (done/pending/failed) */
+.introskip-job-wrap { border-bottom: 1px solid var(--border); }
+.introskip-job-wrap .trickplay-log-entry { border-bottom: none; }
+.introskip-expand-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 4px 0 0;
+  flex-shrink: 0;
+}
+.introskip-episode-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 10px 8px 30px;
+  background: var(--bg-2);
+}
+.introskip-episode-list.hidden { display: none; }
+.introskip-episode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.introskip-episode-title { word-break: break-all; }
+.introskip-episode-status { flex-shrink: 0; white-space: nowrap; }
+.introskip-episode-status.ok { color: #86efac; }
+.introskip-episode-status.none { color: var(--text-dim); }
+.introskip-episode-status.pending { color: #fde68a; }
+
 /* Icon-Buttons im Detail-Dialog (kompakte Reihe) */
 .icon-row {
   display: flex;
@@ -2612,6 +2740,32 @@ button.danger:hover { background: #991b1b; }
   font-size: 13px;
 }
 #prebufferSkip:hover { background: rgba(255,255,255,0.2); }
+
+/* Intro-Skip-Overlay: groß, gut sichtbar direkt im Videobild (bewusst kein
+   kleines ControlBar-Icon — User-Feedback 2026-08-12 "übersehe ich"),
+   unten rechts über den Video.js-Controls, analog Jellyfins Skip-Intro-Pill. */
+.intro-skip-overlay {
+  position: absolute;
+  right: 24px;
+  bottom: 80px;
+  z-index: 20;
+  background: rgba(20, 20, 20, 0.85);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  transition: background .15s ease, transform .1s ease;
+}
+.intro-skip-overlay:hover { background: rgba(59, 130, 246, 0.9); border-color: #3b82f6; }
+.intro-skip-overlay:active { transform: scale(0.97); }
+.intro-skip-overlay.hidden { display: none; }
+@media (max-width: 640px) {
+  .intro-skip-overlay { right: 12px; bottom: 64px; padding: 10px 16px; font-size: 14px; }
+}
 
 /* Toast-Benachrichtigungen (rechts unten, kurz sichtbar, nicht-modal). */
 #toastRoot {

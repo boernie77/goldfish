@@ -158,134 +158,12 @@ Konvention" — nicht ändern, sonst stille App-Bugs:
 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
    Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
 
-## Android-App-Featureliste (Stand 1.2.67)
+## Android-App-Featureliste
 
-Seit 1.1.3 zusaetzlich (knapper Ueberblick — Details in den Memory-Files
-`project_android_app.md` und `project_feature_local_libraries.md`):
-- **Bibliotheken zusammenlegen (vC 98 Server+App, vC 99 lokale Libs):** In den
-  Einstellungen können je 2 Bibliotheken gleichen Typs virtuell zusammengelegt
-  werden (Server+Server ODER Lokal+Lokal). Im HomeScreen erscheinen separate
-  „🔗 Lib1 + Lib2"-Kacheln; wenn eine Lib nicht verfügbar ist, ausgegraut (kein
-  Fehler). Zufallsplay, Sortierung etc. funktionieren über beide. Server: `ItemFilter.
-  LibraryIDs []int64` + `IN (…)`-Klausel in `ListItems`/`randomItem`; API akzeptiert
-  mehrere `?libraryId=` Query-Params. App: `mergedServerLibraryIds` + `mergedLocal
-  LibraryIds` in SettingsDataStore; `GoldfishApi`/`ItemRepository` mit `List<Int>?`;
-  `LibraryViewModel.loadMerged()`, `LocalLibraryViewModel.loadMerged()` (Items aus
-  beiden Libs kombiniert flach); Routen `MergedLibrary`, `PlayerRandomMerged`,
-  `MergedLocalLibrary`. Settings-UI in zwei Gruppen (📡 Server, 📁 Lokal).
-- **Online-Lib „Zuletzt gespielt" — App rief /played nie (vC 96):** Server
-  trackt `user_item_state.last_played_at` NUR via `POST /api/items/{id}/played`
-  (`TouchLastPlayed`); Resume/Watched setzen es NICHT. Der **Browser** ruft das
-  beim Player-Open (player.js), die **App tat es nicht** → in der App gespielte
-  Videos erschienen nie in der Online-Sortierung „Zuletzt gespielt" (nur im
-  Browser gespielte). Fix: `GoldfishApi.markPlayed` + `ItemRepository.markPlayed`
-  (invalidiert items-/home-Cache), `PlayerViewModel.load` ruft es fire-and-forget
-  beim Öffnen. (Lange als lokales-Lib-Problem fehldiagnostiziert — es war die
-  Online-Lib. Lokale Lib ist eine separate Strecke mit eigenem lastPlayedAt.)
-- **Lokale Lib: Sort „Zuletzt gespielt" (vC 91):** lokale Bibliotheken haben
-  jetzt auch den Sort `LOCAL_SORT_PLAYED` — flache library-weite Liste der
-  zuletzt im lokalen Player geoeffneten Items. Neue Spalte
-  `local_items.lastPlayedAt` (LocalAppDatabase v5, MIGRATION_4_5), beim
-  `LocalPlayerViewModel.load` gestempelt (gilt fuer ExoPlayer + VLC), beim
-  Re-Scan erhalten. Zeigt nur Items mit lastPlayedAt>0.
-  **Fix vC 92:** Nach Player-Rueckkehr wurde die lokale Liste NICHT neu geladen
-  (Idempotenz-Guard in `load()` blockt Refresh zum Scroll-Schutz; kein DB-Flow),
-  daher tauchten frisch abgespielte Videos nicht in „Zuletzt gespielt" auf.
-  vC 92 (LifecycleResumeEffect → `refreshCurrent()`) reichte NICHT zuverlaessig.
-  **Fix vC 93:** `LocalLibraryRepository` hat jetzt einen `itemMutated`-
-  SharedFlow, der nach jedem `updateItem` emittiert; `LocalLibraryViewModel`
-  beobachtet ihn im `init` und ruft `refreshCurrent()` (stilles force-Reload via
-  `silent`-Param). Lifecycle-unabhaengig: der Player stempelt lastPlayedAt via
-  `updateItem` waehrend das Lib-VM im Backstack lebt → Liste ist bei Rueckkehr
-  frisch. Server-Libs nicht betroffen — deren `load()` ruft immer `doReload`.
-  **ECHTE Ursache + Fix vC 94:** vC 92/93 reichten nicht, weil es KEIN Refresh-
-  Problem war — der `lastPlayedAt`-Stempel wurde wieder ueberschrieben.
-  `recoverMissingThumbnails` (laeuft im BG bei jedem Lib-Open, v.a. Privat-Libs
-  mit Frame-Thumbnails) UND `LocalEnricher.applyHit` schrieben Items per
-  `update(item.copy(...))` als GANZE Zeile aus einem VERALTETEN Snapshot zurueck
-  → clobberten den parallel gesetzten lastPlayedAt (und watched/resume) auf 0.
-  Fix: gezielte Einzelspalten-Updates `LocalItemDao.setLastPlayed`/
-  `setThumbnailPath`; Stempel via `repository.markLocalPlayed` (statt
-  updateItem(copy)); recoverMissingThumbnails nutzt setThumbnailPath; applyHit
-  liest das Item frisch (getItem) bevor es die Zeile schreibt. **LEHRE:
-  Hintergrund-Jobs NIE eine ganze Entity-Zeile aus einem alten Snapshot
-  zurueckschreiben — gezielte Spalten-Updates nutzen.**
-- **Player Favorit + Löschen (vC 89):** Im Server-Player oben rechts ein
-  Favorit-Toggle (♥, optimistisch) und — Admin-only — ein Lösch-Button (🗑)
-  mit Bestätigungsdialog (`DELETE /api/items/{id}?deleteFile=true`); nach
-  Erfolg `state.deleted=true` → Screen navigiert zurueck. Neuer API-Endpoint
-  `deleteItem` + `ItemRepository.deleteItem`, `PlayerViewModel` bekam
-  `AuthRepository` injiziert (isAdmin).
-- **Flache library-weite Sort-Modi (vC 89):** „Zuletzt abgespielt"/„Zuletzt
-  hinzugefügt"/„Laufzeit" zeigen jetzt — wie im Browser — die Top-Videos der
-  GANZEN Library, unabhaengig von Ordner/Staffel. `isFlatSortMode()` in
-  LibraryViewModel: early-Branch in doReload (folderParam=null), `onSortChange`
-  macht vollen reload(), `suppressItemsAtRoot` + Drilldown-Filter respektieren
-  den Flat-Modus. **Offline (vC 90):** auch `doReloadOffline` behandelt die drei
-  Modi via `OfflineRepository.itemsSortedFlat` aus Room. „Zuletzt abgespielt"
-  nutzt ein NEUES lokales `downloads.lastPlayedAt` (DB v6, Migration 5→6), das
-  `PlayerViewModel` beim Abspielen eines Downloads via
-  `DownloadRepository.markPlayed` stempelt (Server-last_played_at ist offline
-  nicht verfuegbar). Nur offline abgespielte Downloads erscheinen dort.
-- **Drilldown-Toggle (vC 64):** Long-Press auf eine Folder-Kachel
-  (Admin-only) oeffnet Bestaetigungsdialog "Unterordner als Ebene
-  anzeigen?". Pendant zum Hover-⚙ im Browser. Folder mit aktivem
-  Drilldown bekommen ein ▸-Indicator und navigieren in eine Subfolder-
-  Liste statt flach alle Items zu zeigen. Route haengt `?drilldown=true`
-  als Query-Param an, persistiert sich ueber mehrere Drilldown-Ebenen
-  hinweg.
-- **Bugfix lokale-Lib-Thumbnails (vC 64):** Frame-Vorschaubilder lagen
-  in `cacheDir/local-thumbs`, das Android unter Speicherdruck loescht
-  (= "verschwinden staendig"). Jetzt `filesDir/local-thumbs` plus
-  `recoverMissingThumbnails`-Background-Job beim Library-Open, der
-  fehlende JPEGs neu extrahiert und den Pfad zurueck in die Room-DB
-  schreibt.
-- **Lokale Bibliotheken (SAF)** mit eigener Room-DB, NameParser-Port,
-  MediaProbe via MediaMetadataRetriever, TMDB-Anreicherung via
-  Server-Proxy, Frame-Thumbnails als Fallback, Show→Staffel→Folge-
-  Navigation, Show-Re-Match-Dialog, Zufallswiedergabe pro Lib/Folder,
-  Long-Press-Delete (SAF + DB), ansicht-scoped Suchfeld in der Lib
-- **Privat-Libs gruppieren nach Channel-Folder**, Items sortiert nach
-  `releasedAtMs ?: modifiedTime` DESC (neueste oben); Container-DATE-Tag
-  (yt-dlp MKV-DATE `YYYYMMDD`, mp4 creation_time) per MediaProbe
-  ausgelesen + in `local_items.releasedAtMs` persistiert
-- **Offline-Verbesserungen**: `library_folder_cache` + `library_seasons_cache`
-  cachen Show-Poster + komplette SeasonResponse persistent (Bilder offline
-  verfuegbar); Offline-Mode filtert Staffel-Ansicht auf owned-Episoden
-- **Re-Match-Sync-Button (↻)** im Show-Header von Server-Libs nach
-  Browser-seitiger Korrektur (`?refresh=true`)
-- **Globale Suche** (🔍 in der HomeScreen-Topbar) ueber Server-Libs +
-  Offline-Downloads + lokale Libs
-- **Long-Press-Delete fuer Downloads** in jeder Lib-Ansicht + Settings-
-  Button „Alle Downloads entfernen" mit bulk-File-Cleanup
-- **`channelLabelOnTop`-Toggle** aus Server respektiert
-- **Datei-Titel im LocalPlayer** mit ControllerVisibility synchron
-- **HomeScreen reagiert auf Item-Mutations** (`itemUpdated`-SharedFlow,
-  300ms debounce) → „Fortsetzen"/„Als naechstes"-Strips refreshen nach
-  watched/favorite/resume statt stale-Items zu behalten
-- Setup-Wizard (Server-URL + Login), Persistent-Auth, Cast/AirPlay aus
-  Browser-only (bewusst nicht in der App)
-
-## Android-App-Featureliste (Snapshot Stand 1.1.3 — Basis)
-
-- Library-Grid (adaptive Spalten Tablet/Phone), Filter (Sort/Watched/Favorit/
-  Auflösung/Rating/Flach/Staffeln/Zufall/Auswahl), Detail-Screen mit Cast-Strip
-- **Buchstaben-Sidebar** rechts bei Sort=Title und ≥10 Kacheln — sucht zuerst
-  in Show-Folders (TV-Lib), dann in Items (wie im Browser)
-- **Sortier-Richtung** wird explizit als `dir=asc|desc` gesendet, nicht
-  client-side gereverst
-- Player: Media3/ExoPlayer, eigenes Compose-Settings-Zahnrad oben rechts (synced
-  mit ControlBar), Quality-Auswahl, **Untertitel-Dropdown** (Text-VTT,
-  Whisper-VTT, PGS bei Direct Play via ExoPlayer-PgsParser), Trickplay-Hover
-  beim Scrub-Drag, Resume-Dialog (Daten aus separatem `/resume`-Endpoint)
-- Show-Header in der Staffel-Übersicht mit Beschreibung
-- Episoden-Grid mit Auflösung-Badges und Offline-Indikator
-- Download via SAF-Picker („Ordner auswählen…") in Settings, Application-Scope-
-  Coroutine, Progress-Ring auf der Kachel + grünes CloudDone nach Abschluss
-- Performance: in-Memory ApiCache (TTL pro Endpoint), Coil 1 GB Disk-Cache,
-  OkHttp HTTP-Cache (User-konfigurierbar)
-- Adaptive Launcher-Icon (Goldfisch CC-BY 4.0 Twemoji)
-- Versionsnummer aus `BuildConfig.VERSION_NAME` im Settings-Screen sichtbar
+Ausführliche Feature-/Bugfix-Chronik (Stand 1.2.67 + Snapshot 1.1.3) ausgelagert
+in den Skill `android-feature-history` — lädt bei Bedarf, z. B. wenn Details zu
+einem konkreten vC-Versionsstand gebraucht werden. Die drei harten API-Quirks
+oben gelten weiterhin immer.
 
 ## Was die App NICHT hat
 
@@ -332,33 +210,8 @@ Abhängigkeiten außer ffmpeg.
 
 ## Verzeichnisstruktur
 
-```
-cmd/videoplayer/main.go           — HTTP-Server, Startpunkt, Wiring
-internal/api/                     — HTTP-Handler (router, libraries, items, stream, tmdb, watched, favorite, playlists, auth, users, trickplay, …)
-internal/auth/                    — Session-Store, Middleware, ACL-Checks (requireLibAccess)
-internal/enrich/worker.go         — TMDB/OMDb-Enrichment-Goroutine (Background-Queue)
-internal/model/types.go           — Library, Item, Metadata, User, Playlist, LibraryKind
-internal/nameparser/parser.go     — Dateiname → {Title, Year, Season, Episode}
-internal/nameparser/parser_test.go — Tabellen-Tests, 88,8 % Coverage (siehe Frontend-Tests + Tooling)
-internal/nameparser/variants.go   — De-leet + Longest-Token-Fallback für Kandidaten-Expansion
-internal/playback/                — Decider (mit Quality-Cap), VAAPI-ffmpeg-Runner, HW-Detect
-internal/playback/decider_test.go — Tabellen-Tests fuer Decide/DecideWithCap/IsInterlaced
-internal/scanner/scanner.go       — Recursive Walk + ffprobe + Thumbnail + Metadata + Sample-Skip
-internal/store/sqlite.go          — DB + Migrationen + alle Queries
-internal/store/cast.go            — People, Metadata-Cast, Cast-Backfill-Tracking
-internal/store/collections.go     — TMDB-Collections + Items-in-Collection
-internal/store/subtitle_jobs.go   — generated_subtitles CRUD (KI-Untertitel-Jobs)
-internal/tmdb/client.go           — TMDB API-Client mit Rate-Limiting
-internal/translate/translate.go   — Translator-Interface + DeepL + LibreTranslate + NopTranslator + TranslateVTT
-internal/trickplay/               — Background-Worker, VAAPI-HW-Decode, Hover-Thumbnail-Sprites
-internal/whisper/worker.go        — KI-Untertitel-Worker (whisper-cli + ffmpeg + Übersetzung)
-internal/webassets/               — //go:embed all:web (siehe „Frontend-Modul-Layout" unten)
-scripts/check-frontend.sh         — Pre-Deploy: `node --check` ueber alle web/*.js
-scripts/install-git-hooks.sh      — installiert pre-commit-Hook (blockt JS-Parse-Errors)
-.github/workflows/deploy.yml      — Auto-Build via Portainer-API, mit Frontend-Syntax-Check
-Dockerfile                        — Multi-Stage-Build
-docker-compose.yml                — Template für Unraid
-```
+Standard-Go-Projektlayout (`cmd/`, `internal/<paket>/`, `scripts/`, `.github/workflows/`) — siehe `ls`/`find` fuer die aktuelle Struktur.
+
 
 ### Frontend-Modul-Layout (Stand 2026-04-30, ABGESCHLOSSEN)
 
@@ -367,31 +220,12 @@ docker-compose.yml                — Template für Unraid
 HTML/CSS. Die Lade-Reihenfolge in `index.html` ist relevant, weil spaetere
 Module Funktionen aus frueheren nutzen.
 
-```
-internal/webassets/web/
-  index.html                      — HTML-Skeleton + Dialog-Definitionen + Cast-SDK + Script-Tags
-  login.html                      — Login + Setup-Form + OIDC-Button
-  style.css                       — komplette App-Styles
-  helpers.js          ~75 LOC     — fmtDuration/fmtSize/fmtDate/resLabel/escapeHTML/ICON_TRASH_SVG/ICON_FILM_SVG
-  dialogs.js         ~124 LOC     — appAlert/appConfirm/appPrompt/appDialog/showToast
-  api.js              ~63 LOC     — api()/apiGetCached + 30s-LRU-Cache + 401-Redirect
-  cast.js            ~142 LOC     — Google-Cast-SDK-Init + startCastSession (Token-Auth)
-  player-components.js ~196 LOC   — Video.js-Custom-Buttons (Skip, Shuffle, Fav, Playlist, Delete, Cast, AirPlay)
-  cards.js           ~593 LOC     — renderCard / renderFolderCard / renderCollectionCard / renderPlaylistCard / renderPersonShowCard / hidePartButton / openMissingMovieDialog
-  views.js           ~878 LOC     — renderHomeView (Startseite) + Staffel-Ansicht + renderRangeContinuationCard
-  grid.js            ~758 LOC     — loadItems + loadItemsBody (Branch-Logik je Anzeige-Modus)
-  player.js         ~1661 LOC     — openDetail + applyPlayback + Buffer-Gate + Trickplay-Hover + Seek-Restart + syncTranscodeDisplays
-  admin.js           ~540 LOC     — User-Menue + Admin-Panel + Manage-Libraries + Path-Browser + Settings
-  playlists.js       ~250 LOC     — Playlist-Manager + Add-to-Playlist + Shuffle (shufflePrev/Next, playRandom)
-  scan.js            ~404 LOC     — Scan-Aktionen + Status-Polling + Globale Trickplay-Statusleiste
-  matching.js        ~792 LOC     — Manuelles Matching + Edit-Metadata + Refresh-All-Metadata + Missing-Movies-Export + Path-Search + Trickplay-Manager
-  whisper.js         ~300 LOC     — KI-Untertitel: openWhisperDialog, initSubGenBtn, Glocke/Benachrichtigungen, globaler Status-Poll
-  app.js            ~1371 LOC     — Rest: state-Objekt, Libraries-Loading, Bulk-Selection, Alphabet-Sidebar, Dialog-Drag, Filter-Modi-Helper, Topbar-Events, Boot-Wiring
-```
+14 Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, admin, playlists, scan, matching, whisper, introskip) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar.
+
 
 **Lade-Reihenfolge in index.html:**
 ```
-helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → app
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → introskip → app
 ```
 
 Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (−82 %)**. Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed + im Browser getestet.
@@ -579,6 +413,212 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Cancel-Button** in der laufenden Status-Bar (rotes ✕).
 - **Ordner-Toggle ändert nie Dateien auf Disk** — Deaktivierung entfernt nur
   den DB-Marker, Dateien bleiben bis zum expliziten „Alle löschen".
+
+### Intro-Erkennung ("Skip Intro", seit 2026-08-11, Algorithmus v2 seit 2026-08-13)
+- Background-Worker (`internal/introskip`) erkennt den Vorspann/das Opening
+  einer Serie automatisch durch **Audio- UND Bild-Fingerprint-Vergleich**
+  zwischen den Episoden derselben Show, mit **echtem Paarweise-Vergleichen**
+  (jede Episode gegen jede andere) — an Jellyfins „Intro Skipper"-Plugin
+  angelehnt (`ConfusedPolarBear/intro-skipper` auf GitHub, öffentlich
+  einsehbar; Schwellenwerte in `correlate.go` sind von dort übernommen, mit
+  Quellenangabe im Code-Kommentar). Kein manuelles Markieren nötig.
+- **Explizite User-Anforderung (2026-08-12), die zu diesem Redesign führte:**
+  "Zuverlässigkeit ist mir sehr wichtig. Kann man Ton nicht mit Bild
+  kombinieren und auf Paarweise umsteigen." — längere Laufzeit wurde
+  bewusst gegen höhere Verlässlichkeit eingetauscht.
+- **Aktivierung ist strikt pro einzelnem Serien-Ordner** (Top-Level-Ordner
+  einer TV-Library) — es gibt bewusst **keinen** „ganze Bibliothek
+  aktivieren"-Schalter. `folder == ""` wird von Store UND API-Handler
+  zurückgewiesen (`SetIntroSkipFolder`, `setIntroSkipFolder`).
+- **Optionale Staffel-Beschränkung** (`intro_skip_folders.season`, `0` =
+  alle Staffeln): ein aktivierter Ordner kann auf EINE Staffel eingeschränkt
+  werden (`SetIntroSkipFolderSeason`), für kontrolliertes Testen an einer
+  Show ohne gleich die ganze Serie zu verarbeiten. `PUT
+  /api/libraries/{id}/introskip` nimmt dafür optional `season` im Body an
+  (0/weggelassen = alle Staffeln).
+- **Voraussetzung: mindestens 2 Episoden** (nach Staffel-Filter, falls
+  gesetzt) im Ordner — die Erkennung vergleicht immer mehrere Episoden
+  gegeneinander. Serien mit nur einer Episode bekommen keinen Skip-Button;
+  das ist eine inhärente Grenze der Methode, kein Bug.
+- **Pipeline pro Job** (ein Job = ein ganzer Serien-Ordner, nicht pro
+  Episode; `processShow` in `worker.go`):
+  1. Pro Episode ZWEI Fingerprints: `fpcalc -raw -length 900` (Chromaprint,
+     `fingerprint.go`) für Audio UND `ffmpeg … fps=1,scale=9x8,format=gray`
+     (`videofingerprint.go`) für Bild — 1 dHash (64-Bit Differenz-Hash) pro
+     Sekunde der ersten 15 Minuten. **Achtung Falle bei Audio:** fpcalcs
+     `DURATION=`-Zeile ist die volle Datei-/Streamlänge, NICHT die
+     tatsächlich fingerprintete Länge — die Sekunden-pro-Frame-Dauer wird
+     deshalb über `min(DURATION, prefixSeconds) / Anzahl Fingerprint-Werte`
+     berechnet, sonst verfälscht das die Umrechnung.
+  2. **Echtes Paarweise-Vergleichen:** für jede Kandidaten-Episode wird
+     GEGEN JEDE andere Episode im Job einzeln korreliert (nicht nur gegen
+     eine kleine Referenz-Auswahl wie in der ersten Fassung) — bei N
+     Episoden N·(N-1) Audio-Korrelationen. Pro Paarung:
+     - `correlateAudio` (Jellyfin-Algorithmus): Inverted-Index-Shift-Search
+       (`buildInvertedIndex32`/`candidateShifts32`, Suchradius
+       `invertedIndexShift=2`) statt Brute-Force über alle Zeitversätze —
+       schneller UND präziser, weil nur echte Ausrichtungs-Kandidaten
+       geprüft werden. `maxHammingPerFrame=6` (von 32 Bit, deutlich
+       strenger als der frühere Wert 15). Längster zusammenhängender Lauf
+       gewinnt (`findLongestContiguous`, lückentolerant bis
+       `maxTimeSkipSec=3.5s`). `maxIntroDurationSec=120` verhindert lange
+       wiederverwendete Szenen-Musik als Fehltreffer (fehlte in der ersten
+       Eigenkonstruktion komplett).
+     - **Bild-Gegenprüfung** (`verifyVideoMatch`): der audio-gefundene
+       Zeitbereich wird zusätzlich per dHash-Vergleich (Hamming-Distanz
+       ≤12 von 64 Bit, ≥60% der Frames im Fenster müssen matchen) bestätigt
+       — nutzt den von `correlateAudio` gelieferten Zeitversatz direkt,
+       keine zweite unabhängige Bildsuche nötig. Verwirft Fälle, wo Audio
+       zufällig matcht, aber der Bildinhalt offensichtlich unterschiedlich
+       ist (z. B. wiederverwendete Score-Musik über verschiedenen Szenen).
+     - Nur wenn BEIDE Signale übereinstimmen, zählt die Paarung als
+       Beobachtung.
+  3. **Konsens über mehrere Beobachtungen** (`aggregateObservations`,
+     `minAgreeObservations=2`): mindestens 2 unabhängige Referenz-Episoden
+     müssen für dieselbe Kandidaten-Episode ein zeitlich nahes Ergebnis
+     liefern (`agreementToleranceSec=20`), sonst gilt die Episode als „kein
+     Intro erkannt". Median von Start/Ende des größten Clusters gewinnt.
+     **Bewusst PRO Kandidaten-Episode isoliert** (nicht global über die
+     ganze Show) — ein früherer Cluster-Ansatz über alle Episoden hinweg
+     bestrafte Serien mit legitim schwankender Cold-Open-Länge (Chuck fiel
+     von 86/91 auf 23/91 Treffer).
+  4. Ergebnis pro Episode landet in `items.intro_start_sec`/
+     `intro_end_sec` (NULL = nicht analysiert/kein Treffer).
+     `items.intro_checked_at` markiert „Analyse-Versuch gemacht" auch ohne
+     Treffer — verhindert Endlosschleifen im Rescan, analog
+     `metadata.cast_fetched_at`.
+  - **Vorgeschichte der Algorithmus-Iterationen** (chronologisch, alle vor
+    2026-08-13 durch das Jellyfin-Redesign abgelöst): (a) strenger
+    zusammenhängender Lauf ohne Toleranz → 0/91 Treffer; (b) festes
+    ±10s-Offset-Fenster → verpasste Treffer nach langem Cold Open; (c)
+    Delta-Voting mit "frühester Treffer gewinnt" → besser, aber traf
+    gelegentlich falsche wiederkehrende Audio-Motive (z. B. Abspann-Musik
+    bei "Abbott Elementary", ~67% statt ~5% der Laufzeit); (d)
+    positions-relativer Ausreißer-Filter (`introMaxDurationFraction`,
+    35%-Grenze) als Fix für (c) — funktionierte, wurde aber durch die
+    Bild-Gegenprüfung + Konsens-Mechanismus des Jellyfin-Redesigns ersetzt,
+    die dasselbe Problem robuster lösen (visuell bestätigt statt nur
+    positions-heuristisch).
+  - **Verifikations-Zwischenfall 2026-08-13 (aufgeklärt, kein Bug):** bei
+    einer visuellen Stichprobe wurde ein E04-Treffer fälschlich als
+    "Werbespot" interpretiert und daraufhin ein Konfundierungsrisiko durch
+    eingebettete TV-Werbung in den Datei-Rips vermutet. Erneute Prüfung
+    zeigte: es war ein Fehler bei der Bildauswertung, der Treffer zeigte
+    tatsächlich den echten Chuck-Vorspann (Cast-Credits). Es gibt **keinen**
+    bekannten Hinweis auf eingebettete Werbung in den Rips — die
+    Bild-Gegenprüfung wurde trotzdem wie geplant eingebaut (unabhängig
+    davon als allgemeine Zuverlässigkeits-Verbesserung angefordert).
+  - **Zwei ältere Startup-Backfills** (`cmd/goldfish/main.go`) — Historie:
+    v1 filterte nachträglich am schon gespeicherten Ergebnis mit einem
+    globalen Median, was RICHTIGE Treffer löschte statt falsche
+    (Mehrheits-Bias). v2 nutzte zum Neu-Einreihen `UpsertIntroSkipJob` (nur
+    `status='failed'`→`pending`, bei `status='done'` No-op) — Items wurden
+    geleert, Jobs aber nie neu gezogen. v3 (`backfillIntroSkipOutliers`)
+    nutzt `ForceRetryIntroSkipJob` (setzt IMMER auf `pending`) — bei
+    künftigen Reset-Backfills immer diese Funktion verwenden, nie
+    `UpsertIntroSkipJob`.
+  - **Aktueller Backfill (`backfillIntroSkipDisableAllExceptChuckS2`,
+    Settings-Key `intro_skip_disable_all_except_chuck_s2_v1`):** läuft
+    EINMALIG nach dem Jellyfin-Redesign, deaktiviert alle bisher
+    aktivierten Serien-Ordner bis auf Chuck (Namensvergleich am letzten
+    Pfadsegment) und beschränkt Chuck auf Staffel 2 — explizite
+    User-Anweisung, den neuen Algorithmus erst kontrolliert an einer
+    bekannten Staffel zu verifizieren, bevor er wieder für alle
+    bisher aktivierten Serien läuft. **Sobald das verifiziert ist**: andere
+    Serien müssen im Admin-Dialog wieder manuell aktiviert werden (macht
+    dieser Backfill bewusst NICHT automatisch rückgängig).
+- **Trigger:** Ordner-Aktivierung reiht sofort einen Job ein
+  (`UpsertIntroSkipJob` + `Trigger()`). Nach jedem Scan werden bereits
+  aktivierte Ordner mit neuen unanalysierten Episoden automatisch erneut
+  eingereiht (`introSkipWorker.EnqueueStaleFolders()` im
+  `sc.OnComplete`-Hook in `main.go`, analog `enricher.EnrichAllFoldersNow`;
+  berücksichtigt die Staffel-Beschränkung via `IntroSkipFolderSeason`).
+- **Worker läuft nur, wenn `introskip_enabled` (Settings-KV) `"true"` ist**
+  — Ordner lassen sich trotzdem vorab konfigurieren, bevor der globale
+  Schalter an ist (`runOnce()` prüft das Setting, no-opt sonst).
+- Endpoints (alle außer `status` admin-only):
+  ```
+  GET/PUT /api/introskip/settings                  {enabled}
+  GET/PUT /api/libraries/{id}/introskip             {folder, enabled, season?}
+  GET     /api/introskip/status                     (Live-Worker-Status, offen)
+  GET     /api/introskip/log?status=done|failed|pending
+  GET     /api/libraries/{id}/introskip/episodes?folder=
+  POST    /api/introskip/folders/{id}/retry         {folder}
+  POST    /api/introskip/retry-failed
+  ```
+  **Staffel-Feld im Admin-Dialog** (seit 2026-08-13): kleines Zahlenfeld
+  neben jeder aktivierten Serie in `introskip.js` (`.introskip-season-input`,
+  Platzhalter „alle"). `season` ist im API-Body ein **Zeiger** (`*int` in
+  `internal/api/introskip.go`), NICHT ein normaler int — Grund: ein reiner
+  Checkbox-Toggle sendet `{folder, enabled}` OHNE `season`-Feld, und wenn
+  der Handler das als `season=0` interpretiert hätte, hätte JEDES simple
+  An/Aus-Toggle die Staffel-Beschränkung stillschweigend gelöscht (real
+  passiert, 2026-08-13: Chuck stand korrekt auf season=2, ein späteres
+  Checkbox-Toggle beim Explorieren des Dialogs setzte es unbemerkt auf 0
+  zurück). Mit dem Zeiger wird `SetIntroSkipFolderSeason` nur aufgerufen,
+  wenn der Request das Feld **explizit** mitschickt.
+- **Deaktivierte Serien werden vom Worker wirklich ignoriert** (seit
+  2026-08-13): `Store.ListPendingIntroSkipJobs` joint jetzt gegen
+  `intro_skip_folders`, sodass nur Jobs aktivierter Ordner gezogen werden.
+  Vorher hätte das bloße Löschen der `intro_skip_folders`-Zeile (Ordner
+  deaktivieren) einen bereits `pending` stehenden Job NICHT gestoppt — der
+  Worker hätte ihn beim nächsten Tick trotzdem abgearbeitet (real
+  beobachtet: nach „alle deaktivieren außer Chuck" standen noch ~30 alte
+  pending-Jobs anderer Serien in der Tabelle).
+- **Pausiert automatisch während eines Library-Scans** (seit 2026-08-13,
+  `Worker.SetPauseCheck` in `cmd/goldfish/main.go`, gespeist aus
+  `sc.Status().Running`): Introskip ist sehr I/O-intensiv (ffmpeg+fpcalc
+  pro Episode) und kollidierte mit gleichzeitigen Scans auf demselben
+  Netzwerk-Mount — real beobachtet massenhaft `ffprobe: exit status 1`
+  während eines Scans, weil zeitgleich ein Introskip-Job mit 125 Episoden
+  lief. Pause wirkt an zwei Stellen: `runOnce()` startet keinen neuen Job,
+  UND die Episoden-Fingerprint-Schleife in `processShow` pausiert
+  zwischen zwei Episoden (`waitWhilePaused`) — ein bereits laufender,
+  potenziell sehr langer Job muss also nicht erst fertig werden, bevor ein
+  dazwischen gestarteter Scan Vorrang bekommt. Kein Datenverlust beim
+  Scan selbst (Orphan-Löschung betrifft nur Dateien, die vorher schon in
+  der DB standen — neue/geänderte Dateien mit fehlgeschlagenem `ffprobe`
+  werden einfach übersprungen und beim nächsten Scan automatisch erneut
+  versucht, da ihr mtime-Abgleich nicht "unverändert" ergibt).
+- **Episoden-Detailliste:** jede Serien-Zeile im Job-Tab (Fertig/Fehler/
+  Ausstehend) lässt sich über ein ▸-Toggle aufklappen (`toggleIntroSkipEpisodeList`
+  in `introskip.js`, lazy geladen bei erstem Klick) — zeigt pro Episode
+  Titel + Status (✓ Start–Ende / kein Treffer / noch nicht geprüft). Der
+  Endpoint ist status-unabhängig (`Store.IntroSkipEpisodeDetails`), liefert
+  also in allen drei Tabs denselben aktuellen Stand.
+- **Admin-Dialog „⏭️ Intro-Erkennung"** (Settings-Menü): globaler
+  An/Aus-Toggle + flache (nicht-rekursive) Liste der Top-Level-Ordner
+  einer TV-Bibliothek mit Checkbox pro Zeile (PUT **sofort** bei Klick,
+  kein „Übernehmen"-Schritt — anders als der rekursive
+  Shuffle-Scope-Dialog, weil eine Serie immer ein Top-Level-Ordner ist,
+  kein Baum nötig) + Job-Tabs done/pending/failed (`.tp-tab`-Klassen vom
+  Trickplay-Manager wiederverwendet). **↻-Retry gibt es sowohl im
+  „Fehler"- als auch im „Fertig"-Tab** — ein Job kann technisch
+  erfolgreich sein, aber inhaltlich unbrauchbar (0 Treffer, z. B. nach
+  Threshold-Änderung); `Store.ForceRetryIntroSkipJob` setzt IMMER auf
+  pending zurück (anders als `UpsertIntroSkipJob`, das beim bloßen
+  Ordner-Toggle nur `failed`-Jobs zurücksetzt und bereits fertige Analysen
+  nicht anfasst).
+- **Player:** `#introSkipOverlayBtn` (statisches DOM-Element in
+  `index.html`, in `.video-stage` neben `<video>`/`#prebufferOverlay` —
+  **kein** Video.js-ControlBar-Component, war anfangs so gebaut, aber
+  User-Feedback 2026-08-12 "übersehe ich" → Redesign als großer,
+  auffälliger Pill-Button direkt im Videobild unten rechts, analog
+  Jellyfins Skip-Intro-Button). `maybeToggleIntroSkip(vjs)` in `player.js`
+  zeigt/versteckt ihn (CSS-Klasse `hidden`) im selben `timeupdate`-Handler
+  wie `maybeMarkWatched` — inkl. derselben `virtualOffset`-Korrektur für
+  den Transcode-Modus (dort zählt `vjs.currentTime()` nur lokal ab
+  Segment-Start). Klick-Handler einmalig über `wireIntroSkipOverlayOnce()`
+  gewired (statisches Element, kein Video.js-Kind, das pro Player-Open neu
+  entstünde), berechnet das Delta zu `introEndSec` und ruft den
+  bestehenden transcode-bewussten `skipPlayer(delta)`.
+- **Docker:** Runtime-Stage installiert `libchromaprint-tools` (Debian-Paket,
+  liefert `/usr/bin/fpcalc`) — kein eigener Cmake-Build-Stage nötig wie bei
+  whisper.cpp, da Chromaprint als fertiges bookworm-Paket existiert.
+- **Nicht** in `ListItems`/`playlists.go`/`home.go`/`collections.go`
+  eingebaut — nur `GetItemFor` (der Player-Datenpfad beim Öffnen) liefert
+  `introStartSec`/`introEndSec`. Absichtlich minimal gehalten (YAGNI), der
+  Skip-Button braucht die Werte nur beim Player-Open.
 
 ### Schauspieler (Cast)
 - TMDB-Credits (`/movie/{id}/credits`, `/tv/{id}/credits`, Episoden-Gäste aus
@@ -959,13 +999,42 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      übergreifend.
   2. **Person-Filter** (`state.personFilter.tmdbId`) → `personId=<tmdb>`.
      Pool = alle Videos mit diesem Schauspieler, library-übergreifend.
-  3. **Library** (`state.currentLibrary`) → `libraryId` + ggf. `folder`.
+  3. **Manuelle Ordner-Auswahl** (`state.shuffleFolders`, seit 2026-08-09) →
+     mehrere `folderSel=<libId>:<relPath>`. Siehe „Ordner-Scoping" unten.
+  4. **Library** (`state.currentLibrary`) → `libraryId` + ggf. `folder`.
 - Zusätzlich greifen IMMER: `search`, `watched`, `favorite`, `match`,
   Auflösungs-Buckets.
 - `openPlayer(item, {fromShuffle: true})` erhält den Shuffle-State beim Item-Wechsel.
 - Backend: `ItemFilter.PlaylistID` (EXISTS in `playlist_items`) ist neben
   `PersonTMDB` der zweite optionale Pool-Selektor. Beide werden von
   `/api/items/random` aus dem Query gelesen.
+
+#### Ordner-Scoping für Shuffle (seit 2026-08-09)
+- **🎯-Button** neben „🎲 Zufall" öffnet `#shuffleScopeDialog`: Ordner-Baum
+  (lazy geladen über `GET /api/libraries/{id}/folders?parent=…`, dieselbe
+  Route wie die normale Ordner-Navigation — **nicht** das admin-only
+  `/all-folders` des Verschieben-Dialogs, damit die Funktion auch für
+  Non-Admin-User (`Familie`) nutzbar ist) mit Checkboxen pro Ordner/
+  Unterordner, kombinierbar über verschiedene Ordner **und** verschiedene
+  Bibliotheken hinweg. Auswahl wird als Chip-Liste angezeigt, „Übernehmen"
+  committet sie nach `state.shuffleFolders` + `localStorage["shuffleFolders"]`
+  (persistiert über Reload).
+- Checkbox auf einem Ordner selektiert ihn **rekursiv inkl. aller
+  Unterordner** (wie der bestehende Single-Folder-Filter); es gibt keine
+  Ausschluss-Logik für einzelne Unterordner innerhalb einer gewählten
+  Ordner-Auswahl.
+- Ist `state.shuffleFolders` nicht leer, hat die Auswahl Vorrang vor der
+  aktuell geöffneten Library/Ordner (Priorität 3 oben) — bis der User sie im
+  Dialog über „Zurücksetzen" leert.
+- Backend: `store.ItemFilter.Folders []FolderSelector` (`{LibraryID, Folder}`,
+  `Folder=""` = ganze Library) — ersetzt bei Nicht-Leer komplett
+  `LibraryID`/`LibraryIDs`/`Folder` in `ListItems` (ODER-verknüpfte
+  `(library_id = ? [AND rel_path LIKE ?/%])`-Klauseln, auch library-
+  übergreifend). `randomItem`-Handler parst wiederholte `folderSel=<libId>:
+  <relPath>`-Query-Parameter und ruft `requireLibAccess` pro referenzierter
+  Library auf (Zugriffsschutz, den die vorher schon vorhandene
+  `libraryId`-Parsing in `randomItem` NICHT hatte — dort unverändert
+  gelassen, nur der neue `folderSel`-Pfad ist geschützt).
 
 ### Playlists (per User)
 - Jede Playlist gehört genau einem User; Items werden in `playlist_items` mit
@@ -1458,121 +1527,10 @@ volumes:
 > - **Parser/Enricher:** Numerische Episoden-Codes, Obfuskierte Dateinamen (Deleet+Longest-Token), Sample-Skip, Re2-Lookahead-Verbot
 > - **DB/SQL:** NATSORT (nicht NATURAL!), Migration-Reihenfolge (ALTER vor INDEX), Endlos-Backfill (cast_fetched_at)
 > - **Sonstiges:** Mask-Save-Roundtrip (API-Keys nicht zurückgeben), DOM-Builder nicht async, chi HEAD 405, Stack-Env mitsenden
-## API-Referenz (Kurzform)
 
-```
-# Bibliotheken
-GET    /api/libraries
-POST   /api/libraries                     {name, path, kind}
-DELETE /api/libraries/{id}
-PUT    /api/libraries/{id}/kind           {kind}
-GET    /api/libraries/{id}/folders
-GET    /api/libraries/{id}/paths
-POST   /api/libraries/{id}/paths          {path}
-DELETE /api/libraries/{id}/paths?path=…
+## API-Referenz
 
-# Items
-GET    /api/items?libraryId=&folder=&search=&sort=&dateFrom=&dateTo=&watched=&favorite=&match=&duplicates=&fileDuplicates=&bucket=…&personId=
-GET    /api/items/years
-GET    /api/items/random?libraryId=&folder=&search=&watched=&favorite=&match=&bucket=…&personId=&playlistId=
-GET    /api/items/{id}
-GET    /api/items/{id}/download           (Original-Datei als attachment)
-GET    /api/items/search-path?q=          (Admin) Diagnose: rel_path/path/title-Suche
-GET    /api/items/suspicious?libraryId=   „geratene" Zuordnungen: 0 Token-Overlap + Jahres-Mismatch
-DELETE /api/items/{id}?deleteFile=…       (Admin)
-PUT    /api/items/{id}/watched            {watched: bool}
-PUT    /api/items/{id}/favorite           {favorite: bool}
-PUT    /api/items/{id}/confirm            {confirmed: bool} — auto-NFO bei confirmed=true
-PUT    /api/items/{id}/variant-split      (Admin) {split: bool} — aus ×N-Varianten-Gruppierung nehmen/wieder zusammenlegen
-POST   /api/items/{id}/write-nfo          (Admin) manueller NFO-Refresh
-POST   /api/items/write-all-nfos          (Admin) alle bestätigten Items NFO-schreiben
-GET    /api/items/{id}/playlists          (IDs der Playlists, in denen Item liegt)
-POST   /api/items/merge                   (Admin) {ids:[…]} — Items unter erster metadata_id zusammenführen
-POST   /api/items/{id}/move                (Admin) {targetFolder, targetLibraryId?} — Datei in anderen Ordner/Bibliothek verschieben (rename_history)
-POST   /api/items/move                     (Admin) {ids:[…], targetFolder, targetLibraryId?} — Bulk-Move, eine QUELL-Library pro Aufruf
-GET    /api/libraries/{id}/all-folders     (Admin) alle Ordnerpfade der Lib (Autocomplete für Move-Dialog)
-
-# Playback
-GET    /api/playback/{id}?mode=auto|direct|transcode&profile=orig|1080p|720p|480p|360p
-GET    /api/stream/{id}                    (Direct Play mit Range)
-GET    /api/transcode/{id}/index.m3u8?profile=…
-GET    /api/transcode/{id}/{seg}?profile=…
-
-# TMDB
-GET    /api/metadata/search?q=&type=movie|tv&year=
-POST   /api/items/{id}/metadata            {tmdbType, tmdbId, season, episode}
-POST   /api/libraries/{id}/folders/metadata {folder, tmdbId}
-POST   /api/libraries/{id}/auto-merge-duplicates  (Admin) Ordner mit eindeutiger Zuordnung → Geschwister angleichen
-POST   /api/libraries/{id}/folders/re-enrich-episodes  (Admin) {folder} — alle Episoden im Ordner unmatchen (inkl. confirmed) + neu enrichen
-GET    /api/poster/metadata/{id}
-GET    /api/tmdb/movie/{tmdbId}            Detail+Cast eines Films, der NICHT in der Lib ist (Missing-Part-Dialog)
-POST   /api/enrich/run
-GET    /api/enrich/status
-
-# Sammlungen
-GET    /api/collections                    Liste aller Collections mit ≥1 Film, movieCount = DISTINCT metadata
-GET    /api/collections/{id}/items         Parts inkl. owned/missing + per-User hidden-Flag
-POST   /api/collections/{id}/parts/{tmdbMovieId}/hide      Part für aktuellen User ausblenden
-DELETE /api/collections/{id}/parts/{tmdbMovieId}/hide      Part wieder einblenden
-GET    /api/poster/collection/{id}
-
-# Scan
-POST   /api/scan/{libraryId}
-GET    /api/scan/status
-POST   /api/scan/cancel
-
-# Auto-Scan (mehrere Aufgaben)
-GET    /api/settings/autoscan          → []AutoScanTask
-PUT    /api/settings/autoscan          ← []AutoScanTask → []AutoScanTask gespeichert
-# AutoScanTask: {id, enabled, schedule, libraryId, force}
-# schedule: "daily:HH:MM" | "every:Nh" | "weekly:DOW:HH:MM"
-# force: false=inkrementell, true=vollständig; libraryId=0=alle
-
-# Playlists (per User)
-GET    /api/playlists
-POST   /api/playlists                      {name}
-DELETE /api/playlists/{id}
-POST   /api/playlists/{id}/items           {itemId}
-DELETE /api/playlists/{id}/items/{itemId}
-
-# Trickplay
-GET    /api/trickplay/{id}/thumbs.vtt
-GET    /api/trickplay/{id}/sprite-{n}.jpg
-GET    /api/trickplay/status
-POST   /api/trickplay/run
-
-# Auth & Users
-GET    /api/auth/status
-POST   /api/auth/login                     {username, password}
-POST   /api/auth/logout
-POST   /api/auth/setup                     {username, password}   (nur wenn users leer)
-GET    /api/users                          (Admin)
-POST   /api/users                          {username, password, isAdmin}
-PUT    /api/users/{id}/password            {password}
-PUT    /api/users/{id}/admin               {isAdmin}
-DELETE /api/users/{id}
-GET    /api/users/{id}/acl                 (Admin)
-PUT    /api/users/{id}/acl                 {libraryIds: [..]}     (Admin)
-
-# Folder-Navigation (Drilldown-Toggle)
-GET    /api/libraries/{id}/folders/nav     (Map folder → enabled)
-PUT    /api/libraries/{id}/folders/nav     {folder, enabled}
-
-# Settings
-GET    /api/settings
-PUT    /api/settings                       {bufferSeconds?, tmdbKey?, omdbKey?, trickplayIntervalSec?}
-GET    /api/browse?path=/media/…
-
-# Home & Serien-Strukturen
-GET    /api/home                           Startseite-Daten: pro Library {continue, nextUp, recent}
-GET    /api/libraries/{id}/seasons?folder=[&refresh=true]  Staffel-Übersicht inkl. Show-Infos, Cast, missing-Episoden (refresh=true invalidiert TMDB-Cache)
-GET    /api/libraries/{id}/stats-detail?folder=  Statistik-Dialog: Gesamtgröße/-laufzeit + Verteilung nach Auflösung/Filetyp/Länge (rein SQL-aggregiert)
-PUT    /api/libraries/{id}/home-visibility {onHome: bool}
-PUT    /api/libraries/{id}/channel-label-on-top {channelLabelOnTop: bool}  (Admin) Card-Layout-Toggle, nur sinnvoll bei kind=private
-
-# Health
-GET    /api/health                         (hwaccel, tmdb.enabled)
-```
+Vollstaendige Routenliste inkl. Admin-Gating: `internal/api/router.go` (`grep -n "r\." internal/api/router.go`). Body-Parameter je Endpoint stehen als Kommentare in den jeweiligen Handlern in `internal/api/*.go`.
 
 ## Refactor-Abschluss 2026-04-30 (Frontend-Modul-Split, fertig)
 

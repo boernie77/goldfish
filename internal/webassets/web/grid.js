@@ -158,7 +158,15 @@ async function loadItemsBody() {
   if (state.currentPlaylist) {
     let items = [];
     try {
-      items = await api(`/api/playlists/${state.currentPlaylist}/items`);
+      // Sortierung wie in jeder anderen Ansicht ueber #sortSelect steuerbar
+      // (Default ohne Auswahl: manuelle playlist_items.position, siehe
+      // Store.PlaylistItems). currentSortMode() mappt "shuffle" bereits auf
+      // "title" — client-seitig danach gewuerfelt wie ueberall sonst auch.
+      const params = new URLSearchParams();
+      params.set("sort", currentSortMode());
+      const dir = effectiveSortDir();
+      if (dir) params.set("dir", dir);
+      items = await api(`/api/playlists/${state.currentPlaylist}/items?${params}`);
     } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
     // Client-seitige Filter anwenden (Suche/Favorit/Watched)
@@ -172,6 +180,7 @@ async function loadItemsBody() {
       if (fav === "yes" && !it.favorite) return false;
       return true;
     });
+    if ($("#sortSelect").value === "shuffle") shuffleInPlace(items);
     $("#searchClear").classList.toggle("hidden", q === "");
     state.playQueue = items;
     state.lastRenderedItems = items;

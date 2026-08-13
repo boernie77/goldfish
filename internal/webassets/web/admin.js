@@ -35,6 +35,7 @@ function renderUserMenu() {
   $("#settingsMenuAutoScan").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuTrickplay").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuWhisper").classList.toggle("hidden", !state.me.isAdmin);
+  $("#settingsMenuIntroSkip").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuPathSearch").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuMissing").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuRefreshAllMeta").classList.toggle("hidden", !state.me.isAdmin);

@@ -172,19 +172,82 @@ func (s *Store) ReorderPlaylist(playlistID int64, itemIDs []int64) error {
 
 // PlaylistItems liefert die Items einer Playlist in der gespeicherten Reihenfolge,
 // angereichert mit Metadata.
-func (s *Store) PlaylistItems(playlistID int64) ([]model.Item, error) {
-	rows, err := s.db.Query(`
+// PlaylistItems liefert die Items einer Playlist. sort/dir steuern optional
+// die Reihenfolge (dieselben Werte wie ItemFilter.Sort/SortDir in ListItems:
+// title/added/released/duration/resolution/rating/played). Leer/unbekannt →
+// Default = manuelle Reihenfolge (playlist_items.position), das ist auch die
+// Reihenfolge, die Drag-Reorder (ReorderPlaylist) und Auto-Next voraussetzen.
+// userID bestimmt, aus wessen user_item_state watched/favorite/last_played_at
+// gelesen werden (0 = keine — dann bleiben die Spalten auf 0/NULL).
+func (s *Store) PlaylistItems(playlistID int64, sort, dir string, userID int64) ([]model.Item, error) {
+	q := `
 		SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
 		       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb,
 		       i.mod_time, i.released_at, i.added_at, COALESCE(i.metadata_id, 0),
-		       i.watched, i.watched_at, i.favorite, i.favorited_at,
+		       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 		       COALESCE(i.trickplay_status, ''),
 		       COALESCE(i.variant_split, 0)
 		FROM playlist_items pi
 		JOIN items i ON i.id = pi.item_id
-		WHERE pi.playlist_id = ?
-		ORDER BY pi.position
-	`, playlistID)
+		LEFT JOIN metadata m ON m.id = i.metadata_id
+		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
+		WHERE pi.playlist_id = ?`
+	asc := dir == "asc"
+	switch sort {
+	case "duration":
+		if asc {
+			q += ` ORDER BY i.duration_sec ASC`
+		} else {
+			q += ` ORDER BY i.duration_sec DESC`
+		}
+	case "resolution":
+		if asc {
+			q += ` ORDER BY MAX(i.height, (i.width * 9 / 16)) ASC, i.bitrate_kbps ASC`
+		} else {
+			q += ` ORDER BY MAX(i.height, (i.width * 9 / 16)) DESC, i.bitrate_kbps DESC`
+		}
+	case "rating":
+		ratingExpr := `COALESCE(NULLIF(m.rating,0), NULLIF((SELECT mp.rating FROM metadata mp WHERE mp.id = m.parent_id),0), 0)`
+		if asc {
+			q += ` ORDER BY (` + ratingExpr + `) = 0, (` + ratingExpr + `) ASC`
+		} else {
+			q += ` ORDER BY (` + ratingExpr + `) = 0, (` + ratingExpr + `) DESC`
+		}
+	case "added":
+		if asc {
+			q += ` ORDER BY i.added_at ASC`
+		} else {
+			q += ` ORDER BY i.added_at DESC`
+		}
+	case "released":
+		releaseExpr := `COALESCE(
+			NULLIF(m.release_date, ''),
+			CASE WHEN COALESCE(m.year, 0) > 0 THEN printf('%d-01-01', m.year) END,
+			(SELECT mp.release_date FROM metadata mp WHERE mp.id = m.parent_id AND mp.release_date != ''),
+			i.released_at,
+			i.mod_time
+		)`
+		if asc {
+			q += ` ORDER BY ` + releaseExpr + ` ASC`
+		} else {
+			q += ` ORDER BY ` + releaseExpr + ` DESC`
+		}
+	case "played":
+		if asc {
+			q += ` ORDER BY us.last_played_at IS NULL, us.last_played_at ASC`
+		} else {
+			q += ` ORDER BY us.last_played_at IS NULL, us.last_played_at DESC`
+		}
+	case "title":
+		if dir == "desc" {
+			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATSORT DESC`
+		} else {
+			q += ` ORDER BY COALESCE(NULLIF(m.title, ''), i.title) COLLATE NATSORT`
+		}
+	default:
+		q += ` ORDER BY pi.position`
+	}
+	rows, err := s.db.Query(q, userID, playlistID)
 	if err != nil {
 		return nil, err
 	}

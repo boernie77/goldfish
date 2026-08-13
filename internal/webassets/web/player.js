@@ -6,7 +6,7 @@
 // Public Functions:
 //   openDetail(item)       — oeffnet den Detail-Dialog (Plot, Cast, Buttons)
 //   applyPlayback(...)     — startet Video.js-Player mit Mode/Profile/Audio
-//   skipPlayer(deltaSec)   — Skip-Buttons (-30/+30)
+//   skipPlayer(deltaSec)   — Skip-Buttons (-15/+30)
 //   restartTranscodeAt(s)  — neue ffmpeg-Session bei Seek hinter Buffer
 //   disposePlayer()        — Cleanup beim Schliessen
 //   closePlayer()          — schliesst Player-Dialog
@@ -543,6 +543,10 @@ function updatePlayerButtons() {
     fav.el().classList.toggle("vjs-favorite--on", on);
     fav.controlText(on ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen");
   }
+  // Initial versteckt — maybeToggleIntroSkip() uebernimmt ab dem ersten
+  // timeupdate, verhindert aber ein kurzes Aufblitzen davor.
+  const introSkipOverlay = $("#introSkipOverlayBtn");
+  if (introSkipOverlay) introSkipOverlay.classList.add("hidden");
 }
 
 // Spielt das nächste Item in der aktiven Playlist-Queue ab, falls vorhanden.
@@ -574,6 +578,49 @@ function maybeMarkWatched(vjs) {
   if (absolute / dur >= 0.9) {
     markWatchedNow(item);
   }
+}
+
+// Zeigt/versteckt den Intro-Skip-Overlay-Button (#introSkipOverlayBtn, groß
+// und direkt im Videobild — bewusst KEIN kleines ControlBar-Icon mehr,
+// User-Feedback 2026-08-12 war "übersehe ich"). Sichtbarkeit richtet sich
+// nach der absoluten Wiedergabeposition im erkannten Vorspann-Fenster.
+// Gleiche virtualOffset-Korrektur wie maybeMarkWatched — bei Transcode
+// zaehlt currentTime() nur lokal ab dem Segment-Start.
+function maybeToggleIntroSkip(vjs) {
+  if (!vjs) return;
+  const btn = $("#introSkipOverlayBtn");
+  if (!btn) return;
+  const item = state.currentItem;
+  if (!item || item.introStartSec == null || item.introEndSec == null) {
+    btn.classList.add("hidden");
+    return;
+  }
+  let cur = 0;
+  try { cur = vjs.currentTime() || 0; } catch {}
+  const offset = (state.playback && state.playback.virtualOffset) || 0;
+  const absolute = cur + offset;
+  if (absolute >= item.introStartSec && absolute < item.introEndSec) btn.classList.remove("hidden");
+  else btn.classList.add("hidden");
+}
+
+// wireIntroSkipOverlayOnce: Klick-Handler für den Overlay-Button — einmalig
+// gewired (statisches DOM-Element, anders als die pro-Player-Open neu
+// erzeugten Video.js-ControlBar-Kinder).
+function wireIntroSkipOverlayOnce() {
+  const btn = $("#introSkipOverlayBtn");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", () => {
+    const item = state.currentItem;
+    const vjs = state.vjs;
+    if (!item || !vjs || item.introEndSec == null) return;
+    const offset = (state.playback && state.playback.virtualOffset) || 0;
+    let cur = 0;
+    try { cur = vjs.currentTime() || 0; } catch {}
+    const delta = item.introEndSec - (cur + offset);
+    skipPlayer(delta);
+    btn.classList.add("hidden");
+  });
 }
 
 // markWatchedNow: gemeinsamer Pfad fuer 90-%-Threshold UND ended-Event.
@@ -970,7 +1017,10 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       vjs.one("loadedmetadata", () => { try { vjs.currentTime(localStart0); } catch {} });
     }
     state.vjs = vjs;
-    vjs.on("timeupdate", () => maybeMarkWatched(vjs));
+    vjs.on("timeupdate", () => {
+      maybeMarkWatched(vjs);
+      maybeToggleIntroSkip(vjs);
+    });
     vjs.on("ended", () => {
       // Wiedergabe durchgespielt → Resume-Marker löschen + als gesehen markieren.
       // Letzteres ist Sicherheitsnetz: maybeMarkWatched feuert idealerweise
@@ -1053,7 +1103,7 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
     const addAt = (name, idx) => {
       if (!cb.getChild(name)) cb.addChild(name, {}, idx);
     };
-    addAt("Skip30Back", skipBase);
+    addAt("Skip15Back", skipBase);
     addAt("Skip30Forward", skipBase + 1);
     // Custom-Buttons rechts (vor FullscreenToggle) — am Ende der ControlBar.
     // Counter statt fester Offsets: wenn ein optionaler Button uebersprungen
@@ -1091,6 +1141,7 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       addIfMissing("DeleteButton");
     }
   }
+  wireIntroSkipOverlayOnce();
   updatePlayerButtons();
 
   // Puffer-Overlay starten. Bei Transcode zeigen wir zusätzlich den Server-Vorlauf

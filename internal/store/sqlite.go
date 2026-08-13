@@ -93,6 +93,30 @@ func (s *Store) migrate() error {
 			folder TEXT NOT NULL,
 			PRIMARY KEY (library_id, folder)
 		)`,
+		// intro_skip_folders: Opt-in-Set für die Intro-Erkennung, strikt pro
+		// Serien-Ordner (kein "ganze Bibliothek"-Fall — folder=="" wird von
+		// Store+API zurückgewiesen). Zeilen-Existenz = aktiviert, wie
+		// trickplay_folders.
+		`CREATE TABLE IF NOT EXISTS intro_skip_folders (
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			PRIMARY KEY (library_id, folder)
+		)`,
+		// intro_skip_jobs: ein Job pro Serien-Ordner (nicht pro Episode) — die
+		// Erkennung vergleicht immer alle Episoden einer Show gemeinsam.
+		`CREATE TABLE IF NOT EXISTS intro_skip_jobs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			episodes_total INTEGER NOT NULL DEFAULT 0,
+			episodes_matched INTEGER NOT NULL DEFAULT 0,
+			error TEXT,
+			started_at DATETIME,
+			finished_at DATETIME,
+			UNIQUE(library_id, folder)
+		)`,
+		`CREATE INDEX IF NOT EXISTS intro_skip_jobs_status_idx ON intro_skip_jobs(status)`,
 		`CREATE TABLE IF NOT EXISTS folder_nav (
 			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
 			folder TEXT NOT NULL,
@@ -400,6 +424,30 @@ func (s *Store) migrate() error {
 	// derselbe Film, erscheint aber als eigene Kachel statt im Varianten-
 	// Dropdown zu verschwinden.
 	if err := addCol("items", "variant_split", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	// intro_start_sec/intro_end_sec: NULL = nicht analysiert bzw. kein Intro
+	// erkannt (kein Fehlerzustand). Werden ausschließlich von der
+	// Intro-Erkennung (internal/introskip) geschrieben.
+	if err := addCol("items", "intro_start_sec", "REAL"); err != nil {
+		return err
+	}
+	if err := addCol("items", "intro_end_sec", "REAL"); err != nil {
+		return err
+	}
+	// intro_checked_at: wird bei JEDEM Analyse-Versuch gesetzt, auch ohne
+	// Treffer — unterscheidet "nie analysiert" (NULL) von "analysiert, aber
+	// kein Intro gefunden" (gesetzt, intro_start/end bleiben NULL). Analog
+	// zu metadata.cast_fetched_at, verhindert Endlosschleifen im
+	// EnqueueStaleFolders-Rescan.
+	if err := addCol("items", "intro_checked_at", "DATETIME"); err != nil {
+		return err
+	}
+	// intro_skip_folders.season: 0 = ganze Serie (Default, alle Staffeln),
+	// >0 = nur diese Staffel wird analysiert/eingereiht. Für kontrolliertes
+	// Testen an einer einzelnen Staffel, ohne gleich die ganze Show
+	// laufen zu lassen (siehe CLAUDE.md "Intro-Erkennung").
+	if err := addCol("intro_skip_folders", "season", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	// Indizes erst nach ALTER
@@ -912,6 +960,18 @@ type ItemFilter struct {
 	// MaxAgeRating: wenn > 0, werden Items mit metadata.age_rating > Max
 	// ausgeblendet. 0 = keine Beschränkung (Admin-Default).
 	MaxAgeRating int
+	// Folders: Multi-Ordner-Filter (Zufallswiedergabe mit Ordner-Auswahl).
+	// Nicht leer → ersetzt LibraryID/LibraryIDs/Folder komplett und filtert
+	// stattdessen auf die ODER-Verknüpfung dieser Selektoren (auch über
+	// mehrere Libraries hinweg möglich).
+	Folders []FolderSelector
+}
+
+// FolderSelector wählt einen Ordner (rekursiv inkl. Unterordner) oder eine
+// ganze Library für den Multi-Ordner-Filter aus. Folder="" = ganze Library.
+type FolderSelector struct {
+	LibraryID int64
+	Folder    string
 }
 
 func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
@@ -930,7 +990,24 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 	      WHERE 1=1`
 	args := []any{f.UserID}
-	if len(f.LibraryIDs) > 0 {
+	if len(f.Folders) > 0 {
+		// Multi-Ordner-Filter: ODER-Verknüpfung aus (library_id[, rel_path-Präfix])
+		// über beliebig viele, auch verschiedene Libraries hinweg. Ersetzt
+		// LibraryID/LibraryIDs/Folder komplett (siehe switch f.Folder unten).
+		var or []string
+		for _, sel := range f.Folders {
+			if sel.Folder == "" {
+				or = append(or, "i.library_id = ?")
+				args = append(args, sel.LibraryID)
+			} else {
+				or = append(or, "(i.library_id = ? AND i.rel_path LIKE ? ESCAPE '\\')")
+				args = append(args, sel.LibraryID, escapeLike(sel.Folder)+"/%")
+			}
+		}
+		if len(or) > 0 {
+			q += ` AND (` + strings.Join(or, " OR ") + `)`
+		}
+	} else if len(f.LibraryIDs) > 0 {
 		// Mehrere Libraries (virtuelle Zusammenlegung): IN-Klausel
 		ph := make([]string, len(f.LibraryIDs))
 		for i, id := range f.LibraryIDs {
@@ -974,14 +1051,16 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		q += ` AND COALESCE(i.released_at, i.mod_time) <= ?`
 		args = append(args, end)
 	}
-	switch f.Folder {
-	case "":
-		// kein Filter
-	case "/":
-		q += ` AND INSTR(i.rel_path, '/') = 0`
-	default:
-		q += ` AND i.rel_path LIKE ? ESCAPE '\'`
-		args = append(args, escapeLike(f.Folder)+"/%")
+	if len(f.Folders) == 0 {
+		switch f.Folder {
+		case "":
+			// kein Filter
+		case "/":
+			q += ` AND INSTR(i.rel_path, '/') = 0`
+		default:
+			q += ` AND i.rel_path LIKE ? ESCAPE '\'`
+			args = append(args, escapeLike(f.Folder)+"/%")
+		}
 	}
 	switch f.Watched {
 	case "yes":
@@ -1593,6 +1672,7 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 	var released sql.NullString
 	var watchedAt, favoritedAt sql.NullTime
 	var confirmed int
+	var introStart, introEnd sql.NullFloat64
 	err := s.db.QueryRow(`
 		SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
 		       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb,
@@ -1601,14 +1681,16 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 		       COALESCE(i.trickplay_status, ''),
 		       COALESCE(i.episode_end, 0),
-		       COALESCE(i.variant_split, 0)
+		       COALESCE(i.variant_split, 0),
+		       i.intro_start_sec, i.intro_end_sec
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.id = ?`, userID, id).
 		Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&confirmed,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit)
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit,
+			&introStart, &introEnd)
 	it.MetadataConfirmed = confirmed == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -1629,6 +1711,14 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 	it.ReleasedAt = parseDBTime(released.String)
 	if it.ReleasedAt.IsZero() {
 		it.ReleasedAt = it.ModTime
+	}
+	if introStart.Valid {
+		v := introStart.Float64
+		it.IntroStartSec = &v
+	}
+	if introEnd.Valid {
+		v := introEnd.Float64
+		it.IntroEndSec = &v
 	}
 	if it.MetadataID > 0 {
 		if m, _ := s.GetMetadata(it.MetadataID); m != nil {

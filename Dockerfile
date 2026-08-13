@@ -62,6 +62,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \
       libgomp1 \
       libopenblas0 \
+      libchromaprint-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # nvidia-smi wird NICHT im Image installiert — es wird vom Host via

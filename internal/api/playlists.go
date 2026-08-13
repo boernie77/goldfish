@@ -129,7 +129,12 @@ func (s *Server) listPlaylistItems(w http.ResponseWriter, r *http.Request) {
 	if !s.requirePlaylistAccess(w, r, id) {
 		return
 	}
-	items, err := s.Store.PlaylistItems(id)
+	var userID int64
+	if me := currentUser(r); me != nil {
+		userID = me.ID
+	}
+	q := r.URL.Query()
+	items, err := s.Store.PlaylistItems(id, q.Get("sort"), q.Get("dir"), userID)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

@@ -102,7 +102,10 @@
     <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
     <button id="alphaToggleBtn" title="Buchstabenleiste für diesen Ordner ausblenden" class="toggle-btn active">🔤 A-Z</button>
-    <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
+    <span class="btn-group">
+      <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
+      <button id="shuffleScopeBtn" title="Ordner für Zufallswiedergabe auswählen" aria-haspopup="true">🎯</button>
+    </span>
     <span class="btn-group scan-group">
       <button id="scanBtn" title="Bibliothek scannen (inkrementell)">⟳ Scan</button>
       <button id="scanMenuBtn" title="Weitere Scan-Optionen" aria-haspopup="true">▾</button>
@@ -192,6 +195,13 @@
       <span class="drawer-text">
         <span class="drawer-item-title">Whisper-Untertitel</span>
         <span class="drawer-item-sub">KI-Modell, Übersetzung</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="introskip" id="settingsMenuIntroSkip">
+      <span class="drawer-icon">⏭️</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Intro-Erkennung</span>
+        <span class="drawer-item-sub">Vorspann automatisch überspringen</span>
       </span>
     </button>
     <button class="drawer-item" data-action="refreshallmeta" id="settingsMenuRefreshAllMeta">
@@ -306,6 +316,7 @@
         <div class="prebuffer-text">0 / 0 s</div>
         <button type="button" id="prebufferSkip">Jetzt starten</button>
       </div>
+      <button type="button" id="introSkipOverlayBtn" class="intro-skip-overlay hidden">⏩ Vorspann überspringen</button>
     </div>
     <!-- Overlay außerhalb .video-stage: im eingebetteten Modus sitzt es hier
          als schmaler Streifen unter dem Bild. Im Fullscreen wird es per JS in
@@ -392,6 +403,23 @@
       <button type="button" data-close>Abbrechen</button>
     </div>
   </form>
+</dialog>
+
+<!-- Zufallswiedergabe: Ordner-Auswahl -->
+<dialog id="shuffleScopeDialog" class="modal">
+  <h2>Zufallswiedergabe: Ordner auswählen</h2>
+  <p class="hint">Wähle einzelne Ordner oder Unterordner (auch aus verschiedenen Ordnern oder Bibliotheken kombinierbar) — nur Videos darin werden bei "🎲 Zufall" abgespielt. Ohne Auswahl gilt wie bisher die aktuell geöffnete Bibliothek/Ordner.</p>
+  <label>Bibliothek
+    <select id="shuffleScopeLibrarySelect"></select>
+  </label>
+  <div id="shuffleScopeTree" class="move-tree"></div>
+  <div class="hint" style="margin-top:10px;">Ausgewählt:</div>
+  <div id="shuffleScopeChips" class="shuffle-chip-list"></div>
+  <div class="row">
+    <button type="button" id="shuffleScopeApply" class="primary">Übernehmen</button>
+    <button type="button" id="shuffleScopeReset">Zurücksetzen</button>
+    <button type="button" data-close>Abbrechen</button>
+  </div>
 </dialog>
 
 <!-- Path browser -->
@@ -675,6 +703,38 @@
   </div>
 </dialog>
 
+<!-- Intro-Erkennung (Vorspann automatisch überspringen) -->
+<dialog id="introSkipDialog" class="modal trickplay-modal">
+  <h2>⏭️ Intro-Erkennung</h2>
+  <p class="hint">Erkennt den Vorspann einer Serie automatisch durch Audio-Fingerprint-Vergleich
+    zwischen ihren Episoden. Aktivierung ist strikt pro einzelner Serie — keine ganze Bibliothek
+    auf einmal. Mindestens 2 Episoden pro Serie nötig.</p>
+  <label class="switch-row">
+    <span>Automatische Intro-Erkennung aktiviert</span>
+    <span class="switch"><input id="introSkipGlobalToggle" type="checkbox" /><span class="slider"></span></span>
+  </label>
+  <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">Serien auswählen</h3>
+  <label>Bibliothek
+    <select id="introSkipLibrarySelect"></select>
+  </label>
+  <div class="row" style="margin:6px 0;gap:8px">
+    <button type="button" id="introSkipSelectAllBtn">☑ Alle auswählen</button>
+    <button type="button" id="introSkipSelectNoneBtn">☐ Alle abwählen</button>
+  </div>
+  <ul id="introSkipFolderList" class="introskip-folder-list"></ul>
+  <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">Erkennungs-Jobs</h3>
+  <div class="row" style="margin:8px 0">
+    <button type="button" data-tp-tab="pending" class="tp-tab primary" data-introskip-tab>Ausstehend</button>
+    <button type="button" data-tp-tab="done" class="tp-tab" data-introskip-tab>Fertig</button>
+    <button type="button" data-tp-tab="failed" class="tp-tab" data-introskip-tab>Fehler</button>
+  </div>
+  <div id="introSkipJobList" class="trickplay-log"></div>
+  <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+    <button type="button" id="introSkipRetryFailedBtn">↻ Alle Fehler erneut versuchen</button>
+    <button type="button" data-close>Schließen</button>
+  </div>
+</dialog>
+
 <!-- Generisches App-Dialog-Fenster (ersetzt alert/confirm/prompt) -->
 <dialog id="appDialog" class="modal app-dialog">
   <h2 id="appDialogTitle" class="app-dialog-title"></h2>
@@ -872,6 +932,7 @@
 <script src="/scan.js" defer></script>
 <script src="/matching.js" defer></script>
 <script src="/whisper.js" defer></script>
+<script src="/introskip.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

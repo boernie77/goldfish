@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/boernie77/goldfish/internal/enrich"
+	"github.com/boernie77/goldfish/internal/introskip"
 	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/boernie77/goldfish/internal/scanner"
 	"github.com/boernie77/goldfish/internal/store"
@@ -25,6 +26,7 @@ type Server struct {
 	Enrich    *enrich.Worker
 	Trickplay *trickplay.Worker
 	Whisper   *whisper.Worker
+	IntroSkip *introskip.Worker
 	SubsDir   string    // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
 	ConfigDir string    // z.B. /config — Basis für alle persistenten Daten
 	PosterDir string    // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
@@ -218,6 +220,19 @@ func (s *Server) Router() http.Handler {
 		r.Get("/trickplay/log", requireAdmin(s.trickplayLog))
 		r.Get("/trickplay/{id}/thumbs.vtt", s.trickplayVTT)
 		r.Get("/trickplay/{id}/sprite.jpg", s.trickplaySprite)
+
+		// Intro-Erkennung: Verwaltung admin-only, Konsum (Skip-Button-Daten
+		// via GetItemFor) für alle. Aktivierung ist bewusst strikt pro
+		// einzelnem Serien-Ordner (kein Bibliotheks-weiter Schalter).
+		r.Get("/introskip/settings", requireAdmin(s.introSkipGetSettings))
+		r.Put("/introskip/settings", requireAdmin(s.introSkipSaveSettings))
+		r.Get("/libraries/{id}/introskip", requireAdmin(s.listIntroSkipFolders))
+		r.Put("/libraries/{id}/introskip", requireAdmin(s.setIntroSkipFolder))
+		r.Get("/libraries/{id}/introskip/episodes", requireAdmin(s.introSkipFolderEpisodes))
+		r.Get("/introskip/status", s.introSkipWorkerStatus)
+		r.Get("/introskip/log", requireAdmin(s.introSkipLog))
+		r.Post("/introskip/folders/{id}/retry", requireAdmin(s.retryIntroSkipFolder))
+		r.Post("/introskip/retry-failed", requireAdmin(s.retryFailedIntroSkip))
 	})
 
 	// Static frontend mit Cache-Control. Da wir kein Hash-Versioning haben,

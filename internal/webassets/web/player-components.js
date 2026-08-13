@@ -10,7 +10,9 @@
 // sichtbar und werden von Video.js' Hover-Autohide korrekt mitgesteuert.
 //
 // Buttons:
-//   Skip30Back/Forward — native vjs-icon-replay-30 / vjs-icon-forward-30
+//   Skip15Back/Skip30Forward — 15s zurück / 30s vor, beide mit nativen
+//                              vjs-icon-replay-10/forward-30-Glyphen (kein
+//                              natives "15"-Icon, replay-10 optisch am nächsten)
 //   ShufflePrev/Next   — Zufalls-Wiedergabe-Navigation
 //   FavoriteButton     — togglet items/:id/favorite, rotes Herz wenn an
 //   PlaylistButton     — oeffnet „Zu Playlist hinzufuegen"-Dialog
@@ -29,16 +31,19 @@
 function ensurePlayerComponents() {
   if (!window.videojs || state.playerComponentsRegistered) return;
   const Button = window.videojs.getComponent("Button");
-  class Skip30Back extends Button {
+  // Zurück-Skip ist bewusst kürzer als vor (15s statt 30s). Video.js hat
+  // keinen nativen "15"-Glyph (nur replay-5/10/30) — nimmt den optisch
+  // nächstliegenden (replay-10) für volle visuelle Konsistenz mit dem
+  // 30s-Vor-Button (ein eigenes Text-Icon sah "völlig anders" aus,
+  // User-Feedback 2026-08-13). Zeigt "10" im Icon, skippt aber tatsächlich
+  // 15s — controlText/Tooltip nennt die echte Zahl.
+  class Skip15Back extends Button {
     constructor(player, options) {
       super(player, options);
-      this.controlText("30 Sekunden zurück");
-      // Native Video.js-Icon-Klassen — gleiche Schrift, Groesse, Hoehe wie der
-      // Play-Button. Eigene Glyph-CSS-Overrides wuerden das brechen.
-      this.addClass("vjs-skip-backward-30");
-      this.addClass("vjs-icon-replay-30");
+      this.controlText("15 Sekunden zurück");
+      this.addClass("vjs-skip-backward-10");
     }
-    handleClick() { skipPlayer(-30); }
+    handleClick() { skipPlayer(-15); }
   }
   class Skip30Forward extends Button {
     constructor(player, options) {
@@ -85,6 +90,10 @@ function ensurePlayerComponents() {
         .catch(e => appAlert(e.message));
     }
   }
+  // Intro-Skip ist KEIN ControlBar-Button (zu klein/unauffällig, User-
+  // Feedback 2026-08-12), sondern ein größerer Overlay-Button direkt im
+  // Videobild (#introSkipOverlayBtn in index.html, Sichtbarkeit + Klick in
+  // player.js maybeToggleIntroSkip()/wireIntroSkipOverlay()).
   class PlaylistButton extends Button {
     constructor(player, options) {
       super(player, options);
@@ -182,7 +191,7 @@ function ensurePlayerComponents() {
     }
   }
   if (!window.videojs.getComponent("ShufflePrev")) {
-    window.videojs.registerComponent("Skip30Back", Skip30Back);
+    window.videojs.registerComponent("Skip15Back", Skip15Back);
     window.videojs.registerComponent("Skip30Forward", Skip30Forward);
     window.videojs.registerComponent("ShufflePrev", ShufflePrev);
     window.videojs.registerComponent("ShuffleNext", ShuffleNext);

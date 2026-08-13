@@ -423,6 +423,29 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 			f.LibraryIDs = nil
 		}
 	}
+	// Multi-Ordner-Auswahl fürs Zufallswiedergabe-Scoping: "folderSel" repeated,
+	// Format "<libId>:<relPath>" (relPath leer = ganze Library). Ersetzt
+	// libraryId/folder oben (siehe ItemFilter.Folders in sqlite.go).
+	if sels := q["folderSel"]; len(sels) > 0 {
+		checked := map[int64]bool{}
+		for _, raw := range sels {
+			parts := strings.SplitN(raw, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			libID, err := strconv.ParseInt(parts[0], 10, 64)
+			if err != nil || libID <= 0 {
+				continue
+			}
+			if !checked[libID] {
+				if !s.requireLibAccess(w, r, libID) {
+					return
+				}
+				checked[libID] = true
+			}
+			f.Folders = append(f.Folders, store.FolderSelector{LibraryID: libID, Folder: parts[1]})
+		}
+	}
 	if v := q.Get("personId"); v != "" {
 		f.PersonTMDB, _ = strconv.ParseInt(v, 10, 64)
 	}

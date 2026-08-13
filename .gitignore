@@ -22,4 +22,8 @@
 # Test artifacts
 /coverage.out
 /cmd/test*
-/.claude/
+
+# .claude/ is ignored by default (local settings etc.), but skills are
+# shared, version-controlled instructions — keep those tracked.
+/.claude/*
+!/.claude/skills/
