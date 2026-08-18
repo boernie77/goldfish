@@ -332,6 +332,7 @@ async function openPersonView(tmdbId, name) {
 function clearPersonView() {
   const b = state.personFilterBackup;
   state.personFilter = null;
+  state.personFilterShow = null;
   state.personFilterBackup = null;
   if (b) {
     state.currentLibrary = b.libraryId;

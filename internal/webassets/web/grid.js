@@ -336,6 +336,20 @@ async function loadItemsBody() {
   //   - Serien: pro Show genau EINE Kachel mit Show-Poster. Klick navigiert zur
   //     Serie wie aus dem Episoden-Titel heraus.
   if (state.personFilter) {
+    // Innerhalb einer Show-Sammelkachel: die Episoden stehen schon fest (kein
+    // erneuter Server-Call), nur die zur Person passenden Folgen dieser Serie.
+    if (state.personFilterShow) {
+      const showState = state.personFilterShow;
+      renderBreadcrumb({ personFilterShow: showState });
+      grid.innerHTML = "";
+      const mergedEpisodes = groupVariants(showState.episodes);
+      state.lastRenderedItems = mergedEpisodes;
+      const eg = document.createElement("div");
+      eg.className = "subview-grid";
+      for (const ep of mergedEpisodes) eg.appendChild(renderCard(ep));
+      grid.appendChild(eg);
+      return;
+    }
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       personId: String(state.personFilter.tmdbId),
@@ -374,11 +388,21 @@ async function loadItemsBody() {
           showParentId: (ep.metadata && ep.metadata.parentId) || 0,
           fallbackThumbId: ep.id,
           count: 0,
+          episodes: [],
         });
       }
-      showsMap.get(key).count++;
+      const entry = showsMap.get(key);
+      entry.count++;
+      entry.episodes.push(ep);
     }
     const shows = Array.from(showsMap.values()).sort((a, b) => a.folder.localeCompare(b.folder));
+    for (const s of shows) {
+      s.episodes.sort((a, b) => {
+        const sa = (a.metadata && a.metadata.season) || 0, sb = (b.metadata && b.metadata.season) || 0;
+        if (sa !== sb) return sa - sb;
+        return ((a.metadata && a.metadata.episode) || 0) - ((b.metadata && b.metadata.episode) || 0);
+      });
+    }
 
     const totalHits = movies.length + shows.length;
     renderBreadcrumb({ searchCount: totalHits });

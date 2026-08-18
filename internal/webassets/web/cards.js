@@ -211,8 +211,11 @@ function hidePartButton(collectionId, p) {
 // renderPersonShowCard: Sammelkachel pro Serie im Person-Filter-Modus.
 // Zeigt das Show-Poster (von der Parent-Show-Metadata, sonst Fallback auf
 // Episoden-Thumbnail) + Show-Name aus dem Folder-Namen + Anzahl gefundener
-// Episoden. Klick navigiert zum Serien-Ordner wie das Show-Link-Klick einer
-// Episoden-Kachel.
+// Episoden. Klick navigiert NICHT zum vollen Serien-Ordner (bei vielen
+// Folgen und nur wenigen Gastauftritten unübersichtlich, User-Anfrage
+// 2026-08-18) — stattdessen bleibt der Person-Filter aktiv und zeigt nur
+// die schon geladenen Episoden dieser Show mit dem Schauspieler
+// (state.personFilterShow, kein zusätzlicher Server-Call nötig).
 function renderPersonShowCard(show) {
   const el = document.createElement("article");
   el.className = "card folder card--poster";
@@ -232,17 +235,7 @@ function renderPersonShowCard(show) {
     </div>
   `;
   const open = () => {
-    state.homeView = false;
-    state.collectionsView = false;
-    state.currentCollection = null;
-    state.playlistsView = false;
-    state.personFilter = null;
-    state.personFilterBackup = null;
-    state.currentLibrary = show.libraryId;
-    state.currentFolder = show.folder;
-    state.currentFolderDrilldown = false;
-    const sel = $("#librarySelect");
-    if (sel) sel.value = "lib:" + show.libraryId;
+    state.personFilterShow = { folder: show.folder, libraryId: show.libraryId, episodes: show.episodes };
     loadItems();
   };
   el.addEventListener("click", open);
@@ -586,6 +579,7 @@ function renderCard(it, opts = {}) {
         state.currentCollection = null;
         state.playlistsView = false;
         state.personFilter = null;
+  state.personFilterShow = null;
         state.currentLibrary = it.libraryId;
         state.currentFolder = rel[0];
         state.currentFolderDrilldown = false;

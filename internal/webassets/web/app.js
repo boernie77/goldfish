@@ -23,6 +23,7 @@ const state = {
   browseAt: "/media",
   personFilter: null,       // {tmdbId, name} wenn Person-Filter aktiv
   personFilterBackup: null, // zwischengespeicherter Lib/Folder-Kontext
+  personFilterShow: null,   // {folder, libraryId, episodes} wenn innerhalb einer Serie im Person-Filter
   transcodePollTimer: null, // setInterval-Handle für Transcode-Progress-Polling
   flatView: false,          // wenn true: loadItems überspringt Ordner-Navigation
   selectionMode: false,     // Bulk-Auswahl aktiv
@@ -302,6 +303,7 @@ function resetFilters() {
   $("#searchClear").classList.add("hidden");
   // Person-Filter ebenfalls aufheben
   state.personFilter = null;
+  state.personFilterShow = null;
   state.personFilterBackup = null;
   // Bulk-Auswahl raus
   if (state.selectionMode) setSelectionMode(false);
@@ -900,6 +902,7 @@ function goHomeView() {
   state.currentCollection = null;
   state.playlistsView = false;
   state.personFilter = null;
+  state.personFilterShow = null;
   const sel = $("#librarySelect"); if (sel) sel.value = "";
   resetFilters();
   loadItems();
@@ -913,6 +916,7 @@ function goCollectionsView() {
   state.playlistsView = false;
   state.homeView = false;
   state.personFilter = null;
+  state.personFilterShow = null;
   const sel = $("#librarySelect"); if (sel) sel.value = "";
   resetFilters();
   loadItems();
@@ -932,6 +936,7 @@ function goLibraryView(libId) {
   state.currentPlaylist = null;
   state.homeView = false;
   state.personFilter = null;
+  state.personFilterShow = null;
   state.currentLibrary = Number(libId) || null;
   const sel = $("#librarySelect");
   if (sel) sel.value = state.currentLibrary ? "lib:" + state.currentLibrary : "";

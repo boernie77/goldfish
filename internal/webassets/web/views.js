@@ -631,13 +631,21 @@ function renderBreadcrumb(opts) {
   if (state.personFilter) {
     const back = document.createElement("button");
     back.className = "back-btn";
-    back.title = "Person-Filter aufheben";
-    back.textContent = "←";
-    back.addEventListener("click", clearPersonView);
+    if (opts.personFilterShow) {
+      // Innerhalb einer Show-Sammelkachel: ← geht zurück zur Personen-Übersicht
+      // (Filme+Serien-Kacheln), NICHT den Person-Filter ganz verlassen.
+      back.title = "Zurück zur Übersicht";
+      back.addEventListener("click", () => { state.personFilterShow = null; loadItems(); });
+    } else {
+      back.title = "Person-Filter aufheben";
+      back.addEventListener("click", clearPersonView);
+    }
     bc.appendChild(back);
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = "🎭 " + state.personFilter.name;
+    cur.textContent = opts.personFilterShow
+      ? `🎭 ${state.personFilter.name} · 📺 ${opts.personFilterShow.folder}`
+      : "🎭 " + state.personFilter.name;
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
