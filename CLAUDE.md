@@ -140,6 +140,12 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 > **Wenn du etwas brichst:** versionCode in `app/build.gradle.kts` erhöhen, neue
 > AAB bauen (`./gradlew bundleRelease`), in Play Console Internal-Testing-Track
 > hochladen. Dauert ~3 Min Build + 5 Min Play-Console-Prozessierung.
+>
+> **Git-Repo seit 2026-08-19:** `github.com/boernie77/goldfish-android` (privat).
+> Release-Signing-Credentials (`goldfish-release.jks` + Passwort) liegen NICHT im
+> Repo — `app/build.gradle.kts` liest sie aus `keystore.properties` (git-ignoriert,
+> nur lokal, siehe `keystore.properties.example` für die Struktur). **Diesen
+> Keystore NIE committen** — er signiert alle Play-Store-Updates.
 
 ## Server-API-Quirks, die die App kennt (NICHT brechen)
 
@@ -171,6 +177,64 @@ oben gelten weiterhin immer.
   Die App profitiert NICHT vom Authentik-SSO im Browser.
 - Kein Cast/AirPlay (die Buttons im Player sind browser-only, in der App fehlen sie).
 - Kein Admin (User-Verwaltung, Library-Manager, Scan, NFO-Bulk, Whisper-UI etc.).
+
+---
+
+# 🍎 Mac/iOS-App (GoldfishApple, seit 2026-08-17)
+
+> **An jede Claude-Session, die Goldfish-Server-API anfasst:**
+> Es gibt außer der Android-App auch eine **native Mac/iOS-App** unter
+> `/Users/christian/Projekte/GoldfishApple/` (SwiftUI, `GoldfishMac` + `GoldfishiOS`
+> Targets via `xcodegen` aus `project.yml`, gemeinsames Swift-Package `GoldfishCore`).
+> **Seit 2026-08-19 eigenes Git-Repo:** `github.com/boernie77/goldfish-apple`
+> (privat). Analog dazu `github.com/boernie77/goldfish-android` — beide getrennt
+> vom Server-Repo (`goldfish`), nicht darin eingegliedert.
+
+## Architektur-Kurzfassung
+- macOS: App Sandbox AUS (`GoldfishMac.entitlements` = `<dict/>`, nach jedem
+  `xcodegen generate` prüfen, wird sonst zurückgesetzt).
+- Player läuft NICHT als `.sheet`, sondern als eigene `WindowGroup(id: "player"/
+  "localPlayer")`-Szene (`openWindow(id:)` + `PlayerLaunchCoordinator.shared`
+  hält die live Swift-Werte, da `RandomContext`/`[Item]` nicht sinnvoll
+  `Codable` für `openWindow(value:)` sind) — Sheets unterstützen kein echtes
+  `NSWindow.toggleFullScreen`.
+- Custom `AppDelegate` (`Sources/GoldfishApp/AppDelegate.swift`) für Window-
+  Lifecycle-Handling, das SwiftUI pur nicht bietet (Dock-Reopen, Space-Handling).
+- Build: `xcodebuild -scheme GoldfishMac -configuration Debug -destination
+  'platform=macOS' build`, dann App-Bundle aus DerivedData auf den Desktop
+  kopieren zum Testen (kein Simulator für Mac-Target nötig).
+
+## Gelöste Bugs (Stand 2026-08-19, Build 0100)
+- **Fenster-Verschwinden-Bug** (viele Fixversuche, am Ende zwei echte Root-Causes):
+  1. `PlayerLaunchCoordinator.pendingPlayer/pendingLocalPlayer` wurden beim
+     Schließen nie auf `nil` zurückgesetzt → SwiftUI/AppKit-Fenster-Bookkeeping
+     lief auseinander.
+  2. Das Hauptfenster konnte über den grünen Button in einen eigenen nativen
+     Vollbild-Space rutschen (`onScreen=false` im Diagnose-Log, Frame = exakt
+     Bildschirmgröße) — landete dann auf einer anderen Space als der Player.
+     Fix: `window.collectionBehavior = [.managed, .participatesInCycle,
+     .canJoinAllSpaces]` (Ganzwert-Neuzuweisung, `.remove()`/`.insert()` auf
+     der Property hat NICHT zuverlässig gehalten) + Fenster zieht sich beim
+     Start auf `screen.visibleFrame` auf (fast Vollbild ohne echtes Fullscreen).
+  - **Debugging-Lehre:** NSLog+Console.app hat trotz aktivem Streaming NIE
+    einwandfrei funktioniert (0 Mitteilungen trotz Reproduktion) — Umstieg auf
+    eigenes File-Logging (`~/Desktop/goldfish-window-debug.log`, append via
+    `FileHandle`) war der Durchbruch. `Read`/`cat` auf `~/Desktop/*` scheitert
+    aus dem Coding-Environment heraus an macOS-Datenschutz (EPERM) — User muss
+    die Datei selbst öffnen/einfügen oder `! cat ...` selbst ausführen.
+- **„Von Anfang" startete mitten im Video** (Transcode): identischer Root-Cause
+  wie im Browser (siehe DECISIONS.md „„Von Anfang" startet mitten im Film") —
+  Server matched eine bereits vorangeschrittene gecachte Transcode-Session.
+  Fix mirrored `player.js`: `&fresh=1` (wenn Start=0) + `_t=<timestamp>`
+  Cache-Bust an die Transcode-URL anhängen (`PlayerView.transcodeURLWithParams`).
+- Per-User-Isolation für lokale Bibliotheken/Downloads/Shuffle-Scope (analog
+  zum früheren Android-Bug, gleiche Klasse von Fehler: fehlender User-Filter).
+- Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
+  Erscheinungsdatum, wie im Browser.
+
+## Was die App NICHT hat
+- Kein Git-Repo/GitHub (siehe oben).
+- Kein Windows/Linux-Target (nur macOS + iOS).
 
 ---
 
