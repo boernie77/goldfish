@@ -231,9 +231,73 @@ oben gelten weiterhin immer.
   zum früheren Android-Bug, gleiche Klasse von Fehler: fehlender User-Filter).
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
+- Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
+  lief: Downloads-Tab-Kacheln rendern aus `DownloadRecord.cachedItem`, einem
+  beim Download eingefrorenen JSON-Snapshot, der nie nachgezogen wurde. Fix:
+  `Item.withWatched(_:)` + `DownloadManager.updateCachedWatched(itemId:
+  watched:)`, verdrahtet an jedem `setWatched`-Call-Site (PlayerView,
+  ItemCard, ItemDetailView).
+
+## Gesehen-Sync zwischen zwei Usern (seit 2026-08-19)
+- User-Anfrage: zwei eigene Accounts (z. B. Christian + Alex/Börnie) sollen
+  ihren Gesehen-Status synchronisieren können, mutual opt-in (beide müssen
+  bestätigen), und respektiert dabei die eigene Library-ACL + FSK-Grenze
+  **des Partners** — es werden nur Items gespiegelt, die der Partner selbst
+  sehen dürfte.
+- **Bewusst server-seitig implementiert** (nicht nur in der Mac-App), damit
+  der Sync für ALLE Clients automatisch funktioniert (Browser, Android, Mac).
+- Server (`~/Projekte/Videoplayer/`):
+  - Neue Tabelle `user_watch_links` (`internal/store/sqlite.go`): eine Zeile
+    pro Paar (`user_a_id < user_b_id` per CHECK erzwungen, normalisiert via
+    `normalizeWatchLinkPair`), `status` ∈ `pending`/`accepted`,
+    `requester_id` für die UI-Anzeige "wartet auf …". Anfrage + Gegenanfrage
+    vom Partner bestätigt automatisch (kein doppeltes pending nötig).
+  - Store: `internal/store/watch_links.go` — `RequestWatchLink`,
+    `ConfirmWatchLink`, `UnlinkWatchLink` (dient auch als Ablehnen — Zeile
+    wird einfach gelöscht), `GetWatchLinks`, `ActiveWatchPartnerIDs`.
+  - API: `internal/api/watch_links.go` + Routen in `router.go` (alle
+    authenticated, NICHT admin-only — jeder User verwaltet nur seine
+    eigenen Links):
+    ```
+    GET    /api/users/names            — Partner-Picker (nur id+username)
+    GET    /api/watch-links            — eigene Links (aktiv + offen)
+    POST   /api/watch-links            {username}
+    POST   /api/watch-links/{partnerId}/confirm
+    DELETE /api/watch-links/{partnerId}  — trennen ODER ablehnen
+    ```
+  - **Propagation-Hook** in `setWatched` (`internal/api/watched.go`):
+    `propagateWatchedToLinkedPartners` (in `watch_links.go`) läuft NACH dem
+    eigenen `SetWatchedFor`, holt alle `ActiveWatchPartnerIDs`, prüft pro
+    Partner `Store.UserHasLibraryAccess` + eine neue reine (writer-lose)
+    `isAgeAllowedForUser`-Variante von `requireAgeAllowed` (Refactor:
+    `requireAgeAllowed` ist jetzt ein dünner HTTP-Wrapper darum) und
+    spiegelt nur bei Erlaubnis via `Store.SetWatchedFor(partner.ID, …)`.
+    Fehler werden nur geloggt — Sync ist Komfort-Feature, kein Blocker
+    (Pattern analog NFO-Auto-Write).
+- Mac-App: `GoldfishClient` (`fetchOtherUsers`, `fetchWatchLinks`,
+  `requestWatchLink`, `confirmWatchLink`, `unlinkWatchLink`) + neue Models
+  `OtherUser`/`WatchLink` in `GoldfishCore/Models/Models.swift`. UI:
+  neue Section „Gesehen-Sync" in `SettingsView.swift` (Zusammenfassungszeile
+  via `watchLinkSummary`) → `WatchLinkSettingsView.swift` (Partner-Picker,
+  Bestätigen/Ablehnen/Trennen-Buttons).
+- Browser/Android-UI für den Partner-Picker **noch nicht gebaut** — nur der
+  Server-Endpoint + die Mac-App-UI sind live. Sync wirkt serverseitig aber
+  bereits für Watched-Toggles aus JEDEM Client, sobald eine Verknüpfung
+  `accepted` ist (auch aus dem Browser heraus, nur die Verwaltungs-UI dafür
+  fehlt dort noch).
+
+## Auflösung + FSK im Detail-Dialog (Mac-App, seit 2026-08-19)
+- `ItemDetailView.swift`: FSK-Badge neben der bereits vorhandenen
+  Auflösungs-Anzeige, liest `item.metadata?.ageRating` (liefert auch für
+  Episoden korrekt, wenn der Server das Parent-Show-Rating durchreicht).
+  Nur in der Mac/iOS-App — kein Server-Change nötig, das Feld kam schon vorher
+  in der Item-JSON mit.
+- **Noch offen:** `ShowSeasonsView.swift`'s `ShowHeader` (Serien-Übersicht)
+  zeigt noch keine FSK — der Server liefert dafür aktuell KEIN Age-Rating-
+  Feld im `ShowOut`-Struct (`internal/api/series.go`), müsste separat
+  ergänzt werden. Nicht Teil dieser Runde.
 
 ## Was die App NICHT hat
-- Kein Git-Repo/GitHub (siehe oben).
 - Kein Windows/Linux-Target (nur macOS + iOS).
 
 ---

@@ -68,6 +68,7 @@ func (s *Server) setWatched(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	s.propagateWatchedToLinkedPartners(me.ID, it, body.Watched)
 	w.WriteHeader(204)
 }
 

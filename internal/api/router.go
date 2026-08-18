@@ -119,6 +119,15 @@ func (s *Server) Router() http.Handler {
 		r.Post("/items/{id}/move", requireAdmin(s.moveItem))
 		r.Post("/items/move", requireAdmin(s.moveItemsBulk))
 		r.Get("/libraries/{id}/all-folders", requireAdmin(s.listAllFolders))
+
+		// Gesehen-Sync zwischen zwei Usern (kein Admin nötig — jeder User
+		// darf für sich selbst einen Partner vorschlagen/bestätigen/trennen)
+		r.Get("/users/names", s.listOtherUsernames)
+		r.Get("/watch-links", s.listWatchLinks)
+		r.Post("/watch-links", s.requestWatchLink)
+		r.Post("/watch-links/{partnerId}/confirm", s.confirmWatchLink)
+		r.Delete("/watch-links/{partnerId}", s.unlinkWatchLink)
+
 		r.Put("/items/{id}/favorite", s.setFavorite)
 		r.Post("/items/{id}/played", s.touchPlayed)
 		r.Put("/items/{id}/resume", s.setResumePos)

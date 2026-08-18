@@ -63,7 +63,22 @@ func (s *Server) requireLibAccess(w http.ResponseWriter, r *http.Request, libID 
 // Items ohne gesetzte age_rating bleiben erlaubt (unbekannt ≠ hoch).
 func (s *Server) requireAgeAllowed(w http.ResponseWriter, r *http.Request, itemMetadataID int64) bool {
 	me := currentUser(r)
-	if me == nil || me.IsAdmin || me.MaxAgeRating == nil {
+	if me == nil {
+		return true
+	}
+	if !s.isAgeAllowedForUser(me.IsAdmin, me.MaxAgeRating, itemMetadataID) {
+		writeError(w, 403, "Altersfreigabe überschreitet dein Limit")
+		return false
+	}
+	return true
+}
+
+// isAgeAllowedForUser ist der reine (writer-lose) Kern von requireAgeAllowed —
+// wiederverwendet für die Gesehen-Sync-Propagation (internal/api/watch_links.go),
+// wo kein http.ResponseWriter zur Hand ist, sondern nur "darf der Partner
+// dieses Item überhaupt sehen" geprüft werden muss.
+func (s *Server) isAgeAllowedForUser(isAdmin bool, maxAgeRating *int, itemMetadataID int64) bool {
+	if isAdmin || maxAgeRating == nil {
 		return true
 	}
 	if itemMetadataID == 0 {
@@ -85,9 +100,5 @@ func (s *Server) requireAgeAllowed(w http.ResponseWriter, r *http.Request, itemM
 	}
 	var itemAge int
 	_, _ = fmt.Sscanf(ageStr, "%d", &itemAge)
-	if itemAge > *me.MaxAgeRating {
-		writeError(w, 403, "Altersfreigabe überschreitet dein Limit")
-		return false
-	}
-	return true
+	return itemAge <= *maxAgeRating
 }

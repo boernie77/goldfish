@@ -281,6 +281,23 @@ func (s *Store) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS gen_subs_item_idx ON generated_subtitles(item_id)`,
 		`CREATE INDEX IF NOT EXISTS gen_subs_status_idx ON generated_subtitles(status)`,
+		// Gesehen-Sync zwischen zwei Usern (User-Anfrage 2026-08-19): eine Zeile
+		// pro Richtung (a→b), Status durchläuft pending → accepted, oder wird
+		// gelöscht bei Ablehnen/Trennen. Zwei User können sich so gegenseitig
+		// verlinken; requester_id ist die Person, die den Link angestoßen hat
+		// (für die UI "wartet auf Bestätigung von …"), die Sync-Propagation
+		// selbst ist danach aber symmetrisch (beide Richtungen spiegeln).
+		`CREATE TABLE IF NOT EXISTS user_watch_links (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_a_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			user_b_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			confirmed_at DATETIME,
+			CHECK (user_a_id < user_b_id),
+			UNIQUE(user_a_id, user_b_id)
+		)`,
 	}
 	for _, q := range baseStmts {
 		if _, err := s.db.Exec(q); err != nil {
@@ -465,6 +482,8 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS user_item_state_last_played_idx ON user_item_state(user_id, last_played_at)`,
 		// Collections — für ListCollections/fallback_meta_id-Subqueries
 		`CREATE INDEX IF NOT EXISTS metadata_collection_idx ON metadata(collection_id)`,
+		`CREATE INDEX IF NOT EXISTS user_watch_links_a_idx ON user_watch_links(user_a_id, status)`,
+		`CREATE INDEX IF NOT EXISTS user_watch_links_b_idx ON user_watch_links(user_b_id, status)`,
 	}
 	// Backfill: Für jede existierende Library wird ihr "path" in library_paths gespiegelt
 	// (falls noch nicht vorhanden). So funktionieren bestehende Bibliotheken out-of-the-box.
