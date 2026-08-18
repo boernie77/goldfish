@@ -319,7 +319,7 @@ function renderFolderCard(f) {
   let imgUrl = "", title = shortName, meta = "Ordner";
   let rating = "";
   if (f.metadata && f.metadata.posterPath) {
-    imgUrl = `/api/poster/metadata/${f.metadataId}`;
+    imgUrl = `/api/poster/metadata/${f.metadataId}?v=${encodeURIComponent(f.metadata.posterPath)}`;
     title = f.metadata.title || shortName;
     if (f.metadata.year) meta = `${f.metadata.year} · ${f.itemCount} Episoden`;
     else meta = `${f.itemCount} Episoden`;
@@ -434,7 +434,13 @@ function renderCard(it, opts = {}) {
   }
 
   if (it.metadata && it.metadata.posterPath) {
-    imgUrl = `/api/poster/metadata/${it.metadataId}`;
+    // Cache-Busting via ?v=<posterPath>: die Poster-URL hängt nur an der metadataId, die
+    // sich bei einem Re-Match NICHT ändert — obwohl die Datei dahinter (anderer TMDB-
+    // posterPath) eine andere ist. Ohne den Query-Param kann der Browser (oder ein
+    // Client-Cache) nach einer Neuzuordnung noch das alte Poster unter derselben URL
+    // zeigen (User-Bericht 2026-08-19: "American Fighter" zeigte ein falsch zugeschnitten
+    // wirkendes Poster, reproduzierbar sowohl hier als auch in der nativen Mac-App).
+    imgUrl = `/api/poster/metadata/${it.metadataId}?v=${encodeURIComponent(it.metadata.posterPath)}`;
     if (!isEpisode) {
       title = it.metadata.title || it.title;
       if (it.metadata.year) subtitle = String(it.metadata.year);

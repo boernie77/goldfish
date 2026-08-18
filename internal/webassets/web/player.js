@@ -85,7 +85,8 @@ async function openDetail(item) {
   }
   state.currentItem = item;
   const meta = item.metadata;
-  const posterUrl = (meta && meta.posterPath) ? `/api/poster/metadata/${item.metadataId}` : (item.hasThumb ? `/api/thumb/${item.id}` : "/placeholder.svg");
+  // Cache-Busting via ?v=<posterPath>, siehe cards.js renderCard-Kommentar (User-Bericht 2026-08-19).
+  const posterUrl = (meta && meta.posterPath) ? `/api/poster/metadata/${item.metadataId}?v=${encodeURIComponent(meta.posterPath)}` : (item.hasThumb ? `/api/thumb/${item.id}` : "/placeholder.svg");
 
   let title = item.title;
   let sub = [];
