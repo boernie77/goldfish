@@ -18,25 +18,27 @@ import (
 // (User hat die Datei → muss zählen, auch wenn TMDB-Datum komisch ist).
 //
 // Query:
-//   libraryId=<libID>
-//   folder=<top-level-folder>
+//
+//	libraryId=<libID>
+//	folder=<top-level-folder>
 //
 // Beispiel-Antwort:
-// {
-//   "showTmdbId": 1234,
-//   "seasons": [
-//     {
-//       "seasonNumber": 1,
-//       "name": "Staffel 1",
-//       "posterPath": "/…",
-//       "episodes": [
-//         { "season":1, "episode":1, "title":"...", "airDate":"2020-01-01",
-//           "owned":true, "itemId":123, "hidden":false },
-//         { "season":1, "episode":2, ..., "owned":false },
-//       ]
-//     }, ...
-//   ]
-// }
+//
+//	{
+//	  "showTmdbId": 1234,
+//	  "seasons": [
+//	    {
+//	      "seasonNumber": 1,
+//	      "name": "Staffel 1",
+//	      "posterPath": "/…",
+//	      "episodes": [
+//	        { "season":1, "episode":1, "title":"...", "airDate":"2020-01-01",
+//	          "owned":true, "itemId":123, "hidden":false },
+//	        { "season":1, "episode":2, ..., "owned":false },
+//	      ]
+//	    }, ...
+//	  ]
+//	}
 func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	if me == nil {
@@ -88,9 +90,12 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	// eigener Slot im owned-Lookup gehalten; alle Slots zeigen auf dieselbe
 	// ItemID.
 	type ownedSlot struct {
-		ItemID     int64
-		ItemIDs    []int64 // alle Items, die diese Episode mappen (Duplikate / Varianten)
-		EpisodeEnd int     // >0 wenn Slot Teil einer Range ist, sonst 0
+		ItemID      int64
+		ItemIDs     []int64 // alle Items, die diese Episode mappen (Duplikate / Varianten)
+		EpisodeEnd  int     // >0 wenn Slot Teil einer Range ist, sonst 0
+		Width       int
+		Height      int
+		DurationSec float64
 	}
 	maxSeason := 0
 	haveSeasons := map[int]struct{}{}
@@ -117,7 +122,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-			slot := ownedSlot{ItemID: e.ItemID, ItemIDs: []int64{e.ItemID}}
+			slot := ownedSlot{ItemID: e.ItemID, ItemIDs: []int64{e.ItemID}, Width: e.Width, Height: e.Height, DurationSec: e.DurationSec}
 			if e.EpisodeEnd > e.Episode {
 				slot.EpisodeEnd = e.EpisodeEnd
 			}
@@ -201,9 +206,9 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	// aber wenn einer der Slots gerade frei ist, spart das eine Round-Trip-
 	// Zeit gegenüber seriellem Aufruf.
 	var (
-		tv         *tmdb.TVShow
-		tvCredits  []tmdb.CastEntry
-		tvWG       sync.WaitGroup
+		tv        *tmdb.TVShow
+		tvCredits []tmdb.CastEntry
+		tvWG      sync.WaitGroup
 	)
 	tvWG.Add(2)
 	go func() {
@@ -246,31 +251,39 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type episodeOut struct {
-		Season     int     `json:"season"`
-		Episode    int     `json:"episode"`
-		Title      string  `json:"title"`
-		Overview   string  `json:"overview,omitempty"`
-		AirDate    string  `json:"airDate,omitempty"`
-		StillPath  string  `json:"stillPath,omitempty"`
-		Owned      bool    `json:"owned"`
-		Watched    bool    `json:"watched"` // per aktuellem User
-		ItemID     int64   `json:"itemId,omitempty"`
-		ItemIDs    []int64 `json:"itemIds,omitempty"` // alle Files für diese Episode (Duplikate / Varianten)
-		TMDBID     int64   `json:"tmdbId,omitempty"`
+		Season    int     `json:"season"`
+		Episode   int     `json:"episode"`
+		Title     string  `json:"title"`
+		Overview  string  `json:"overview,omitempty"`
+		AirDate   string  `json:"airDate,omitempty"`
+		StillPath string  `json:"stillPath,omitempty"`
+		Owned     bool    `json:"owned"`
+		Watched   bool    `json:"watched"` // per aktuellem User
+		ItemID    int64   `json:"itemId,omitempty"`
+		ItemIDs   []int64 `json:"itemIds,omitempty"` // alle Files für diese Episode (Duplikate / Varianten)
+		TMDBID    int64   `json:"tmdbId,omitempty"`
 		// EpisodeEnd ist gesetzt, wenn die Episode Teil einer Doppelfolgen-
 		// Datei ist (z.B. S07E23E24.mkv). Slots E23 UND E24 zeigen dann auf
 		// dieselbe ItemID, und EpisodeEnd=24 auf beiden.
 		EpisodeEnd int `json:"episodeEnd,omitempty"`
+		// User-Anfrage 2026-08-19: "bei den Serienfolgen fehlen die Informationen in der
+		// Kachel, wie gesehen, Auflösung [...] und auch die Dauer der Folge" — Mac-App-
+		// EpisodeTile hatte bisher keine Auflösungs-/Dauer-Anzeige, weil dieser Endpoint
+		// die Felder gar nicht mitschickte (Browser braucht sie hier nicht, holt sowas
+		// separat pro Item).
+		Width       int     `json:"width,omitempty"`
+		Height      int     `json:"height,omitempty"`
+		DurationSec float64 `json:"durationSec,omitempty"`
 	}
 	type seasonOut struct {
-		SeasonNumber int           `json:"seasonNumber"`
-		Name         string        `json:"name"`
-		PosterPath   string        `json:"posterPath,omitempty"`
-		AirDate      string        `json:"airDate,omitempty"`
-		Episodes     []episodeOut  `json:"episodes"`
-		OwnedCount   int           `json:"ownedCount"`
-		WatchedCount int           `json:"watchedCount"` // davon gesehen (nur owned, per User)
-		Total        int           `json:"total"`
+		SeasonNumber int          `json:"seasonNumber"`
+		Name         string       `json:"name"`
+		PosterPath   string       `json:"posterPath,omitempty"`
+		AirDate      string       `json:"airDate,omitempty"`
+		Episodes     []episodeOut `json:"episodes"`
+		OwnedCount   int          `json:"ownedCount"`
+		WatchedCount int          `json:"watchedCount"` // davon gesehen (nur owned, per User)
+		Total        int          `json:"total"`
 	}
 
 	// Watched-Map fuer diesen Folder + User vorbereiten. Wird beim Bauen
@@ -355,18 +368,21 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			out := episodeOut{
-				Season:     ep.SeasonNumber,
-				Episode:    ep.EpisodeNumber,
-				Title:      ep.Name,
-				Overview:   ep.Overview,
-				AirDate:    ep.AirDate,
-				StillPath:  ep.StillPath,
-				Owned:      slot.ItemID > 0,
-				Watched:    watched,
-				ItemID:     slot.ItemID,
-				ItemIDs:    slot.ItemIDs,
-				EpisodeEnd: slot.EpisodeEnd,
-				TMDBID:     ep.ID,
+				Season:      ep.SeasonNumber,
+				Episode:     ep.EpisodeNumber,
+				Title:       ep.Name,
+				Overview:    ep.Overview,
+				AirDate:     ep.AirDate,
+				StillPath:   ep.StillPath,
+				Owned:       slot.ItemID > 0,
+				Watched:     watched,
+				ItemID:      slot.ItemID,
+				ItemIDs:     slot.ItemIDs,
+				EpisodeEnd:  slot.EpisodeEnd,
+				TMDBID:      ep.ID,
+				Width:       slot.Width,
+				Height:      slot.Height,
+				DurationSec: slot.DurationSec,
 			}
 			so.Episodes = append(so.Episodes, out)
 			so.Total++
