@@ -131,6 +131,31 @@ func (s *Store) GetWatchLinks(userID int64) ([]WatchLinkInfo, error) {
 	return out, rows.Err()
 }
 
+// WatchLinkPair: ein Paar verknüpfter User-IDs.
+type WatchLinkPair struct {
+	UserAID int64
+	UserBID int64
+}
+
+// AllAcceptedWatchLinkPairs liefert alle Verknüpfungen mit status=accepted — für den
+// einmaligen Startup-Backfill (internal/api/watch_links.go).
+func (s *Store) AllAcceptedWatchLinkPairs() ([]WatchLinkPair, error) {
+	rows, err := s.db.Query(`SELECT user_a_id, user_b_id FROM user_watch_links WHERE status = 'accepted'`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []WatchLinkPair
+	for rows.Next() {
+		var p WatchLinkPair
+		if err := rows.Scan(&p.UserAID, &p.UserBID); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // ActiveWatchPartnerIDs liefert die User-IDs aller Partner mit status=accepted
 // — das sind die Ziele der Gesehen-Propagation beim SetWatchedFor.
 func (s *Store) ActiveWatchPartnerIDs(userID int64) ([]int64, error) {

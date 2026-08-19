@@ -314,6 +314,39 @@ func (s *Store) UserHasLibraryAccess(userID, libID int64, isAdmin bool) (bool, e
 	return n > 0, err
 }
 
+// WatchedItemBasic: minimale Item-Info für den Gesehen-Sync-Backfill (siehe
+// watch_links.go) — spart einen GetItemFor-Call pro Item.
+type WatchedItemBasic struct {
+	ItemID     int64
+	LibraryID  int64
+	MetadataID int64
+}
+
+// WatchedItemsBasic liefert alle vom User als gesehen markierten Items (nur
+// die für ACL/FSK-Prüfung nötigen Felder). Für den Gesehen-Sync-Backfill
+// zwischen verknüpften Usern (`internal/api/watch_links.go`).
+func (s *Store) WatchedItemsBasic(userID int64) ([]WatchedItemBasic, error) {
+	rows, err := s.db.Query(`
+		SELECT i.id, i.library_id, COALESCE(i.metadata_id, 0)
+		FROM user_item_state us
+		JOIN items i ON i.id = us.item_id
+		WHERE us.user_id = ? AND us.watched = 1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []WatchedItemBasic
+	for rows.Next() {
+		var w WatchedItemBasic
+		if err := rows.Scan(&w.ItemID, &w.LibraryID, &w.MetadataID); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
 // --- Per-User Watched/Favorite ---
 
 func (s *Store) SetWatchedFor(userID, itemID int64, watched bool) error {

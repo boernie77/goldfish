@@ -124,6 +124,7 @@ func main() {
 		OIDC:      api.NewOIDCRuntime(oidcCfg),
 	}
 	srv.ApplyTranslationBackend()
+	srv.BackfillAllWatchLinksOnStartup()
 
 	httpSrv := &http.Server{
 		Addr:              addr,
