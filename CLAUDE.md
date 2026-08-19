@@ -67,8 +67,17 @@ go.mod                              — coreos/go-oidc/v3 v3.11.0, golang.org/x/
 ## Deployment (Stand 2026-04-27)
 
 - **Image:** `simple-videoplayer:latest`, gebaut von Image-CI (self-hosted Runner
-  `goldfish-ci` Stack 38) bei jedem Push auf `main`.
-  Falls Runner offline (Reg-Token expired): direkt builden via
+  `goldfish-ci` Stack 38, Container `goldfish-runner`) bei jedem Push auf `main`.
+  Falls Runner offline: **zuerst Container-Logs prüfen**
+  (`GET .../containers/{id}/logs`), nicht direkt "Reg-Token expired" annehmen —
+  am 2026-08-19 war die echte Ursache `Runner version vX.X.X is deprecated and
+  cannot receive messages` (Restart-Loop, `myoung34/github-runner:latest`-Image
+  hatte einen veralteten Layer lokal gecacht + `DISABLE_AUTO_UPDATE: "true"` im
+  Compose verhinderte Selbst-Update). Fix: Stack-38-Compose holen,
+  `DISABLE_AUTO_UPDATE` auf `"false"`, Stack mit `pullImage: true` redeployen
+  (Env-Array `ACCESS_TOKEN` mitschicken, sonst geht der Token verloren, gleiches
+  Muster wie Stack 37). Falls der Runner trotzdem nicht rechtzeitig wieder
+  online kommt: direkt builden via
   `POST http://<UNRAID-LAN-IP>:9000/api/endpoints/3/docker/build?t=simple-videoplayer:latest`
   mit Tarball als Body (siehe `.github/workflows/deploy.yml`).
 - **Stack:** Portainer-Stack-37 `videoplayer` auf Endpoint 3 (`<UNRAID-LAN-IP>`).
