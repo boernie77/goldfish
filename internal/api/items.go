@@ -32,7 +32,12 @@ func (s *Server) suspiciousMatches(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	items, err := s.Store.SuspiciousMatches(libID, me.ID)
+	// Sicherheitslücke gefunden 2026-08-22, gleiche Klasse wie ListItems: ohne libraryId-
+	// Param griff hier bisher KEINE ACL-Einschränkung (SuspiciousMatches → ListItems mit
+	// LibraryID=0). Jetzt automatisch über ListItems' eigene ACL-Sperre abgedeckt (siehe
+	// dort) — IsAdmin muss durchgereicht werden, sonst würde ein Admin fälschlich auf seine
+	// (meist nicht vorhandenen) user_library_acl-Zeilen eingeschränkt.
+	items, err := s.Store.SuspiciousMatches(libID, me.ID, me.IsAdmin)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -349,6 +354,16 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		Interlaced: q.Get("interlaced") == "yes",
 		TrickplayStatus: q.Get("trickplay"),
 		UserID:     me.ID,
+		IsAdmin:    me.IsAdmin,
+	}
+	// Sicherheitslücke gefunden 2026-08-22 (User: "beim Benutzer Börnie werden bei der
+	// Startseiten-Suche Treffer aus Bibliotheken angezeigt, auf die er gar keinen Zugriff
+	// hat") — die eigentliche Library-ACL-Sperre ist jetzt zentral in Store.ListItems
+	// (greift auch ohne libraryId-Param). Gleiche Lücke bestand für FSK: `randomItem`
+	// setzte MaxAgeRating für Non-Admins längst, hier fehlte es komplett — eine Suche
+	// zeigte bisher auch altersbeschränkte Treffer, die der User gar nicht öffnen darf.
+	if !me.IsAdmin && me.MaxAgeRating != nil {
+		f.MaxAgeRating = *me.MaxAgeRating
 	}
 	if ids := q["libraryId"]; len(ids) > 0 {
 		for _, v := range ids {
@@ -406,6 +421,7 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 	}
 	if me != nil {
 		f.UserID = me.ID
+		f.IsAdmin = me.IsAdmin
 		// FSK-Beschränkung nur für Non-Admins: Admins sehen alles.
 		if !me.IsAdmin && me.MaxAgeRating != nil {
 			f.MaxAgeRating = *me.MaxAgeRating
@@ -556,6 +572,12 @@ func (s *Server) getItemVariants(w http.ResponseWriter, r *http.Request) {
 	all, err := s.Store.ListItems(store.ItemFilter{
 		MetadataID: src.MetadataID,
 		UserID:     me.ID,
+		// IsAdmin: ohne das würde die neue store-seitige ACL-Sperre (siehe
+		// ListItems-Kommentar) einen Admin fälschlich auf seine (meist gar nicht
+		// vorhandenen) user_library_acl-Zeilen einschränken — Admins brauchen dort
+		// keine expliziten ACL-Einträge, sie sehen ohnehin alles. Die eigentliche
+		// Non-Admin-Filterung passiert hier zusätzlich manuell unten (UserHasLibraryAccess).
+		IsAdmin: me.IsAdmin,
 	})
 	if err != nil {
 		writeError(w, 500, err.Error())

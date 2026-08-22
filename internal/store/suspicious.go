@@ -80,8 +80,8 @@ func suspicTokens(s string) map[string]struct{} {
 // verlässliche Signaltyp bei Release-Gruppen-Inhalten).
 //
 // Beschränkbar via libraryID (0 = alle). User-Kontext für Watched/Favorite.
-func (s *Store) SuspiciousMatches(libraryID, userID int64) ([]model.Item, error) {
-	f := ItemFilter{UserID: userID}
+func (s *Store) SuspiciousMatches(libraryID, userID int64, isAdmin bool) ([]model.Item, error) {
+	f := ItemFilter{UserID: userID, IsAdmin: isAdmin}
 	if libraryID > 0 {
 		f.LibraryID = libraryID
 	}

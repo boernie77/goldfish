@@ -625,6 +625,16 @@ function renderBreadcrumb(opts) {
     cur.className = "current";
     cur.textContent = "🏠 Startseite";
     bc.appendChild(cur);
+    // Bugfix 2026-08-22 (User: "am Server wird auch nicht die Anzahl der Treffer
+    // angezeigt"): der homeRoot-Zweig hier gab `opts.searchCount` (von grid.js bei der
+    // library-übergreifenden Startseiten-Suche schon korrekt mitgeschickt) bisher nie
+    // aus — anders als playlistsRoot/personFilter, die dasselbe Feld längst rendern.
+    if (opts.searchCount !== undefined && opts.searchCount !== null) {
+      const count = document.createElement("span");
+      count.className = "count";
+      count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} Treffer)`;
+      bc.appendChild(count);
+    }
     return;
   }
 

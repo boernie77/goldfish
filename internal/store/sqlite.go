@@ -976,6 +976,9 @@ type ItemFilter struct {
 	Interlaced      bool     // true = nur Items, deren Video-Stream field_order ∉ {progressive, unknown, ""}
 	TrickplayStatus string   // "" | "failed" | "pending" | "done" — Filter im Trickplay-Manager
 	UserID          int64    // 0 = ungesetzt (Worker-Kontext); sonst pro-User-Zustand laden
+	// IsAdmin: true = keine user_library_acl-Einschränkung (Admins sehen alle Bibliotheken).
+	// Nur relevant wenn UserID > 0 — vom Aufrufer aus dem eingeloggten User zu setzen.
+	IsAdmin bool
 	// MaxAgeRating: wenn > 0, werden Items mit metadata.age_rating > Max
 	// ausgeblendet. 0 = keine Beschränkung (Admin-Default).
 	MaxAgeRating int
@@ -1037,6 +1040,21 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	} else if f.LibraryID > 0 {
 		q += ` AND i.library_id = ?`
 		args = append(args, f.LibraryID)
+	}
+	// Sicherheitslücke gefunden 2026-08-22 (User: "beim Benutzer Börnie werden bei der
+	// Startseiten-Suche Treffer aus Bibliotheken angezeigt, auf die er gar keinen Zugriff
+	// hat"): die obige Library-Eingrenzung (Folders/LibraryIDs/LibraryID) griff nur, wenn
+	// der Aufrufer sie explizit gesetzt hat — eine library-übergreifende Suche (Home-View,
+	// kein libraryId-Query-Param) lief für Non-Admins komplett UNGEFILTERT über ALLE
+	// Bibliotheken der DB, nicht nur die per user_library_acl erlaubten. Betraf sowohl
+	// `listItems` (Suche) als auch `randomItem` (🎲 Zufall ohne Scope) — beide rufen diese
+	// Funktion auf. Fix hier statt einzeln in jedem Handler: ein einziger, nicht zu
+	// umgehender Sperrpunkt für JEDEN nicht-Admin-Aufruf mit echter UserID, unabhängig
+	// davon, ob/wie der Aufrufer schon eingeschränkt hat (rein additiv, kein Widerspruch
+	// zu einer bereits vorhandenen, engeren Einschränkung oben).
+	if f.UserID > 0 && !f.IsAdmin {
+		q += ` AND i.library_id IN (SELECT library_id FROM user_library_acl WHERE user_id = ?)`
+		args = append(args, f.UserID)
 	}
 	if f.Search != "" {
 		pattern := "%" + f.Search + "%"
