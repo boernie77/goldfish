@@ -36,7 +36,7 @@ func (s *Server) suspiciousMatches(w http.ResponseWriter, r *http.Request) {
 	// Param griff hier bisher KEINE ACL-Einschränkung (SuspiciousMatches → ListItems mit
 	// LibraryID=0). Jetzt automatisch über ListItems' eigene ACL-Sperre abgedeckt (siehe
 	// dort) — IsAdmin muss durchgereicht werden, sonst würde ein Admin fälschlich auf seine
-	// (meist nicht vorhandenen) user_library_acl-Zeilen eingeschränkt.
+	// (meist nicht vorhandenen) user_library_access-Zeilen eingeschränkt.
 	items, err := s.Store.SuspiciousMatches(libID, me.ID, me.IsAdmin)
 	if err != nil {
 		writeError(w, 500, err.Error())
@@ -574,7 +574,7 @@ func (s *Server) getItemVariants(w http.ResponseWriter, r *http.Request) {
 		UserID:     me.ID,
 		// IsAdmin: ohne das würde die neue store-seitige ACL-Sperre (siehe
 		// ListItems-Kommentar) einen Admin fälschlich auf seine (meist gar nicht
-		// vorhandenen) user_library_acl-Zeilen einschränken — Admins brauchen dort
+		// vorhandenen) user_library_access-Zeilen einschränken — Admins brauchen dort
 		// keine expliziten ACL-Einträge, sie sehen ohnehin alles. Die eigentliche
 		// Non-Admin-Filterung passiert hier zusätzlich manuell unten (UserHasLibraryAccess).
 		IsAdmin: me.IsAdmin,
