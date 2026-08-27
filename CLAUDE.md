@@ -309,6 +309,108 @@ oben gelten weiterhin immer.
 ## Was die App NICHT hat
 - Kein Windows/Linux-Target (nur macOS + iOS).
 
+## Lokale Bibliotheken — Player/Formatanpassung/Puffer (seit 2026-08-24, Stand Build 0153)
+
+Große Session rund um externe Datenträger (USB-Platten, SD-Karten) für lokale
+Bibliotheken. Reihenfolge unten = Chronologie, spätere Einträge fixen teils
+Regressionen aus früheren.
+
+- **Resume-Dialog**: `LocalLibraryItemsView`-Kachel-Tap fragt jetzt wie bei
+  Server-Items "Von Anfang/Fortsetzen" (`LocalPlayerLaunchRequest.startFromBeginning`).
+- **Mauszeiger-Leak gefixt**: `NSCursor.hide()/unhide()` ist app-weit
+  refcounted, nicht fensterbezogen — bei `onDisappear`-Ausfall (bekannt
+  unzuverlässig beim Schließen über den nativen roten Knopf) blieb der
+  Cursor dauerhaft versteckt. Fix: `setHiddenUntilMouseMoves(true)` statt
+  manuellem Pairing (`PlayerView` + `LocalPlayerView`).
+- **Formatanpassung pausiert während aktiver Wiedergabe** (I/O-Contention auf
+  langsamen externen Platten): `LocalTranscodeService.beginPlayback()`/
+  `endPlayback()`/`waitWhilePlaybackActive()` (jetzt `public`) — gilt für
+  die Konvertierungs-Queue UND (seit Build 0152, zweiter unabhängiger Bug)
+  den Thumbnail-/Auflösungs-Hintergrund-Loop in `LocalLibraryManager`.
+  Safety-Net gegen denselben `onDisappear`-Ausfall:
+  `LocalPlayerView`s echter `NSWindow.willCloseNotification`-Observer ruft
+  `LocalTranscodeService.resetPlaybackActive()` (Hard-Reset, kein Decrement)
+  — sonst blockiert ein verpasster Teardown die Queue für den Rest der
+  Session.
+- **Formatanpassungs-Priorität**: nur Dateien, die einen ECHTEN Re-Encode
+  brauchen (AV1/VP9/…, `h264_videotoolbox`, Minuten), werden bedingungslos
+  vorab konvertiert; reine Remuxe (HEVC/H264/ProRes, `-c:v copy`, Sekunden)
+  nur wenn im Cache noch Platz ist. Bei mehreren parallel scannenden
+  Bibliotheken werden langsame Items per `insert(at: 0)` global vor alle
+  schnellen gestellt (reines Anhängen reichte nicht, siehe Build 0145).
+  `rescanAllLibraries()` scannt Bibliotheken parallel (`withTaskGroup`) —
+  eine hängende/nicht angeschlossene Bibliothek blockiert sonst alle
+  anderen.
+- **Cache-Cap ist disk-space-aware**: `maxCacheBytes` (80 GB nominell)
+  allein schützt NICHT vor "No space left on device", wenn die Platte aus
+  anderen Gründen voll ist — `enforceCacheSizeCap()` hält zusätzlich
+  `minFreeBytes` (15 GB) über `.volumeAvailableCapacityKey` frei (bewusst
+  NICHT `...ForImportantUsage` — die zählt verwerfbare Time-Machine-
+  Snapshots optimistisch mit, real 101 GB vs. 35 GB auf demselben Mac
+  gemessen). `performRemux` ruft das jetzt VORAB auf, bricht bei zu wenig
+  Platz sofort mit klarer Meldung ab statt nach Minuten mitten im ffmpeg-Lauf.
+- **Eviction schützt langsame Re-Encodes**: reine Alt-zuerst-Eviction warf
+  bei vollem Cache teure Re-Encodes zugunsten neuerer raus (Cache-Füllstand
+  81 GB real beobachtet). Fix: `performRemux` hält die Slow/Fast-
+  Klassifizierung persistent fest (`.slow-classification.json` im
+  Cache-Ordner) — überlebt Neustarts, funktioniert auch bei nicht
+  erreichbarem Datenträger. `enforceCacheSizeCap()` opfert erst alle
+  schnellen Einträge (älteste zuerst), erst danach langsame.
+- **Puffer-Regler**: `LocalPlaybackSettings.bufferSecondsKey`
+  (`UserDefaults`, global über alle Accounts, Default 60s) steuert
+  `AVPlayerItem.preferredForwardBufferDuration` in `LocalPlayerView`.
+  Regler in `SettingsView` (5–180s). **Wichtig für Erwartungshaltung:**
+  das ist kein "X Sekunden garantiert ruckelfrei"-Wert — nur ein Ziel, wie
+  weit vorausgelesen wird; bei einer Quelle, die dauerhaft langsamer liefert
+  als die Video-Bitrate braucht, verzögert ein großer Puffer das erste
+  Ruckeln nur, verhindert es nicht.
+- **Auflösung für lokale Items**: `LocalItem.width/height` (optional,
+  AVAssetTrack-Probing statt ffprobe, funktioniert auch auf iOS), gleiche
+  Bucket-Grenzen wie der Server (`ResolutionBucket`,
+  `internal/store/sqlite.go` ResBuckets). Kachel-Badge + Filter + Sortierung
+  in `LocalLibraryItemsView`. Wird nur beim SCANNEN ermittelt — Bestands-
+  bibliotheken brauchen einmal "Neu einlesen", bevor Daten da sind.
+- **Auflösungs-Sortierung auch für Server-Bibliotheken nachgezogen**:
+  `ItemSort.resolution` (Server unterstützte `sort=resolution` schon lange,
+  fehlte nur im Mac-Client) — kein Rescan nötig, Server-Items haben
+  Breite/Höhe schon seit ihrem ursprünglichen Scan.
+- **Gesamtgröße neben Datei-Anzahl**: `DisplaySettings.showTotalSizeKey`
+  (ein gemeinsamer Schalter für Server- UND lokale Bibliotheken), Toggle im
+  bestehenden "Filter"-Menü. Bei Server-Bibliotheken automatisch auf jeder
+  Unterordner-Tiefe korrekt, weil `items` ohnehin pro Ordner-Ebene neu
+  geladen wird.
+- **Downloads fortsetzbar nach Verbindungsabbruch**: `DownloadRecord.resumeData`
+  (`NSURLSessionDownloadTaskResumeData`, persistiert, übersteht App-Neustart)
+  — `startDownload` nutzt `session.downloadTask(withResumeData:)` statt
+  komplett neu, wenn vorhanden. Nicht bei jedem Abbruch garantiert (fragile
+  Foundation-API) — fällt sonst automatisch auf Neustart zurück.
+- **Download-Metadaten-Nachkorrektur**: falsch zugeordnete, bereits
+  heruntergeladene Items korrigieren sich beim nächsten Öffnen des
+  Downloads-Tabs automatisch (Titel/Poster/Jahr), sobald online — die
+  Videodatei selbst bleibt unangetastet (`DownloadManager.
+  refreshCachedMetadataIfChanged`).
+- **Zwei weitere I/O-Contention-Quellen (Build 0154):** (1) verwaiste
+  ffmpeg-Prozesse überleben einen App-Neustart NICHT automatisch mehr —
+  `LocalTranscodeService.activeProcesses`/`terminateAllActiveProcesses()`,
+  aufgerufen aus `AppDelegate.applicationWillTerminate`. (2) bei mehreren
+  lokalen Bibliotheken feuerte `scan()` pro Bibliothek einen eigenen
+  Thumbnail-/Auflösungs-Hintergrund-Task ab — jetzt EINE geteilte
+  Warteschlange (`LocalLibraryManager.thumbnailQueue`) über alle
+  Bibliotheken, garantiert höchstens 1 Hintergrund-Datei-Handle statt N.
+  **Diagnose-Reflex bei künftigen Ruckel-Reports:** `ps aux | grep ffmpeg`
+  (Start-Zeitstempel älter als die laufende App-Instanz? → Zombie) +
+  `lsof +D <externes-Volume>` während aktiver Wiedergabe (mehr als 1
+  Handle offen? → Contention-Quelle suchen).
+- **Löschen im lokalen Player + "Alle Downloads löschen"** (Build 0155):
+  `LocalPlayerView`/`LocalPlayerControlsBar` haben jetzt einen 🗑-Button
+  (Bestätigungsdialog, löscht die echte Datei) — vorher ging Löschen nur
+  per Rechtsklick auf die Kachel, nicht während der Wiedergabe.
+  `DownloadManager.deleteAllDownloads()` + Toolbar-Button in
+  `DownloadsView` (Bestätigungsdialog) — bricht laufende Downloads über
+  `tasks[itemId]?.cancel()` ab, NICHT über `cancelDownload()` (das würde
+  den Record vorzeitig löschen, bevor `deleteDownload()` die Datei noch
+  finden kann).
+
 ---
 
 Ein schlanker Video-Streaming-Server auf Intel-iGPU-Hardware. Einzelner Go-Binärcontainer,
@@ -1377,8 +1479,49 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 - `initBell()` wird aus `boot()` in `app.js` aufgerufen.
 
 ### Download & Löschen
-- **Download** (`GET /api/items/:id/download`): Original-Datei mit `Content-Disposition:
-  attachment` ausliefern. Kein Transcode.
+- **Download** (`GET /api/download/{id}`): liefert standardmäßig weiterhin die
+  Original-Datei mit `Content-Disposition: attachment`, kein Transcode.
+- **`?compat=1`** (seit 2026-08-27, `internal/download`): server-seitige
+  Kompatibilitätsprüfung + einmalige, dauerhaft gecachte Remux-/Transcode-Kopie
+  VOR dem Ausliefern — analog zu Jellyfins Geräteprofil-Direct-Play-Entscheidung.
+  Nutzt `items.container/video_codec/audio_codec` für die schnelle "ist eh schon
+  passend"-Kurzentscheidung (mp4/mov + h264 + aac → Original unverändert
+  ausliefern), sonst frisches `ffprobe` für ALLE Audiostreams (nicht nur den
+  ersten, siehe unten) + Video-Codec/-Tag. Remux: h264/hevc(→hvc1-Tag)/prores
+  per Stream-Copy, alles andere (av1/vp9/…) per Hardware-Encode (`s.HW`,
+  VAAPI/NVENC/Software, Software-Fallback bei HW-Fehlschlag). JEDER
+  Audiostream wird einzeln gemappt + kopiert oder zu AAC transkodiert
+  (inkl. Sprach-Metadata) — **nicht** nur der erste, sonst geht bei
+  Mehrsprachen-Rips eine Tonspur verloren (genau der Bug, der den früheren
+  client-seitigen Ansatz hatte, siehe unten). Cache unter
+  `/config/cache/downloads/{itemID}.mp4` + `.json`-Sidecar (Quelle
+  mtime+size), damit ein zweiter Download nicht neu konvertiert.
+  Opt-in per Query-Param, damit Browser/Android (die die Original-Datei wollen
+  bzw. selbst breiter dekodieren) unverändert bleiben — nur die Mac/iOS-App
+  (`GoldfishClient.downloadFileURL`) fragt das an.
+  **99-%-Hänger-Fix (2026-08-27, gleicher Tag):** die erste Version lief die
+  ffmpeg-Konvertierung synchron am Request-Context (`r.Context()`) und servte
+  am Ende mit der ModTime der Cache-Datei als einzigem Validator. Folge: die
+  Apple-App lief bei großen Dateien in ihren 60-s-Read-Timeout
+  (`timeoutIntervalForRequest`), startete per `resumeData` neu → neuer Request
+  killte das erste ffmpeg und trat ein frisches los (in dieselbe `.tmp.mp4`);
+  beim Resume matchte zudem `If-Range` nicht mehr (Cache-ModTime hatte sich
+  geändert) → `ServeContent` lieferte 200 statt 206 → Download klebte bei
+  99 %. Fixe: (a) `internal/download` hat jetzt eine `prepRegistry`
+  (detachable single-flight pro `outPath`) — parallele/Retry-Requests teilen
+  EINEN Lauf, und der Lauf läuft mit `context.Background()` (+ 2-h-Cap) auch
+  weiter, wenn der Client abbricht, und wärmt so den Cache; nur das *Warten*
+  im Handler respektiert `r.Context()`. (b) unique `.tmp.<ns>.mp4` +
+  disk-space-Guard (`unix.Statfs`, Quelle + 2 GiB) vor ffmpeg. (c) Handler
+  koppelt `ETag` **und** Last-Modified an die QUELLDATEI (mtime+size), nicht
+  an die Cache-Kopie → `If-Range` ist über Resume-Versuche stabil.
+  (d) Apple-App: `URLSessionConfiguration.timeoutIntervalForRequest = 600`
+  in `DownloadManager` (Mac-Build 164).
+  **Ersetzt die frühere client-seitige Formatanpassung für Downloads**
+  (`LocalTranscodeService` in GoldfishApple) komplett — die App bekommt nie
+  mehr eine kaputte Datei zum Nachbearbeiten. `LocalTranscodeService` läuft
+  seither nur noch für lokale/externe Bibliotheken, die direkt vom
+  Datenträger gescannt werden und keinen Server zum Fragen haben.
 - **Löschen** (Admin-only, `DELETE /api/items/:id?deleteFile=true|false`): Item aus DB
   und optional auch die Datei von Disk entfernen.
 
