@@ -1043,6 +1043,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Titel** verglichen (sonst würden alle Folgen „verdächtig" sein).
   Bestätigte Items (metadata_confirmed=1) werden ausgefiltert.
   Backend: `GET /api/items/suspicious`, Store: `store/suspicious.go`.
+- **⧉ Datei in anderem Ordner** im Sort-Dropdown (`namedupes`, seit
+  2026-08-28): Items, deren Dateiname (case-insensitiv) + Größe (±`tol`
+  Bytes, Default 2048) auch in einem ANDEREN Ordner derselben Library
+  vorkommen — für versehentliche Doppel-Kopien (z. B. ein Sammel-Ordner
+  neben dem eigentlichen Ablageort; „57-Byte-Zwillinge"). Folder-gescoped
+  wenn man in einem Ordner steht, sonst ganze Library. Kachel bekommt einen
+  orangenen **⧉-Badge** (Overlay `top:66 right:6`) + eine „↳ auch in: …"-Zeile
+  mit den anderen Ordnern; `item.dupeOtherPaths` trägt die vollen rel_paths.
+  Backend: `GET /api/libraries/{id}/name-dupes?folder=&tol=`,
+  `store/namedupes.go` (`CrossFolderNameDupes` — Name→Index über die ganze
+  Library, dann `ListItems` für die vollen Items). Registriert in
+  `currentSortMode`/`PSEUDO_FILTER_MODES`/`directionless`.
 
 ### Startseite (Home-View)
 - Default-Ansicht beim ersten Öffnen (`state.homeView = true`) + 🏠-Button in
