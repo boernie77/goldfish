@@ -187,21 +187,37 @@ func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.
 	}
 	log.Printf("[download] compat-prep src=%q video=%s/%s audiostreams=%d", sourcePath, videoCodec, videoTag, len(audioStreams))
 
+	// Verwaiste .tmp aus einem hart abgebrochenen Lauf (Container-Restart
+	// während der Konvertierung → kein defer-Cleanup, u. U. mehrere GB) vorab
+	// wegräumen, bevor ein neuer Lauf startet.
+	if stale, _ := filepath.Glob(outPath + ".tmp.*.mp4"); len(stale) > 0 {
+		for _, f := range stale {
+			_ = os.Remove(f)
+		}
+	}
+
 	tmp := outPath + ".tmp." + strconv.FormatInt(time.Now().UnixNano(), 10) + ".mp4"
 	defer func() { _ = os.Remove(tmp) }()
 
 	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
 
+	// `+faststart` schreibt die FERTIGE Datei nochmal komplett um (moov-Atom
+	// nach vorn) — bei einem 13-GB-Blu-ray-Rip sind das viele Minuten extra.
+	// Für den Download-und-lokal-abspielen-Fall ist es unnötig (AVFoundation
+	// spielt auch moov-am-Ende bei lokalen Dateien), also nur für kleinere
+	// Dateien setzen, wo es billig ist.
+	faststart := info.Size() < (4 << 30)
+
 	// Erst mit dem konfigurierten HW-Backend versuchen (falls überhaupt ein
 	// Re-Encode nötig ist — reine Remuxe/Retags brauchen kein hwaccel), bei
 	// Fehlschlag EINMAL komplett in Software erneut versuchen. Gleiches
 	// Fallback-Muster wie Trickplay (CLAUDE.md "Software-Fallback").
-	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, false)
+	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, false, faststart)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	out, runErr := cmd.CombinedOutput()
 	if runErr != nil && needsReencode && hw.Selected != playback.BackendSoftware {
 		_ = os.Remove(tmp)
-		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, true)
+		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, true, faststart)
 		cmd = exec.CommandContext(ctx, "ffmpeg", args...)
 		out, runErr = cmd.CombinedOutput()
 	}
@@ -233,7 +249,7 @@ func freeBytes(dir string) (int64, bool) {
 	return int64(st.Bavail) * int64(st.Bsize), true
 }
 
-func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware bool) []string {
+func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware, faststart bool) []string {
 	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
 
 	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-nostdin"}
@@ -258,9 +274,14 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 	} else {
 		for i, a := range audioStreams {
 			args = append(args, "-map", fmt.Sprintf("0:%d", a.Index))
-			if a.Codec == "aac" {
+			// AVFoundation (macOS + iOS) dekodiert AAC, AC-3 und E-AC-3 in
+			// MP4 nativ — die per Stream-Copy durchreichen (Sekunden statt
+			// Minuten). Nur DTS/TrueHD/FLAC/PCM/… müssen zu AAC transkodiert
+			// werden.
+			switch a.Codec {
+			case "aac", "ac3", "eac3":
 				args = append(args, fmt.Sprintf("-c:a:%d", i), "copy")
-			} else {
+			default:
 				args = append(args, fmt.Sprintf("-c:a:%d", i), "aac", "-ac", "2", "-b:a", "192k")
 			}
 			if a.Language != "" {
@@ -292,7 +313,11 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 	// -max_muxing_queue_size: MKV→MP4 mit mehreren Streams bricht sonst gern
 	// mit "Too many packets buffered for output stream" ab, wenn Video-Copy
 	// und Audio-Transcode zeitlich auseinanderlaufen.
-	args = append(args, "-max_muxing_queue_size", "4096", "-movflags", "+faststart", tmp)
+	args = append(args, "-max_muxing_queue_size", "4096")
+	if faststart {
+		args = append(args, "-movflags", "+faststart")
+	}
+	args = append(args, tmp)
 	return args
 }
 
