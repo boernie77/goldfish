@@ -297,6 +297,13 @@ oben gelten weiterhin immer.
   Team-Signierung → geht nicht mit den Ad-hoc-Testbuilds. Für die Authentik-Seite
   im WKWebView hilft nur Bitwarden-Desktop mit globalem Autofill-Hotkey (⌘\) +
   Bedienungshilfen-Freigabe.
+- **Signierung + Version in `project.yml` verankert** (2026-08-28):
+  `DEVELOPMENT_TEAM: F95969PBFU` (persönliches Team) + `CFBundleVersion` in
+  `info.properties` (`xcodegen generate` setzte die plist-Datei sonst auf „1"
+  zurück). `xcodebuild`-CLI kann mit der Free-Personal-Team-ID nicht
+  auto-signieren → echt signierte Builds über Xcode (Run/Archive) oder manuell
+  mit `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=<hash>`. Signierte 1.0-Kopie:
+  `~/Desktop/Goldfish_1.0.app` (Build 170).
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
