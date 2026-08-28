@@ -1572,6 +1572,13 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   client-seitigen Ansatz hatte, siehe unten). Cache unter
   `/config/cache/downloads/{itemID}.mp4` + `.json`-Sidecar (Quelle
   mtime+size), damit ein zweiter Download nicht neu konvertiert.
+  **ffmpeg-Härtung (2026-08-28, „Kill Bill startet nicht"):** `-nostdin`;
+  `-analyzeduration/-probesize 200M` an ffprobe UND ffmpeg (spät startende
+  zweite Tonspur einer großen MKV wird sonst übersehen); `-err_detect
+  ignore_err -fflags +genpts`; `-max_muxing_queue_size 4096` (MKV→MP4 mit
+  Video-Copy + Audio-Transcode bricht sonst mit „Too many packets buffered"
+  ab). `runPrep` loggt jetzt Start / Codec+Tonspur-Anzahl / Fehler (2000
+  Zeichen ffmpeg-Ausgabe) / Erfolg als `[download] compat-prep …`.
   Opt-in per Query-Param, damit Browser/Android (die die Original-Datei wollen
   bzw. selbst breiter dekodieren) unverändert bleiben — nur die Mac/iOS-App
   (`GoldfishClient.downloadFileURL`) fragt das an.
