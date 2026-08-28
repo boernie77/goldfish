@@ -1591,10 +1591,11 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Video-Copy + Audio-Transcode bricht sonst mit „Too many packets buffered"
   ab). `runPrep` loggt jetzt Start / Codec+Tonspur-Anzahl / Fehler (2000
   Zeichen ffmpeg-Ausgabe) / Erfolg als `[download] compat-prep …`.
-  **Tempo für große Rips (2026-08-28):** `+faststart` nur noch bei Dateien
-  < 4 GB (schreibt sonst die ganze Datei nochmal um — bei einem 13-GB-Blu-ray-
-  Rip Minuten; für Download+lokal-Abspielen unnötig, AVFoundation liest
-  moov-am-Ende lokal problemlos). Audio-Stream-Copy jetzt auch für `ac3`/`eac3`
+  **Tempo für große Rips (2026-08-28):** `+faststart` läuft IMMER (die 4-GB-
+  Schwelle war ein Fehler — moov am Dateiende macht die MP4 für AVFoundation
+  je nach Gerät unabspielbar, real bei Enola Holmes 6 GB passiert; der
+  zusätzliche Rewrite-Pass ist durch die „Wird vorbereitet … %"-Anzeige
+  abgedeckt). Audio-Stream-Copy jetzt auch für `ac3`/`eac3`
   (AVFoundation dekodiert die in MP4 nativ) — nur DTS/TrueHD/FLAC/PCM werden
   noch zu AAC transkodiert. Verwaiste `.tmp.*.mp4` (Container-Restart mitten
   im Lauf) werden vor einem neuen Lauf weggeräumt.
