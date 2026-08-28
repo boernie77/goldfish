@@ -572,7 +572,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 
 ### Volumes
 
-- `/media` (ro) → Unraid-Share `/mnt/user` (alle Shares als Unterordner)
+- `/media` → Unraid-Share `/mnt/user` (alle Shares als Unterordner).
+  **Achtung:** Repo-Compose zeigt historisch `:ro`, der LIVE-Stack (Portainer
+  Stack 37) mountet es aber **read-write** (`- /mnt/user:/media`, kein `:ro`) —
+  verifiziert 2026-08-28. Deshalb kann Goldfish Media-Dateien löschen
+  (Detail-Dialog 🗑, „Datei in anderem Ordner"-Aufräumen). Der Kommentar in
+  `internal/api/delete_download.go` über „ist /media read-only gemountet?" ist
+  entsprechend meist gegenstandslos.
 - `/config` (rw) → SQLite-DB, Thumbnails, TMDB-Poster-Cache, Transcode-Cache
 
 ### DB-Schema (wichtigste Tabellen)
@@ -1861,7 +1867,7 @@ services:
     group_add: ["107"]                 # render-group
     volumes:
       - videoplayer_config:/config
-      - /mnt/user:/media:ro
+      - /mnt/user:/media        # LIVE-Stack OHNE :ro (Goldfish darf Media löschen), s. „Volumes"
     environment:
       - VP_LISTEN=:8096
       - VP_CONFIG_DIR=/config
