@@ -288,6 +288,15 @@ oben gelten weiterhin immer.
   ideal 900×900)` auf dem `NavigationStack` + `.frame(maxWidth/maxHeight:
   .infinity)` auf dem Representable — dasselbe Muster, das `ShuffleScopeSheet`
   in `LibrariesView` schon hatte.
+- **Passwort-Manager-AutoFill im Login** (Build 169): `LoginView`s Felder haben
+  jetzt `.textContentType(.username)` / `.textContentType(.password)` — ohne das
+  erkennt das OS (und damit Bitwardens AutoFill-Provider / die QuickType-Leiste)
+  sie nicht als Login-Felder. Domain-genaue Vorschläge
+  (`webcredentials:goldfish.<your-domain>`) bräuchten zusätzlich die
+  Associated-Domains-Entitlement + `apple-app-site-association` auf dem Server +
+  Team-Signierung → geht nicht mit den Ad-hoc-Testbuilds. Für die Authentik-Seite
+  im WKWebView hilft nur Bitwarden-Desktop mit globalem Autofill-Hotkey (⌘\) +
+  Bedienungshilfen-Freigabe.
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
