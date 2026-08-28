@@ -409,7 +409,12 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 			case "aac", "ac3", "eac3":
 				args = append(args, fmt.Sprintf("-c:a:%d", i), "copy")
 			default:
-				args = append(args, fmt.Sprintf("-c:a:%d", i), "aac", "-ac", "2", "-b:a", "192k")
+				// DTS/TrueHD/FLAC/PCM → E-AC3 (AVFoundation dekodiert das auf
+				// macOS + iOS nativ). Bewusst KEIN `-ac 2`-Downmix mehr: die
+				// Kanalanzahl (z.B. 5.1) bleibt erhalten (User-Wunsch 2026-08-28).
+				// E-AC3 deckt mono/stereo/5.1 gleichermaßen ab; 640 kbit/s ist
+				// Dolbys Referenz für 5.1.
+				args = append(args, fmt.Sprintf("-c:a:%d", i), "eac3", "-b:a", "640k")
 			}
 			if a.Language != "" {
 				args = append(args, fmt.Sprintf("-metadata:s:a:%d", i), "language="+a.Language)
@@ -440,8 +445,15 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 	// "Too many packets buffered for output stream" ab, wenn Video-Copy und
 	// Audio-Transcode zeitlich auseinanderlaufen.
 	args = append(args, "-max_muxing_queue_size", "4096")
+	// +faststart: moov nach vorn (siehe runPrep). +negative_cts_offsets:
+	// B-Frame-Verzögerung als negative Composition-Time schreiben statt als
+	// edit list (`elst`) — ffmpegs Standard-`elst` bringt AVFoundation bei
+	// kopiertem h264 gelegentlich dazu, die Datei GAR NICHT abzuspielen,
+	// obwohl VLC sie klaglos abspielt (2026-08-28: Kill Bill).
 	if faststart {
-		args = append(args, "-movflags", "+faststart")
+		args = append(args, "-movflags", "+faststart+negative_cts_offsets")
+	} else {
+		args = append(args, "-movflags", "+negative_cts_offsets")
 	}
 	args = append(args, tmp)
 	return args
