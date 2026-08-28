@@ -238,6 +238,19 @@ oben gelten weiterhin immer.
   Cache-Bust an die Transcode-URL anhängen (`PlayerView.transcodeURLWithParams`).
 - Per-User-Isolation für lokale Bibliotheken/Downloads/Shuffle-Scope (analog
   zum früheren Android-Bug, gleiche Klasse von Fehler: fehlender User-Filter).
+- **Bibliotheks-Vorschaubilder offline weg** (mehrfach „gefixt", Build 165 die
+  echte Ursache): in `LibrariesView.load()` wurde `previewURLs` NUR aus
+  `loadPreviews()` befüllt, und das lief ausschließlich im Erfolgsfall von
+  `fetchLibraries()`. Offline → `catch` → `previewURLs` leer → jede
+  `LibraryCard` fiel auf den farbigen Gradienten-Kreis zurück. Die früheren
+  Fixes (Offline-Lib-Liste in UserDefaults, eigener `GoldfishLibraryPreviews/`-
+  Platten-Cache, `file://`-Handling in `PosterImage`) waren alle nötig, aber
+  keiner hat den Cache-Read in den Offline-Zweig gehängt. Fix:
+  `hydratePreviewsFromCache()` läuft jetzt IMMER (vor + unabhängig vom
+  Netzwerk-Call). Zusätzlich (User: „genau die AKTUELLEN Bilder speichern"):
+  `loadPreviews()` zieht nur noch EINMALIG ein Zufalls-Poster pro Bibliothek —
+  ist die Cache-Datei da, wird sie behalten statt bei jedem Öffnen mit einem
+  neuen Zufallsbild überschrieben. Bild ist damit online wie offline stabil.
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
