@@ -280,6 +280,14 @@ oben gelten weiterhin immer.
   der Flow das explizit als Fehler statt still zu schließen.
   `LoginView.refreshAfterOIDC()` fasst zusätzlich 5× kurz nach (`authStatus`),
   bevor es aufgibt, und zeigt sonst eine klare Meldung.
+- **SSO-Sheet war auf macOS leer** (Build 168, der eigentliche „SSO tut nichts"-
+  Grund — kam VOR dem Cookie-Sync): `OIDCLoginView` setzte keine explizite Größe.
+  Ein `NSViewRepresentable` (WKWebView) hat keine intrinsische Größe → das
+  `.sheet` schrumpfte auf Header + „Abbrechen", die Authentik-Seite bekam 0 Höhe
+  und war unsichtbar. Fix: `#if os(macOS) .frame(minWidth:720, minHeight:760,
+  ideal 900×900)` auf dem `NavigationStack` + `.frame(maxWidth/maxHeight:
+  .infinity)` auf dem Representable — dasselbe Muster, das `ShuffleScopeSheet`
+  in `LibrariesView` schon hatte.
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
