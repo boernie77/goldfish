@@ -304,6 +304,16 @@ oben gelten weiterhin immer.
   auto-signieren → echt signierte Builds über Xcode (Run/Archive) oder manuell
   mit `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=<hash>`. Signierte 1.0-Kopie:
   `~/Desktop/Goldfish_1.0.app` (Build 170).
+- **SSO-Kontowechsel** (Build 171): der eingebettete Authentik-WebView
+  (`OIDCLoginView`) hat einen persistenten `WKWebsiteDataStore` — beim erneuten
+  „Mit SSO anmelden" wurde stillschweigend derselbe Authentik-User wieder
+  angemeldet, ein Wechsel Admin ↔ normaler Benutzer war unmöglich. Neu:
+  zweiter Button **„Mit anderem Konto anmelden"** auf dem Login-Screen setzt
+  `OIDCLoginView(clearSessionFirst: true)` → `WKWebsiteDataStore.default()` wird
+  vor dem Laden geleert → Authentik zeigt seine Anmeldemaske. Flow: oben rechts
+  Abmelden → „Mit anderem Konto anmelden". SSO ist immer nur EIN aktives Konto
+  gleichzeitig (kein Parallel-Login), und Offline-Kontowechsel bleibt
+  passwort-only.
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
