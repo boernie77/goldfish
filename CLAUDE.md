@@ -251,6 +251,12 @@ oben gelten weiterhin immer.
   `loadPreviews()` zieht nur noch EINMALIG ein Zufalls-Poster pro Bibliothek —
   ist die Cache-Datei da, wird sie behalten statt bei jedem Öffnen mit einem
   neuen Zufallsbild überschrieben. Bild ist damit online wie offline stabil.
+- **Zufallsmodus-Auto-Weiter** (Build 173): `PlayerView` + `LocalPlayerView`
+  starten am Videoende (`AVPlayerItemDidPlayToEndTime`-Observer) automatisch
+  das nächste Zufallsvideo, wenn ein Zufallskontext aktiv ist (`randomContext`
+  bzw. `randomPool`) → `jumpRandom(by:1)` / `jump(by:1)`, gleicher Pfad wie ⏭.
+  `LocalPlayerView` hatte vorher keinen End-Observer; markiert bei Auto-Weiter
+  jetzt auch als gesehen.
 - **Offline→online: Bibliotheken kommen nicht wieder, „Session abgelaufen"**
   (Build 166): der Text ist die wörtliche 401-Antwort des Servers
   (`internal/api/auth.go` — Cookie wird gesendet, aber die Session ist
