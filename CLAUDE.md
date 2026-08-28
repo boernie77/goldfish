@@ -1585,10 +1585,17 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   moov-am-Ende lokal problemlos). Audio-Stream-Copy jetzt auch für `ac3`/`eac3`
   (AVFoundation dekodiert die in MP4 nativ) — nur DTS/TrueHD/FLAC/PCM werden
   noch zu AAC transkodiert. Verwaiste `.tmp.*.mp4` (Container-Restart mitten
-  im Lauf) werden vor einem neuen Lauf weggeräumt. **Bleibt: bei einem
-  Erst-Download, der DTS transkodieren muss, dauert die Vorbereitung mehrere
-  Minuten ohne sichtbaren Fortschritt in der App; danach ist die Datei
-  gecacht und lädt sofort.**
+  im Lauf) werden vor einem neuen Lauf weggeräumt.
+  **`GET /api/download/{id}/compat-status`** (2026-08-28) liefert
+  `{state,percent,message}` (`state` ∈ `ready|preparing|error|idle`) und stößt
+  die Formatanpassung an, falls nötig und noch nicht laufend/gecacht.
+  `prepJob` trackt `totalMS` (ffprobe-Dauer) + `doneMS` (fortlaufend aus
+  ffmpeg `-progress pipe:1` / `out_time_us`); `percent()` = 1–99 während des
+  Laufs, 100 bei Erfolg. Fertige Jobs bleiben 2 min in `prepReg.recent`, damit
+  der Status auch Erfolg/Fehler direkt danach noch melden kann. Die Apple-App
+  (`DownloadManager.prepareThenTransfer`, Build 172) pollt das alle 2 s und
+  zeigt „Wird vorbereitet … X %", bevor der eigentliche Byte-Download startet;
+  `state=error` → Download failed, alter Server ohne den Endpoint → direkt laden.
   Opt-in per Query-Param, damit Browser/Android (die die Original-Datei wollen
   bzw. selbst breiter dekodieren) unverändert bleiben — nur die Mac/iOS-App
   (`GoldfishClient.downloadFileURL`) fragt das an.
