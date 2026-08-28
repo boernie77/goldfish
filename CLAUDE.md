@@ -1595,9 +1595,13 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Schwelle war ein Fehler — moov am Dateiende macht die MP4 für AVFoundation
   je nach Gerät unabspielbar, real bei Enola Holmes 6 GB passiert; der
   zusätzliche Rewrite-Pass ist durch die „Wird vorbereitet … %"-Anzeige
-  abgedeckt). Audio-Stream-Copy jetzt auch für `ac3`/`eac3`
-  (AVFoundation dekodiert die in MP4 nativ) — nur DTS/TrueHD/FLAC/PCM werden
-  noch zu AAC transkodiert. Verwaiste `.tmp.*.mp4` (Container-Restart mitten
+  abgedeckt). Audio-Stream-Copy für `aac`/`ac3`/`eac3`
+  (AVFoundation dekodiert die in MP4 nativ); DTS/TrueHD/FLAC/PCM werden zu
+  **E-AC3 640k** transkodiert (5.1 bleibt erhalten, kein Stereo-Downmix mehr —
+  AVFoundation kann E-AC3). `-movflags +negative_cts_offsets` (immer):
+  B-Frame-Delay als negative CTS statt `elst`-edit-list — ffmpegs edit list
+  brachte AVFoundation bei kopiertem h264 dazu, die Datei GAR NICHT
+  abzuspielen (VLC dagegen klaglos; 2026-08-28, Kill Bill). Verwaiste `.tmp.*.mp4` (Container-Restart mitten
   im Lauf) werden vor einem neuen Lauf weggeräumt.
   **`GET /api/download/{id}/compat-status`** (2026-08-28) liefert
   `{state,percent,message}` (`state` ∈ `ready|preparing|error|idle`) und stößt
