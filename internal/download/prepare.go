@@ -309,10 +309,12 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 
 	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
 
-	// `+faststart` schreibt die FERTIGE Datei nochmal komplett um (moov-Atom
-	// nach vorn) — bei einem 13-GB-Blu-ray-Rip viele Minuten extra, für den
-	// Download-und-lokal-abspielen-Fall unnötig. Nur bei kleineren Dateien.
-	faststart := info.Size() < (4 << 30)
+	// `+faststart` schreibt die FERTIGE Datei nochmal um (moov-Atom nach vorn).
+	// IMMER setzen: ohne moov am Anfang spielt AVFoundation die Datei je nach
+	// Gerät gar nicht ab (2026-08-28 real: Enola-Holmes-Download, 6 GB, moov
+	// am Ende → unabspielbar). Die Extra-Zeit (ein Datei-Rewrite) ist jetzt
+	// durch die „Wird vorbereitet … %"-Anzeige im Client abgedeckt.
+	faststart := true
 
 	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, false, faststart)
 	out, runErr := runFFmpeg(ctx, j, args)
