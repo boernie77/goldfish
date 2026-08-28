@@ -10,7 +10,8 @@ import (
 // HEVC) des ersten Videostreams.
 func probeVideo(ctx context.Context, path string) (codec, tag string, err error) {
 	cmd := exec.CommandContext(ctx, "ffprobe",
-		"-v", "error", "-select_streams", "v:0",
+		"-v", "error", "-analyzeduration", "200M", "-probesize", "200M",
+		"-select_streams", "v:0",
 		"-show_entries", "stream=codec_name,codec_tag_string",
 		"-of", "json", path,
 	)
@@ -39,7 +40,8 @@ func probeVideo(ctx context.Context, path string) (codec, tag string, err error)
 // Tonspur (z.B. eine zweite Sprache) verlorengeht.
 func probeAudioStreams(ctx context.Context, path string) ([]AudioStream, error) {
 	cmd := exec.CommandContext(ctx, "ffprobe",
-		"-v", "error", "-select_streams", "a",
+		"-v", "error", "-analyzeduration", "200M", "-probesize", "200M",
+		"-select_streams", "a",
 		"-show_entries", "stream=index,codec_name:stream_tags=language",
 		"-of", "json", path,
 	)

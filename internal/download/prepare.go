@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,14 +172,20 @@ func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
+	started := time.Now()
+	log.Printf("[download] compat-prep start src=%q size=%dMiB", sourcePath, info.Size()>>20)
+
 	videoCodec, videoTag, err := probeVideo(ctx, sourcePath)
 	if err != nil {
+		log.Printf("[download] compat-prep ffprobe(video) FEHLER src=%q: %v", sourcePath, err)
 		return "", fmt.Errorf("ffprobe (video): %w", err)
 	}
 	audioStreams, err := probeAudioStreams(ctx, sourcePath)
 	if err != nil {
+		log.Printf("[download] compat-prep ffprobe(audio) FEHLER src=%q: %v", sourcePath, err)
 		return "", fmt.Errorf("ffprobe (audio): %w", err)
 	}
+	log.Printf("[download] compat-prep src=%q video=%s/%s audiostreams=%d", sourcePath, videoCodec, videoTag, len(audioStreams))
 
 	tmp := outPath + ".tmp." + strconv.FormatInt(time.Now().UnixNano(), 10) + ".mp4"
 	defer func() { _ = os.Remove(tmp) }()
@@ -199,13 +206,19 @@ func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.
 		out, runErr = cmd.CombinedOutput()
 	}
 	if runErr != nil {
-		return "", fmt.Errorf("ffmpeg fehlgeschlagen: %w — %s", runErr, tail(string(out), 500))
+		log.Printf("[download] compat-prep ffmpeg FEHLER src=%q nach %s: %v — %s",
+			sourcePath, time.Since(started).Round(time.Second), runErr, tail(string(out), 2000))
+		return "", fmt.Errorf("ffmpeg fehlgeschlagen: %w — %s", runErr, tail(string(out), 800))
 	}
 
 	if err := os.Rename(tmp, outPath); err != nil {
 		return "", err
 	}
 	writeMeta(metaPath, cacheMeta{SourceModTime: info.ModTime().UnixNano(), SourceSize: info.Size()})
+	if fi, statErr := os.Stat(outPath); statErr == nil {
+		log.Printf("[download] compat-prep FERTIG src=%q -> %dMiB in %s",
+			sourcePath, fi.Size()>>20, time.Since(started).Round(time.Second))
+	}
 	return outPath, nil
 }
 
@@ -223,10 +236,19 @@ func freeBytes(dir string) (int64, bool) {
 func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware bool) []string {
 	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
 
-	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
+	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-nostdin"}
 	if needsReencode && !forceSoftware {
 		args = append(args, hwaccelDecodeArgs(hw)...)
 	}
+	// Vor -i: (a) großzügiges Probing, damit ffmpeg ALLE Tonspuren einer
+	// großen MKV erkennt (eine spät startende zweite Sprache wird sonst
+	// übersehen — genau der Bug, den dieses Package vermeiden soll),
+	// (b) kaputte NAL-Units / Stream-Fehler in Release-Rips nicht als
+	// Abbruch werten (analog Trickplay, CLAUDE.md "Software-Fallback").
+	args = append(args,
+		"-analyzeduration", "200M", "-probesize", "200M",
+		"-err_detect", "ignore_err", "-fflags", "+genpts",
+	)
 	args = append(args, "-i", sourcePath, "-map", "0:v:0")
 
 	if len(audioStreams) == 0 {
@@ -267,7 +289,10 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 		}
 	}
 
-	args = append(args, "-movflags", "+faststart", tmp)
+	// -max_muxing_queue_size: MKV→MP4 mit mehreren Streams bricht sonst gern
+	// mit "Too many packets buffered for output stream" ab, wenn Video-Copy
+	// und Audio-Transcode zeitlich auseinanderlaufen.
+	args = append(args, "-max_muxing_queue_size", "4096", "-movflags", "+faststart", tmp)
 	return args
 }
 
