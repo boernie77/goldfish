@@ -440,6 +440,45 @@ async function loadItemsBody() {
     return;
   }
 
+  // "Datei in anderem Ordner" (Dropdown-Option): Items, deren Dateiname + Größe
+  // (±2 KB) auch in einem ANDEREN Ordner derselben Library vorkommen. Kachel
+  // bekommt einen ⧉-Badge mit dem/den anderen Pfad(en). Scoped auf den aktuellen
+  // Ordner (falls in einem), sonst ganze Library.
+  if ($("#sortSelect").value === "namedupes" && state.currentLibrary) {
+    const searchQ = $("#searchInput").value.trim();
+    const p = new URLSearchParams({});
+    if (state.currentFolder) p.set("folder", state.currentFolder);
+    let items = [];
+    try {
+      items = await apiGetCached(`/api/libraries/${state.currentLibrary}/name-dupes?${p}`);
+    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+    if (searchQ) {
+      const q = searchQ.toLowerCase();
+      items = items.filter(it => (it.title || "").toLowerCase().includes(q)
+        || (it.relPath || "").toLowerCase().includes(q)
+        || (it.dupeOtherPaths || []).some(pp => pp.toLowerCase().includes(q)));
+    }
+    $("#searchClear").classList.toggle("hidden", searchQ === "");
+    // Nach Dateiname gruppieren, damit gleichnamige Treffer nebeneinander stehen.
+    items.sort((a, b) => {
+      const fa = (a.relPath || "").split("/").pop().toLowerCase();
+      const fb = (b.relPath || "").split("/").pop().toLowerCase();
+      return fa.localeCompare(fb) || (a.relPath || "").localeCompare(b.relPath || "");
+    });
+    renderBreadcrumb({ searchCount: items.length, nameDupesView: true });
+    if (!items.length) {
+      grid.innerHTML = `<div class="empty">Keine gleichnamigen Dateien in einem anderen Ordner gefunden. ✓</div>`;
+      return;
+    }
+    state.lastRenderedItems = items;
+    const frag = document.createDocumentFragment();
+    items.forEach(it => frag.appendChild(renderCard(it)));
+    grid.innerHTML = "";
+    grid.appendChild(frag);
+    return;
+  }
+
   // Verdächtige TMDB-Zuordnungen (Dropdown-Option). Server-seitig heuristisch
   // bestimmt: kein Token-Overlap zwischen Top-Folder und Metadata-Titel, kein
   // Jahres-Match → wahrscheinlich falsch gematcht.

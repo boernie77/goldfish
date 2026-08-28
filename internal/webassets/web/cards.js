@@ -493,6 +493,12 @@ function renderCard(it, opts = {}) {
   const serverVariants = (typeof it.variantCount === "number" && it.variantCount > 1) ? it.variantCount : 0;
   const vcount = Math.max(localVariants, serverVariants);
   const variantBadge = vcount ? `<span class="variant-badge" title="${vcount} Varianten verfügbar">×${vcount}</span>` : "";
+  // ⧉-Badge: nur im "Datei in anderem Ordner"-Filter gesetzt — gleichnamige,
+  // ähnlich große Datei(en) an anderer Stelle derselben Library.
+  const dupePaths = Array.isArray(it.dupeOtherPaths) ? it.dupeOtherPaths : [];
+  const dupeBadge = dupePaths.length
+    ? `<span class="dupe-badge" title="Auch vorhanden als:&#10;${escapeHTML(dupePaths.join("\n"))}">⧉${dupePaths.length > 1 ? " ×" + dupePaths.length : ""}</span>`
+    : "";
   const selected = state.selection.has(it.id);
   if (selected) el.classList.add("selected");
   el.dataset.itemId = String(it.id);
@@ -506,6 +512,7 @@ function renderCard(it, opts = {}) {
       ${fav}
       ${tp}
       ${variantBadge}
+      ${dupeBadge}
       <span class="badge">${(it.container || "").toUpperCase()}</span>
       ${res ? `<span class="res-badge">${res}</span>` : ""}
       <span class="duration">${fmtDuration(it.durationSec)}</span>
@@ -522,6 +529,7 @@ function renderCard(it, opts = {}) {
       </div>
       <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : cardFileName(it))}</div>
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
+      ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch in: ${escapeHTML(dupePaths.map(p => { const i = p.lastIndexOf("/"); return i > 0 ? p.slice(0, i) : "(Wurzel)"; }).join(" · "))}</div>` : ""}
     </div>
   `;
   el.addEventListener("click", (ev) => {

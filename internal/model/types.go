@@ -148,6 +148,10 @@ type Item struct {
 	// (internal/introskip). nil = nicht analysiert oder kein Intro erkannt.
 	IntroStartSec *float64 `json:"introStartSec,omitempty"`
 	IntroEndSec   *float64 `json:"introEndSec,omitempty"`
+	// DupeOtherPaths: nur im "Datei in anderem Ordner"-Filter gesetzt —
+	// rel_path(s) gleichnamiger, ähnlich großer Dateien in einem ANDEREN
+	// Ordner derselben Library (Kandidaten für "eine der beiden Kopien löschen").
+	DupeOtherPaths []string `json:"dupeOtherPaths,omitempty"`
 }
 
 
