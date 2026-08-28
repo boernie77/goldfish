@@ -269,6 +269,17 @@ oben gelten weiterhin immer.
   laden bei `scenePhase == .active` neu, unterscheiden Connectivity- vs.
   Auth- vs. sonstige Fehler und haben jetzt einen „Erneut versuchen"-Button
   (Offline-Banner ist zusätzlich antippbar).
+- **SSO-Login in der Mac/iOS-App schlug still fehl** (Build 167): der
+  `OIDCWebViewRepresentable`-Coordinator kopierte die WKWebView-Cookies EINMALIG
+  im `didFinish` für `/` nach `HTTPCookieStorage.shared`. Das `Set-Cookie` aus
+  der OIDC-Callback-Weiterleitung ist zu dem Zeitpunkt aber oft noch nicht im
+  WKWebView-Cookie-Store (bekanntes WKWebView-Timing) → `goldfish_session` wurde
+  nicht übernommen → `authStatus()` = `loggedIn:false` → App blieb auf dem
+  Login-Screen, ohne Fehlermeldung. Fix: `syncCookies` pollt jetzt bis zu ~2,5 s
+  (8 × 0,3 s), bis der `goldfish_session`-Cookie auftaucht; kommt keiner, meldet
+  der Flow das explizit als Fehler statt still zu schließen.
+  `LoginView.refreshAfterOIDC()` fasst zusätzlich 5× kurz nach (`authStatus`),
+  bevor es aufgibt, und zeigt sonst eine klare Meldung.
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
