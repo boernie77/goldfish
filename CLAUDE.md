@@ -1579,6 +1579,16 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Video-Copy + Audio-Transcode bricht sonst mit „Too many packets buffered"
   ab). `runPrep` loggt jetzt Start / Codec+Tonspur-Anzahl / Fehler (2000
   Zeichen ffmpeg-Ausgabe) / Erfolg als `[download] compat-prep …`.
+  **Tempo für große Rips (2026-08-28):** `+faststart` nur noch bei Dateien
+  < 4 GB (schreibt sonst die ganze Datei nochmal um — bei einem 13-GB-Blu-ray-
+  Rip Minuten; für Download+lokal-Abspielen unnötig, AVFoundation liest
+  moov-am-Ende lokal problemlos). Audio-Stream-Copy jetzt auch für `ac3`/`eac3`
+  (AVFoundation dekodiert die in MP4 nativ) — nur DTS/TrueHD/FLAC/PCM werden
+  noch zu AAC transkodiert. Verwaiste `.tmp.*.mp4` (Container-Restart mitten
+  im Lauf) werden vor einem neuen Lauf weggeräumt. **Bleibt: bei einem
+  Erst-Download, der DTS transkodieren muss, dauert die Vorbereitung mehrere
+  Minuten ohne sichtbaren Fortschritt in der App; danach ist die Datei
+  gecacht und lädt sofort.**
   Opt-in per Query-Param, damit Browser/Android (die die Original-Datei wollen
   bzw. selbst breiter dekodieren) unverändert bleiben — nur die Mac/iOS-App
   (`GoldfishClient.downloadFileURL`) fragt das an.
