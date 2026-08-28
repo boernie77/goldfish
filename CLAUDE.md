@@ -251,6 +251,24 @@ oben gelten weiterhin immer.
   `loadPreviews()` zieht nur noch EINMALIG ein Zufalls-Poster pro Bibliothek —
   ist die Cache-Datei da, wird sie behalten statt bei jedem Öffnen mit einem
   neuen Zufallsbild überschrieben. Bild ist damit online wie offline stabil.
+- **Offline→online: Bibliotheken kommen nicht wieder, „Session abgelaufen"**
+  (Build 166): der Text ist die wörtliche 401-Antwort des Servers
+  (`internal/api/auth.go` — Cookie wird gesendet, aber die Session ist
+  serverseitig weg/abgelaufen). App-seitige Fehler: (1)
+  `RootView.refreshSessionStatus()` lief nur EINMAL beim Start — offline→online
+  hat die Session nie neu abgeglichen. (2) `LibrariesView.load()`/`HomeView`
+  behandelten den 401 als `isOffline=true` (falsch — der Server hat ja
+  geantwortet) und zeigten bei leerem Cache die rohe Server-Meldung als
+  Vollbild-Sackgasse OHNE Retry-Knopf und ohne Weg zurück zum Login. (3) nichts
+  hat eine tote Session je nach `LoginView` geroutet. Fixe:
+  `GoldfishClient.isAuthError()` + `markSessionInvalid()` (löscht lokalen
+  Login-State + Host-Cookies → `RootView` zeigt `LoginView`); `RootView`
+  gleicht die Session bei jedem Wechsel in den Vordergrund neu ab
+  (`scenePhase == .active`, `authStatus` ist public/kein 401, wirft nur bei
+  echtem Verbindungsproblem → kein Fehlalarm-Logout); `LibrariesView`/`HomeView`
+  laden bei `scenePhase == .active` neu, unterscheiden Connectivity- vs.
+  Auth- vs. sonstige Fehler und haben jetzt einen „Erneut versuchen"-Button
+  (Offline-Banner ist zusätzlich antippbar).
 - Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
   Erscheinungsdatum, wie im Browser.
 - Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
