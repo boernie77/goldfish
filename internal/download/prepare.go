@@ -17,6 +17,8 @@
 package download
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -25,7 +27,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -45,89 +49,148 @@ type cacheMeta struct {
 	SourceSize    int64 `json:"sourceSize"`
 }
 
+// Progress ist der Zustand der server-seitigen Formatanpassung für ein Item —
+// vom `/api/download/{id}/compat-status`-Endpoint an den Client geliefert, damit
+// die App "wird vorbereitet … X %" zeigen kann statt minutenlang auf einen
+// stummen Download zu warten.
+type Progress struct {
+	State   string `json:"state"` // ready | preparing | error | idle
+	Percent int    `json:"percent"`
+	Message string `json:"message,omitempty"`
+}
+
 // prepJob ist ein laufender (oder gerade abgeschlossener) Formatanpassungs-Lauf
 // für genau eine Ziel-Cache-Datei. Mehrere gleichzeitige Download-Requests für
 // dasselbe Item — inklusive der Resume-Versuche der Apple-App nach einem
 // Client-seitigen Read-Timeout — teilen sich EINEN ffmpeg-Lauf, statt jeweils
-// einen neuen loszutreten. Der frühere Zustand: jeder Retry startete eine
-// frische, minutenlange Konvertierung (und schrieb dabei in dieselbe
-// `.tmp.mp4`) → der Download kam nie über 99 % hinaus.
+// einen neuen loszutreten.
 type prepJob struct {
-	done chan struct{}
-	path string
-	err  error
+	done    chan struct{}
+	path    string
+	err     error
+	totalMS atomic.Int64 // Gesamtlaufzeit der Quelle in ms (aus ffprobe); 0 = unbekannt
+	doneMS  atomic.Int64 // fortlaufender ffmpeg-Fortschritt in ms (aus -progress)
+	started time.Time
+	ended   time.Time
+}
+
+// percent liefert 1..99 während der Lauf läuft, 100 bei Erfolg, bei Fehler den
+// zuletzt erreichten Stand.
+func (j *prepJob) percent() int {
+	total := j.totalMS.Load()
+	var p int64
+	if total > 0 {
+		p = j.doneMS.Load() * 100 / total
+	}
+	select {
+	case <-j.done:
+		if j.err == nil {
+			return 100
+		}
+	default:
+	}
+	if p < 1 {
+		p = 1
+	}
+	if p > 99 {
+		p = 99
+	}
+	return int(p)
 }
 
 type prepRegistry struct {
-	mu   sync.Mutex
-	jobs map[string]*prepJob
+	mu     sync.Mutex
+	jobs   map[string]*prepJob
+	recent map[string]*prepJob // gerade fertig — für Status-Abfragen, ~2 min aufbewahrt
 }
 
 // start liefert für `key` einen bereits laufenden Job zurück oder startet einen
 // neuen in einer eigenen Goroutine. `fn` läuft entkoppelt vom Request weiter,
 // auch wenn alle Waiter abgebrochen haben — so wärmt ein abgebrochener Download
 // trotzdem den Cache für den nächsten Versuch.
-func (r *prepRegistry) start(key string, fn func() (string, error)) *prepJob {
+func (r *prepRegistry) start(key string, fn func(*prepJob) (string, error)) *prepJob {
 	r.mu.Lock()
 	if j, ok := r.jobs[key]; ok {
 		r.mu.Unlock()
 		return j
 	}
-	j := &prepJob{done: make(chan struct{})}
+	j := &prepJob{done: make(chan struct{}), started: time.Now()}
 	r.jobs[key] = j
 	r.mu.Unlock()
 
 	go func() {
-		j.path, j.err = fn()
+		j.path, j.err = fn(j)
+		j.ended = time.Now()
 		close(j.done)
 		r.mu.Lock()
 		delete(r.jobs, key)
+		r.recent[key] = j
+		for k, rj := range r.recent {
+			if time.Since(rj.ended) > 2*time.Minute {
+				delete(r.recent, k)
+			}
+		}
 		r.mu.Unlock()
 	}()
 	return j
 }
 
-var prepReg = &prepRegistry{jobs: map[string]*prepJob{}}
+func (r *prepRegistry) lookup(key string) *prepJob {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if j, ok := r.jobs[key]; ok {
+		return j
+	}
+	return r.recent[key]
+}
+
+var prepReg = &prepRegistry{jobs: map[string]*prepJob{}, recent: map[string]*prepJob{}}
+
+// plan entscheidet, ob überhaupt eine Formatanpassung nötig ist, und liefert die
+// Cache-Pfade. needsPrep=false → die Originaldatei kann direkt ausgeliefert
+// werden. `container`/`videoCodecHint`/`audioCodecHint` kommen aus den beim Scan
+// ermittelten DB-Feldern — reicht für die häufige "ist eh schon passend"-
+// Kurzentscheidung ohne zusätzlichen ffprobe-Call.
+func plan(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) (needsPrep bool, outPath, metaPath string, info os.FileInfo, err error) {
+	info, err = os.Stat(sourcePath)
+	if err != nil {
+		return false, "", "", nil, err
+	}
+	containerOK := container == "mp4" || container == "mov" || container == "m4v"
+	if containerOK && videoCodecHint == "h264" && audioCodecHint == "aac" {
+		return false, "", "", info, nil
+	}
+	if err = os.MkdirAll(cacheDir, 0o755); err != nil {
+		return false, "", "", info, err
+	}
+	outPath = filepath.Join(cacheDir, fmt.Sprintf("%d.mp4", itemID))
+	metaPath = outPath + ".json"
+	return true, outPath, metaPath, info, nil
+}
 
 // EnsureCompatible liefert einen abspielbaren Pfad für `sourcePath` zurück —
 // entweder die Originaldatei selbst (schneller Normalfall: schon mp4/mov mit
 // h264+aac) oder eine einmalig erzeugte, dauerhaft gecachte Remux-/Transcode-
-// Kopie unter `cacheDir` (Datei-Name `<itemID>.mp4`). `container`/
-// `videoCodecHint`/`audioCodecHint` kommen aus den beim Scan bereits
-// ermittelten DB-Feldern (`items.container/video_codec/audio_codec`) — reicht
-// für die häufige "ist eh schon passend"-Kurzentscheidung ohne zusätzlichen
-// ffprobe-Call. Nur im "muss angepasst werden"-Zweig wird frisch geprobt
-// (Video-Codec+Tag, ALLE Audiostreams inkl. Sprache — die DB kennt nur den
-// ERSTEN Audiostream), damit KEINE Tonspur beim Remux verloren geht (Fix für
-// genau den Kill-Bill-Bug, der den client-seitigen Vorgänger hatte).
+// Kopie unter `cacheDir` (Datei-Name `<itemID>.mp4`).
 //
 // `ctx` steuert nur, wie lange HIER auf das Ergebnis gewartet wird. Der
 // eigentliche ffmpeg-Lauf hängt bewusst NICHT am Request-Context: bricht die
 // Apple-App wegen ihres Read-Timeouts ab, läuft die Konvertierung entkoppelt
-// zu Ende und füllt den Cache, statt beim nächsten Resume-Versuch komplett von
-// vorn zu beginnen (der Grund für den 99-%-Hänger).
+// zu Ende und füllt den Cache.
 func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) (string, error) {
-	info, err := os.Stat(sourcePath)
+	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint)
 	if err != nil {
 		return "", err
 	}
-
-	containerOK := container == "mp4" || container == "mov" || container == "m4v"
-	if containerOK && videoCodecHint == "h264" && audioCodecHint == "aac" {
+	if !needsPrep {
 		return sourcePath, nil
 	}
-
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return "", err
-	}
-	outPath := filepath.Join(cacheDir, fmt.Sprintf("%d.mp4", itemID))
-	metaPath := outPath + ".json"
 	if cachedCopyValid(outPath, metaPath, info) {
 		return outPath, nil
 	}
 
-	job := prepReg.start(outPath, func() (string, error) {
-		return runPrep(hw, outPath, metaPath, sourcePath, info)
+	job := prepReg.start(outPath, func(j *prepJob) (string, error) {
+		return runPrep(j, hw, outPath, metaPath, sourcePath, info)
 	})
 	select {
 	case <-ctx.Done():
@@ -135,6 +198,54 @@ func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string,
 	case <-job.done:
 		return job.path, job.err
 	}
+}
+
+// Status liefert nicht-blockierend den aktuellen Zustand der Formatanpassung.
+// "idle" heißt: nötig, aber noch nicht angestoßen (Aufrufer soll StartPrep rufen).
+func Status(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) Progress {
+	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint)
+	if err != nil {
+		return Progress{State: "error", Message: err.Error()}
+	}
+	if !needsPrep || cachedCopyValid(outPath, metaPath, info) {
+		return Progress{State: "ready", Percent: 100}
+	}
+	j := prepReg.lookup(outPath)
+	if j == nil {
+		return Progress{State: "idle"}
+	}
+	select {
+	case <-j.done:
+		if j.err != nil {
+			return Progress{State: "error", Message: shortMsg(j.err.Error()), Percent: j.percent()}
+		}
+		return Progress{State: "ready", Percent: 100}
+	default:
+		return Progress{State: "preparing", Percent: j.percent()}
+	}
+}
+
+// StartPrep stößt die Formatanpassung an (idempotent) und kehrt SOFORT zurück.
+func StartPrep(hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) Progress {
+	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint)
+	if err != nil {
+		return Progress{State: "error", Message: err.Error()}
+	}
+	if !needsPrep || cachedCopyValid(outPath, metaPath, info) {
+		return Progress{State: "ready", Percent: 100}
+	}
+	prepReg.start(outPath, func(j *prepJob) (string, error) {
+		return runPrep(j, hw, outPath, metaPath, sourcePath, info)
+	})
+	return Progress{State: "preparing", Percent: 0}
+}
+
+func shortMsg(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 240 {
+		return s[:240] + "…"
+	}
+	return s
 }
 
 // cachedCopyValid prüft, ob unter outPath eine nicht-leere Kopie liegt, deren
@@ -150,25 +261,19 @@ func cachedCopyValid(outPath, metaPath string, srcInfo os.FileInfo) bool {
 
 // runPrep führt genau einen Konvertierungslauf aus. Läuft in einer eigenen
 // Goroutine (siehe prepRegistry.start) und ist damit vom Request entkoppelt.
-func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.FileInfo) (string, error) {
-	// Zwischen cachedCopyValid() in EnsureCompatible und dem Start dieser
-	// Goroutine kann ein paralleler Lauf den Cache bereits gefüllt haben.
+func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.FileInfo) (string, error) {
 	if cachedCopyValid(outPath, metaPath, info) {
 		return outPath, nil
 	}
 
-	// Plattenplatz-Schutz (analog zum Mac-`LocalTranscodeService`): lieber
-	// sofort mit klarer Meldung abbrechen als nach Minuten mitten im
-	// ffmpeg-Lauf an "No space left on device" scheitern und eine
-	// abgeschnittene Datei zu hinterlassen.
-	need := info.Size() + (2 << 30) // Quelle + 2 GiB Reserve
+	// Plattenplatz-Schutz: lieber sofort mit klarer Meldung abbrechen als nach
+	// Minuten mitten im ffmpeg-Lauf an "No space left on device" scheitern.
+	need := info.Size() + (2 << 30)
 	if free, ok := freeBytes(filepath.Dir(outPath)); ok && free < need {
 		return "", fmt.Errorf("zu wenig Speicherplatz im Download-Cache: %d MiB frei, ~%d MiB nötig",
 			free>>20, need>>20)
 	}
 
-	// Großzügiger Deckel, damit ein hängender ffmpeg nicht ewig läuft — aber
-	// unabhängig davon, ob der auslösende Request noch da ist.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
@@ -185,11 +290,14 @@ func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.
 		log.Printf("[download] compat-prep ffprobe(audio) FEHLER src=%q: %v", sourcePath, err)
 		return "", fmt.Errorf("ffprobe (audio): %w", err)
 	}
-	log.Printf("[download] compat-prep src=%q video=%s/%s audiostreams=%d", sourcePath, videoCodec, videoTag, len(audioStreams))
+	if durMS, e := probeDurationMS(ctx, sourcePath); e == nil && durMS > 0 {
+		j.totalMS.Store(durMS)
+	}
+	log.Printf("[download] compat-prep src=%q video=%s/%s audiostreams=%d dauer=%dms",
+		sourcePath, videoCodec, videoTag, len(audioStreams), j.totalMS.Load())
 
-	// Verwaiste .tmp aus einem hart abgebrochenen Lauf (Container-Restart
-	// während der Konvertierung → kein defer-Cleanup, u. U. mehrere GB) vorab
-	// wegräumen, bevor ein neuer Lauf startet.
+	// Verwaiste .tmp aus einem hart abgebrochenen Lauf (Container-Restart mitten
+	// im Lauf → kein defer-Cleanup, u. U. mehrere GB) vorab wegräumen.
 	if stale, _ := filepath.Glob(outPath + ".tmp.*.mp4"); len(stale) > 0 {
 		for _, f := range stale {
 			_ = os.Remove(f)
@@ -202,24 +310,17 @@ func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.
 	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
 
 	// `+faststart` schreibt die FERTIGE Datei nochmal komplett um (moov-Atom
-	// nach vorn) — bei einem 13-GB-Blu-ray-Rip sind das viele Minuten extra.
-	// Für den Download-und-lokal-abspielen-Fall ist es unnötig (AVFoundation
-	// spielt auch moov-am-Ende bei lokalen Dateien), also nur für kleinere
-	// Dateien setzen, wo es billig ist.
+	// nach vorn) — bei einem 13-GB-Blu-ray-Rip viele Minuten extra, für den
+	// Download-und-lokal-abspielen-Fall unnötig. Nur bei kleineren Dateien.
 	faststart := info.Size() < (4 << 30)
 
-	// Erst mit dem konfigurierten HW-Backend versuchen (falls überhaupt ein
-	// Re-Encode nötig ist — reine Remuxe/Retags brauchen kein hwaccel), bei
-	// Fehlschlag EINMAL komplett in Software erneut versuchen. Gleiches
-	// Fallback-Muster wie Trickplay (CLAUDE.md "Software-Fallback").
 	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, false, faststart)
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-	out, runErr := cmd.CombinedOutput()
+	out, runErr := runFFmpeg(ctx, j, args)
 	if runErr != nil && needsReencode && hw.Selected != playback.BackendSoftware {
 		_ = os.Remove(tmp)
+		j.doneMS.Store(0) // Fortschritt startet für den Fallback-Lauf neu
 		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, true, faststart)
-		cmd = exec.CommandContext(ctx, "ffmpeg", args...)
-		out, runErr = cmd.CombinedOutput()
+		out, runErr = runFFmpeg(ctx, j, args)
 	}
 	if runErr != nil {
 		log.Printf("[download] compat-prep ffmpeg FEHLER src=%q nach %s: %v — %s",
@@ -238,6 +339,33 @@ func runPrep(hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.
 	return outPath, nil
 }
 
+// runFFmpeg startet ffmpeg, liest die `-progress pipe:1`-Ausgabe mit und
+// aktualisiert `j.doneMS`. Rückgabe ist stderr (für die Fehlermeldung).
+func runFFmpeg(ctx context.Context, j *prepJob, args []string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	var eb bytes.Buffer
+	cmd.Stderr = &eb
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	sc := bufio.NewScanner(stdout)
+	for sc.Scan() {
+		line := sc.Text()
+		// ffmpeg -progress: "out_time_us=1234567" (Mikrosekunden). "out_time_ms"
+		// ist in vielen Builds ebenfalls µs (ffmpeg-Bug) — deshalb us verwenden.
+		if v, ok := strings.CutPrefix(line, "out_time_us="); ok {
+			if us, e := strconv.ParseInt(strings.TrimSpace(v), 10, 64); e == nil && us >= 0 {
+				j.doneMS.Store(us / 1000)
+			}
+		}
+	}
+	return eb.Bytes(), cmd.Wait()
+}
+
 // freeBytes liefert den freien Speicherplatz (in Bytes) des Dateisystems, auf
 // dem `dir` liegt. ok=false, wenn das nicht ermittelbar ist — dann NICHT
 // blockieren.
@@ -252,15 +380,14 @@ func freeBytes(dir string) (int64, bool) {
 func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware, faststart bool) []string {
 	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
 
-	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-nostdin"}
+	args := []string{"-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-nostdin"}
 	if needsReencode && !forceSoftware {
 		args = append(args, hwaccelDecodeArgs(hw)...)
 	}
-	// Vor -i: (a) großzügiges Probing, damit ffmpeg ALLE Tonspuren einer
-	// großen MKV erkennt (eine spät startende zweite Sprache wird sonst
-	// übersehen — genau der Bug, den dieses Package vermeiden soll),
-	// (b) kaputte NAL-Units / Stream-Fehler in Release-Rips nicht als
-	// Abbruch werten (analog Trickplay, CLAUDE.md "Software-Fallback").
+	// Vor -i: (a) großzügiges Probing, damit ffmpeg ALLE Tonspuren einer großen
+	// MKV erkennt (eine spät startende zweite Sprache wird sonst übersehen),
+	// (b) kaputte NAL-Units / Stream-Fehler in Release-Rips nicht als Abbruch
+	// werten (analog Trickplay, CLAUDE.md "Software-Fallback").
 	args = append(args,
 		"-analyzeduration", "200M", "-probesize", "200M",
 		"-err_detect", "ignore_err", "-fflags", "+genpts",
@@ -268,16 +395,14 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 	args = append(args, "-i", sourcePath, "-map", "0:v:0")
 
 	if len(audioStreams) == 0 {
-		// Kein Audiostream gefunden (Probe-Fehler o.ä.) — lieber irgendeinen
-		// Ton mitnehmen als gar keinen.
+		// Kein Audiostream gefunden — lieber irgendeinen Ton mitnehmen als gar keinen.
 		args = append(args, "-map", "0:a:0?", "-c:a:0", "aac", "-ac", "2", "-b:a", "192k")
 	} else {
 		for i, a := range audioStreams {
 			args = append(args, "-map", fmt.Sprintf("0:%d", a.Index))
-			// AVFoundation (macOS + iOS) dekodiert AAC, AC-3 und E-AC-3 in
-			// MP4 nativ — die per Stream-Copy durchreichen (Sekunden statt
-			// Minuten). Nur DTS/TrueHD/FLAC/PCM/… müssen zu AAC transkodiert
-			// werden.
+			// AVFoundation (macOS + iOS) dekodiert AAC, AC-3 und E-AC-3 in MP4
+			// nativ — die per Stream-Copy durchreichen (Sekunden statt Minuten).
+			// Nur DTS/TrueHD/FLAC/PCM/… müssen zu AAC transkodiert werden.
 			switch a.Codec {
 			case "aac", "ac3", "eac3":
 				args = append(args, fmt.Sprintf("-c:a:%d", i), "copy")
@@ -295,8 +420,7 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 		if videoTag == "hvc1" {
 			args = append(args, "-c:v", "copy")
 		} else {
-			// Gleicher Grund wie beim Client: hev1-getaggtes HEVC lehnt
-			// AVFoundation/QuickTime oft ab, reines Retag kostet nichts.
+			// hev1-getaggtes HEVC lehnt AVFoundation/QuickTime oft ab, reines Retag kostet nichts.
 			args = append(args, "-c:v", "copy", "-tag:v", "hvc1")
 		}
 	case videoCodec == "h264", videoCodec == "prores":
@@ -310,9 +434,9 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 		}
 	}
 
-	// -max_muxing_queue_size: MKV→MP4 mit mehreren Streams bricht sonst gern
-	// mit "Too many packets buffered for output stream" ab, wenn Video-Copy
-	// und Audio-Transcode zeitlich auseinanderlaufen.
+	// -max_muxing_queue_size: MKV→MP4 mit mehreren Streams bricht sonst gern mit
+	// "Too many packets buffered for output stream" ab, wenn Video-Copy und
+	// Audio-Transcode zeitlich auseinanderlaufen.
 	args = append(args, "-max_muxing_queue_size", "4096")
 	if faststart {
 		args = append(args, "-movflags", "+faststart")

@@ -4,7 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"strconv"
+	"strings"
 )
+
+// probeDurationMS liefert die Gesamtlaufzeit der Datei in Millisekunden — für
+// die Fortschrittsberechnung der Formatanpassung (ffmpeg -progress out_time_us
+// gegen diesen Wert).
+func probeDurationMS(ctx context.Context, path string) (int64, error) {
+	cmd := exec.CommandContext(ctx, "ffprobe",
+		"-v", "error", "-analyzeduration", "200M", "-probesize", "200M",
+		"-show_entries", "format=duration", "-of", "default=nk=1:nw=1", path,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	f, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(f * 1000), nil
+}
 
 // probeVideo liefert Codec-Name + Container-Tag (z.B. "hvc1" vs "hev1" bei
 // HEVC) des ersten Videostreams.

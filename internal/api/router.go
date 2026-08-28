@@ -104,6 +104,7 @@ func (s *Server) Router() http.Handler {
 		r.Put("/items/{id}/variant-split", requireAdmin(s.setItemVariantSplit))
 		r.Delete("/items/{id}", requireAdmin(s.deleteItem))
 		r.Get("/download/{id}", s.downloadItem)
+		r.Get("/download/{id}/compat-status", s.downloadCompatStatus)
 		r.Put("/items/{id}/watched", s.setWatched)
 		r.Put("/items/{id}/confirm", s.confirmItemMetadata)
 		r.Post("/items/{id}/write-nfo", requireAdmin(s.writeItemNFO))
