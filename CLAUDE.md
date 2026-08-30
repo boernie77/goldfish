@@ -1634,6 +1634,17 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   brachte AVFoundation bei kopiertem h264 dazu, die Datei GAR NICHT
   abzuspielen (VLC dagegen klaglos; 2026-08-28, Kill Bill). Verwaiste `.tmp.*.mp4` (Container-Restart mitten
   im Lauf) werden vor einem neuen Lauf weggeräumt.
+  **Video-Pixelformat (2026-08-30, convVersion 3, Kill Bill „VLC ja, Goldfish
+  nein"):** `-c:v copy` für h264 nur noch bei **8-Bit 4:2:0** (`pix_fmt` ∈
+  yuv420p/yuvj420p/nv12/nv21). 10-Bit-H.264 / 4:2:2 / 4:4:4 kann VideoToolbox/
+  AVFoundation **nicht** dekodieren (VLCs Software-Decoder schon) → wird per
+  **libx264 → yuv420p** re-encodet (bewusst Software, nicht VAAPI — Intel-iGPU
+  kann solche h264-Profile oft nicht decoden). HEVC 10-Bit bleibt `copy`
+  (AVFoundation kann HDR-HEVC). `probeVideo` liefert dafür jetzt `pix_fmt`;
+  Entscheider ist `videoNeedsReencode(codec, pixFmt)` in `prepare.go`.
+  **`convVersion`-Konstante bei JEDER `buildArgs`-Änderung hochzählen** — der
+  Cache-Validator (`cachedCopyValid`) verwirft sonst kaputte Alt-Kopien nicht
+  (nur Quelle-mtime+size werden sonst verglichen).
   **`GET /api/download/{id}/compat-status`** (2026-08-28) liefert
   `{state,percent,message}` (`state` ∈ `ready|preparing|error|idle`) und stößt
   die Formatanpassung an, falls nötig und noch nicht laufend/gecacht.
