@@ -338,7 +338,7 @@ oben gelten weiterhin immer.
   `Item.withWatched(_:)` + `DownloadManager.updateCachedWatched(itemId:
   watched:)`, verdrahtet an jedem `setWatched`-Call-Site (PlayerView,
   ItemCard, ItemDetailView).
-- **Tonspur-Auswahl bei Server-Transcode** (Build 175): Der Player hatte nur
+- **Tonspur-Auswahl bei Server-Transcode** (Build 176): Der Player hatte nur
   einen Audiospur-Umschalter für lokale/Direct-Play-Quellen
   (`AVMediaSelectionGroup`). Bei einer Transcode-Session enthält der
   HLS-Stream nur die eine vom Server gewählte Spur — Auswahl läuft jetzt über
