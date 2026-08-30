@@ -1607,10 +1607,14 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Schwelle war ein Fehler — moov am Dateiende macht die MP4 für AVFoundation
   je nach Gerät unabspielbar, real bei Enola Holmes 6 GB passiert; der
   zusätzliche Rewrite-Pass ist durch die „Wird vorbereitet … %"-Anzeige
-  abgedeckt). Audio-Stream-Copy für `aac`/`ac3`/`eac3`
-  (AVFoundation dekodiert die in MP4 nativ); DTS/TrueHD/FLAC/PCM werden zu
-  **E-AC3 640k** transkodiert (5.1 bleibt erhalten, kein Stereo-Downmix mehr —
-  AVFoundation kann E-AC3). `-movflags +negative_cts_offsets` (immer):
+  abgedeckt). **Audio (2026-08-30):** NUR `aac` bleibt Stream-Copy, ALLES
+  andere (DTS/TrueHD/AC-3/**E-AC-3**/FLAC/PCM) → **AAC 384k ohne `-ac 2`**
+  (nativer AAC-Encoder behält 5.1). Der Zwischenstand „DTS → E-AC-3 640k 5.1"
+  war ein Fehlschlag: `ec-3` in MP4 spielt AVFoundation auf macOS/iOS NICHT ab
+  (Kill Bill nach Neu-Download komplett schwarz). AC-3-in-MP4 ist auf iOS auch
+  nur eingeschränkt. **AAC ist das einzige verlässlich AVFoundation-taugliche
+  MP4-Audioformat — nicht wieder auf AC-3/E-AC-3 umstellen.**
+  `-movflags +negative_cts_offsets` (immer):
   B-Frame-Delay als negative CTS statt `elst`-edit-list — ffmpegs edit list
   brachte AVFoundation bei kopiertem h264 dazu, die Datei GAR NICHT
   abzuspielen (VLC dagegen klaglos; 2026-08-28, Kill Bill). Verwaiste `.tmp.*.mp4` (Container-Restart mitten
