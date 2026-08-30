@@ -120,19 +120,25 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	if playPath != it.Path {
 		// Formatangepasste Kopie ist immer .mp4, unabhängig vom Original-Container.
 		filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ".mp4"
-		// Cache-Validator (ETag + Last-Modified) an die QUELLDATEI koppeln,
-		// nicht an die ModTime der Cache-Kopie: die wechselt bei jeder
-		// Neuerzeugung, wodurch der `If-Range`-Header eines Resume-Versuchs
-		// (Apple-App nach einem Read-Timeout) nicht mehr matcht →
-		// `http.ServeContent` liefert 200 statt 206 → die App verrechnet sich
-		// und der Download bleibt bei 99 % hängen. Solange die Quelle
-		// unverändert ist, sind ETag + Last-Modified jetzt über alle Versuche
-		// hinweg stabil; ändert sich die Quelle, erzwingt der neue ETag
-		// korrekt einen sauberen Voll-Download.
+		// Cache-Validator (ETag + Last-Modified) primär an die QUELLDATEI koppeln
+		// (mtime+size): die bleibt über Resume-Versuche stabil, anders als die
+		// ModTime der Cache-Kopie — das war die Ursache für „Download klebt bei
+		// 99 %" (If-Range matchte nach einer Neuerzeugung nicht mehr → 200 statt
+		// 206). ZUSÄTZLICH die GRÖSSE der ausgelieferten Cache-Datei mit
+		// aufnehmen: ändert sich die Konvertierungs-Logik (convVersion, z. B.
+		// 10-Bit-h264 wird jetzt re-encodet statt kopiert), hat die neue Kopie
+		// eine andere Größe → ETag ändert sich → ein alter, teilweise
+		// heruntergeladener Stand wird sauber komplett neu geladen statt
+		// korrupt zusammengestückelt (Quelle unverändert, Inhalt aber komplett
+		// anders).
+		compatSize := int64(0)
+		if info != nil {
+			compatSize = info.Size()
+		}
 		if si, serr := os.Stat(it.Path); serr == nil {
 			modTime = si.ModTime()
-			w.Header().Set("ETag", fmt.Sprintf(`"compat-%d-%d-%d"`,
-				it.ID, si.ModTime().UnixNano(), si.Size()))
+			w.Header().Set("ETag", fmt.Sprintf(`"compat-%d-%d-%d-%d"`,
+				it.ID, si.ModTime().UnixNano(), si.Size(), compatSize))
 		}
 	}
 	// RFC 5987 für UTF-8-Dateinamen (inkl. Umlaute etc.)
