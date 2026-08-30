@@ -338,6 +338,14 @@ oben gelten weiterhin immer.
   `Item.withWatched(_:)` + `DownloadManager.updateCachedWatched(itemId:
   watched:)`, verdrahtet an jedem `setWatched`-Call-Site (PlayerView,
   ItemCard, ItemDetailView).
+- **Tonspur-Auswahl bei Server-Transcode** (Build 175): Der Player hatte nur
+  einen Audiospur-Umschalter für lokale/Direct-Play-Quellen
+  (`AVMediaSelectionGroup`). Bei einer Transcode-Session enthält der
+  HLS-Stream nur die eine vom Server gewählte Spur — Auswahl läuft jetzt über
+  `PlaybackResponse.streams` (Server liefert alle Quell-Audiospuren) +
+  `&audio=<index>` an der Transcode-URL, `restartTranscodeSession` an der
+  aktuellen Position (Browser-Pendant: das Audio-Dropdown im Player-Dialog).
+  Zweites `waveform`-Menü in `PlayerControlsBar`, sichtbar bei >1 Spur.
 
 ## Gesehen-Sync zwischen zwei Usern (seit 2026-08-19)
 - User-Anfrage: zwei eigene Accounts (z. B. Christian + Alex/Börnie) sollen
