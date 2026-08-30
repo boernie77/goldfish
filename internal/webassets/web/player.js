@@ -41,6 +41,63 @@ function fileHintHTML(item) {
   return `Datei: ${path} · ${container} · ${codecs}${ilTag}${idTag}`;
 }
 
+// ISO-639-2-Sprachcode → deutscher Name (kleine Tabelle; unbekannte Codes werden
+// groß dargestellt). Für die Tonspur-/Untertitel-Liste im Detail-Dialog.
+const STREAM_LANG_NAMES = {
+  deu: "Deutsch", ger: "Deutsch", eng: "Englisch", fra: "Französisch", fre: "Französisch",
+  spa: "Spanisch", ita: "Italienisch", jpn: "Japanisch", rus: "Russisch", nld: "Niederländisch",
+  dut: "Niederländisch", por: "Portugiesisch", pol: "Polnisch", tur: "Türkisch", ces: "Tschechisch",
+  cze: "Tschechisch", hun: "Ungarisch", kor: "Koreanisch", zho: "Chinesisch", chi: "Chinesisch",
+  ara: "Arabisch", swe: "Schwedisch", dan: "Dänisch", fin: "Finnisch", nor: "Norwegisch",
+  ell: "Griechisch", gre: "Griechisch", heb: "Hebräisch", hin: "Hindi", ukr: "Ukrainisch",
+  ron: "Rumänisch", rum: "Rumänisch", bul: "Bulgarisch", srp: "Serbisch", hrv: "Kroatisch",
+  slk: "Slowakisch", slv: "Slowenisch", tha: "Thai", vie: "Vietnamesisch", ind: "Indonesisch",
+};
+function streamLangLabel(code) {
+  const c = (code || "").toLowerCase();
+  return STREAM_LANG_NAMES[c] || (c ? c.toUpperCase() : "");
+}
+function streamChannelsLabel(n) {
+  if (!n) return "";
+  if (n === 1) return "Mono";
+  if (n === 2) return "Stereo";
+  if (n === 6) return "5.1";
+  if (n === 7) return "6.1";
+  if (n === 8) return "7.1";
+  return `${n}ch`;
+}
+
+// streamsInfoHTML rendert Tonspuren + Untertitel eines Items als kompakte Listen
+// für den Detail-Dialog. Datenquelle: item.streams (kommt aus GetItemFor →
+// ItemStreams, wird beim Scan per ffprobe befüllt). Leerer String, wenn keine
+// Audio-/Subtitle-Streams bekannt sind (z. B. Item vor Einführung der
+// Stream-Extraktion, noch nicht neu gescannt).
+function streamsInfoHTML(item) {
+  const streams = Array.isArray(item.streams) ? item.streams : [];
+  const audio = streams.filter(s => s.type === "audio");
+  const subs = streams.filter(s => s.type === "subtitle");
+  if (!audio.length && !subs.length) return `<div class="detail-streams" id="detailStreams"></div>`;
+  const line = (s, extra) => {
+    const parts = [streamLangLabel(s.language) || "Sprache unbekannt"];
+    if (s.title) parts.push(s.title);
+    if (s.codec) parts.push(s.codec.toUpperCase());
+    extra.forEach(x => { if (x) parts.push(x); });
+    if (s.isDefault) parts.push("Standard");
+    if (s.isForced) parts.push("Forced");
+    return `<li>${escapeHTML(parts.filter(Boolean).join(" · "))}</li>`;
+  };
+  let html = "";
+  if (audio.length) {
+    html += `<div class="stream-group"><span class="stream-head">🔊 Tonspuren (${audio.length})</span><ul>${
+      audio.map(a => line(a, [streamChannelsLabel(a.channels)])).join("")}</ul></div>`;
+  }
+  if (subs.length) {
+    html += `<div class="stream-group"><span class="stream-head">💬 Untertitel (${subs.length})</span><ul>${
+      subs.map(s => line(s, [])).join("")}</ul></div>`;
+  }
+  return `<div class="detail-streams" id="detailStreams">${html}</div>`;
+}
+
 async function openDetail(item) {
   // Bei jedem Öffnen ein frisches Item vom Server holen — sonst zeigt das
   // Dialog die im Grid-Cache eingebetteten (alten) Metadaten, auch wenn
@@ -180,6 +237,7 @@ async function openDetail(item) {
         </div>
         <p class="overview">${escapeHTML(overview || "—")}</p>
         ${variantDropdown}
+        ${streamsInfoHTML(item)}
         <div id="detailCast" class="cast-strip hidden"></div>
         <p class="hint" id="detailFileHint">${fileHintHTML(item)}</p>
       </div>
@@ -195,6 +253,8 @@ async function openDetail(item) {
       pick._variants = siblings;
       state.currentItem = pick;
       $("#detailFileHint").innerHTML = fileHintHTML(pick);
+      const streamsEl = $("#detailStreams");
+      if (streamsEl) streamsEl.outerHTML = streamsInfoHTML(pick);
       updateDetailWatchedBtn();
       updateDetailFavBtn();
     });
