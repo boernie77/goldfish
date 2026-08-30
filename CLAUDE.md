@@ -257,6 +257,16 @@ oben gelten weiterhin immer.
   bzw. `randomPool`) → `jumpRandom(by:1)` / `jump(by:1)`, gleicher Pfad wie ⏭.
   `LocalPlayerView` hatte vorher keinen End-Observer; markiert bei Auto-Weiter
   jetzt auch als gesehen.
+- **Gesehene Downloads löschen + Staffel-Gesehen + lokale Sternebewertung**
+  (Build 174): (1) `DownloadsView`-Toolbar-„Alle löschen" ist jetzt ein `Menu`
+  mit zusätzlichem „Alle gesehenen löschen" (`DownloadManager
+  .deleteWatchedDownloads()` = nur `state==.done` + `cachedItem?.watched`;
+  `watchedDownloadCount`). (2) `ShowSeasonsView.SeasonCard` hat einen
+  Gesehen-Toggle, der ALLE vorhandenen Folgen der Staffel auf einmal
+  markiert (`client.setWatched` je `episode.itemId`). (3) Lokale Bibliotheken:
+  `LocalItem.rating` (0–3, Default → alte Indizes dekodieren, Rescan behält's),
+  `LocalLibraryManager.setRating`, Kontextmenü-Bewertung + Stern-Overlay
+  (oben rechts) auf `LocalItemCard` + `LocalRatingFilter` im Filter-Menü.
 - **Offline→online: Bibliotheken kommen nicht wieder, „Session abgelaufen"**
   (Build 166): der Text ist die wörtliche 401-Antwort des Servers
   (`internal/api/auth.go` — Cookie wird gesendet, aber die Session ist
