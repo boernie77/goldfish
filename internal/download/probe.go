@@ -27,32 +27,37 @@ func probeDurationMS(ctx context.Context, path string) (int64, error) {
 	return int64(f * 1000), nil
 }
 
-// probeVideo liefert Codec-Name + Container-Tag (z.B. "hvc1" vs "hev1" bei
-// HEVC) des ersten Videostreams.
-func probeVideo(ctx context.Context, path string) (codec, tag string, err error) {
+// probeVideo liefert Codec-Name, Container-Tag (z.B. "hvc1" vs "hev1" bei
+// HEVC) und Pixelformat (z.B. "yuv420p", "yuv420p10le") des ersten
+// Videostreams. Das Pixelformat entscheidet mit, ob ein h264-Stream per
+// `-c:v copy` durchgereicht werden darf: VideoToolbox/AVFoundation dekodiert
+// **kein** 10-Bit-H.264 und kein 4:2:2/4:4:4-H.264 — VLC (Software-Decoder)
+// schon. Genau das Muster "VLC spielt, Goldfish/QuickTime nicht".
+func probeVideo(ctx context.Context, path string) (codec, tag, pixFmt string, err error) {
 	cmd := exec.CommandContext(ctx, "ffprobe",
 		"-v", "error", "-analyzeduration", "200M", "-probesize", "200M",
 		"-select_streams", "v:0",
-		"-show_entries", "stream=codec_name,codec_tag_string",
+		"-show_entries", "stream=codec_name,codec_tag_string,pix_fmt",
 		"-of", "json", path,
 	)
 	out, runErr := cmd.Output()
 	if runErr != nil {
-		return "", "", runErr
+		return "", "", "", runErr
 	}
 	var parsed struct {
 		Streams []struct {
 			CodecName   string `json:"codec_name"`
 			CodecTagStr string `json:"codec_tag_string"`
+			PixFmt      string `json:"pix_fmt"`
 		} `json:"streams"`
 	}
 	if err := json.Unmarshal(out, &parsed); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if len(parsed.Streams) == 0 {
-		return "", "", nil
+		return "", "", "", nil
 	}
-	return parsed.Streams[0].CodecName, parsed.Streams[0].CodecTagStr, nil
+	return parsed.Streams[0].CodecName, parsed.Streams[0].CodecTagStr, parsed.Streams[0].PixFmt, nil
 }
 
 // probeAudioStreams liefert JEDEN Audiostream der Quelldatei (Index im

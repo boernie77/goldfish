@@ -55,7 +55,34 @@ type AudioStream struct {
 //
 //	1 = Ausgangszustand (implizit, kein ConvVersion-Feld im Sidecar)
 //	2 = Audio konsequent AAC (7c6aaf8) + diese Invalidierung
-const convVersion = 2
+//	3 = h264 mit 10-Bit / 4:2:2 / 4:4:4 wird re-encodet statt kopiert
+const convVersion = 3
+
+// h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
+// diesem Pixelformat hardware-dekodieren kann (nur 8-Bit 4:2:0). Alles andere
+// (10-Bit, 4:2:2, 4:4:4) MUSS re-encodet werden, sonst spielt die Mac/iOS-App
+// die Datei gar nicht ab, obwohl VLC es klaglos tut.
+func h264PixFmtOK(pixFmt string) bool {
+	switch pixFmt {
+	case "", "yuv420p", "yuvj420p", "nv12", "nv21":
+		return true
+	default:
+		return false
+	}
+}
+
+// videoNeedsReencode: true, wenn der Videostream NICHT einfach per `-c:v copy`
+// in einen MP4-Container für AVFoundation übernommen werden kann.
+func videoNeedsReencode(codec, pixFmt string) bool {
+	switch codec {
+	case "hevc", "prores":
+		return false // HEVC 10-Bit ist für AVFoundation ok (HDR), ProRes sowieso
+	case "h264":
+		return !h264PixFmtOK(pixFmt)
+	default:
+		return true // av1, vp9, mpeg2video, vc1, … — gar nicht dekodierbar
+	}
+}
 
 type cacheMeta struct {
 	SourceModTime int64 `json:"sourceModTime"`
@@ -294,7 +321,7 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	started := time.Now()
 	log.Printf("[download] compat-prep start src=%q size=%dMiB", sourcePath, info.Size()>>20)
 
-	videoCodec, videoTag, err := probeVideo(ctx, sourcePath)
+	videoCodec, videoTag, videoPixFmt, err := probeVideo(ctx, sourcePath)
 	if err != nil {
 		log.Printf("[download] compat-prep ffprobe(video) FEHLER src=%q: %v", sourcePath, err)
 		return "", fmt.Errorf("ffprobe (video): %w", err)
@@ -307,8 +334,9 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	if durMS, e := probeDurationMS(ctx, sourcePath); e == nil && durMS > 0 {
 		j.totalMS.Store(durMS)
 	}
-	log.Printf("[download] compat-prep src=%q video=%s/%s audiostreams=%d dauer=%dms",
-		sourcePath, videoCodec, videoTag, len(audioStreams), j.totalMS.Load())
+	log.Printf("[download] compat-prep src=%q video=%s/%s pix_fmt=%s reencode=%t audiostreams=%d dauer=%dms",
+		sourcePath, videoCodec, videoTag, videoPixFmt, videoNeedsReencode(videoCodec, videoPixFmt),
+		len(audioStreams), j.totalMS.Load())
 
 	// Verwaiste .tmp aus einem hart abgebrochenen Lauf (Container-Restart mitten
 	// im Lauf → kein defer-Cleanup, u. U. mehrere GB) vorab wegräumen.
@@ -321,7 +349,7 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	tmp := outPath + ".tmp." + strconv.FormatInt(time.Now().UnixNano(), 10) + ".mp4"
 	defer func() { _ = os.Remove(tmp) }()
 
-	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
+	needsReencode := videoNeedsReencode(videoCodec, videoPixFmt)
 
 	// `+faststart` schreibt die FERTIGE Datei nochmal um (moov-Atom nach vorn).
 	// IMMER setzen: ohne moov am Anfang spielt AVFoundation die Datei je nach
@@ -330,12 +358,12 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	// durch die „Wird vorbereitet … %"-Anzeige im Client abgedeckt.
 	faststart := true
 
-	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, false, faststart)
+	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, false, faststart)
 	out, runErr := runFFmpeg(ctx, j, args)
 	if runErr != nil && needsReencode && hw.Selected != playback.BackendSoftware {
 		_ = os.Remove(tmp)
 		j.doneMS.Store(0) // Fortschritt startet für den Fallback-Lauf neu
-		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, audioStreams, hw, true, faststart)
+		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, true, faststart)
 		out, runErr = runFFmpeg(ctx, j, args)
 	}
 	if runErr != nil {
@@ -393,11 +421,16 @@ func freeBytes(dir string) (int64, bool) {
 	return int64(st.Bavail) * int64(st.Bsize), true
 }
 
-func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware, faststart bool) []string {
-	needsReencode := videoCodec != "hevc" && videoCodec != "h264" && videoCodec != "prores"
+func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware, faststart bool) []string {
+	needsReencode := videoNeedsReencode(videoCodec, videoPixFmt)
+
+	// 10-Bit-/4:2:2-h264 lassen wir bewusst per Software (libx264) auf 8-Bit
+	// 4:2:0 bringen: der Intel-VAAPI-Decoder kann solche h264-Profile auf dieser
+	// Hardware oft nicht, und es ist eine einmalige, gecachte Konvertierung.
+	h264Reencode := videoCodec == "h264" && needsReencode
 
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-nostdin"}
-	if needsReencode && !forceSoftware {
+	if needsReencode && !forceSoftware && !h264Reencode {
 		args = append(args, hwaccelDecodeArgs(hw)...)
 	}
 	// Vor -i: (a) großzügiges Probing, damit ffmpeg ALLE Tonspuren einer großen
@@ -452,8 +485,14 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 			// hev1-getaggtes HEVC lehnt AVFoundation/QuickTime oft ab, reines Retag kostet nichts.
 			args = append(args, "-c:v", "copy", "-tag:v", "hvc1")
 		}
-	case videoCodec == "h264", videoCodec == "prores":
+	case videoCodec == "h264" && !needsReencode, videoCodec == "prores":
 		args = append(args, "-c:v", "copy")
+	case h264Reencode:
+		// h264 mit 10-Bit / 4:2:2 / 4:4:4 → 8-Bit 4:2:0 h264, damit
+		// VideoToolbox/AVFoundation es dekodieren kann (VLC konnte es vorher
+		// schon per Software — genau das "VLC ja, Goldfish nein"-Muster,
+		// 2026-08-30 Kill Bill). Immer libx264, siehe h264Reencode-Kommentar.
+		args = append(args, "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p")
 	default:
 		// av1, vp9, mpeg2video, vc1, … — von AVFoundation gar nicht dekodierbar.
 		if forceSoftware {
