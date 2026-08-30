@@ -3190,6 +3190,14 @@ button.danger:hover { background: #991b1b; }
   padding: 0 20px 6px;
 }
 
+.drawer-version {
+  margin-top: auto;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .drawer-item {
   display: flex;
   align-items: center;

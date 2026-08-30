@@ -43,6 +43,14 @@ function renderUserMenu() {
   // Bibliotheken) sind ebenfalls administrative Aktionen. Für reguläre User
   // wird der Button komplett ausgeblendet.
   $("#settingsBtn").classList.toggle("hidden", !state.me.isAdmin);
+
+  // Server-Version im Menü-Fuß (aus /api/health). Einmalig, still bei Fehler.
+  const verEl = $("#drawerVersion");
+  if (verEl && verEl.textContent === "—") {
+    fetch("/api/health").then(r => r.json()).then(h => {
+      if (h && h.version) verEl.textContent = "v" + h.version;
+    }).catch(() => {});
+  }
 }
 
 async function openUsersManager() {

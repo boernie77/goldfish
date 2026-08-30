@@ -287,10 +287,16 @@ func (s *Server) Router() http.Handler {
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
 const buildTag = "2026-05-02T10:00Z"
 
+// appVersion — semantische Version des Servers. Ab dem Deploy dieses Commits
+// (2026-08-30) offiziell versioniert; bei jedem Release erhöhen. Wird im
+// /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
+const appVersion = "1.0.0"
+
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{
-		"status": "ok",
-		"build":  buildTag,
+		"status":  "ok",
+		"version": appVersion,
+		"build":   buildTag,
 		"hwaccel": map[string]any{
 			"enabled":        s.HW.Selected != playback.BackendSoftware,
 			"backend":        string(s.HW.Selected),
