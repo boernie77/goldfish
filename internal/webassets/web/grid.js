@@ -626,9 +626,11 @@ async function loadItemsBody() {
     return;
   }
 
-  // Favoriten-Modus (via Sort-Dropdown): flache Ansicht innerhalb der aktuellen
-  // Library (keine Folders, keine Subfolder-Struktur). Library-Wechsel wirkt
-  // weiterhin; die Ansicht bleibt beschränkt auf die aktuell gewählte Library.
+  // Favoriten-Modus (via Sort-Dropdown): flache Ansicht ohne Ordner-Struktur.
+  // SCOPE: nur nach unten flach — im Library-Root die ganze Library, in einem
+  // Unterordner NUR dessen Favoriten (rekursiv inkl. Unterordner), nicht
+  // library-weit (gleiche Konvention wie die Flat-Sorts / der folder-gescopte
+  // Scan; User-Wunsch 2026-08-30). Library-Wechsel wirkt weiterhin.
   if (currentFavoriteMode() === "yes" && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
@@ -637,6 +639,8 @@ async function loadItemsBody() {
       sort: currentSortMode(),
       dir: effectiveSortDir(),
     });
+    // In einem Unterordner: nur diesen Ordner (rekursiv) flach zeigen.
+    if (state.currentFolder) p.set("folder", state.currentFolder);
     if (searchQ) p.set("search", searchQ);
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     applyResolutionFilter(p);
@@ -647,7 +651,8 @@ async function loadItemsBody() {
     if (stale()) return;
     renderBreadcrumb({ searchCount: items.length, favoriteView: true });
     if (!items.length) {
-      grid.innerHTML = `<div class="empty">Keine Favoriten in dieser Bibliothek.</div>`;
+      const scope = state.currentFolder ? "in diesem Ordner" : "in dieser Bibliothek";
+      grid.innerHTML = `<div class="empty">Keine Favoriten ${scope}.</div>`;
       return;
     }
     const merged = groupVariants(items);

@@ -716,9 +716,34 @@ function renderBreadcrumb(opts) {
   if (opts.favoriteView) {
     const lib = state.libraries.find(l => l.id == state.currentLibrary);
     const libName = lib ? lib.name : "";
+    // Zurück-Button + Ordner-Scope wie bei den Flat-Sorts: in einem Unterordner
+    // wirkt der Favoriten-Filter nur nach unten in diesem Ordner (rekursiv).
+    if (state.currentFolder) {
+      const back = document.createElement("button");
+      back.className = "back-btn";
+      back.title = "Eine Ebene zurück";
+      back.textContent = "←";
+      back.addEventListener("click", () => {
+        const segs = (state.currentFolder || "").split("/");
+        if (segs.length > 1) {
+          state.currentFolder = segs.slice(0, -1).join("/");
+          state.currentFolderDrilldown = true;
+        } else {
+          state.currentFolder = null;
+          state.currentFolderDrilldown = false;
+        }
+        loadItems();
+      });
+      bc.appendChild(back);
+    }
+    let where = libName ? `${libIcon(lib)} ${libName}` : "";
+    if (state.currentFolder) {
+      const folderName = state.currentFolder.split("/").filter(Boolean).pop() || state.currentFolder;
+      where = where ? `${where} / ${folderName}` : folderName;
+    }
     const cur = document.createElement("span");
     cur.className = "current";
-    cur.textContent = libName ? `♥ Favoriten in ${libIcon(lib)} ${libName}` : "♥ Favoriten";
+    cur.textContent = where ? `♥ Favoriten in ${where}` : "♥ Favoriten";
     bc.appendChild(cur);
     const count = document.createElement("span");
     count.className = "count";
