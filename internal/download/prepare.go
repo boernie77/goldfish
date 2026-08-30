@@ -44,9 +44,23 @@ type AudioStream struct {
 	Language string // BCP-47-artiger Tag, leer wenn nicht gesetzt
 }
 
+// convVersion identifiziert die aktuelle Konvertierungs-Logik (Codec-Wahl,
+// ffmpeg-Flags). Bei JEDER Änderung an buildArgs, die das Ergebnis-File anders
+// aussehen lässt, HOCHZÄHLEN — dann verwirft `cachedCopyValid` alle mit einer
+// älteren Logik erzeugten Cache-Kopien automatisch und erzeugt sie beim
+// nächsten Download neu. Ohne das wurde eine einmal (kaputt) erzeugte Kopie
+// für immer weiter ausgeliefert, weil nur Quell-mtime+size verglichen wurden
+// (2026-08-30, "Kill Bill zum wiederholten Male unabspielbar": der E-AC-3-
+// Fehlversuch aus Commit a9308d8 blieb trotz AAC-Fix im Cache).
+//
+//	1 = Ausgangszustand (implizit, kein ConvVersion-Feld im Sidecar)
+//	2 = Audio konsequent AAC (7c6aaf8) + diese Invalidierung
+const convVersion = 2
+
 type cacheMeta struct {
 	SourceModTime int64 `json:"sourceModTime"`
 	SourceSize    int64 `json:"sourceSize"`
+	ConvVersion   int   `json:"convVersion"`
 }
 
 // Progress ist der Zustand der server-seitigen Formatanpassung für ein Item —
@@ -252,7 +266,7 @@ func shortMsg(s string) string {
 // Sidecar zur aktuellen Quelle (mtime + size) passt.
 func cachedCopyValid(outPath, metaPath string, srcInfo os.FileInfo) bool {
 	m, ok := readMeta(metaPath)
-	if !ok || m.SourceModTime != srcInfo.ModTime().UnixNano() || m.SourceSize != srcInfo.Size() {
+	if !ok || m.SourceModTime != srcInfo.ModTime().UnixNano() || m.SourceSize != srcInfo.Size() || m.ConvVersion != convVersion {
 		return false
 	}
 	fi, err := os.Stat(outPath)
@@ -333,7 +347,7 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	if err := os.Rename(tmp, outPath); err != nil {
 		return "", err
 	}
-	writeMeta(metaPath, cacheMeta{SourceModTime: info.ModTime().UnixNano(), SourceSize: info.Size()})
+	writeMeta(metaPath, cacheMeta{SourceModTime: info.ModTime().UnixNano(), SourceSize: info.Size(), ConvVersion: convVersion})
 	if fi, statErr := os.Stat(outPath); statErr == nil {
 		log.Printf("[download] compat-prep FERTIG src=%q -> %dMiB in %s",
 			sourcePath, fi.Size()>>20, time.Since(started).Round(time.Second))
