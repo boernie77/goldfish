@@ -1232,7 +1232,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   UI-Label im Player: „Maximum" (Auto) vs. „Profil" (Transcode), ausgeblendet bei Direct Play.
 - **Modus-Override**: Im Player-Dialog Auto/Direct/Transcode manuell wählbar.
 - **Audio-/Subtitle-Auswahl**: Nur bei Transcode (Dropdown im Player-Dialog).
-  Subs als WebVTT-Remote-Text-Track, Server konvertiert on-the-fly.
+  Subs als WebVTT-Remote-Text-Track, Server konvertiert on-the-fly
+  (`/api/subtitle/{id}/{idx}.vtt`, `ffmpeg -c:s webvtt`). **Bild-Untertitel
+  (PGS/`hdmv_pgs_subtitle`, VOBSUB, DVB) gehen NICHT** — kein Text-Ziel;
+  `subtitleVTT` probet den Codec und antwortet 415, das Dropdown markiert sie
+  „Bild – nicht einblendbar" und die Auswahl zeigt einen Toast (Ausweg:
+  KI-Untertitel via 🎤). Betrifft die meisten Blu-ray-Rips (Kill Bill).
 - **Hardware-Accel**: Intel VAAPI (out-of-the-box via `/dev/dri`-Passthrough +
   `group_add 107`). NVIDIA NVENC optional wenn `runtime: nvidia` gesetzt ist.
   Settings-Dropdown „Auto / VAAPI / NVENC / Software" (siehe
@@ -1643,13 +1648,15 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Schwelle war ein Fehler — moov am Dateiende macht die MP4 für AVFoundation
   je nach Gerät unabspielbar, real bei Enola Holmes 6 GB passiert; der
   zusätzliche Rewrite-Pass ist durch die „Wird vorbereitet … %"-Anzeige
-  abgedeckt). **Audio (2026-08-30):** NUR `aac` bleibt Stream-Copy, ALLES
-  andere (DTS/TrueHD/AC-3/**E-AC-3**/FLAC/PCM) → **AAC 384k ohne `-ac 2`**
-  (nativer AAC-Encoder behält 5.1). Der Zwischenstand „DTS → E-AC-3 640k 5.1"
-  war ein Fehlschlag: `ec-3` in MP4 spielt AVFoundation auf macOS/iOS NICHT ab
-  (Kill Bill nach Neu-Download komplett schwarz). AC-3-in-MP4 ist auf iOS auch
-  nur eingeschränkt. **AAC ist das einzige verlässlich AVFoundation-taugliche
-  MP4-Audioformat — nicht wieder auf AC-3/E-AC-3 umstellen.**
+  abgedeckt). **Audio (Stand 2026-08-30, `convVersion = 4`):** JEDE Tonspur →
+  **AAC-LC Stereo (`-ac 2 -b:a 256k`)**, auch AAC-Quellen (Audio-Pass ist gegen
+  den Video-Pass vernachlässigbar). Chronik: E-AC-3 5.1 (`ec-3` in MP4 spielt
+  AVFoundation nicht → Kill Bill schwarz) → AAC 5.1 OHNE `-ac 2` (erzeugte bei
+  DTS-Quellen `channel_layout=unknown` → AVFoundation STUMM, Spur teils nicht
+  wählbar) → **AAC Stereo mit definiertem Layout**. Für den compat-Download
+  (Apple-App, meist Stereo-Ausgabe) schlägt eine verlässlich klingende
+  Stereo-Spur eine stumme 5.1-Spur. **Nicht wieder auf AC-3/E-AC-3 oder auf
+  5.1-ohne-Layout umstellen.**
   `-movflags +negative_cts_offsets` (immer):
   B-Frame-Delay als negative CTS statt `elst`-edit-list — ffmpegs edit list
   brachte AVFoundation bei kopiertem h264 dazu, die Datei GAR NICHT
