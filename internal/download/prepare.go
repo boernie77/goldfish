@@ -56,7 +56,8 @@ type AudioStream struct {
 //	1 = Ausgangszustand (implizit, kein ConvVersion-Feld im Sidecar)
 //	2 = Audio konsequent AAC (7c6aaf8) + diese Invalidierung
 //	3 = h264 mit 10-Bit / 4:2:2 / 4:4:4 wird re-encodet statt kopiert
-const convVersion = 3
+//	4 = Audio IMMER AAC-LC Stereo (-ac 2); AAC-5.1-mit-unknown-layout war stumm
+const convVersion = 4
 
 // h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
 // diesem Pixelformat hardware-dekodieren kann (nur 8-Bit 4:2:0). Alles andere
@@ -449,32 +450,30 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioS
 	} else {
 		for i, a := range audioStreams {
 			args = append(args, "-map", fmt.Sprintf("0:%d", a.Index))
-			// Nur AAC per Stream-Copy durchreichen. ALLES andere → AAC.
-			//
-			// 2026-08-30, Kill Bill KOMPLETT unabspielbar: der Versuch, DTS als
-			// E-AC-3 5.1 durchzureichen (Commit a9308d8), war ein Fehlschlag —
-			// `ec-3` in einem MP4-Container spielt AVFoundation auf macOS/iOS
-			// NICHT zuverlässig ab (bei Kill Bill: AVPlayerItem schlägt fehl,
-			// gar kein Bild). Ebenso ist AC-3 (`ac-3`) in MP4 auf iOS nur
-			// eingeschränkt nutzbar. Das einzige in MP4 verlässlich von
-			// AVFoundation unterstützte Audioformat ist AAC — also wieder
-			// konsequent dorthin transkodieren (der Stand VOR a9308d8).
-			//
-			// KEIN `-ac 2`-Downmix: ffmpegs nativer AAC-Encoder kann Mehrkanal,
-			// die 5.1-Kanalanzahl bleibt erhalten (das war der eigentliche
-			// User-Wunsch hinter a9308d8 — nur der Codec war die falsche Wahl).
-			// 384 kbit/s reicht für AAC-LC 5.1; bei Stereo/Mono ist es großzügig,
-			// aber harmlos.
-			switch a.Codec {
-			case "aac":
-				args = append(args, fmt.Sprintf("-c:a:%d", i), "copy")
-			default:
-				args = append(args, fmt.Sprintf("-c:a:%d", i), "aac", "-b:a", "384k")
-			}
+			// JEDE Tonspur → AAC-LC STEREO. Historie an dieser Stelle:
+			//   a9308d8: DTS → E-AC-3 5.1  → `ec-3` in MP4 spielt AVFoundation
+			//            gar nicht ab (Kill Bill schwarz).
+			//   7c6aaf8: → AAC 5.1 OHNE `-ac 2` (Mehrkanal behalten).
+			//   2026-08-30 (dieser Fix): das erzeugte eine AAC-5.1-Spur mit
+			//            `channel_layout=unknown` (DTS-Decode liefert 6 Kanäle
+			//            ohne Layout, der native AAC-Encoder reicht das durch) —
+			//            AVFoundation rendert die dann STUMM und listet sie z. T.
+			//            nicht mal als wählbare Spur. „Kein Ton, keine
+			//            Tonspur-Auswahl" beim Mac-Download.
+			// Lehre: für den compat-Download (Apple-App, meist Stereo-Ausgabe)
+			// ist eine verlässlich klingende Stereo-Spur mehr wert als eine
+			// stumme 5.1-Spur. `-ac 2` zwingt ffmpeg zum Downmix mit definiertem
+			// Layout. Auch AAC-Quellen werden re-encodet — der Audio-Pass ist
+			// gegen den Video-Pass vernachlässigbar, und eine 5.1-AAC-Quelle mit
+			// kaputtem Layout hätte per `copy` dasselbe Problem.
+			args = append(args, fmt.Sprintf("-c:a:%d", i), "aac")
 			if a.Language != "" {
 				args = append(args, fmt.Sprintf("-metadata:s:a:%d", i), "language="+a.Language)
 			}
 		}
+		// Global für ALLE Audio-Ausgabestreams: Stereo-Downmix mit definiertem
+		// Layout + moderate Bitrate. Siehe langen Kommentar oben.
+		args = append(args, "-ac", "2", "-b:a", "256k")
 	}
 
 	switch {

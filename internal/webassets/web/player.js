@@ -57,6 +57,19 @@ function streamLangLabel(code) {
   const c = (code || "").toLowerCase();
   return STREAM_LANG_NAMES[c] || (c ? c.toUpperCase() : "");
 }
+// Bild-basierte Untertitel-Codecs (PGS/VOBSUB/DVB) — die lassen sich NICHT
+// nach WebVTT (Text) konvertieren, also auch nicht als Overlay-Track im Player
+// einblenden. Der Server-`-c:s webvtt`-Aufruf scheitert bei denen.
+const BITMAP_SUB_CODECS = new Set([
+  "hdmv_pgs_subtitle", "pgssub", "pgs",
+  "dvd_subtitle", "dvdsub",
+  "dvb_subtitle", "dvbsub",
+  "xsub",
+]);
+function isBitmapSub(codec) {
+  return BITMAP_SUB_CODECS.has((codec || "").toLowerCase());
+}
+
 function streamChannelsLabel(n) {
   if (!n) return "";
   if (n === 1) return "Mono";
@@ -915,6 +928,9 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       if (t.title) parts.push(t.title);
       if (t.isForced) parts.push("Forced");
       parts.push(t.codec || "");
+      // Bild-Untertitel (PGS/VOBSUB) markieren — die können NICHT als Text
+      // eingeblendet werden (siehe applySubtitleChoice).
+      if (isBitmapSub(t.codec)) parts.push("Bild – nicht einblendbar");
       o.textContent = parts.filter(Boolean).join(" · ");
       subSel.appendChild(o);
     }
@@ -1253,6 +1269,16 @@ function applySubtitleChoice(vjs, item, subs) {
   if (!subChoice) return;
 
   const sub = subs.find(s => String(s.index) === subChoice);
+  // Bild-Untertitel (PGS/VOBSUB/DVB): der Server kann sie nicht nach WebVTT
+  // wandeln (`-c:s webvtt` scheitert) → gar kein Track. Statt still nichts zu
+  // tun, klar erklären. Ausweg: KI-Untertitel (🎤) generieren.
+  if (sub && isBitmapSub(sub.codec)) {
+    showToast("Dieser Untertitel ist ein Bild-Untertitel (" + (sub.codec || "PGS") +
+      ") und kann nicht als Text eingeblendet werden. Alternative: über 🎤 einen KI-Untertitel erzeugen.",
+      { kind: "info", duration: 7000 });
+    $("#subSelect").value = "";
+    return;
+  }
   const label = (sub && sub.title) || (sub && sub.language && sub.language.toUpperCase()) || "Untertitel";
   const subSrc = (sub && sub.codec === "webvtt-generated")
     ? `/api/generated-subtitle/${item.id}/${sub.language}.vtt`
