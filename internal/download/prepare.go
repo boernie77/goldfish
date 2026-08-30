@@ -402,19 +402,27 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag string, audioStreams []Audi
 	} else {
 		for i, a := range audioStreams {
 			args = append(args, "-map", fmt.Sprintf("0:%d", a.Index))
-			// AVFoundation (macOS + iOS) dekodiert AAC, AC-3 und E-AC-3 in MP4
-			// nativ — die per Stream-Copy durchreichen (Sekunden statt Minuten).
-			// Nur DTS/TrueHD/FLAC/PCM/… müssen zu AAC transkodiert werden.
+			// Nur AAC per Stream-Copy durchreichen. ALLES andere → AAC.
+			//
+			// 2026-08-30, Kill Bill KOMPLETT unabspielbar: der Versuch, DTS als
+			// E-AC-3 5.1 durchzureichen (Commit a9308d8), war ein Fehlschlag —
+			// `ec-3` in einem MP4-Container spielt AVFoundation auf macOS/iOS
+			// NICHT zuverlässig ab (bei Kill Bill: AVPlayerItem schlägt fehl,
+			// gar kein Bild). Ebenso ist AC-3 (`ac-3`) in MP4 auf iOS nur
+			// eingeschränkt nutzbar. Das einzige in MP4 verlässlich von
+			// AVFoundation unterstützte Audioformat ist AAC — also wieder
+			// konsequent dorthin transkodieren (der Stand VOR a9308d8).
+			//
+			// KEIN `-ac 2`-Downmix: ffmpegs nativer AAC-Encoder kann Mehrkanal,
+			// die 5.1-Kanalanzahl bleibt erhalten (das war der eigentliche
+			// User-Wunsch hinter a9308d8 — nur der Codec war die falsche Wahl).
+			// 384 kbit/s reicht für AAC-LC 5.1; bei Stereo/Mono ist es großzügig,
+			// aber harmlos.
 			switch a.Codec {
-			case "aac", "ac3", "eac3":
+			case "aac":
 				args = append(args, fmt.Sprintf("-c:a:%d", i), "copy")
 			default:
-				// DTS/TrueHD/FLAC/PCM → E-AC3 (AVFoundation dekodiert das auf
-				// macOS + iOS nativ). Bewusst KEIN `-ac 2`-Downmix mehr: die
-				// Kanalanzahl (z.B. 5.1) bleibt erhalten (User-Wunsch 2026-08-28).
-				// E-AC3 deckt mono/stereo/5.1 gleichermaßen ab; 640 kbit/s ist
-				// Dolbys Referenz für 5.1.
-				args = append(args, fmt.Sprintf("-c:a:%d", i), "eac3", "-b:a", "640k")
+				args = append(args, fmt.Sprintf("-c:a:%d", i), "aac", "-b:a", "384k")
 			}
 			if a.Language != "" {
 				args = append(args, fmt.Sprintf("-metadata:s:a:%d", i), "language="+a.Language)
