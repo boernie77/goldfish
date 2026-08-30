@@ -4,6 +4,12 @@ Produktname: **Goldfish**. Das Go-Modul, Docker-Image, Volumes und Stack-Name bl
 Kompatibilitätsgründen `videoplayer` / `simple-videoplayer` — nur das UI-Branding ist
 „Goldfish".
 
+**Server-Version:** seit 2026-08-30 semantisch versioniert, Start **1.0.0**.
+Konstante `appVersion` in `internal/api/router.go` — bei jedem Release bumpen.
+Ausgeliefert als `version` im `/api/health`, angezeigt im Zahnrad-Menü-Fuß
+(`#drawerVersion`). (Die App-Repos zählen davon unabhängig weiter, siehe
+`feedback_apple_versioning` / Android-Block.)
+
 ---
 
 # 🔒 OIDC SSO mit Authentik — LIVE seit 2026-04-27
@@ -1064,7 +1070,10 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - Auto-Sort bei TV-Subfolder: `episode` (nach Staffel+Episode aus TMDB-Metadata).
 - Detail-Dialog mit Poster, Plot, Rating, Genres, Episode-Info + Buttons:
   „Abspielen" / „Als gesehen markieren" / „♡ Favorit" / „Zu Playlist" / „Download" /
-  „Löschen" (Admin-only) / „Manuell zuordnen" (Movies/TV).
+  „Löschen" (Admin-only) / „Manuell zuordnen" (Movies/TV). Zeigt außerdem
+  „🔊 Tonspuren (N)" + „💬 Untertitel (N)" (Sprache/Titel/Codec/Kanäle) aus
+  `item.streams` — kommt schon aus `GetItemFor`→`ItemStreams`, kein Extra-Call
+  (`streamsInfoHTML` in `player.js`).
 - **Datei-/Pfad-Suche (admin)** im Zahnrad-Menü unter „🔍 Datei/Ordner suchen":
   Diagnose-Dialog (`#pathSearchDialog`), ruft `GET /api/items/search-path?q=`,
   matcht auf rel_path + path + title, zeigt aktuelle TMDB-Zuordnung. Klick
@@ -1646,8 +1655,16 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   brachte AVFoundation bei kopiertem h264 dazu, die Datei GAR NICHT
   abzuspielen (VLC dagegen klaglos; 2026-08-28, Kill Bill). Verwaiste `.tmp.*.mp4` (Container-Restart mitten
   im Lauf) werden vor einem neuen Lauf weggeräumt.
-  **Video-Pixelformat (2026-08-30, convVersion 3, Kill Bill „VLC ja, Goldfish
-  nein"):** `-c:v copy` für h264 nur noch bei **8-Bit 4:2:0** (`pix_fmt` ∈
+  **Kill Bill final (2026-08-30):** die eigentliche Ursache war NICHT der
+  Server — der compat-Download kam als sauberes MP4 an (avc1 h264 8-Bit +
+  2× AAC 5.1, per ffprobe verifiziert). Die **Mac/iOS-App speicherte die
+  Datei aber als `.mkv`** (Dateiname aus `item.container`, nicht aus der
+  Server-Antwort) → AVFoundation verweigert allein wegen der Endung. Fix in
+  GoldfishApple Build 178 (`?compat=1` → immer `.mp4`). Die
+  Server-Änderungen unten (10-Bit-Reencode / convVersion / ETag) waren
+  trotzdem nötig, nur nicht der Auslöser für DIESEN Fall.
+  **Video-Pixelformat (2026-08-30, convVersion 3):** `-c:v copy` für h264 nur
+  noch bei **8-Bit 4:2:0** (`pix_fmt` ∈
   yuv420p/yuvj420p/nv12/nv21). 10-Bit-H.264 / 4:2:2 / 4:4:4 kann VideoToolbox/
   AVFoundation **nicht** dekodieren (VLCs Software-Decoder schon) → wird per
   **libx264 → yuv420p** re-encodet (bewusst Software, nicht VAAPI — Intel-iGPU
