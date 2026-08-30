@@ -1605,7 +1605,12 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Mehrsprachen-Rips eine Tonspur verloren (genau der Bug, der den früheren
   client-seitigen Ansatz hatte, siehe unten). Cache unter
   `/config/cache/downloads/{itemID}.mp4` + `.json`-Sidecar (Quelle
-  mtime+size), damit ein zweiter Download nicht neu konvertiert.
+  mtime+size **+ `convVersion`**), damit ein zweiter Download nicht neu
+  konvertiert. **`convVersion` (Konstante in `prepare.go`, aktuell 2) bei
+  JEDER `buildArgs`-Änderung hochzählen** — sonst wird eine mit alter (ggf.
+  kaputter) Logik erzeugte Kopie ewig weiter ausgeliefert, weil nur
+  Quelle-mtime+size verglichen wird (2026-08-30: E-AC-3-Fehlversuch blieb
+  trotz AAC-Fix im Cache → Kill Bill „zum wiederholten Male" schwarz).
   **ffmpeg-Härtung (2026-08-28, „Kill Bill startet nicht"):** `-nostdin`;
   `-analyzeduration/-probesize 200M` an ffprobe UND ffmpeg (spät startende
   zweite Tonspur einer großen MKV wird sonst übersehen); `-err_detect
