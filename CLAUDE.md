@@ -1055,7 +1055,9 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (Default an). Eigener Namespace, unabhängig von `sort:lib:…`/`seasonView:…`.
   In der Collections-Root-Ansicht (`state.currentLibrary === null` dort) gibt
   es keinen Toggle-Button — die Leiste bleibt dort wie bisher unconditional an.
-- Favoriten-Filter zeigt flach innerhalb der aktuellen Library (ohne Ordner-Ebenen).
+- Favoriten-Filter zeigt flach ohne Ordner-Ebenen; Scope „nur nach unten flach"
+  wie die Flat-Sorts — im Library-Root library-weit, in einem Unterordner nur
+  dessen Favoriten (rekursiv). Breadcrumb hat dann einen Zurück-Pfeil.
 - **Library-Wechsel** setzt alle Filter/Suche/Sortierung zurück.
 - **Request-Sequencing** in `loadItems` (`state.loadSeq`): verhindert, dass bei
   schneller Live-Suche ein älterer Response das Grid mit stale Daten überschreibt.
@@ -1403,8 +1405,10 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   ⬆/⬇-Button neben dem Dropdown flippt die Richtung.
 - **Duplikate** ist ein **Eintrag im Sort-Dropdown** (nicht eigenes Filterfeld).
   Aktiv → alle Items mit mehrfach vergebener `metadata_id` flach ohne Merge.
-- **Favoriten-Filter** auf „Nur" stellt sofort eine flache Library-weite
-  Ansicht (wie Duplikate, aber eigener Pfad in loadItems).
+- **Favoriten-Filter** auf „Nur" stellt sofort eine flache Ansicht (wie
+  Duplikate, aber eigener Pfad in loadItems). Scope = aktueller Ordner
+  rekursiv, sonst library-weit (`folder`-Param an `/api/items`, Server
+  kombiniert `favorite=yes` + `folder` bereits per AND).
 - **Flache library-weite Sort-Modi** „Zuletzt abgespielt" (`played`), „Zuletzt
   hinzugefügt" (`added`) und „Laufzeit" (`duration`) zeigen die Top-N Videos der
   GANZEN Library, ignorieren die Ordner-/Staffel-Struktur (keine Folders). Ein
