@@ -1539,6 +1539,10 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Show), sonst **ausgegraut** `renderPersonFilmCard` (`.person-film-missing`,
   Badge „nicht vorhanden", TMDB-Poster, Rolle). Owned-Titel, die TMDB nicht
   listet, werden hinten angehängt (nie verstecken, was der User hat).
+- **„☐ Nur Treffer"-Toggle** im Filmografie-Header (`.person-owned-toggle`):
+  blendet die ausgegrauten, nicht vorhandenen Einträge aus.
+  `state.personOwnedOnly`, persistiert in `localStorage["personOwnedOnly"]`.
+  (App-Pendant: `@AppStorage("personOwnedOnly")` in `PersonItemsView`.)
 - **Fallback ohne TMDB:** altes Split-Rendering 🎬 Filme / 📺 Serien nur mit
   den owned Treffern.
 - Sektion-Headings via `.person-section-title` (grid-column: 1/-1).
