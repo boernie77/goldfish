@@ -1050,6 +1050,11 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Suchfeld** trifft Titel **und** Schauspielernamen. SQL joined
   `metadata_cast` via `people.name LIKE ?`, inkl. Parent-Show bei Episoden.
   In Collections-Views client-seitig zusätzlich auf Collection-Name / Part-Titel.
+  **Episoden-Treffer werden pro Serie** (`libraryId` + erstes rel_path-Segment)
+  **zu EINER Sammelkachel gebündelt** (`appendSearchResultCards` /
+  `renderSearchShowCard` in `cards.js`), Klick öffnet den Serien-Ordner —
+  Filme/Privatvideos bleiben Einzelkacheln. Gilt für Library-Suche UND
+  Home-View-Global-Suche.
 - **Alphabet-Sidebar rechts** (`#alphaSidebar`, seit 2026-07-12 immer sichtbar):
   zeigt A-Z + `#`, unabhängig vom Sort-Feld — wirkt als **Filter** (nicht
   Scroll-Sprung): `jumpToLetter()` → `setAlphaFilter()` blendet Kacheln, die
@@ -1619,12 +1624,19 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   globaler An/Aus (`settings.ocr_subs_enabled`), Job-Tabelle `ocr_sub_jobs`
   (ein Job pro Item, Status pending/running/done/failed, `langs`).
 - **Pipeline pro Item** (`processItem`): `Store.ItemBitmapSubStreams` liefert
-  die Bild-Untertitel-Streams (Codec ∈ `BitmapSubCodecs`); pro Stream:
-  `ffmpeg -map 0:N -c:s copy x.sup` → `pgsrip --language <ietf> --force x.sup`
-  → `x.<ietf>.srt` → SRT→VTT (Header + Komma→Punkt) →
-  `/config/generated-subs/{itemID}/{ietf}-ocr.vtt`. Pro Sprache nur der erste
-  Stream. Timeout 45 min/Item. Pausiert während Library-Scans
-  (`SetPauseCheck`, wie introskip).
+  die Bild-Untertitel-Streams (Codec ∈ `BitmapSubCodecs`) + deren Sprachen.
+  Für **.mkv/.mks** (`pgsripContainer`): Symlink der Quelle nach `/tmp`, dann
+  `pgsrip --force --language <l> … <link>` — pgsrip nutzt intern `mkvextract`
+  (sauber) und OCR-t alle passenden PGS-Spuren in EINEM Lauf. Ergebnis-`.srt`
+  werden **geglobbt** (`base.*.srt` / `base.srt` / neben der Quelle, falls
+  pgsrip den realpath auflöst), Sprachcode aus dem Dateinamen normalisiert,
+  alle `.srt` danach aufgeräumt. Ergebnis: SRT→VTT (Header + Komma→Punkt) →
+  `/config/generated-subs/{itemID}/{ietf}-ocr.vtt`. **Der frühere Weg
+  `ffmpeg -c:s copy … .sup` → pgsrip(.sup) ist gescheitert** — ffmpegs
+  SUP-Muxer wirft „[sup] Not enough data … Invalid data" an
+  Display-Set-Grenzen; NICHT wieder darauf umstellen. Nicht-MKV-Quellen
+  (m2ts/ts/mp4) → klarer „nur .mkv/.mks"-Fehler (Fallback noch offen).
+  Timeout 45 min/Item. Pausiert während Library-Scans (`SetPauseCheck`).
 - **Auto-Enqueue:** `ocrSubWorker.EnqueueNewItems()` im `sc.OnComplete`-Hook —
   neue Dateien mit Bild-Untertiteln in aktivierten Libs kommen nach jedem
   Scan automatisch dazu (`EnqueueOCRSubBacklog` = alle Items in aktiven
