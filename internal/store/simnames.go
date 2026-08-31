@@ -69,6 +69,33 @@ func min3(a, b, c int) int {
 	return a
 }
 
+// differsOnlyInDigits ist true, wenn a und b gleich lang sind und sich AN JEDER
+// abweichenden Position beide nur in einer Ziffer unterscheiden. Solche Paare
+// sind fast immer durchnummerierte GESCHWISTER (z. B. FTV-Shoot-IDs
+// `alana-7127-07` vs `alana-7128-01`, oder Episoden `s01e03` vs `s01e04`) —
+// keine Duplikate. `film` vs `film (2)` fällt hier NICHT rein (Klammer wird
+// vorher gestrippt → identisch), `film.wmv` vs `film.mp4` auch nicht (Endung
+// gestrippt → identisch).
+func differsOnlyInDigits(a, b string) bool {
+	ra, rb := []rune(a), []rune(b)
+	if len(ra) != len(rb) {
+		return false
+	}
+	diff := false
+	for i := range ra {
+		if ra[i] == rb[i] {
+			continue
+		}
+		if !isDigitRune(ra[i]) || !isDigitRune(rb[i]) {
+			return false
+		}
+		diff = true
+	}
+	return diff
+}
+
+func isDigitRune(r rune) bool { return r >= '0' && r <= '9' }
+
 // nameSimilarity — 1.0 = identisch, 0.0 = komplett verschieden.
 func nameSimilarity(a, b string) float64 {
 	la, lb := len([]rune(a)), len([]rune(b))
@@ -167,6 +194,9 @@ func (s *Store) SimilarNameDupes(libraryID, userID int64, isAdmin bool, folder s
 		sort.Slice(arr, func(i, j int) bool { return arr[i].dur < arr[j].dur })
 		for i := 0; i < len(arr); i++ {
 			for j := i + 1; j < len(arr) && arr[j].dur-arr[i].dur <= 1.0; j++ {
+				if arr[i].norm != arr[j].norm && differsOnlyInDigits(arr[i].norm, arr[j].norm) {
+					continue // durchnummerierte Geschwister, kein Duplikat
+				}
 				if nameSimilarity(arr[i].norm, arr[j].norm) >= threshold {
 					union(arr[i].id, arr[j].id)
 				}

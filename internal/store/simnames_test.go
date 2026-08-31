@@ -76,6 +76,10 @@ func TestSimilarNameDupes(t *testing.T) {
 	add("Siterips/Massage/1-massage_aj_mg18_lowres.mp4", 640, 360, 1000)
 	// gleicher Name wie Paar-1 aber Länge weit weg -> kein Treffer
 	add("Siterips/Massage/1-massage_aj_mg18_long.mp4", 1280, 720, 3000)
+	// Durchnummerierte Geschwister: gleiche Auflösung + Länge, Name unterscheidet
+	// sich NUR in Ziffern → KEIN Duplikat (FTV-Shoot-ID-Muster).
+	add("FTV/alana-00007127-07-1080p.mp4", 1920, 1080, 410)
+	add("FTV/alana-00007128-01-1080p.mp4", 1920, 1080, 410)
 	// Paar in einem ANDEREN Ordner (Scoping-Test)
 	add("Other/clip.mp4", 1920, 1080, 500)
 	add("Other/clip.wmv", 1920, 1080, 500)
@@ -107,6 +111,8 @@ func TestSimilarNameDupes(t *testing.T) {
 		"Siterips/Massage/1-massage_solo.mp4",
 		"Siterips/Massage/1-massage_aj_mg18_lowres.mp4",
 		"Siterips/Massage/1-massage_aj_mg18_long.mp4",
+		"FTV/alana-00007127-07-1080p.mp4",
+		"FTV/alana-00007128-01-1080p.mp4",
 	}
 	for _, w := range wantAbsent {
 		if _, ok := got[w]; ok {
