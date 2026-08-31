@@ -169,15 +169,21 @@ async function loadItemsBody() {
       items = await api(`/api/playlists/${state.currentPlaylist}/items?${params}`);
     } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
-    // Client-seitige Filter anwenden (Suche/Favorit/Watched)
+    // Client-seitige Filter anwenden (Suche/Favorit/Watched/Bewertung)
     const q = $("#searchInput").value.trim().toLowerCase();
     const wat = $("#watchedFilter").value;
     const fav = currentFavoriteMode();
+    const rat = currentRatingFilter();
     items = items.filter(it => {
       if (q && !(it.title || "").toLowerCase().includes(q) && !((it.metadata && it.metadata.title) || "").toLowerCase().includes(q)) return false;
       if (wat === "yes" && !it.watched) return false;
       if (wat === "no" && it.watched) return false;
       if (fav === "yes" && !it.favorite) return false;
+      const r = it.rating || 0;
+      if (rat === "unrated" && r !== 0) return false;
+      if (rat === "min1" && r < 1) return false;
+      if (rat === "min2" && r < 2) return false;
+      if (rat === "exact3" && r < 3) return false;
       return true;
     });
     if ($("#sortSelect").value === "shuffle") shuffleInPlace(items);
@@ -359,6 +365,7 @@ async function loadItemsBody() {
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     const fav = currentFavoriteMode(); if (fav) p.set("favorite", fav);
     applyResolutionFilter(p);
+    applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
     try { items = await apiGetCached(`/api/items?${p}`); }
@@ -526,6 +533,7 @@ async function loadItemsBody() {
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     const fav = currentFavoriteMode(); if (fav) p.set("favorite", fav);
     applyResolutionFilter(p);
+    applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
     try { items = await apiGetCached(`/api/items?${p}`); }
@@ -644,6 +652,7 @@ async function loadItemsBody() {
     if (searchQ) p.set("search", searchQ);
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     applyResolutionFilter(p);
+    applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
     try { items = await apiGetCached(`/api/items?${p}`); }
@@ -685,6 +694,7 @@ async function loadItemsBody() {
     if (searchQ) p.set("search", searchQ);
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     applyResolutionFilter(p);
+    applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
     try { items = await apiGetCached(`/api/items?${p}`); }
@@ -754,6 +764,7 @@ async function loadItemsBody() {
   const match = matchMode;
   if (match) params.set("match", match);
   applyResolutionFilter(params);
+  applyRatingFilter(params);
   // Clear-X nur sichtbar bei nicht-leerem Suchfeld
   $("#searchClear").classList.toggle("hidden", searchQ === "");
 
@@ -764,6 +775,7 @@ async function loadItemsBody() {
   // Filter zählen zur "Treffer-Anzeige" genauso wie die Suche
   const filterActive = searching
     || !!$("#watchedFilter").value
+    || !!currentRatingFilter()
     || !!currentFavoriteMode()
     || !!currentMatchMode()
     || state.resBuckets.size > 0;

@@ -286,7 +286,7 @@ function shuffleInPlace(arr) {
 
 // Setzt alle Suche/Filter-Kontrollen zurück (beim Library-Wechsel).
 function resetFilters() {
-  const inputs = ["#searchInput", "#watchedFilter", "#sortSelect"];
+  const inputs = ["#searchInput", "#watchedFilter", "#ratingFilter", "#sortSelect"];
   for (const sel of inputs) {
     const el = $(sel);
     if (!el) continue;
@@ -756,6 +756,17 @@ function applyResolutionFilter(params) {
   for (const b of state.resBuckets) params.append("bucket", b);
 }
 
+// Persönliche-Sternebewertung-Filter (`#ratingFilter`): unrated/min1/min2/exact3
+// als `rating=` an /api/items. Additiv, wirkt in der normalen Grid-Ansicht wie
+// der Gesehen-Filter.
+function applyRatingFilter(params) {
+  const v = $("#ratingFilter") && $("#ratingFilter").value;
+  if (v) params.set("rating", v);
+}
+function currentRatingFilter() {
+  return ($("#ratingFilter") && $("#ratingFilter").value) || "";
+}
+
 function setupResolutionDropdown() {
   const btn = $("#resDropdownBtn");
   const panel = $("#resDropdown");
@@ -1099,6 +1110,7 @@ function wire() {
   });
   updateSortDirIcon();
   $("#watchedFilter").addEventListener("change", loadItems);
+  { const rf = $("#ratingFilter"); if (rf) rf.addEventListener("change", loadItems); }
   setupResolutionDropdown();
   $("#flatViewBtn").addEventListener("click", () => {
     state.flatView = !state.flatView;
