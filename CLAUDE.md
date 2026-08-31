@@ -718,8 +718,15 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - Erst-Setup bei leerer `users`-Tabelle: `/login.html` zeigt Setup-Formular; der erste
   Account wird automatisch Admin.
 - Login per bcrypt; Session-Token in HttpOnly-Cookie (SameSite=Lax).
-- **ACL:** Admins sehen alle Libraries. Non-Admins nur die in `user_library_acl` gelisteten.
-  `requireLibAccess(w, r, libID)` wird in jedem Item-/Stream-/Transcode-Handler aufgerufen.
+- **ACL:** Non-Admins sehen nur die in `user_library_access` gelisteten Libs.
+  **Admins:** OHNE eigene ACL-Zeile → alle Libraries; MIT expliziter ACL-Liste
+  → nur diese Liste (User-Wunsch 2026-08-31 — auch Admins sollen Bibliotheken
+  ausblenden können). Entscheider: `Store.UserHasExplicitLibraryACL(userID)`,
+  angewandt in `UserHasLibraryAccess`, `ListLibrariesForUser` UND dem zentralen
+  `ListItems`-ACL-Block (dort per `NOT EXISTS(…) OR library_id IN(…)`).
+  `requireLibAccess(w, r, libID)` wird in jedem Item-/Stream-/Transcode-Handler
+  aufgerufen. Der ACL-Editor holt die Gesamtliste über `/api/libraries?all=1`
+  (admin-only). Test: `internal/store/acl_test.go`.
 - Nutzerverwaltung (anlegen, Passwort ändern, Admin togglen, ACL bearbeiten) in der UI
   unter Settings → Benutzer (nur Admins).
 - Watched + Favorite sind **pro User** (`user_item_state`), nicht pro Item.

@@ -192,11 +192,17 @@ async function handleNewUser(e) {
 
 async function openUserAcl(u) {
   const [allLibs, userIDs] = await Promise.all([
-    api("/api/libraries"),
+    api("/api/libraries?all=1"),
     api(`/api/users/${u.id}/libraries`),
   ]);
   const granted = new Set(userIDs);
   $("#userAclTitle").textContent = `Bibliothek-Zugriff für "${u.username}"`;
+  const hint = $("#userAclHint");
+  if (hint) {
+    hint.textContent = u.isAdmin
+      ? "Admin: Ohne Auswahl (nichts angehakt) sieht dieser Admin ALLE Bibliotheken. Sobald mindestens eine angehakt ist, gilt genau diese Liste — auch für den Admin."
+      : "Angehakte Bibliotheken sind für diesen Benutzer sichtbar. Keine Auswahl = kein Zugriff.";
+  }
   const list = $("#userAclList");
   list.innerHTML = "";
   for (const l of allLibs) {
@@ -218,6 +224,13 @@ async function openUserAcl(u) {
     list.querySelectorAll("input[type=checkbox]").forEach(cb => {
       if (cb.checked) ids.push(Number(cb.dataset.libId));
     });
+    // Sich selbst als Admin auf eine Teilmenge einschränken: bewusst bestätigen
+    // lassen (man würde sich sonst aus Bibliotheken aussperren; Rückweg nur
+    // über diese Benutzerverwaltung).
+    if (u.id === (state.me && state.me.id) && u.isAdmin && ids.length > 0
+        && ids.length < list.querySelectorAll("input[type=checkbox]").length) {
+      if (!await appConfirm("Du schränkst deinen EIGENEN Admin-Zugriff auf diese Auswahl ein. Fortfahren?")) return;
+    }
     try {
       await api(`/api/users/${u.id}/libraries`, { method: "PUT", body: JSON.stringify({ libraryIds: ids }) });
       $("#userAclDialog").close();

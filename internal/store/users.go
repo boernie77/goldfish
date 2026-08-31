@@ -302,10 +302,28 @@ func (s *Store) SetUserLibraryAccess(userID int64, libIDs []int64) error {
 	return tx.Commit()
 }
 
-// UserHasLibraryAccess: Admins haben immer Zugriff, sonst nur über ACL.
+// UserHasExplicitLibraryACL: true, sobald für den User MINDESTENS eine
+// user_library_access-Zeile existiert. Bestimmt, ob die ACL auch für einen
+// Admin greift (User-Wunsch 2026-08-31: "auch bei Admins will ich Bibliotheken
+// ausblenden können"). Admin OHNE Zeile → sieht weiterhin alles (kompatibel).
+func (s *Store) UserHasExplicitLibraryACL(userID int64) (bool, error) {
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM user_library_access WHERE user_id = ?`, userID).Scan(&n)
+	return n > 0, err
+}
+
+// UserHasLibraryAccess: Non-Admin → nur über ACL. Admin → alles, ES SEI DENN
+// er hat eine explizite ACL-Liste, dann gilt auch für ihn nur diese Liste.
 func (s *Store) UserHasLibraryAccess(userID, libID int64, isAdmin bool) (bool, error) {
 	if isAdmin {
-		return true, nil
+		explicit, err := s.UserHasExplicitLibraryACL(userID)
+		if err != nil {
+			return false, err
+		}
+		if !explicit {
+			return true, nil
+		}
 	}
 	var n int
 	err := s.db.QueryRow(
@@ -474,10 +492,17 @@ func (s *Store) MigrateLegacyItemStateToUser(userID int64) error {
 	return err
 }
 
-// ListLibrariesForUser filtert Libraries basierend auf ACL.
+// ListLibrariesForUser filtert Libraries basierend auf ACL. Ein Admin OHNE
+// explizite ACL sieht alle; ein Admin MIT expliziter ACL nur seine Liste.
 func (s *Store) ListLibrariesForUser(userID int64, isAdmin bool) ([]model.Library, error) {
 	if isAdmin {
-		return s.ListLibraries()
+		explicit, err := s.UserHasExplicitLibraryACL(userID)
+		if err != nil {
+			return nil, err
+		}
+		if !explicit {
+			return s.ListLibraries()
+		}
 	}
 	rows, err := s.db.Query(`
 		SELECT l.id, l.name, l.path, l.kind, l.created_at

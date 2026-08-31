@@ -1084,9 +1084,20 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	// umgehender Sperrpunkt für JEDEN nicht-Admin-Aufruf mit echter UserID, unabhängig
 	// davon, ob/wie der Aufrufer schon eingeschränkt hat (rein additiv, kein Widerspruch
 	// zu einer bereits vorhandenen, engeren Einschränkung oben).
-	if f.UserID > 0 && !f.IsAdmin {
-		q += ` AND i.library_id IN (SELECT library_id FROM user_library_access WHERE user_id = ?)`
-		args = append(args, f.UserID)
+	if f.UserID > 0 {
+		if f.IsAdmin {
+			// Admin: nur einschränken, wenn eine explizite ACL-Liste existiert
+			// (User-Wunsch 2026-08-31 — auch Admins sollen Bibliotheken
+			// ausblenden können). Ohne Zeilen: keine Einschränkung.
+			q += ` AND (
+				NOT EXISTS (SELECT 1 FROM user_library_access WHERE user_id = ?)
+				OR i.library_id IN (SELECT library_id FROM user_library_access WHERE user_id = ?)
+			)`
+			args = append(args, f.UserID, f.UserID)
+		} else {
+			q += ` AND i.library_id IN (SELECT library_id FROM user_library_access WHERE user_id = ?)`
+			args = append(args, f.UserID)
+		}
 	}
 	if f.Search != "" {
 		pattern := "%" + f.Search + "%"

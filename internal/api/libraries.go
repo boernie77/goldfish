@@ -15,6 +15,21 @@ func (s *Server) listLibraries(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "nicht angemeldet")
 		return
 	}
+	// ?all=1 (nur Admin): ungefilterte Gesamtliste — für den ACL-Editor, der
+	// jede Bibliothek zum An-/Abhaken zeigen muss, auch wenn der bearbeitende
+	// Admin selbst eine eingeschränkte ACL hat.
+	if r.URL.Query().Get("all") == "1" && me.IsAdmin {
+		all, err := s.Store.ListLibraries()
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		if all == nil {
+			all = []model.Library{}
+		}
+		writeJSON(w, 200, all)
+		return
+	}
 	libs, err := s.Store.ListLibrariesForUser(me.ID, me.IsAdmin)
 	if err != nil {
 		writeError(w, 500, err.Error())
