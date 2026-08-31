@@ -5,7 +5,6 @@
 package ocrsub
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -132,7 +131,6 @@ func (w *Worker) processItem(ctx context.Context, itemID int64) ([]string, error
 	return nil, fmt.Errorf("Bild-Untertitel-OCR aktuell nur für .mkv/.mks (Quelle: %s)", ext)
 }
 
-var reSrtTime = regexp.MustCompile(`(\d{2}:\d{2}:\d{2}),(\d{3})`)
 
 // normalizeLang: pgsrips Ausgabe-Sprachcode (de/deu/ger/…) → unser IETF-Set.
 func normalizeLang(raw string) string {
@@ -240,28 +238,88 @@ func (w *Worker) pgsripContainer(ctx context.Context, sourcePath, ext string, la
 	return produced, nil
 }
 
-// srtFileToVTT liest eine SRT und schreibt WebVTT (Header + Komma→Punkt).
+// reCueLine: eine WebVTT/SRT-Timing-Zeile, tolerant (1–2-stellige Stunden,
+// `,` oder `.` als Millisekunden-Trenner, beliebiger Text hinter dem Endstempel).
+var reCueLine = regexp.MustCompile(`^(\d{1,2}:\d{2}:\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2})[,.](\d{1,3})`)
+
+// srtFileToVTT parst eine (pgsrip/Tesseract-)SRT robust in blockweise Cues und
+// schreibt sauberes WebVTT. Verworfen werden: BOM, reine Index-Zeilen,
+// `{\an8}`-/`<font>`-Steuertags, Blöcke ohne gültigen Zeitstempel. Fehlt jede
+// Cue → Fehler (Job gilt dann als „failed", nicht „done").
 func srtFileToVTT(srtPath, outVTT string) error {
-	srt, err := os.ReadFile(srtPath)
+	raw, err := os.ReadFile(srtPath)
 	if err != nil {
 		return err
 	}
+	text := strings.TrimPrefix(string(raw), "\uFEFF")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+
 	var b strings.Builder
 	b.WriteString("WEBVTT\n\n")
-	sc := bufio.NewScanner(strings.NewReader(string(srt)))
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for sc.Scan() {
-		line := sc.Text()
-		if strings.Contains(line, "-->") {
-			line = reSrtTime.ReplaceAllString(line, "$1.$2")
+	cues := 0
+
+	for _, block := range strings.Split(text, "\n\n") {
+		lines := strings.Split(strings.TrimSpace(block), "\n")
+		var timing string
+		var payload []string
+		for _, ln := range lines {
+			ln = strings.TrimSpace(ln)
+			if ln == "" {
+				continue
+			}
+			if timing == "" {
+				if m := reCueLine.FindStringSubmatch(ln); m != nil {
+					timing = fmt.Sprintf("%s.%s --> %s.%s",
+						m[1], pad3(m[2]), m[3], pad3(m[4]))
+					continue
+				}
+				// reine Index-Zeile (nur Ziffern) vor dem Timing → überspringen
+				if isDigits(ln) {
+					continue
+				}
+				// alles andere vor dem Timing ignorieren
+				continue
+			}
+			payload = append(payload, cleanCueText(ln))
 		}
-		b.WriteString(line)
+		if timing == "" || len(payload) == 0 {
+			continue
+		}
+		b.WriteString(timing)
 		b.WriteByte('\n')
+		b.WriteString(strings.Join(payload, "\n"))
+		b.WriteString("\n\n")
+		cues++
 	}
-	if strings.TrimSpace(b.String()) == "WEBVTT" {
-		return fmt.Errorf("leer")
+	if cues == 0 {
+		return fmt.Errorf("keine verwertbaren Untertitel-Zeilen in der OCR-Ausgabe")
 	}
 	return os.WriteFile(outVTT, []byte(b.String()), 0o644)
+}
+
+func pad3(s string) string {
+	for len(s) < 3 {
+		s += "0"
+	}
+	return s[:3]
+}
+func isDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+var reFontTag = regexp.MustCompile(`</?font[^>]*>`)
+var reAssTag = regexp.MustCompile(`\{\\[^}]*\}`)
+
+func cleanCueText(s string) string {
+	s = reFontTag.ReplaceAllString(s, "")
+	s = reAssTag.ReplaceAllString(s, "")
+	return strings.TrimSpace(s)
 }
 
 func isAlpha(s string) bool {

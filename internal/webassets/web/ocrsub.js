@@ -164,7 +164,16 @@ async function refreshOCRSubJobTab() {
   }
   logEl.innerHTML = jobs.map(j => {
     const name = j.relPath || j.title || `Item ${j.itemId}`;
-    const langs = j.langs ? ` → ${escapeHTML(j.langs)}` : "";
+    let langs = "";
+    if (j.langs) {
+      // Bei fertigen Jobs: pro Sprache ein Link auf die erzeugte VTT (Diagnose).
+      const parts = j.langs.split(",").map(l => l.trim()).filter(Boolean).map(l =>
+        state.ocrSubTab === "done"
+          ? `<a href="/api/ocr-subtitle/${j.itemId}/${encodeURIComponent(l)}.vtt" target="_blank" rel="noopener">${escapeHTML(l)}</a>`
+          : escapeHTML(l)
+      );
+      langs = ` → ${parts.join(", ")}`;
+    }
     const err = (state.ocrSubTab === "failed" && j.error)
       ? `<div class="err">✗ ${escapeHTML(j.error)}</div>` : "";
     const retryBtn = (state.ocrSubTab === "failed" || state.ocrSubTab === "done")
