@@ -566,12 +566,12 @@ Standard-Go-Projektlayout (`cmd/`, `internal/<paket>/`, `scripts/`, `.github/wor
 HTML/CSS. Die Lade-Reihenfolge in `index.html` ist relevant, weil spaetere
 Module Funktionen aus frueheren nutzen.
 
-14 Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, admin, playlists, scan, matching, whisper, introskip) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar.
+Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, admin, playlists, scan, matching, whisper, introskip, ocrsub) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar.
 
 
 **Lade-Reihenfolge in index.html:**
 ```
-helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → introskip → app
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → introskip → ocrsub → app
 ```
 
 Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (−82 %)**. Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed + im Browser getestet.
@@ -1606,6 +1606,54 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   POST /api/whisper/download-model          {model:"ggml-tiny|base|small|medium"}
   GET  /api/whisper/download-status
   ```
+
+### OCR-Untertitel (Bild-Untertitel → Text, seit 2026-08-31)
+
+- **Zweck:** PGS/VOBSUB/DVB-Bild-Untertitel (typisch bei Blu-ray-Rips, z.B.
+  Kill Bill) lassen sich nicht per `ffmpeg -c:s webvtt` in Text wandeln. Dieser
+  Worker macht daraus per **Tesseract-OCR** (`pgsrip`) einbindbare WebVTT-
+  Textuntertitel. Läuft einmalig pro Datei, darf lange dauern.
+- **Struktur analog `internal/introskip`:** eigenes Paket `internal/ocrsub`
+  (`worker.go` + `ocr.go`), Opt-in pro **Bibliothek** (`ocr_sub_folders`,
+  `folder=""` = ganze Lib — der User wählt „Filme"/„Serien" per Checkbox),
+  globaler An/Aus (`settings.ocr_subs_enabled`), Job-Tabelle `ocr_sub_jobs`
+  (ein Job pro Item, Status pending/running/done/failed, `langs`).
+- **Pipeline pro Item** (`processItem`): `Store.ItemBitmapSubStreams` liefert
+  die Bild-Untertitel-Streams (Codec ∈ `BitmapSubCodecs`); pro Stream:
+  `ffmpeg -map 0:N -c:s copy x.sup` → `pgsrip --language <ietf> --force x.sup`
+  → `x.<ietf>.srt` → SRT→VTT (Header + Komma→Punkt) →
+  `/config/generated-subs/{itemID}/{ietf}-ocr.vtt`. Pro Sprache nur der erste
+  Stream. Timeout 45 min/Item. Pausiert während Library-Scans
+  (`SetPauseCheck`, wie introskip).
+- **Auto-Enqueue:** `ocrSubWorker.EnqueueNewItems()` im `sc.OnComplete`-Hook —
+  neue Dateien mit Bild-Untertiteln in aktivierten Libs kommen nach jedem
+  Scan automatisch dazu (`EnqueueOCRSubBacklog` = alle Items in aktiven
+  Ordnern mit Bild-Sub-Stream ohne Job).
+- **Player:** `playbackInfo` hängt für jede vorhandene `{lang}-ocr.vtt` einen
+  Stream `codec=webvtt-ocr` an (Titel „📝 <Sprache> (OCR)"). `applySubtitleChoice`
+  in `player.js` lädt die über `/api/ocr-subtitle/{id}/{lang}.vtt`. Wählt der
+  User einen (noch nicht OCR-ten) Bild-Untertitel, kommt ein Toast-Hinweis
+  aufs Zahnrad-Menü.
+- **Docker:** Runtime-Stage installiert `tesseract-ocr` + `-deu/-eng/-ita` +
+  `mkvtoolnix` + `python3-pip`, dann `pip3 install --break-system-packages
+  pgsrip`. Fehlt `pgsrip` im Image (`exec.LookPath`), no-opt der Worker
+  (`toolMissing` im Status → UI warnt).
+- **Endpoints (alle admin):**
+  ```
+  GET  /api/ocrsubs/status                    (enabled, running, counts, toolMissing)
+  PUT  /api/ocrsubs/settings                  {enabled}
+  GET  /api/ocrsubs/folders                   (Libs + enabled-Flag)
+  PUT  /api/ocrsubs/folders                   {libraryId, folder, enabled}
+  GET  /api/ocrsubs/log?status=pending|running|done|failed
+  POST /api/ocrsubs/run                       ("alle jetzt erzeugen") → {queued}
+  POST /api/ocrsubs/retry-failed
+  POST /api/ocrsubs/items/{id}/retry
+  GET  /api/ocr-subtitle/{id}/{lang}.vtt      (serviert die erzeugte VTT)
+  ```
+- **UI:** Zahnrad-Menü „📝 OCR-Untertitel erzeugen" → `#ocrSubDialog`
+  (`ocrsub.js`), Aufbau wie der Intro-Erkennung-Dialog (Toggle +
+  Bibliotheks-Checkboxen + Job-Tabs, `.tp-tab`-Klassen wiederverwendet,
+  5-s-Poll solange offen).
 
 ### Glocke / Benachrichtigungen (seit 2026-05-05)
 

@@ -36,6 +36,7 @@ function renderUserMenu() {
   $("#settingsMenuTrickplay").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuWhisper").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuIntroSkip").classList.toggle("hidden", !state.me.isAdmin);
+  { const el = $("#settingsMenuOCRSubs"); if (el) el.classList.toggle("hidden", !state.me.isAdmin); }
   $("#settingsMenuPathSearch").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuMissing").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuRefreshAllMeta").classList.toggle("hidden", !state.me.isAdmin);

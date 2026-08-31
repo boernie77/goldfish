@@ -11,6 +11,7 @@ import (
 
 	"github.com/boernie77/goldfish/internal/enrich"
 	"github.com/boernie77/goldfish/internal/introskip"
+	"github.com/boernie77/goldfish/internal/ocrsub"
 	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/boernie77/goldfish/internal/scanner"
 	"github.com/boernie77/goldfish/internal/store"
@@ -27,6 +28,7 @@ type Server struct {
 	Trickplay *trickplay.Worker
 	Whisper   *whisper.Worker
 	IntroSkip *introskip.Worker
+	OCRSub    *ocrsub.Worker
 	SubsDir   string    // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
 	ConfigDir string    // z.B. /config — Basis für alle persistenten Daten
 	PosterDir string    // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
@@ -214,6 +216,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/items/{id}/subtitle-jobs", s.subtitleJobs)
 		r.Delete("/items/{id}/subtitle/{lang}", requireAdmin(s.deleteSubtitle))
 		r.Get("/generated-subtitle/{id}/{lang}.vtt", s.serveGeneratedSubtitle)
+		r.Get("/ocr-subtitle/{id}/{lang}.vtt", s.serveOCRSubtitle)
 		r.Get("/whisper/status", s.whisperStatus)
 		r.Get("/whisper/settings", requireAdmin(s.whisperGetSettings))
 		r.Put("/whisper/settings", requireAdmin(s.whisperSaveSettings))
@@ -245,6 +248,16 @@ func (s *Server) Router() http.Handler {
 		r.Get("/introskip/log", requireAdmin(s.introSkipLog))
 		r.Post("/introskip/folders/{id}/retry", requireAdmin(s.retryIntroSkipFolder))
 		r.Post("/introskip/retry-failed", requireAdmin(s.retryFailedIntroSkip))
+
+		// OCR-Untertitel (Bild-Untertitel PGS/VOBSUB → Text per Tesseract)
+		r.Get("/ocrsubs/status", requireAdmin(s.ocrSubStatus))
+		r.Put("/ocrsubs/settings", requireAdmin(s.ocrSubSetEnabled))
+		r.Get("/ocrsubs/folders", requireAdmin(s.ocrSubListFolders))
+		r.Put("/ocrsubs/folders", requireAdmin(s.ocrSubSetFolder))
+		r.Get("/ocrsubs/log", requireAdmin(s.ocrSubLog))
+		r.Post("/ocrsubs/run", requireAdmin(s.ocrSubRunAll))
+		r.Post("/ocrsubs/retry-failed", requireAdmin(s.ocrSubRetryFailed))
+		r.Post("/ocrsubs/items/{id}/retry", requireAdmin(s.ocrSubRetryItem))
 	})
 
 	// Static frontend mit Cache-Control. Da wir kein Hash-Versioning haben,
@@ -292,7 +305,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.0.1"
+const appVersion = "1.0.2"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

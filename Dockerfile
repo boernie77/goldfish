@@ -63,7 +63,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libgomp1 \
       libopenblas0 \
       libchromaprint-tools \
+      tesseract-ocr \
+      tesseract-ocr-deu \
+      tesseract-ocr-eng \
+      tesseract-ocr-ita \
+      mkvtoolnix \
+      python3 \
+      python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# pgsrip: PGS/VOBSUB-Bild-Untertitel → SRT per Tesseract-OCR (internal/ocrsub).
+# --break-system-packages: Debian bookworm ist PEP-668-„externally managed".
+RUN pip3 install --no-cache-dir --break-system-packages pgsrip
 
 # nvidia-smi wird NICHT im Image installiert — es wird vom Host via
 # nvidia-container-runtime gemountet, sobald NVIDIA_DRIVER_CAPABILITIES

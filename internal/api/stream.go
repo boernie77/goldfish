@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/boernie77/goldfish/internal/model"
+	"github.com/boernie77/goldfish/internal/ocrsub"
 	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/boernie77/goldfish/internal/whisper"
 )
@@ -109,6 +110,20 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 				Title:    whisperSubStreamLabel(job.Language),
 			})
 		}
+	}
+	// OCR-Untertitel (Bild-Untertitel → Text, internal/ocrsub): eine
+	// {lang}-ocr.vtt pro erkannte Sprache. Wahrheits-Anker ist die Datei.
+	for oi, lang := range []string{"de", "en", "it", "fr", "es", "nl", "pt"} {
+		if _, statErr := os.Stat(ocrsub.VTTPath(s.ConfigDir, it.ID, lang)); statErr != nil {
+			continue
+		}
+		streams = append(streams, model.ItemStream{
+			Index:    2100 + oi,
+			Type:     "subtitle",
+			Codec:    "webvtt-ocr",
+			Language: lang,
+			Title:    "📝 " + whisperLangLabel(lang) + " (OCR)",
+		})
 	}
 	isInterlaced := playback.IsInterlaced(it)
 	deinterlaceParam := q.Get("deinterlace")

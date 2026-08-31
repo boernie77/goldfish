@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/boernie77/goldfish/internal/enrich"
 	"github.com/boernie77/goldfish/internal/introskip"
 	"github.com/boernie77/goldfish/internal/nameparser"
+	"github.com/boernie77/goldfish/internal/ocrsub"
 	"github.com/boernie77/goldfish/internal/omdb"
 	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/boernie77/goldfish/internal/scanner"
@@ -85,6 +87,16 @@ func main() {
 	introSkipWorker.SetPauseCheck(func() bool { return sc.Status().Running })
 	go introSkipWorker.Run(workerCtx)
 
+	// OCR-Untertitel-Worker (Bild-Untertitel PGS/VOBSUB → Text per Tesseract).
+	// `pgsrip` kommt aus dem Image (Dockerfile) — fehlt es, no-opt der Worker.
+	pgsripPath, _ := exec.LookPath("pgsrip")
+	if pgsripPath == "" {
+		log.Printf("[ocrsub] pgsrip nicht gefunden — OCR-Untertitel deaktiviert")
+	}
+	ocrSubWorker := ocrsub.New(db, configDir, "ffmpeg", pgsripPath)
+	ocrSubWorker.SetPauseCheck(func() bool { return sc.Status().Running })
+	go ocrSubWorker.Run(workerCtx)
+
 	// Nach jedem Scan alle Hintergrund-Worker anstoßen.
 	// `EnrichAllFoldersNow` arbeitet den TV-Backlog folder-weise ab, damit bei
 	// mehreren tausend unmatched Items die Queue-Reihenfolge des 5-Min-Tickers
@@ -94,6 +106,7 @@ func main() {
 		enricher.EnrichAllFoldersNow()
 		trickplayWorker.Trigger()
 		introSkipWorker.EnqueueStaleFolders()
+		ocrSubWorker.EnqueueNewItems()
 	})
 
 	oidcCfg := api.OIDCConfig{
@@ -117,6 +130,7 @@ func main() {
 		Trickplay: trickplayWorker,
 		Whisper:   whisperWorker,
 		IntroSkip: introSkipWorker,
+		OCRSub:    ocrSubWorker,
 		SubsDir:   filepath.Join(configDir, "subs"),
 		ConfigDir: configDir,
 		PosterDir: filepath.Join(configDir, "posters"),

@@ -117,6 +117,27 @@ func (s *Store) migrate() error {
 			UNIQUE(library_id, folder)
 		)`,
 		`CREATE INDEX IF NOT EXISTS intro_skip_jobs_status_idx ON intro_skip_jobs(status)`,
+		// ocr_sub_folders: Opt-in-Set für die OCR-Untertitel-Erzeugung. folder=""
+		// = ganze Bibliothek (z.B. "Filme"), sonst ein Top-Level-Ordner. Zeilen-
+		// Existenz = aktiviert.
+		`CREATE TABLE IF NOT EXISTS ocr_sub_folders (
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			PRIMARY KEY (library_id, folder)
+		)`,
+		// ocr_sub_jobs: ein Job pro Item. Der Worker sucht die Bild-Untertitel-
+		// Streams (PGS/VOBSUB) und OCR-t jeden in eine <lang>-ocr.vtt.
+		`CREATE TABLE IF NOT EXISTS ocr_sub_jobs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+			status TEXT NOT NULL DEFAULT 'pending',
+			langs TEXT NOT NULL DEFAULT '',
+			error TEXT,
+			started_at DATETIME,
+			finished_at DATETIME,
+			UNIQUE(item_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS ocr_sub_jobs_status_idx ON ocr_sub_jobs(status)`,
 		`CREATE TABLE IF NOT EXISTS folder_nav (
 			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
 			folder TEXT NOT NULL,

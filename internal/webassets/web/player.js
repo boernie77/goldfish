@@ -1319,19 +1319,23 @@ function applySubtitleChoice(vjs, item, subs) {
 
   const sub = subs.find(s => String(s.index) === subChoice);
   // Bild-Untertitel (PGS/VOBSUB/DVB): der Server kann sie nicht nach WebVTT
-  // wandeln (`-c:s webvtt` scheitert) → gar kein Track. Statt still nichts zu
-  // tun, klar erklären. Ausweg: KI-Untertitel (🎤) generieren.
+  // wandeln → gar kein Track. Hinweis auf die OCR-Erzeugung im Zahnrad-Menü.
+  // Eine bereits erzeugte OCR-Fassung taucht als eigener „📝 … (OCR)"-Eintrag
+  // im Dropdown auf (codec webvtt-ocr).
   if (sub && isBitmapSub(sub.codec)) {
-    showToast("Dieser Untertitel ist ein Bild-Untertitel (" + (sub.codec || "PGS") +
-      ") und kann nicht als Text eingeblendet werden. Alternative: über 🎤 einen KI-Untertitel erzeugen.",
-      { kind: "info", duration: 7000 });
+    showToast("Bild-Untertitel (" + (sub.codec || "PGS") + ") koennen nicht direkt eingeblendet werden. " +
+      "Im Zahnrad-Menue unter 'OCR-Untertitel erzeugen' lassen sie sich per Texterkennung im Hintergrund " +
+      "erstellen — danach erscheinen sie hier als 'OCR'-Eintrag.",
+      { kind: "info", duration: 8000 });
     $("#subSelect").value = "";
     return;
   }
   const label = (sub && sub.title) || (sub && sub.language && sub.language.toUpperCase()) || "Untertitel";
   const subSrc = (sub && sub.codec === "webvtt-generated")
     ? `/api/generated-subtitle/${item.id}/${sub.language}.vtt`
-    : `/api/subtitle/${item.id}/${subChoice}.vtt`;
+    : (sub && sub.codec === "webvtt-ocr")
+      ? `/api/ocr-subtitle/${item.id}/${sub.language}.vtt`
+      : `/api/subtitle/${item.id}/${subChoice}.vtt`;
 
   vjs.addRemoteTextTrack({
     kind: "subtitles",

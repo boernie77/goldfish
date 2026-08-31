@@ -1245,6 +1245,7 @@ function wire() {
       case "trickplay": openTrickplayManager(); break;
       case "whisper":   openWhisperDialog(); break;
       case "introskip": openIntroSkipDialog(); break;
+      case "ocrsubs": openOCRSubDialog(); break;
       case "pathsearch": openPathSearch(); break;
       case "missing": openMissingDialog(); break;
       case "refreshallmeta": runRefreshAllMetadata(); break;

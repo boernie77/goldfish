@@ -214,6 +214,13 @@
         <span class="drawer-item-sub">Vorspann automatisch überspringen</span>
       </span>
     </button>
+    <button class="drawer-item" data-action="ocrsubs" id="settingsMenuOCRSubs">
+      <span class="drawer-icon">📝</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">OCR-Untertitel erzeugen</span>
+        <span class="drawer-item-sub">Bild-Untertitel (PGS) → Text, im Hintergrund</span>
+      </span>
+    </button>
     <button class="drawer-item" data-action="refreshallmeta" id="settingsMenuRefreshAllMeta">
       <span class="drawer-icon">↻</span>
       <span class="drawer-text">
@@ -747,6 +754,39 @@
   </div>
 </dialog>
 
+<!-- OCR-Untertitel: Bild-Untertitel (PGS/VOBSUB) per Tesseract in Text wandeln -->
+<dialog id="ocrSubDialog" class="modal trickplay-modal">
+  <h2>📝 OCR-Untertitel erzeugen</h2>
+  <p class="hint">Wandelt Bild-Untertitel (PGS/VOBSUB, typisch bei Blu-ray-Rips) per Texterkennung
+    im Hintergrund in einblendbare Text-Untertitel. Läuft einmalig pro Datei und darf lange dauern;
+    neue Dateien mit Bild-Untertiteln in den aktivierten Bibliotheken werden nach jedem Scan
+    automatisch hinzugefügt. Ergebnis erscheint im Player-Untertitel-Menü als „📝 … (OCR)".</p>
+  <p class="hint" id="ocrSubToolWarn" style="color:#f59e0b;display:none">
+    ⚠ Das OCR-Werkzeug (pgsrip/tesseract) ist in diesem Server-Image nicht vorhanden — Funktion inaktiv.</p>
+  <label class="switch-row">
+    <span>OCR-Verarbeitung aktiviert</span>
+    <span class="switch"><input id="ocrSubGlobalToggle" type="checkbox" /><span class="slider"></span></span>
+  </label>
+  <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">Bibliotheken auswählen</h3>
+  <ul id="ocrSubFolderList" class="introskip-folder-list"></ul>
+  <div class="row" style="margin:8px 0;gap:8px;flex-wrap:wrap">
+    <button type="button" id="ocrSubRunAllBtn" class="tp-tab primary">▶ Alle jetzt erzeugen</button>
+  </div>
+  <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">Aufträge</h3>
+  <div class="row" style="margin:8px 0">
+    <button type="button" data-tp-tab="pending" class="tp-tab primary" data-ocrsub-tab>Warteschlange</button>
+    <button type="button" data-tp-tab="running" class="tp-tab" data-ocrsub-tab>Läuft</button>
+    <button type="button" data-tp-tab="done" class="tp-tab" data-ocrsub-tab>Fertig</button>
+    <button type="button" data-tp-tab="failed" class="tp-tab" data-ocrsub-tab>Fehler</button>
+  </div>
+  <div id="ocrSubStatusLine" class="hint" style="margin:4px 0"></div>
+  <div id="ocrSubJobList" class="trickplay-log"></div>
+  <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+    <button type="button" id="ocrSubRetryFailedBtn">↻ Alle Fehler erneut versuchen</button>
+    <button type="button" data-close>Schließen</button>
+  </div>
+</dialog>
+
 <!-- Generisches App-Dialog-Fenster (ersetzt alert/confirm/prompt) -->
 <dialog id="appDialog" class="modal app-dialog">
   <h2 id="appDialogTitle" class="app-dialog-title"></h2>
@@ -945,6 +985,7 @@
 <script src="/matching.js" defer></script>
 <script src="/whisper.js" defer></script>
 <script src="/introskip.js" defer></script>
+<script src="/ocrsub.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>
