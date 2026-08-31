@@ -69,8 +69,19 @@ func VTTPath(configDir string, itemID int64, ietf string) string {
 	return filepath.Join(configDir, "generated-subs", fmt.Sprintf("%d", itemID), ietf+"-ocr.vtt")
 }
 
-// processItem OCR-t alle Bild-Untertitel-Streams eines Items. Rückgabe: die
-// Liste der erzeugten IETF-Sprachcodes.
+// processItem OCR-t alle Bild-Untertitel eines Items.
+//
+// Vorgehen (robust, nach den ersten Fehlversuchen 2026-08-31):
+//   - `ffmpeg -c:s copy … .sup` scheiterte reihenweise mit „[sup] Not enough
+//     data … Invalid data" — ffmpegs SUP-Muxer verträgt die PGS-Display-Sets
+//     an Stream-Grenzen nicht.
+//   - `pgsrip` bekommt daher die MKV DIREKT (über einen Symlink in /tmp, damit
+//     die erzeugte .srt nicht in /media landet). pgsrip nutzt intern
+//     `mkvextract` (sauber) und OCR-t alle passenden PGS-Spuren in einem Lauf.
+//   - Der Ausgabe-Dateiname von pgsrip ist versionsabhängig → wir GLOBBEN
+//     `<link-basename>.*.srt` statt einen Namen zu raten und normalisieren den
+//     Sprachcode aus dem Dateinamen auf unser IETF-Set.
+// Nicht-MKV-Quellen (m2ts/ts/mp4): Fallback über ffmpeg-`-f sup`-Extraktion.
 func (w *Worker) processItem(ctx context.Context, itemID int64) ([]string, error) {
 	it, err := w.store.GetItem(itemID)
 	if err != nil {
@@ -86,77 +97,131 @@ func (w *Worker) processItem(ctx context.Context, itemID int64) ([]string, error
 	if len(streams) == 0 {
 		return nil, fmt.Errorf("keine Bild-Untertitel-Streams")
 	}
-
-	outDir := filepath.Join(w.configDir, "generated-subs", fmt.Sprintf("%d", itemID))
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(w.configDir, "generated-subs", fmt.Sprintf("%d", itemID)), 0o755); err != nil {
 		return nil, err
 	}
 
-	var produced []string
-	seen := map[string]bool{}
-	var lastErr error
+	// Zielsprachen (IETF) aus den Stream-Tags. Ohne Tag → "en".
+	langSet := map[string]bool{}
 	for _, st := range streams {
-		if err := w.waitWhilePaused(ctx); err != nil {
-			return produced, err
-		}
-		tess := iso639ToTesseract(st.Language)
-		ietf := tesseractToIETF(tess)
-		if seen[ietf] {
-			continue // pro Sprache nur den ersten Stream
-		}
-		if err := w.ocrOneStream(ctx, it.Path, st.Index, tess, VTTPath(w.configDir, itemID, ietf)); err != nil {
-			lastErr = fmt.Errorf("stream %d (%s): %w", st.Index, ietf, err)
-			continue
-		}
-		seen[ietf] = true
-		produced = append(produced, ietf)
+		langSet[tesseractToIETF(iso639ToTesseract(st.Language))] = true
 	}
-	if len(produced) == 0 {
-		if lastErr != nil {
-			return nil, lastErr
-		}
-		return nil, fmt.Errorf("kein Untertitel erzeugt")
+
+	ext := strings.ToLower(filepath.Ext(it.Path))
+	if ext == ".mkv" || ext == ".mks" {
+		return w.pgsripContainer(ctx, it.Path, ext, langSet, itemID)
 	}
-	return produced, nil
+	return nil, fmt.Errorf("Bild-Untertitel-OCR aktuell nur für .mkv/.mks (Quelle: %s)", ext)
 }
 
 var reSrtTime = regexp.MustCompile(`(\d{2}:\d{2}:\d{2}),(\d{3})`)
 
-// ocrOneStream: ffmpeg extrahiert den PGS-Stream als .sup, pgsrip macht daraus
-// per Tesseract eine .srt, die wir nach WebVTT konvertieren.
-func (w *Worker) ocrOneStream(ctx context.Context, sourcePath string, streamIndex int, tessLang, outVTT string) error {
-	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("goldfish-ocr-%d-%d.sup", time.Now().UnixNano(), streamIndex))
+// normalizeLang: pgsrips Ausgabe-Sprachcode (de/deu/ger/…) → unser IETF-Set.
+func normalizeLang(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if len(raw) == 2 {
+		return raw
+	}
+	return tesseractToIETF(iso639ToTesseract(raw))
+}
+
+// pgsripContainer: MKV/MKS direkt an pgsrip (via /tmp-Symlink), dann alle
+// erzeugten .srt einsammeln.
+func (w *Worker) pgsripContainer(ctx context.Context, sourcePath, ext string, langSet map[string]bool, itemID int64) ([]string, error) {
+	base := filepath.Join(os.TempDir(), fmt.Sprintf("goldfish-ocr-%d", time.Now().UnixNano()))
+	link := base + ext
+	if err := os.Symlink(sourcePath, link); err != nil {
+		return nil, fmt.Errorf("symlink: %w", err)
+	}
 	defer func() {
-		_ = os.Remove(tmp)
-		_ = os.Remove(strings.TrimSuffix(tmp, ".sup") + "." + tessLang + ".srt")
+		_ = os.Remove(link)
+		if m, _ := filepath.Glob(base + ".*.srt"); m != nil {
+			for _, f := range m {
+				_ = os.Remove(f)
+			}
+		}
+		_ = os.Remove(base + ".srt")
 	}()
 
-	// 1. Bild-Untertitel-Stream herausziehen (Stream-Copy, Sekunden).
-	ex := exec.CommandContext(ctx, w.ffmpeg,
-		"-hide_banner", "-loglevel", "error", "-y",
-		"-i", sourcePath, "-map", fmt.Sprintf("0:%d", streamIndex),
-		"-c:s", "copy", tmp,
-	)
-	if out, err := ex.CombinedOutput(); err != nil {
-		return fmt.Errorf("ffmpeg-Extraktion: %v — %s", err, tail(string(out), 500))
+	args := []string{"--force"}
+	if len(langSet) == 0 {
+		args = append(args, "--all-languages")
+	} else {
+		for l := range langSet {
+			args = append(args, "--language", l)
+		}
 	}
-	if fi, err := os.Stat(tmp); err != nil || fi.Size() == 0 {
-		return fmt.Errorf("leere .sup-Datei (Stream ohne Inhalt?)")
+	args = append(args, link)
+	pg := exec.CommandContext(ctx, w.pgsrip, args...)
+	out, runErr := pg.CombinedOutput()
+
+	// pgsrip meldet exit!=0 auch, wenn nur EINE Sprache scheitert — daher erst
+	// die erzeugten .srt suchen, dann urteilen. pgsrip schreibt normalerweise
+	// neben den (Symlink-)Pfad; manche Versionen lösen den realpath auf und
+	// legen sie neben die Quelldatei in /media — beides abklappern + aufräumen.
+	srcBase := strings.TrimSuffix(sourcePath, ext)
+	collect := func() []string {
+		var s []string
+		for _, pat := range []string{base + ".*.srt", base + ".srt", srcBase + ".*.srt", srcBase + ".srt"} {
+			m, _ := filepath.Glob(pat)
+			s = append(s, m...)
+		}
+		return s
+	}
+	srts := collect()
+	// Alle gefundenen .srt am Ende wegräumen (auch die evtl. in /media).
+	defer func() {
+		for _, f := range collect() {
+			_ = os.Remove(f)
+		}
+	}()
+	if len(srts) == 0 {
+		return nil, fmt.Errorf("pgsrip erzeugte keine .srt (%v) — %s", runErr, tail(string(out), 900))
 	}
 
-	// 2. pgsrip: PGS → SRT per Tesseract. Schreibt <tmp-ohne-ext>.<ietf>.srt.
-	ietf := tesseractToIETF(tessLang)
-	pg := exec.CommandContext(ctx, w.pgsrip, "--language", ietf, "--force", tmp)
-	if out, err := pg.CombinedOutput(); err != nil {
-		return fmt.Errorf("pgsrip/tesseract: %v — %s", err, tail(string(out), 800))
+	// Fallback-Sprache, falls pgsrip die .srt ohne Sprach-Infix schreibt.
+	fallbackLang := "en"
+	for l := range langSet {
+		fallbackLang = l
+		break
 	}
-	srtPath := strings.TrimSuffix(tmp, ".sup") + "." + ietf + ".srt"
+
+	var produced []string
+	seen := map[string]bool{}
+	for _, srt := range srts {
+		stem := strings.TrimSuffix(filepath.Base(srt), ".srt")
+		mid := ""
+		if i := strings.LastIndex(stem, "."); i >= 0 {
+			mid = stem[i+1:]
+		}
+		lang := ""
+		if l := len(mid); (l == 2 || l == 3) && isAlpha(mid) {
+			lang = normalizeLang(mid)
+		}
+		if lang == "" {
+			lang = fallbackLang
+		}
+		if seen[lang] {
+			continue
+		}
+		if err := srtFileToVTT(srt, VTTPath(w.configDir, itemID, lang)); err != nil {
+			continue
+		}
+		seen[lang] = true
+		produced = append(produced, lang)
+	}
+	if len(produced) == 0 {
+		return nil, fmt.Errorf("keine verwertbare .srt (%v)", runErr)
+	}
+	return produced, nil
+}
+
+// srtFileToVTT liest eine SRT und schreibt WebVTT (Header + Komma→Punkt).
+func srtFileToVTT(srtPath, outVTT string) error {
 	srt, err := os.ReadFile(srtPath)
 	if err != nil {
-		return fmt.Errorf("pgsrip lieferte keine .srt: %w", err)
+		return err
 	}
-
-	// 3. SRT → WebVTT: Header + Komma→Punkt in den Zeitstempeln.
 	var b strings.Builder
 	b.WriteString("WEBVTT\n\n")
 	sc := bufio.NewScanner(strings.NewReader(string(srt)))
@@ -170,9 +235,18 @@ func (w *Worker) ocrOneStream(ctx context.Context, sourcePath string, streamInde
 		b.WriteByte('\n')
 	}
 	if strings.TrimSpace(b.String()) == "WEBVTT" {
-		return fmt.Errorf("OCR-Ergebnis leer")
+		return fmt.Errorf("leer")
 	}
 	return os.WriteFile(outVTT, []byte(b.String()), 0o644)
+}
+
+func isAlpha(s string) bool {
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
+			return false
+		}
+	}
+	return s != ""
 }
 
 func tail(s string, n int) string {
@@ -190,4 +264,3 @@ func HasBitmapSubs(s *store.Store, itemID int64) bool {
 	return err == nil && len(streams) > 0
 }
 
-var _ = context.Background
