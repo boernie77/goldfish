@@ -80,35 +80,70 @@ function streamChannelsLabel(n) {
   return `${n}ch`;
 }
 
-// streamsInfoHTML rendert Tonspuren + Untertitel eines Items als kompakte Listen
-// für den Detail-Dialog. Datenquelle: item.streams (kommt aus GetItemFor →
-// ItemStreams, wird beim Scan per ffprobe befüllt). Leerer String, wenn keine
-// Audio-/Subtitle-Streams bekannt sind (z. B. Item vor Einführung der
-// Stream-Extraktion, noch nicht neu gescannt).
-function streamsInfoHTML(item) {
-  const streams = Array.isArray(item.streams) ? item.streams : [];
+// audioOptLabel: "Deutsch · DTS · 5.1" für eine Audio-Stream-Zeile.
+function audioOptLabel(a) {
+  const parts = [streamLangLabel(a.language) || "Sprache unbekannt"];
+  if (a.title) parts.push(a.title);
+  if (a.codec) parts.push(a.codec.toUpperCase());
+  const ch = streamChannelsLabel(a.channels);
+  if (ch) parts.push(ch);
+  return parts.filter(Boolean).join(" · ");
+}
+
+// streamsInfoHTML rendert für den Detail-Dialog zwei Dropdowns: Tonspur +
+// Untertitel. Die getroffene Wahl wird in state.detailPrefs gemerkt und beim
+// "Abspielen" an den Player durchgereicht (wireDetailAVSelects). Beim
+// Untertitel-Dropdown erscheinen NUR einblendbare Spuren — unsere erzeugten
+// (📝 OCR / 🎤 KI); Bild-Untertitel (PGS/VOBSUB) werden weggelassen
+// (User-Wunsch 2026-08-31). `pbStreams` kommt aus /api/playback (enthält auch
+// die erzeugten OCR/KI-Untertitel, item.streams allein nicht).
+function streamsInfoHTML(item, pbStreams) {
+  const streams = Array.isArray(pbStreams) ? pbStreams
+    : (Array.isArray(item.streams) ? item.streams : []);
   const audio = streams.filter(s => s.type === "audio");
-  const subs = streams.filter(s => s.type === "subtitle");
-  if (!audio.length && !subs.length) return `<div class="detail-streams" id="detailStreams"></div>`;
-  const line = (s, extra) => {
-    const parts = [streamLangLabel(s.language) || "Sprache unbekannt"];
-    if (s.title) parts.push(s.title);
-    if (s.codec) parts.push(s.codec.toUpperCase());
-    extra.forEach(x => { if (x) parts.push(x); });
-    if (s.isDefault) parts.push("Standard");
-    if (s.isForced) parts.push("Forced");
-    return `<li>${escapeHTML(parts.filter(Boolean).join(" · "))}</li>`;
-  };
+  const subs = streams.filter(s => s.type === "subtitle" && !isBitmapSub(s.codec));
+  if (!audio.length && !subs.length) return `<div class="detail-av" id="detailStreams"></div>`;
+
   let html = "";
   if (audio.length) {
-    html += `<div class="stream-group"><span class="stream-head">🔊 Tonspuren (${audio.length})</span><ul>${
-      audio.map(a => line(a, [streamChannelsLabel(a.channels)])).join("")}</ul></div>`;
+    const def = audio.find(a => a.isDefault) || audio[0];
+    html += `<label class="detail-av-field"><span>🔊 Tonspur</span>
+      <select id="detailAudioSelect">${audio.map(a =>
+        `<option value="${a.index}"${a.index === def.index ? " selected" : ""}>${escapeHTML(audioOptLabel(a))}</option>`
+      ).join("")}</select></label>`;
   }
-  if (subs.length) {
-    html += `<div class="stream-group"><span class="stream-head">💬 Untertitel (${subs.length})</span><ul>${
-      subs.map(s => line(s, [])).join("")}</ul></div>`;
-  }
-  return `<div class="detail-streams" id="detailStreams">${html}</div>`;
+  html += `<label class="detail-av-field"><span>💬 Untertitel</span>
+    <select id="detailSubSelect"><option value="">— Aus —</option>${subs.map(s => {
+      const lbl = s.title || (streamLangLabel(s.language) || "Untertitel");
+      return `<option value="${s.index}">${escapeHTML(lbl)}</option>`;
+    }).join("")}</select></label>`;
+
+  return `<div class="detail-av" id="detailStreams">${html}</div>`;
+}
+
+// wireDetailAVSelects: Change-Handler + Init für die beiden Detail-Dropdowns.
+// Schreibt state.detailPrefs = { itemId, audioIdx, subValue }.
+function wireDetailAVSelects(item) {
+  const aSel = $("#detailAudioSelect");
+  const sSel = $("#detailSubSelect");
+  const initialAudio = aSel ? aSel.value : null;
+  const sync = () => {
+    // audioIdx nur mitgeben, wenn es mehrere Tonspuren gibt UND der User eine
+    // andere als die Standardspur gewählt hat — sonst lassen wir den Server
+    // wie gehabt die erste Spur nehmen (keine Verhaltensänderung ohne Auswahl).
+    let audioIdx = null;
+    if (aSel && aSel.options.length > 1 && aSel.value !== initialAudio) {
+      audioIdx = Number(aSel.value);
+    }
+    state.detailPrefs = {
+      itemId: item.id,
+      audioIdx: audioIdx,
+      subValue: sSel ? sSel.value : "",
+    };
+  };
+  sync();
+  if (aSel && !aSel.dataset.wired) { aSel.dataset.wired = "1"; aSel.addEventListener("change", sync); }
+  if (sSel && !sSel.dataset.wired) { sSel.dataset.wired = "1"; sSel.addEventListener("change", sync); }
 }
 
 // ratingRowHTML: klickbare 3-Sterne-Bewertung für Privat-Lib-Items (analog zur
@@ -128,6 +163,8 @@ function ratingRowHTML(item, lib) {
 }
 
 async function openDetail(item) {
+  let pbStreams = null;   // volle Stream-Liste inkl. erzeugter OCR/KI-Untertitel
+  state.detailPrefs = null;
   // Bei jedem Öffnen ein frisches Item vom Server holen — sonst zeigt das
   // Dialog die im Grid-Cache eingebetteten (alten) Metadaten, auch wenn
   // ein Bulk-/Single-Refresh die DB längst aktualisiert hat.
@@ -168,6 +205,11 @@ async function openDetail(item) {
         console.warn("openDetail: Variants-Fetch fehlgeschlagen", e);
       }
     }
+    // Volle Stream-Liste (raw + erzeugte OCR/KI-Untertitel) für die AV-Dropdowns.
+    try {
+      const pb = await api(`/api/playback/${item.id}`);
+      if (pb && Array.isArray(pb.streams)) pbStreams = pb.streams;
+    } catch (e) { /* Dropdowns fallen auf item.streams zurück */ }
   }
   state.currentItem = item;
   const meta = item.metadata;
@@ -267,7 +309,7 @@ async function openDetail(item) {
         <p class="overview">${escapeHTML(overview || "—")}</p>
         ${ratingRowHTML(item, state.libraries.find(l => l.id == item.libraryId))}
         ${variantDropdown}
-        ${streamsInfoHTML(item)}
+        ${streamsInfoHTML(item, pbStreams)}
         <div id="detailCast" class="cast-strip hidden"></div>
         <p class="hint" id="detailFileHint">${fileHintHTML(item)}</p>
       </div>
@@ -282,9 +324,19 @@ async function openDetail(item) {
       // state.currentItem auf ausgewählte Variante setzen (Play/Download/Favorit)
       pick._variants = siblings;
       state.currentItem = pick;
+      state.detailPrefs = null;
       $("#detailFileHint").innerHTML = fileHintHTML(pick);
-      const streamsEl = $("#detailStreams");
-      if (streamsEl) streamsEl.outerHTML = streamsInfoHTML(pick);
+      // Stream-Liste der neuen Variante frisch holen (andere Datei = andere Spuren).
+      api(`/api/playback/${pick.id}`).then(pb => {
+        const streamsEl = $("#detailStreams");
+        if (streamsEl) {
+          streamsEl.outerHTML = streamsInfoHTML(pick, pb && pb.streams);
+          wireDetailAVSelects(pick);
+        }
+      }).catch(() => {
+        const streamsEl = $("#detailStreams");
+        if (streamsEl) { streamsEl.outerHTML = streamsInfoHTML(pick, null); wireDetailAVSelects(pick); }
+      });
       updateDetailWatchedBtn();
       updateDetailFavBtn();
     });
@@ -317,6 +369,7 @@ async function openDetail(item) {
   updateDetailFavBtn();
   updateConfirmBtn();
   wireDetailRating(item);
+  wireDetailAVSelects(item);
   if (typeof initSubGenBtn === "function") initSubGenBtn(item);
   const itemLib = state.libraries.find(l => l.id == item.libraryId);
   $("#detailMatch").style.display = (itemLib && itemLib.kind === "private") ? "none" : "";
@@ -609,7 +662,14 @@ async function openPlayer(item, opts = {}) {
   // und andere Controls versteckt.
   const dlg = $("#playerDialog");
   if (!dlg.open) dlg.showModal();
-  await applyPlayback(item, "auto", "orig");
+  // Tonspur-Vorwahl aus dem Detail-Dialog (Untertitel-Vorwahl greift in
+  // applyPlayback über #subSelect).
+  let prefAudioIdx;
+  if (state.detailPrefs && state.detailPrefs.itemId === item.id
+      && state.detailPrefs.audioIdx != null && state.detailPrefs.audioIdx >= 0) {
+    prefAudioIdx = state.detailPrefs.audioIdx;
+  }
+  await applyPlayback(item, "auto", "orig", prefAudioIdx);
   updatePlayerButtons();
 }
 
@@ -936,7 +996,10 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   // Audio-Tracks (nur bei Transcode wirksam — bei Direct Play übernimmt der Browser)
   const streams = info.streams || [];
   const audios = streams.filter(st => st.type === "audio");
-  const subs = streams.filter(st => st.type === "subtitle");
+  // Nur einblendbare Untertitel: unsere erzeugten (webvtt-generated / webvtt-ocr)
+  // und echte Text-Subs. Bild-Untertitel (PGS/VOBSUB) fliegen komplett raus —
+  // User-Wunsch 2026-08-31: "nicht einblendbare nicht mehr anzeigen".
+  const subs = streams.filter(st => st.type === "subtitle" && !isBitmapSub(st.codec));
   const audioSel = $("#audioSelect");
   audioSel.innerHTML = "";
   if (audios.length > 1 && info.mode === "transcode") {
@@ -976,12 +1039,17 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       if (t.language) parts.push(t.language.toUpperCase());
       if (t.title) parts.push(t.title);
       if (t.isForced) parts.push("Forced");
-      parts.push(t.codec || "");
-      // Bild-Untertitel (PGS/VOBSUB) markieren — die können NICHT als Text
-      // eingeblendet werden (siehe applySubtitleChoice).
-      if (isBitmapSub(t.codec)) parts.push("Bild – nicht einblendbar");
+      // Codec nur bei echten Text-Subs zeigen — bei unseren erzeugten ist der
+      // Titel (📝 … (OCR) / 🎤 … (KI)) schon aussagekräftig.
+      if (t.codec !== "webvtt-ocr" && t.codec !== "webvtt-generated") parts.push(t.codec || "");
       o.textContent = parts.filter(Boolean).join(" · ");
       subSel.appendChild(o);
+    }
+    // Vorwahl aus dem Detail-Dialog (Untertitel-Dropdown dort) übernehmen.
+    if (state.detailPrefs && state.detailPrefs.itemId === item.id
+        && state.detailPrefs.subValue != null
+        && subSel.querySelector(`option[value="${String(state.detailPrefs.subValue).replace(/"/g, '\\"')}"]`)) {
+      subSel.value = String(state.detailPrefs.subValue);
     }
     $("#subWrap").style.display = "";
   } else {

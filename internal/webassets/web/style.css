@@ -2637,18 +2637,11 @@ button.danger:hover { background: #991b1b; }
   font-weight: 600;
 }
 .detail-body .overview { line-height: 1.5; }
-.detail-streams { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 10px 0 2px; }
-.detail-streams:empty { display: none; }
-.detail-streams .stream-group { min-width: 0; }
-.detail-streams .stream-head {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dim);
-  margin-bottom: 3px;
-}
-.detail-streams ul { list-style: none; margin: 0; padding: 0; }
-.detail-streams li { font-size: 12px; color: var(--text); line-height: 1.5; }
+.detail-av { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 12px 0 4px; }
+.detail-av:empty { display: none; }
+.detail-av-field { display: flex; flex-direction: column; gap: 3px; min-width: 200px; }
+.detail-av-field > span { font-size: 12px; font-weight: 600; color: var(--text-dim); }
+.detail-av-field select { max-width: 320px; }
 
 /* Persönliche Sternebewertung im Detail-Dialog (Privat-Libs) */
 .detail-user-rating { display: flex; align-items: center; gap: 4px; margin: 8px 0 2px; }
