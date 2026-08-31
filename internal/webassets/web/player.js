@@ -1304,24 +1304,48 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   }
 }
 
+// vttShiftTimestamps verschiebt alle Cue-Zeiten in einem WebVTT-Text um
+// -offsetSec — nötig im Transcode-Modus nach einem Seek-Restart: der
+// <video>-Element-Zeitstempel zählt dann ab dem Segment-Start (0), die
+// VTT-Cues aber ab absoluter Filmzeit. Ohne Shift wären die Untertitel um
+// virtualOffset Sekunden versetzt (oder erschienen nie, wenn virtualOffset
+// > Cue-Zeit).
+function vttShiftTimestamps(vttText, offsetSec) {
+  if (!offsetSec) return vttText;
+  const toSec = (t) => {
+    const p = t.split(":").map(Number);
+    return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+  };
+  const fmt = (s) => {
+    if (s < 0) s = 0;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${sec.toFixed(3).padStart(6, "0")}`;
+  };
+  const TS = String.raw`\d{1,2}:\d{2}:\d{2}\.\d{1,3}|\d{2}:\d{2}\.\d{1,3}`;
+  const re = new RegExp(`(${TS})\\s*-->\\s*(${TS})(.*)`, "g");
+  return vttText.replace(re, (m, a, b, rest) => `${fmt(toSec(a) - offsetSec)} --> ${fmt(toSec(b) - offsetSec)}${rest}`);
+}
+
 // applySubtitleChoice entfernt alle vorhandenen Subtitle-Tracks und lädt den
 // aktuell gewählten neu. Wird beim Player-Open und bei jeder Dropdown-Änderung
-// aufgerufen.
-function applySubtitleChoice(vjs, item, subs) {
-  // Alle vorhandenen Remote-Text-Tracks entfernen
+// aufgerufen. Lädt die VTT selbst per fetch (statt sie Video.js über `src`
+// laden zu lassen) — so können wir (a) Ladefehler melden, (b) im
+// Transcode-Modus die Zeitstempel um virtualOffset verschieben, (c) den Track
+// zuverlässig aktivieren.
+async function applySubtitleChoice(vjs, item, subs) {
+  // Nur echte Untertitel-Tracks entfernen (Trickplay-Metadata-Track bleibt).
   const existing = vjs.remoteTextTracks();
-  while (existing.length > 0) {
-    vjs.removeRemoteTextTrack(existing[0]);
+  for (let i = existing.length - 1; i >= 0; i--) {
+    const t = existing[i];
+    if (t && (t.kind === "subtitles" || t.kind === "captions")) {
+      vjs.removeRemoteTextTrack(t);
+    }
   }
 
   const subChoice = $("#subSelect").value;
   if (!subChoice) return;
 
   const sub = subs.find(s => String(s.index) === subChoice);
-  // Bild-Untertitel (PGS/VOBSUB/DVB): der Server kann sie nicht nach WebVTT
-  // wandeln → gar kein Track. Hinweis auf die OCR-Erzeugung im Zahnrad-Menü.
-  // Eine bereits erzeugte OCR-Fassung taucht als eigener „📝 … (OCR)"-Eintrag
-  // im Dropdown auf (codec webvtt-ocr).
   if (sub && isBitmapSub(sub.codec)) {
     showToast("Bild-Untertitel (" + (sub.codec || "PGS") + ") koennen nicht direkt eingeblendet werden. " +
       "Im Zahnrad-Menue unter 'OCR-Untertitel erzeugen' lassen sie sich per Texterkennung im Hintergrund " +
@@ -1337,26 +1361,52 @@ function applySubtitleChoice(vjs, item, subs) {
       ? `/api/ocr-subtitle/${item.id}/${sub.language}.vtt`
       : `/api/subtitle/${item.id}/${subChoice}.vtt`;
 
-  vjs.addRemoteTextTrack({
+  let vttText;
+  try {
+    const res = await fetch(subSrc, { credentials: "same-origin" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    vttText = await res.text();
+  } catch (e) {
+    console.warn("[subs] Laden fehlgeschlagen:", subSrc, e);
+    showToast("Untertitel konnte nicht geladen werden (" + e.message + ")", { kind: "error" });
+    return;
+  }
+  if (!/^\uFEFF?WEBVTT/.test(vttText)) {
+    console.warn("[subs] keine gültige WebVTT-Antwort von", subSrc, vttText.slice(0, 60));
+    showToast("Untertitel-Datei ist keine gültige WebVTT.", { kind: "error" });
+    return;
+  }
+
+  const info = state.playback || {};
+  if (info.mode === "transcode" && info.virtualOffset) {
+    vttText = vttShiftTimestamps(vttText, info.virtualOffset);
+  }
+  const blobUrl = URL.createObjectURL(new Blob([vttText], { type: "text/vtt" }));
+
+  const trackEl = vjs.addRemoteTextTrack({
     kind: "subtitles",
-    src: subSrc,
+    src: blobUrl,
     srclang: (sub && sub.language) || "und",
     label: label,
+    default: true,
   }, false);
+  // Blob-URL nach kurzer Zeit freigeben (Track hat dann geladen).
+  setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch (e) {} }, 60000);
 
-  // Video.js setzt "default" nicht zuverlässig — Track explizit auf "showing".
-  // Kurzes Timeout, damit Video.js den Track intern registriert hat.
-  const activate = () => {
+  const show = () => {
+    try {
+      if (trackEl && trackEl.track) { trackEl.track.mode = "showing"; return true; }
+    } catch (e) {}
     const tracks = vjs.textTracks();
     for (let i = 0; i < tracks.length; i++) {
-      if (tracks[i].label === label) {
-        tracks[i].mode = "showing";
-        return;
-      }
+      if (tracks[i].label === label) { tracks[i].mode = "showing"; return true; }
     }
+    return false;
   };
-  activate();
-  setTimeout(activate, 300);
+  show();
+  setTimeout(show, 150);
+  setTimeout(show, 600);
+  setTimeout(show, 1500);
 }
 
 const playerResizeObservers = new WeakMap();
