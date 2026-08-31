@@ -1147,6 +1147,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `nameSimilarity`; Tests in `simnames_test.go`). Registriert in
   `currentSortMode`/`PSEUDO_FILTER_MODES`/`directionless` + `simNamesView`
   in `renderBreadcrumb`.
+  - **`differsOnlyInDigits`-Guard (seit 1.0.19):** ein Paar wird verworfen,
+    wenn die normalisierten Namen gleich lang sind und ALLE abweichenden
+    Positionen beidseitig Ziffern sind — durchnummerierte Geschwister
+    (FTV-Shoot-IDs `alana-7127-07` vs `alana-7128-01`, Episoden `s01e03`
+    vs `s01e04`) sind keine Duplikate. `film (2)` / `.wmv` fallen NICHT
+    darunter (Klammer/Endung vorher gestrippt → identisch). Hat FTV-
+    Fehltreffer von 305 auf 4 gedrückt (echte `(1)`-Kopien).
 
 ### Startseite (Home-View)
 - Default-Ansicht beim ersten Öffnen (`state.homeView = true`) + 🏠-Button in
