@@ -1626,7 +1626,9 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 - **Pipeline pro Item** (`processItem`): `Store.ItemBitmapSubStreams` liefert
   die Bild-Untertitel-Streams (Codec ∈ `BitmapSubCodecs`) + deren Sprachen.
   Für **.mkv/.mks** (`pgsripContainer`): Symlink der Quelle nach `/tmp`, dann
-  `pgsrip --force --language <l> … <link>` — pgsrip nutzt intern `mkvextract`
+  `pgsrip --force -l de -l en -l it [+ Stream-Tag-Sprachen] <link>` (die
+  Image-`pgsrip`-Version hat KEIN `--all-languages`; German.DL-Rips taggen die
+  PGS-Spur oft `eng`, daher mehrere `-l`) — pgsrip nutzt intern `mkvextract`
   (sauber) und OCR-t alle passenden PGS-Spuren in EINEM Lauf. Ergebnis-`.srt`
   werden **geglobbt** (`base.*.srt` / `base.srt` / neben der Quelle, falls
   pgsrip den realpath auflöst), Sprachcode aus dem Dateinamen normalisiert,
