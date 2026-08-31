@@ -7,6 +7,7 @@ package ocrsub
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,6 +18,10 @@ import (
 
 	"github.com/boernie77/goldfish/internal/store"
 )
+
+// ErrNoPGS: das Item hat gar keinen PGS-Untertitel (nur VOBSUB/DVB o.ä.) —
+// dann wird der Job gelöscht statt als „Fehler" zu bleiben.
+var ErrNoPGS = errors.New("kein PGS-Untertitel")
 
 // iso639ToTesseract mappt gängige ffprobe-Sprachtags (ISO 639-2/B) auf
 // Tesseract-Sprachpakete. Unbekannt → "eng".
@@ -81,6 +86,7 @@ func VTTPath(configDir string, itemID int64, ietf string) string {
 //   - Der Ausgabe-Dateiname von pgsrip ist versionsabhängig → wir GLOBBEN
 //     `<link-basename>.*.srt` statt einen Namen zu raten und normalisieren den
 //     Sprachcode aus dem Dateinamen auf unser IETF-Set.
+//
 // Nicht-MKV-Quellen (m2ts/ts/mp4): Fallback über ffmpeg-`-f sup`-Extraktion.
 func (w *Worker) processItem(ctx context.Context, itemID int64) ([]string, error) {
 	it, err := w.store.GetItem(itemID)
@@ -115,8 +121,8 @@ func (w *Worker) processItem(ctx context.Context, itemID int64) ([]string, error
 	}
 	if !hasPGS {
 		// pgsrip kann NUR PGS. VOBSUB (dvd_subtitle) / DVB bräuchte ein anderes
-		// Werkzeug (vobsub2srt o.ä.) — noch nicht gebaut.
-		return nil, fmt.Errorf("kein PGS-Untertitel (Streams: %s) — nur PGS wird per OCR unterstützt", strings.Join(codecs, ", "))
+		// Werkzeug (vobsub2srt o.ä.) — noch nicht gebaut. Job wird gelöscht.
+		return nil, fmt.Errorf("%w (Streams: %s)", ErrNoPGS, strings.Join(codecs, ", "))
 	}
 
 	ext := strings.ToLower(filepath.Ext(it.Path))
@@ -155,12 +161,22 @@ func (w *Worker) pgsripContainer(ctx context.Context, sourcePath, ext string, la
 		_ = os.Remove(base + ".srt")
 	}()
 
-	// `--all-languages` statt `--language <l>`: pgsrip filtert bei `--language`
-	// nach dem Sprach-TAG der PGS-Spur — bei „German.DL"-Rips ist die
-	// PGS-Spur aber oft `eng` oder ohne Tag → „0 PGS subtitle collected"
-	// (real 2026-08-31). `-a` rippt jede PGS-Spur, die Sprache leiten wir
-	// danach aus dem Dateinamen ab (Fallback = erste erwartete Sprache).
-	pg := exec.CommandContext(ctx, w.pgsrip, "--force", "--all-languages", link)
+	// pgsrip filtert PGS-Spuren nach ihrem Sprach-TAG gegen die `--language`-
+	// Liste. Bei „German.DL"-Rips ist die PGS-Spur oft als `eng` getaggt, nicht
+	// `ger` → mit nur `-l de` kam „0 PGS subtitle collected" (2026-08-31).
+	// `--all-languages` gibt es in dieser pgsrip-Version NICHT. Also: für JEDE
+	// Sprache, für die wir ein Tesseract-Paket haben (de/en/it) + die aus den
+	// Stream-Tags ein `-l` mitgeben — eine davon matcht die Spur.
+	langs := map[string]bool{"de": true, "en": true, "it": true}
+	for l := range langSet {
+		langs[l] = true
+	}
+	args := []string{"--force"}
+	for l := range langs {
+		args = append(args, "--language", l)
+	}
+	args = append(args, link)
+	pg := exec.CommandContext(ctx, w.pgsrip, args...)
 	out, runErr := pg.CombinedOutput()
 
 	// pgsrip meldet exit!=0 auch, wenn nur EINE Sprache scheitert — daher erst
@@ -271,4 +287,3 @@ func HasBitmapSubs(s *store.Store, itemID int64) bool {
 	streams, err := s.ItemBitmapSubStreams(itemID)
 	return err == nil && len(streams) > 0
 }
-

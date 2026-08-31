@@ -15,6 +15,25 @@ var BitmapSubCodecs = []string{
 	"xsub",
 }
 
+// pgsSubCodecs: nur die von `pgsrip` verarbeitbaren PGS-Varianten. VOBSUB /
+// DVB brauchen ein anderes Werkzeug → gar nicht erst einreihen.
+var pgsSubCodecs = []string{"hdmv_pgs_subtitle", "pgssub", "pgs"}
+
+func pgsSubInClause() string {
+	qs := make([]string, len(pgsSubCodecs))
+	for i := range qs {
+		qs[i] = "?"
+	}
+	return strings.Join(qs, ",")
+}
+func pgsSubArgs() []any {
+	a := make([]any, len(pgsSubCodecs))
+	for i, c := range pgsSubCodecs {
+		a[i] = c
+	}
+	return a
+}
+
 func bitmapSubInClause() string {
 	qs := make([]string, len(BitmapSubCodecs))
 	for i := range qs {
@@ -105,6 +124,27 @@ func (s *Store) ResetRunningOCRSubJobs() error {
 	return err
 }
 
+// DeleteOCRSubJob entfernt einen Job komplett — genutzt, wenn das Item gar
+// keinen PGS-Untertitel hat (VOBSUB/DVB) und nie verarbeitbar sein wird.
+func (s *Store) DeleteOCRSubJob(itemID int64) error {
+	_, err := s.db.Exec(`DELETE FROM ocr_sub_jobs WHERE item_id = ?`, itemID)
+	return err
+}
+
+// PurgeNonPGSOCRSubJobs löscht alle failed-Jobs, deren Item keinen PGS-Stream
+// hat — Aufräumen des Backlogs aus der ersten (zu breiten) Enqueue-Runde.
+func (s *Store) PurgeNonPGSOCRSubJobs() (int64, error) {
+	q := `DELETE FROM ocr_sub_jobs WHERE status='failed' AND item_id NOT IN (
+		SELECT item_id FROM item_streams
+		WHERE type='subtitle' AND LOWER(codec) IN (` + pgsSubInClause() + `)
+	)`
+	res, err := s.db.Exec(q, pgsSubArgs()...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (s *Store) SetOCRSubJobRunning(itemID int64) error {
 	_, err := s.db.Exec(`UPDATE ocr_sub_jobs SET status='running', started_at=?, error=NULL WHERE item_id=?`, time.Now(), itemID)
 	return err
@@ -165,10 +205,10 @@ func (s *Store) EnqueueOCRSubBacklog() (int, error) {
 		JOIN ocr_sub_folders f ON f.library_id = i.library_id
 		  AND (f.folder = '' OR i.rel_path LIKE f.folder || '/%')
 		JOIN item_streams st ON st.item_id = i.id
-		WHERE st.type = 'subtitle' AND LOWER(st.codec) IN (` + bitmapSubInClause() + `)
+		WHERE st.type = 'subtitle' AND LOWER(st.codec) IN (` + pgsSubInClause() + `)
 		  AND NOT EXISTS (SELECT 1 FROM ocr_sub_jobs j WHERE j.item_id = i.id)
 	`
-	res, err := s.db.Exec(q, bitmapSubArgs()...)
+	res, err := s.db.Exec(q, pgsSubArgs()...)
 	if err != nil {
 		return 0, err
 	}

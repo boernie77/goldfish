@@ -2,6 +2,7 @@ package ocrsub
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sync"
 	"time"
@@ -198,6 +199,11 @@ func (w *Worker) runJob(ctx context.Context, itemID int64) {
 	defer cancel()
 
 	langs, err := w.processItem(jctx, itemID)
+	if errors.Is(err, ErrNoPGS) {
+		log.Printf("[ocrsub] item %d übersprungen: %v", itemID, err)
+		_ = w.store.DeleteOCRSubJob(itemID)
+		return
+	}
 	if err != nil {
 		log.Printf("[ocrsub] item %d FEHLER: %v", itemID, err)
 		_ = w.store.SetOCRSubJobFailed(itemID, err.Error())

@@ -146,6 +146,9 @@ func (s *Server) ocrSubRunAll(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) ocrSubRetryFailed(w http.ResponseWriter, _ *http.Request) {
+	// Erst den Müll aus der ersten (zu breiten) Enqueue-Runde entfernen:
+	// failed-Jobs für Items ohne PGS-Stream (VOBSUB/DVB) werden nie klappen.
+	purged, _ := s.Store.PurgeNonPGSOCRSubJobs()
 	n, err := s.Store.RetryFailedOCRSubJobs()
 	if err != nil {
 		writeError(w, 500, err.Error())
@@ -154,7 +157,7 @@ func (s *Server) ocrSubRetryFailed(w http.ResponseWriter, _ *http.Request) {
 	if s.OCRSub != nil {
 		s.OCRSub.Trigger()
 	}
-	writeJSON(w, 200, map[string]any{"retried": n})
+	writeJSON(w, 200, map[string]any{"retried": n, "purged": purged})
 }
 
 func (s *Server) ocrSubRetryItem(w http.ResponseWriter, r *http.Request) {
