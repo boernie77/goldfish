@@ -1,6 +1,30 @@
 # ---------- build stage ----------
 FROM golang:1.24-bookworm AS build
 
+# whisper.cpp ZUERST — hängt NICHT vom Source ab. So bleibt diese teure Layer
+# über Commits hinweg gecacht (vorher stand sie hinter `COPY . .` und wurde bei
+# JEDEM Deploy neu gebaut → klonte jedes Mal whisper.cpp und lief 2026-08-31 in
+# GitHubs Anonym-Clone-Rate-Limit vom Build-Host: „could not read Username for
+# 'https://github.com'"). Nur ein WHISPER_TAG-Wechsel invalidiert die Layer.
+ARG WHISPER_TAG=v1.7.5
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      cmake g++ git libgomp1 \
+      libopenblas-dev \
+    && for i in 1 2 3 4 5 6; do \
+         git clone --depth 1 --branch ${WHISPER_TAG} https://github.com/ggerganov/whisper.cpp /whisper && break; \
+         echo "git clone Versuch $i/6 fehlgeschlagen, warte…"; sleep 25; \
+       done \
+    && test -d /whisper/.git \
+    && cmake -B /whisper/build -S /whisper \
+         -DWHISPER_BUILD_TESTS=OFF \
+         -DWHISPER_BUILD_EXAMPLES=ON \
+         -DBUILD_SHARED_LIBS=OFF \
+         -DGGML_BLAS=ON \
+         -DGGML_BLAS_VENDOR=OpenBLAS \
+         -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /whisper/build --config Release -j$(nproc) \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 COPY . .
 
@@ -17,22 +41,6 @@ RUN set -eux \
       -o /src/internal/webassets/web/videojs-vtt-thumbnails.js \
  && curl -fsSL "https://cdn.jsdelivr.net/npm/videojs-vtt-thumbnails@${VTT_THUMBS_VERSION}/dist/videojs-vtt-thumbnails.css" \
       -o /src/internal/webassets/web/videojs-vtt-thumbnails.css
-
-# whisper.cpp — lokale KI-Untertitelerstellung (kein Python benötigt)
-ARG WHISPER_TAG=v1.7.5
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      cmake g++ git libgomp1 \
-      libopenblas-dev \
-    && git clone --depth 1 --branch ${WHISPER_TAG} https://github.com/ggerganov/whisper.cpp /whisper \
-    && cmake -B /whisper/build -S /whisper \
-         -DWHISPER_BUILD_TESTS=OFF \
-         -DWHISPER_BUILD_EXAMPLES=ON \
-         -DBUILD_SHARED_LIBS=OFF \
-         -DGGML_BLAS=ON \
-         -DGGML_BLAS_VENDOR=OpenBLAS \
-         -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build /whisper/build --config Release -j$(nproc) \
-    && rm -rf /var/lib/apt/lists/*
 
 # go mod tidy erzeugt go.sum und lädt Abhängigkeiten in einem Schritt
 RUN go mod tidy
