@@ -274,6 +274,19 @@ oben gelten weiterhin immer.
   `LocalItem.rating` (0–3, Default → alte Indizes dekodieren, Rescan behält's),
   `LocalLibraryManager.setRating`, Kontextmenü-Bewertung + Stern-Overlay
   (oben rechts) auf `LocalItemCard` + `LocalRatingFilter` im Filter-Menü.
+- **Ton-/Untertitel-Dropdowns im Detail-Dialog + Untertitel-Overlay**
+  (Build 179): `ItemDetailView` hat zwei `Picker` (🔊 Tonspur = alle
+  Audiostreams, 💬 Untertitel = NUR `MediaStream.isDisplayableGeneratedSub`,
+  also codec `webvtt-ocr`/`webvtt-generated` — Bitmap-Subs PGS/VOBSUB werden
+  gar nicht mehr angeboten). Streams jetzt aus `client.playback(itemId:)` statt
+  `fetchItem` (nur der Playback-Endpoint liefert die erzeugten Untertitel mit).
+  Auswahl → `preferredAudioIndex`/`preferredSubtitle` (`PreferredSubtitle`-Struct,
+  `vttPath(itemID:)`) in `PlayerLaunchRequest` (macOS) UND `PlayerView(...)`
+  (iOS). `PlayerView` rendert ein eigenes WebVTT-Overlay (`SubtitleCue`,
+  `parseVTT`, `activeSubtitleText`, `loadSubtitleCues`) + Ein/Aus-Button in
+  `PlayerControlsBar`. `currentTime` ist im Transcode-Modus bereits absolut
+  (virtualOffset applied) → KEIN Cue-Shift nötig (Browser verschiebt die VTT
+  dagegen um `-virtualOffset`). `GoldfishClient.fetchText(serverPath:)` neu.
 - **Offline→online: Bibliotheken kommen nicht wieder, „Session abgelaufen"**
   (Build 166): der Text ist die wörtliche 401-Antwort des Servers
   (`internal/api/auth.go` — Cookie wird gesendet, aber die Session ist
