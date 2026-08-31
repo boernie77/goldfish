@@ -410,9 +410,20 @@ async function loadItemsBody() {
 
     // Volle Filmografie von TMDB: owned = echte Kachel, sonst ausgegraut.
     if (person && Array.isArray(person.filmography) && person.filmography.length) {
+      const ownedOnly = !!state.personOwnedOnly;
       const h = document.createElement("h2");
       h.className = "person-section-title";
       h.textContent = `🎞 Filmografie · ${person.filmography.length}`;
+      const toggleBtn = document.createElement("button");
+      toggleBtn.className = "person-owned-toggle" + (ownedOnly ? " is-on" : "");
+      toggleBtn.textContent = ownedOnly ? "☑ Nur Treffer" : "☐ Nur Treffer";
+      toggleBtn.title = "Nicht vorhandene Filmografie-Einträge ausblenden";
+      toggleBtn.addEventListener("click", () => {
+        state.personOwnedOnly = !state.personOwnedOnly;
+        try { localStorage.setItem("personOwnedOnly", state.personOwnedOnly ? "1" : "0"); } catch {}
+        loadItems();
+      });
+      h.appendChild(toggleBtn);
       frag.appendChild(h);
       const g = document.createElement("div");
       g.className = "subview-grid";
@@ -422,11 +433,11 @@ async function loadItemsBody() {
         if (cr.mediaType === "movie") {
           const owned = ownedMovieByTmdb.get(cr.tmdbId);
           if (owned) { g.appendChild(renderCard(owned)); usedMovie.add(cr.tmdbId); rendered.push(owned); }
-          else g.appendChild(renderPersonFilmCard(cr));
+          else if (!ownedOnly) g.appendChild(renderPersonFilmCard(cr));
         } else { // tv
           const owned = showsMap.get(cr.tmdbId);
           if (owned) { g.appendChild(renderPersonShowCard(owned)); usedShow.add(cr.tmdbId); }
-          else g.appendChild(renderPersonFilmCard(cr));
+          else if (!ownedOnly) g.appendChild(renderPersonFilmCard(cr));
         }
       }
       // Owned-Einträge, die TMDB nicht in der Filmografie hat, hinten anhängen —

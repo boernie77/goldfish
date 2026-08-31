@@ -22,6 +22,7 @@ const state = {
   playback: null,
   browseAt: "/media",
   personFilter: null,       // {tmdbId, name} wenn Person-Filter aktiv
+  personOwnedOnly: (() => { try { return localStorage.getItem("personOwnedOnly") === "1"; } catch { return false; } })(), // Filmografie: nicht vorhandene Einträge ausblenden
   personFilterBackup: null, // zwischengespeicherter Lib/Folder-Kontext
   personFilterShow: null,   // {folder, libraryId, episodes} wenn innerhalb einer Serie im Person-Filter
   transcodePollTimer: null, // setInterval-Handle für Transcode-Progress-Polling
