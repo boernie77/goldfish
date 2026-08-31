@@ -4,11 +4,12 @@ Produktname: **Goldfish**. Das Go-Modul, Docker-Image, Volumes und Stack-Name bl
 Kompatibilitätsgründen `videoplayer` / `simple-videoplayer` — nur das UI-Branding ist
 „Goldfish".
 
-**Server-Version:** seit 2026-08-30 semantisch versioniert, Start **1.0.0**.
-Konstante `appVersion` in `internal/api/router.go` — bei jedem Release bumpen.
-Ausgeliefert als `version` im `/api/health`, angezeigt im Zahnrad-Menü-Fuß
-(`#drawerVersion`). (Die App-Repos zählen davon unabhängig weiter, siehe
-`feedback_apple_versioning` / Android-Block.)
+**Server-Version:** seit 2026-08-30 semantisch versioniert, Start 1.0.0.
+Konstante `appVersion` in `internal/api/router.go`. **Bei JEDEM Deploy die
+Patch-Stelle um 1 erhöhen** (User-Vorgabe 2026-08-31) — also 1.0.1 → 1.0.2 →
+… im selben Commit, der rausgeht. Ausgeliefert als `version` im `/api/health`,
+angezeigt im Zahnrad-Menü-Fuß (`#drawerVersion`). (Die App-Repos zählen davon
+unabhängig weiter, siehe `feedback_apple_versioning` / Android-Block.)
 
 ---
 
