@@ -64,11 +64,11 @@ func (s *Store) ListOCRSubFolders() ([]FolderSelector, error) {
 // --- ocr_sub_jobs ---
 
 type OCRSubJob struct {
-	ID     int64
-	ItemID int64
-	Status string
-	Langs  string
-	Error  string
+	ID     int64  `json:"id"`
+	ItemID int64  `json:"itemId"`
+	Status string `json:"status"`
+	Langs  string `json:"langs"`
+	Error  string `json:"error"`
 }
 
 // OCRSubJobRow ergänzt den Job um Anzeige-Infos für die UI-Liste.
