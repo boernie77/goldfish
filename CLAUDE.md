@@ -618,7 +618,8 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - `users(id, username UNIQUE, password_hash, is_admin, created_at)`
 - `sessions(token, user_id, created_at, expires_at)`
 - `user_library_acl(user_id, library_id)` — Non-Admins sehen nur gelistete Libs
-- `user_item_state(user_id, item_id, watched, watched_at, favorite, favorite_at, last_played_at)` — per-User
+- `user_item_state(user_id, item_id, watched, watched_at, favorite, favorite_at, last_played_at, resume_pos_sec, rating)` — per-User
+  (`rating` = persönliche Sternebewertung 0–3, `SetItemRatingFor`, `PUT /api/items/{id}/rating`; UI: Sterne im Detail-Dialog + Kachel-Overlay, nur `kind=private`; Filter `?rating=unrated|min1|min2|exact3`)
 - `playlists(id, user_id, name, created_at)` + `playlist_items(playlist_id, item_id, position)`
 - `trickplay(item_id, generated_at, interval_sec)` — Sprite-Generation-Status
 - `settings(key, value)` — u. a. `tmdb_api_key`, `omdb_api_key`, `buffer_seconds`, `trickplay_interval_sec`
