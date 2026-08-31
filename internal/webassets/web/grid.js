@@ -526,6 +526,48 @@ async function loadItemsBody() {
     return;
   }
 
+  // "≈ Ähnliche Dateinamen" (Dropdown-Option): Fast-Duplikate — Dateiname zu
+  // ≥ 90 % identisch (nach Normalisierung: klein, ohne Endung, ohne " (N)"),
+  // exakt gleiche Auflösung, Laufzeit ±1 s. Fängt "film.mp4" ↔ "film (2).mp4"
+  // und "film.wmv" ↔ "film.mp4", die der "Duplikate"-Filter (metadata_id) und
+  // "Datei in anderem Ordner" (exakter Name + Größe) nicht sehen. Scoped auf
+  // den aktuellen Ordner (falls in einem, rekursiv), sonst ganze Library.
+  if ($("#sortSelect").value === "simnames" && state.currentLibrary) {
+    const searchQ = $("#searchInput").value.trim();
+    const p = new URLSearchParams({});
+    if (state.currentFolder) p.set("folder", state.currentFolder);
+    let items = [];
+    try {
+      items = await apiGetCached(`/api/libraries/${state.currentLibrary}/similar-names?${p}`);
+    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+    if (searchQ) {
+      const q = searchQ.toLowerCase();
+      items = items.filter(it => (it.title || "").toLowerCase().includes(q)
+        || (it.relPath || "").toLowerCase().includes(q)
+        || (it.dupeOtherPaths || []).some(pp => pp.toLowerCase().includes(q)));
+    }
+    $("#searchClear").classList.toggle("hidden", searchQ === "");
+    // Nach normalisiertem Dateinamen gruppieren, damit ein Paar/Cluster
+    // nebeneinander steht.
+    const normName = s => (s || "").split("/").pop().toLowerCase()
+      .replace(/\.[a-z0-9]{2,4}$/, "").replace(/\s*\(\d{1,2}\)\s*$/, "")
+      .replace(/[._\-]+/g, " ").replace(/\s+/g, " ").trim();
+    items.sort((a, b) => normName(a.relPath).localeCompare(normName(b.relPath))
+      || (a.relPath || "").localeCompare(b.relPath || ""));
+    renderBreadcrumb({ searchCount: items.length, simNamesView: true });
+    if (!items.length) {
+      grid.innerHTML = `<div class="empty">Keine ähnlich benannten Dateien mit gleicher Auflösung + Länge gefunden. ✓</div>`;
+      return;
+    }
+    state.lastRenderedItems = items;
+    const frag = document.createDocumentFragment();
+    items.forEach(it => frag.appendChild(renderCard(it)));
+    grid.innerHTML = "";
+    grid.appendChild(frag);
+    return;
+  }
+
   // Verdächtige TMDB-Zuordnungen (Dropdown-Option). Server-seitig heuristisch
   // bestimmt: kein Token-Overlap zwischen Top-Folder und Metadata-Titel, kein
   // Jahres-Match → wahrscheinlich falsch gematcht.

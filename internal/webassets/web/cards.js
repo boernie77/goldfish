@@ -674,7 +674,16 @@ function renderCard(it, opts = {}) {
       </div>
       <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : cardFileName(it))}</div>
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
-      ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch in: ${escapeHTML(dupePaths.map(p => { const i = p.lastIndexOf("/"); return i > 0 ? p.slice(0, i) : "(Wurzel)"; }).join(" · "))}</div>` : ""}
+      ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch: ${(() => {
+        const ownDir = (() => { const r = it.relPath || it.path || ""; const i = r.lastIndexOf("/"); return i > 0 ? r.slice(0, i) : ""; })();
+        // Wenn ein Zwilling im GLEICHEN Ordner liegt (typisch bei "≈ Ähnliche
+        // Dateinamen"), den Dateinamen zeigen statt des identischen Ordnerpfads.
+        return escapeHTML(dupePaths.map(p => {
+          const i = p.lastIndexOf("/");
+          const dir = i > 0 ? p.slice(0, i) : "";
+          return dir === ownDir ? p.slice(i + 1) : (dir || "(Wurzel)");
+        }).join(" · "));
+      })()}</div>` : ""}
     </div>
   `;
   el.addEventListener("click", (ev) => {

@@ -1129,6 +1129,24 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `store/namedupes.go` (`CrossFolderNameDupes` — Name→Index über die ganze
   Library, dann `ListItems` für die vollen Items). Registriert in
   `currentSortMode`/`PSEUDO_FILTER_MODES`/`directionless`.
+- **≈ Ähnliche Dateinamen** im Sort-Dropdown (`simnames`, seit 2026-08-31):
+  Fast-Duplikate — Dateiname nach Normalisierung (klein, ohne Endung, ohne
+  `" (N)"`-Kopiesuffix, `._-` → Leerzeichen) zu **≥ threshold** (Query-Param,
+  Default 0.9, per normalisierter Levenshtein-Ähnlichkeit) identisch **UND**
+  exakt gleiche Auflösung (width×height) **UND** Laufzeit ±1 s. Fängt
+  `film.mp4` ↔ `film (2).mp4` und `film.wmv` ↔ `film.mp4`, die weder der
+  strenge `duplicates`-Filter (gleiche `metadata_id`) noch `namedupes`
+  (exakter Name + Größe, nur ordnerübergreifend) sehen. Folder-gescoped
+  (rekursiv) wenn man in einem Ordner steht, sonst ganze Library — Matching
+  läuft NUR innerhalb des Scopes. Nutzt denselben `item.dupeOtherPaths` +
+  ⧉-Badge wie `namedupes`; die „↳ auch: …"-Zeile in `renderCard` zeigt bei
+  Zwillingen im GLEICHEN Ordner den Dateinamen statt des (identischen)
+  Ordnerpfads. Backend: `GET /api/libraries/{id}/similar-names?folder=&threshold=`,
+  `store/simnames.go` (`SimilarNameDupes` — Auflösungs-Bucket + Dauer-
+  Sliding-Window ±1 s + Union-Find; `normalizeSimName`, `levenshtein`,
+  `nameSimilarity`; Tests in `simnames_test.go`). Registriert in
+  `currentSortMode`/`PSEUDO_FILTER_MODES`/`directionless` + `simNamesView`
+  in `renderBreadcrumb`.
 
 ### Startseite (Home-View)
 - Default-Ansicht beim ersten Öffnen (`state.homeView = true`) + 🏠-Button in

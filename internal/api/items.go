@@ -48,6 +48,44 @@ func (s *Server) suspiciousMatches(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 
+// similarNames: Fast-Duplikate in der Library {id} (optional auf ?folder=<rel>
+// inkl. Unterbaum beschränkt) — Dateiname zu ≥ ?threshold (0..1, Default 0.9)
+// identisch (nach Normalisierung: klein, ohne Endung, ohne " (N)"), UND exakt
+// gleiche Auflösung, UND Laufzeit ±1 s. Jedes Item trägt `dupeOtherPaths` mit
+// den rel_path(s) seiner Fast-Zwillinge. Fängt Fälle wie `film.mp4` vs
+// `film (2).mp4` oder `film.wmv` vs `film.mp4`, die der strenge „Duplikate"-
+// und der „Datei in anderem Ordner"-Filter nicht sehen.
+func (s *Server) similarNames(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	libID, err := pathInt(r, "id")
+	if err != nil || libID <= 0 {
+		writeError(w, 400, "ungültige Library-id")
+		return
+	}
+	if !s.requireLibAccess(w, r, libID) {
+		return
+	}
+	threshold := 0.9
+	if v := r.URL.Query().Get("threshold"); v != "" {
+		if n, e := strconv.ParseFloat(v, 64); e == nil && n > 0 {
+			threshold = n
+		}
+	}
+	items, err := s.Store.SimilarNameDupes(libID, me.ID, me.IsAdmin, r.URL.Query().Get("folder"), threshold)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if items == nil {
+		items = []model.Item{}
+	}
+	writeJSON(w, 200, items)
+}
+
 // nameDupes: Items in der Library {id} (optional auf ?folder=<rel> beschränkt),
 // deren Dateiname + Größe (± ?tol Bytes, Default 2048) auch in einem ANDEREN
 // Ordner derselben Library vorkommen. Jedes Item trägt `dupeOtherPaths` mit den
