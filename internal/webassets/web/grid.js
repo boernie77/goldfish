@@ -137,12 +137,12 @@ async function loadItemsBody() {
         grid.innerHTML = `<div class="empty">Keine Treffer für „${escapeHTML(sq)}" in allen Bibliotheken.</div>`;
         return;
       }
-      const merged = groupVariants(items);
-      state.lastRenderedItems = merged;
+      state.lastRenderedItems = groupVariants(items);
       grid.innerHTML = "";
       const frag = document.createDocumentFragment();
-      for (const it of merged) frag.appendChild(renderCard(it));
+      const shown = appendSearchResultCards(frag, items);
       grid.appendChild(frag);
+      renderBreadcrumb({ homeRoot: true, searchCount: shown });
       return;
     }
     let data;
@@ -882,7 +882,14 @@ async function loadItemsBody() {
   // Reflow in den DOM hängen (statt einzeln appendChild → Layout-Trashing).
   const frag = document.createDocumentFragment();
   for (const f of folders) frag.appendChild(renderFolderCard(f));
-  for (const it of merged) frag.appendChild(renderCard(it));
+  if (searching) {
+    // Such-Treffer: Episoden pro Serie zu einer Sammelkachel bündeln
+    // (User-Wunsch, wie in der App).
+    const shown = appendSearchResultCards(frag, items);
+    renderBreadcrumb({ searchCount: shown + folders.length });
+  } else {
+    for (const it of merged) frag.appendChild(renderCard(it));
+  }
   grid.innerHTML = "";
   grid.appendChild(frag);
   updateAlphaSidebar();

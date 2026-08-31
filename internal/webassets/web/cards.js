@@ -243,6 +243,83 @@ function renderPersonShowCard(show) {
   return el;
 }
 
+// renderSearchShowCard: Sammelkachel pro Serie in Such-Ergebnissen. Klick
+// öffnet den Serien-Ordner (wie der data-show-link-Klick auf einer
+// Episoden-Kachel) — anders als renderPersonShowCard, die im Person-Filter
+// bleibt.
+function renderSearchShowCard(show) {
+  const el = document.createElement("article");
+  el.className = "card folder card--poster";
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  const poster = show.showParentId
+    ? `/api/poster/metadata/${show.showParentId}`
+    : (show.fallbackThumbId ? `/api/thumb/${show.fallbackThumbId}` : "/placeholder.svg");
+  el.innerHTML = `
+    <div class="thumb">
+      <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${poster}">
+      <span class="folder-count">${show.count} Treffer</span>
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${escapeHTML(show.folder)}">${escapeHTML(show.folder)}</div>
+      <div class="card-meta"><span>📺 Serie</span></div>
+    </div>
+  `;
+  const open = () => {
+    state.homeView = false;
+    state.collectionsView = false;
+    state.currentCollection = null;
+    state.playlistsView = false;
+    state.personFilter = null;
+    state.personFilterShow = null;
+    state.currentLibrary = show.libraryId;
+    state.currentFolder = show.folder;
+    state.currentFolderDrilldown = false;
+    const si = $("#searchInput"); if (si) si.value = "";
+    const ls = $("#librarySelect"); if (ls) ls.value = "lib:" + show.libraryId;
+    loadItems();
+  };
+  el.addEventListener("click", open);
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+  return el;
+}
+
+// appendSearchResultCards hängt Such-Treffer ans Fragment: Episoden werden pro
+// Serie (libraryId + erstes rel_path-Segment) zu EINER Sammelkachel
+// zusammengefasst (User-Wunsch, wie in der App), alles andere (Filme,
+// Privatvideos) bleibt eine normale Kachel. Rückgabe: sichtbare Kachel-Anzahl.
+function appendSearchResultCards(frag, items) {
+  const shows = new Map();
+  const rest = [];
+  for (const it of items || []) {
+    const isEp = it.metadata && it.metadata.tmdbType === "episode";
+    const rel = (it.relPath || "").split("/");
+    if (isEp && rel.length > 1) {
+      const key = it.libraryId + " " + rel[0];
+      let s = shows.get(key);
+      if (!s) {
+        s = {
+          libraryId: it.libraryId,
+          folder: rel[0],
+          showParentId: (it.metadata && it.metadata.parentId) || 0,
+          fallbackThumbId: it.id,
+          count: 0,
+        };
+        shows.set(key, s);
+      }
+      s.count++;
+    } else {
+      rest.push(it);
+    }
+  }
+  const mergedRest = groupVariants(rest);
+  for (const m of mergedRest) frag.appendChild(renderCard(m));
+  const showList = Array.from(shows.values())
+    .sort((a, b) => a.folder.localeCompare(b.folder, "de"));
+  for (const s of showList) frag.appendChild(renderSearchShowCard(s));
+  return mergedRest.length + showList.length;
+}
+
 function renderCollectionCard(c) {
   const el = document.createElement("article");
   el.className = "card folder card--poster";
