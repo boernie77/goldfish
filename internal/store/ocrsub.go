@@ -222,7 +222,7 @@ func (s *Store) ListOCRSubJobs(status string) ([]OCRSubJobRow, error) {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []OCRSubJobRow
+	out := []OCRSubJobRow{} // nie nil → JSON [] statt null
 	for rows.Next() {
 		var r OCRSubJobRow
 		if err := rows.Scan(&r.ID, &r.ItemID, &r.Status, &r.Langs, &r.Error,

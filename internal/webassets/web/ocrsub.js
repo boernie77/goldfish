@@ -7,19 +7,32 @@
 // (folder="" = ganze Lib). Struktur analog introskip.js (globaler Toggle +
 // Auswahl-Liste + Job-Status-Tabs, .tp-tab-Klassen wiederverwendet).
 
-async function openOCRSubDialog() {
+function openOCRSubDialog() {
   state.ocrSubTab = state.ocrSubTab || "pending";
-  wireOCRSubDialogOnce();
-  await refreshOCRSubStatus();
-  await renderOCRSubLibraryList();
-  await refreshOCRSubJobTab();
-  $("#ocrSubDialog").showModal();
+  const dlg = document.getElementById("ocrSubDialog");
+  if (!dlg) {
+    console.error("openOCRSubDialog: #ocrSubDialog nicht im DOM");
+    if (typeof appAlert === "function") appAlert("OCR-Dialog fehlt (Seite neu laden).");
+    return;
+  }
+  try {
+    wireOCRSubDialogOnce();
+    dlg.showModal();
+  } catch (e) {
+    console.error("openOCRSubDialog:", e);
+    if (typeof appAlert === "function") appAlert("OCR-Dialog-Fehler: " + (e && e.message || e));
+    return;
+  }
+  // Inhalt asynchron nachladen — Fehler dürfen den offenen Dialog nicht killen.
+  Promise.resolve().then(refreshOCRSubStatus).catch(e => console.error("ocrsub status:", e));
+  Promise.resolve().then(renderOCRSubLibraryList).catch(e => console.error("ocrsub libs:", e));
+  Promise.resolve().then(refreshOCRSubJobTab).catch(e => console.error("ocrsub jobs:", e));
   // Solange der Dialog offen ist, Status alle 5 s aktualisieren.
   clearInterval(state._ocrSubPoll);
-  state._ocrSubPoll = setInterval(async () => {
-    if (!$("#ocrSubDialog").open) { clearInterval(state._ocrSubPoll); return; }
-    await refreshOCRSubStatus();
-    await refreshOCRSubJobTab();
+  state._ocrSubPoll = setInterval(() => {
+    if (!dlg.open) { clearInterval(state._ocrSubPoll); return; }
+    refreshOCRSubStatus().catch(() => {});
+    refreshOCRSubJobTab().catch(() => {});
   }, 5000);
 }
 
@@ -100,6 +113,7 @@ async function renderOCRSubLibraryList() {
   let libs = [];
   try { libs = await api("/api/ocrsubs/folders"); }
   catch (e) { list.innerHTML = `<li class="introskip-empty">Fehler: ${escapeHTML(e.message)}</li>`; return; }
+  if (!Array.isArray(libs)) libs = [];
   if (!libs.length) {
     list.innerHTML = `<li class="introskip-empty">Keine Bibliotheken.</li>`;
     return;
@@ -143,6 +157,7 @@ async function refreshOCRSubJobTab() {
   let jobs = [];
   try { jobs = await api(`/api/ocrsubs/log?status=${state.ocrSubTab}`); }
   catch (e) { logEl.innerHTML = `<div class="trickplay-log-entry"><em style="color:#6b7280">Fehler: ${escapeHTML(e.message)}</em></div>`; return; }
+  if (!Array.isArray(jobs)) jobs = [];
   if (!jobs.length) {
     logEl.innerHTML = `<div class="trickplay-log-entry"><em style="color:#6b7280">Keine Einträge.</em></div>`;
     return;
