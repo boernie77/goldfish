@@ -103,8 +103,20 @@ func (w *Worker) processItem(ctx context.Context, itemID int64) ([]string, error
 
 	// Zielsprachen (IETF) aus den Stream-Tags. Ohne Tag → "en".
 	langSet := map[string]bool{}
+	hasPGS := false
+	var codecs []string
 	for _, st := range streams {
 		langSet[tesseractToIETF(iso639ToTesseract(st.Language))] = true
+		codecs = append(codecs, st.Codec)
+		switch strings.ToLower(st.Codec) {
+		case "hdmv_pgs_subtitle", "pgssub", "pgs":
+			hasPGS = true
+		}
+	}
+	if !hasPGS {
+		// pgsrip kann NUR PGS. VOBSUB (dvd_subtitle) / DVB bräuchte ein anderes
+		// Werkzeug (vobsub2srt o.ä.) — noch nicht gebaut.
+		return nil, fmt.Errorf("kein PGS-Untertitel (Streams: %s) — nur PGS wird per OCR unterstützt", strings.Join(codecs, ", "))
 	}
 
 	ext := strings.ToLower(filepath.Ext(it.Path))
@@ -143,16 +155,12 @@ func (w *Worker) pgsripContainer(ctx context.Context, sourcePath, ext string, la
 		_ = os.Remove(base + ".srt")
 	}()
 
-	args := []string{"--force"}
-	if len(langSet) == 0 {
-		args = append(args, "--all-languages")
-	} else {
-		for l := range langSet {
-			args = append(args, "--language", l)
-		}
-	}
-	args = append(args, link)
-	pg := exec.CommandContext(ctx, w.pgsrip, args...)
+	// `--all-languages` statt `--language <l>`: pgsrip filtert bei `--language`
+	// nach dem Sprach-TAG der PGS-Spur — bei „German.DL"-Rips ist die
+	// PGS-Spur aber oft `eng` oder ohne Tag → „0 PGS subtitle collected"
+	// (real 2026-08-31). `-a` rippt jede PGS-Spur, die Sprache leiten wir
+	// danach aus dem Dateinamen ab (Fallback = erste erwartete Sprache).
+	pg := exec.CommandContext(ctx, w.pgsrip, "--force", "--all-languages", link)
 	out, runErr := pg.CombinedOutput()
 
 	// pgsrip meldet exit!=0 auch, wenn nur EINE Sprache scheitert — daher erst
