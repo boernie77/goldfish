@@ -1084,10 +1084,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - Auto-Sort bei TV-Subfolder: `episode` (nach Staffel+Episode aus TMDB-Metadata).
 - Detail-Dialog mit Poster, Plot, Rating, Genres, Episode-Info + Buttons:
   „Abspielen" / „Als gesehen markieren" / „♡ Favorit" / „Zu Playlist" / „Download" /
-  „Löschen" (Admin-only) / „Manuell zuordnen" (Movies/TV). Zeigt außerdem
-  „🔊 Tonspuren (N)" + „💬 Untertitel (N)" (Sprache/Titel/Codec/Kanäle) aus
-  `item.streams` — kommt schon aus `GetItemFor`→`ItemStreams`, kein Extra-Call
-  (`streamsInfoHTML` in `player.js`).
+  „Löschen" (Admin-only) / „Manuell zuordnen" (Movies/TV). Hat außerdem zwei
+  Dropdowns **🔊 Tonspur / 💬 Untertitel** (`streamsInfoHTML` +
+  `wireDetailAVSelects` in `player.js`). Datenquelle: `/api/playback/{id}`
+  (kennt auch die erzeugten OCR/KI-Untertitel; `item.streams` allein nicht).
+  Untertitel-Dropdown zeigt **nur einblendbare** Spuren (📝 OCR / 🎤 KI + echte
+  Text-Subs) — Bild-Untertitel (PGS/VOBSUB) sind komplett raus, im Player-
+  Untertitel-Dropdown ebenfalls. Die Auswahl landet in `state.detailPrefs`
+  und `openPlayer` reicht sie an den Player durch: Tonspur → `&audio=` (nur
+  wenn vom Standard abweichend), Untertitel → `#subSelect` wird vor
+  `applySubtitleChoice` vorbelegt → Player startet direkt mit der Wahl.
 - **Datei-/Pfad-Suche (admin)** im Zahnrad-Menü unter „🔍 Datei/Ordner suchen":
   Diagnose-Dialog (`#pathSearchDialog`), ruft `GET /api/items/search-path?q=`,
   matcht auf rel_path + path + title, zeigt aktuelle TMDB-Zuordnung. Klick
