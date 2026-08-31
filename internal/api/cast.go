@@ -64,23 +64,41 @@ func (s *Server) getMetadataCast(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, uniq)
 }
 
-// getPerson liefert Grunddaten zu einer Person (TMDB-ID).
+// getPerson liefert Bio-Daten + volle Filmografie einer Person. Bio + Credits
+// kommen live von TMDB (gecacht); der lokale `people`-Eintrag dient als
+// Name/Foto-Fallback, falls TMDB deaktiviert ist oder scheitert.
 func (s *Server) getPerson(w http.ResponseWriter, r *http.Request) {
 	tmdbID, err := strconv.ParseInt(chi.URLParam(r, "tmdbId"), 10, 64)
 	if err != nil {
 		writeError(w, 400, "ungültige tmdbId")
 		return
 	}
-	p, err := s.Store.GetPersonByTMDB(tmdbID)
-	if err != nil {
-		writeError(w, 500, err.Error())
-		return
+	local, _ := s.Store.GetPersonByTMDB(tmdbID)
+
+	if s.Enrich != nil && s.Enrich.Client().Enabled() {
+		if pd, err := s.Enrich.Client().GetPersonDetails(r.Context(), tmdbID); err == nil && pd != nil {
+			if pd.Name == "" && local != nil {
+				pd.Name = local.Name
+			}
+			if pd.ProfilePath == "" && local != nil {
+				pd.ProfilePath = local.ProfilePath
+			}
+			writeJSON(w, 200, pd)
+			return
+		}
 	}
-	if p == nil {
+
+	if local == nil {
 		writeError(w, 404, "Person nicht bekannt")
 		return
 	}
-	writeJSON(w, 200, p)
+	// TMDB nicht verfügbar → nur die lokalen Grunddaten, leere Filmografie.
+	writeJSON(w, 200, map[string]any{
+		"tmdbId":      local.TMDBID,
+		"name":        local.Name,
+		"profilePath": local.ProfilePath,
+		"filmography": []any{},
+	})
 }
 
 // getPersonProfile liefert das gecachte Profilbild (oder Placeholder).

@@ -367,62 +367,91 @@ async function loadItemsBody() {
     applyResolutionFilter(p);
     applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
-    let items = [];
-    try { items = await apiGetCached(`/api/items?${p}`); }
-    catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    let items = [], person = null;
+    try {
+      [items, person] = await Promise.all([
+        apiGetCached(`/api/items?${p}`),
+        api(`/api/person/${state.personFilter.tmdbId}`).catch(() => null),
+      ]);
+    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
 
-    const movies = items.filter(x => x.metadata && x.metadata.tmdbType === "movie");
+    const ownedMoviesRaw = items.filter(x => x.metadata && x.metadata.tmdbType === "movie");
     const episodes = items.filter(x => x.metadata && x.metadata.tmdbType === "episode");
 
-    // Movies: chronologisch, neueste zuerst
-    movies.sort((a, b) => {
-      const aD = (a.metadata && a.metadata.releaseDate) || a.releasedAt || "";
-      const bD = (b.metadata && b.metadata.releaseDate) || b.releasedAt || "";
-      return String(bD).localeCompare(String(aD));
-    });
-
-    // Episoden: pro Show (libraryId + rel_path[0]) eine Sammelkachel.
+    // Filme nach metadata.tmdbId indizieren (nach groupVariants: 1 Kachel/Film).
+    const mergedMovies = groupVariants(ownedMoviesRaw);
+    const ownedMovieByTmdb = new Map();
+    for (const m of mergedMovies) {
+      const tid = m.metadata && m.metadata.tmdbId;
+      if (tid) ownedMovieByTmdb.set(tid, m);
+    }
+    // Episoden → pro Show (Parent-Show-tmdbId) eine Sammelkachel.
     const showsMap = new Map();
     for (const ep of episodes) {
       const folder = (ep.relPath || "").split("/")[0] || "";
-      if (!folder) continue;
-      const key = `${ep.libraryId}|${folder}`;
+      const showTid = (ep.metadata && ep.metadata.parentId) || 0;
+      const key = showTid || `${ep.libraryId}|${folder}`;
       if (!showsMap.has(key)) {
         showsMap.set(key, {
-          libraryId: ep.libraryId,
-          folder,
-          showParentId: (ep.metadata && ep.metadata.parentId) || 0,
-          fallbackThumbId: ep.id,
-          count: 0,
-          episodes: [],
+          libraryId: ep.libraryId, folder,
+          showParentId: showTid, fallbackThumbId: ep.id, count: 0, episodes: [],
         });
       }
       const entry = showsMap.get(key);
       entry.count++;
       entry.episodes.push(ep);
     }
-    const shows = Array.from(showsMap.values()).sort((a, b) => a.folder.localeCompare(b.folder));
-    for (const s of shows) {
-      s.episodes.sort((a, b) => {
-        const sa = (a.metadata && a.metadata.season) || 0, sb = (b.metadata && b.metadata.season) || 0;
-        if (sa !== sb) return sa - sb;
-        return ((a.metadata && a.metadata.episode) || 0) - ((b.metadata && b.metadata.episode) || 0);
-      });
-    }
 
-    const totalHits = movies.length + shows.length;
-    renderBreadcrumb({ searchCount: totalHits });
-    if (!movies.length && !shows.length) {
-      grid.innerHTML = `<div class="empty">Keine Videos mit ${escapeHTML(state.personFilter.name)} gefunden.</div>`;
+    renderBreadcrumb({ searchCount: mergedMovies.length + showsMap.size });
+    grid.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    if (person && (person.name || person.biography)) frag.appendChild(renderPersonHeader(person));
+
+    // Volle Filmografie von TMDB: owned = echte Kachel, sonst ausgegraut.
+    if (person && Array.isArray(person.filmography) && person.filmography.length) {
+      const h = document.createElement("h2");
+      h.className = "person-section-title";
+      h.textContent = `🎞 Filmografie · ${person.filmography.length}`;
+      frag.appendChild(h);
+      const g = document.createElement("div");
+      g.className = "subview-grid";
+      const usedMovie = new Set(), usedShow = new Set();
+      const rendered = [];
+      for (const cr of person.filmography) {
+        if (cr.mediaType === "movie") {
+          const owned = ownedMovieByTmdb.get(cr.tmdbId);
+          if (owned) { g.appendChild(renderCard(owned)); usedMovie.add(cr.tmdbId); rendered.push(owned); }
+          else g.appendChild(renderPersonFilmCard(cr));
+        } else { // tv
+          const owned = showsMap.get(cr.tmdbId);
+          if (owned) { g.appendChild(renderPersonShowCard(owned)); usedShow.add(cr.tmdbId); }
+          else g.appendChild(renderPersonFilmCard(cr));
+        }
+      }
+      // Owned-Einträge, die TMDB nicht in der Filmografie hat, hinten anhängen —
+      // wir wollen NIE etwas verstecken, das der User besitzt.
+      for (const m of mergedMovies) {
+        const tid = m.metadata && m.metadata.tmdbId;
+        if (!tid || !usedMovie.has(tid)) { g.appendChild(renderCard(m)); rendered.push(m); }
+      }
+      for (const [k, sh] of showsMap) {
+        if (!usedShow.has(k)) g.appendChild(renderPersonShowCard(sh));
+      }
+      frag.appendChild(g);
+      state.lastRenderedItems = rendered;
+      grid.appendChild(frag);
       return;
     }
 
-    grid.innerHTML = "";
-    const frag = document.createDocumentFragment();
-    const mergedMovies = groupVariants(movies);
+    // Fallback (TMDB aus / keine Filmografie): nur die owned Treffer wie bisher.
+    if (!mergedMovies.length && !showsMap.size) {
+      frag.appendChild(Object.assign(document.createElement("div"),
+        { className: "empty", textContent: `Keine Videos mit ${state.personFilter.name} gefunden.` }));
+      grid.appendChild(frag);
+      return;
+    }
     state.lastRenderedItems = mergedMovies;
-
     if (mergedMovies.length) {
       const h = document.createElement("h2");
       h.className = "person-section-title";
@@ -433,14 +462,14 @@ async function loadItemsBody() {
       for (const m of mergedMovies) mg.appendChild(renderCard(m));
       frag.appendChild(mg);
     }
-    if (shows.length) {
+    if (showsMap.size) {
       const h = document.createElement("h2");
       h.className = "person-section-title";
-      h.textContent = `📺 Serien · ${shows.length}`;
+      h.textContent = `📺 Serien · ${showsMap.size}`;
       frag.appendChild(h);
       const sg = document.createElement("div");
       sg.className = "subview-grid";
-      for (const s of shows) sg.appendChild(renderPersonShowCard(s));
+      for (const s of showsMap.values()) sg.appendChild(renderPersonShowCard(s));
       frag.appendChild(sg);
     }
     grid.appendChild(frag);

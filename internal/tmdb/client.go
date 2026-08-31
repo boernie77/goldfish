@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -676,6 +677,109 @@ func (c *Client) GetTVCredits(ctx context.Context, tvID int64) ([]CastEntry, err
 	}
 	c.cachePut(key, r.Cast)
 	return r.Cast, nil
+}
+
+// PersonDetails: Grunddaten + volle Filmografie (Schauspiel-Credits) einer Person.
+type PersonDetails struct {
+	ID                 int64          `json:"tmdbId"`
+	Name               string         `json:"name"`
+	Biography          string         `json:"biography"`
+	Birthday           string         `json:"birthday,omitempty"`
+	Deathday           string         `json:"deathday,omitempty"`
+	PlaceOfBirth       string         `json:"placeOfBirth,omitempty"`
+	KnownForDepartment string         `json:"knownForDepartment,omitempty"`
+	ProfilePath        string         `json:"profilePath,omitempty"`
+	Filmography        []PersonCredit `json:"filmography"`
+}
+
+// PersonCredit: ein Film/Serie, in dem/der die Person mitspielt.
+type PersonCredit struct {
+	TMDBID     int64   `json:"tmdbId"`
+	MediaType  string  `json:"mediaType"` // "movie" | "tv"
+	Title      string  `json:"title"`
+	Year       int     `json:"year,omitempty"`
+	Character  string  `json:"character,omitempty"`
+	PosterPath string  `json:"posterPath,omitempty"`
+	Popularity float64 `json:"popularity,omitempty"`
+}
+
+// GetPersonDetails holt Person-Grunddaten + die kombinierte Filmografie in
+// EINEM API-Call (append_to_response=combined_credits). Gecacht.
+func (c *Client) GetPersonDetails(ctx context.Context, id int64) (*PersonDetails, error) {
+	key := fmt.Sprintf("persondetails:%d:%s", id, c.language)
+	if v, ok := c.cacheGet(key); ok {
+		return v.(*PersonDetails), nil
+	}
+	var raw struct {
+		ID                 int64  `json:"id"`
+		Name               string `json:"name"`
+		Biography          string `json:"biography"`
+		Birthday           string `json:"birthday"`
+		Deathday           string `json:"deathday"`
+		PlaceOfBirth       string `json:"place_of_birth"`
+		KnownForDepartment string `json:"known_for_department"`
+		ProfilePath        string `json:"profile_path"`
+		CombinedCredits    struct {
+			Cast []struct {
+				ID           int64   `json:"id"`
+				MediaType    string  `json:"media_type"`
+				Title        string  `json:"title"`
+				Name         string  `json:"name"`
+				ReleaseDate  string  `json:"release_date"`
+				FirstAirDate string  `json:"first_air_date"`
+				Character    string  `json:"character"`
+				PosterPath   string  `json:"poster_path"`
+				Popularity   float64 `json:"popularity"`
+			} `json:"cast"`
+		} `json:"combined_credits"`
+	}
+	params := url.Values{}
+	params.Set("append_to_response", "combined_credits")
+	if err := c.get(ctx, "/person/"+strconv.FormatInt(id, 10), params, &raw); err != nil {
+		return nil, err
+	}
+	pd := &PersonDetails{
+		ID: raw.ID, Name: raw.Name, Biography: raw.Biography,
+		Birthday: raw.Birthday, Deathday: raw.Deathday, PlaceOfBirth: raw.PlaceOfBirth,
+		KnownForDepartment: raw.KnownForDepartment, ProfilePath: raw.ProfilePath,
+		Filmography: []PersonCredit{},
+	}
+	seen := map[string]bool{}
+	for _, cr := range raw.CombinedCredits.Cast {
+		if cr.MediaType != "movie" && cr.MediaType != "tv" {
+			continue
+		}
+		k := cr.MediaType + ":" + strconv.FormatInt(cr.ID, 10)
+		if seen[k] { // gleiche Person in mehreren Episoden derselben Serie → 1×
+			continue
+		}
+		seen[k] = true
+		title := cr.Title
+		if title == "" {
+			title = cr.Name
+		}
+		date := cr.ReleaseDate
+		if date == "" {
+			date = cr.FirstAirDate
+		}
+		year := 0
+		if len(date) >= 4 {
+			year, _ = strconv.Atoi(date[:4])
+		}
+		pd.Filmography = append(pd.Filmography, PersonCredit{
+			TMDBID: cr.ID, MediaType: cr.MediaType, Title: title, Year: year,
+			Character: cr.Character, PosterPath: cr.PosterPath, Popularity: cr.Popularity,
+		})
+	}
+	sort.SliceStable(pd.Filmography, func(i, j int) bool {
+		a, b := pd.Filmography[i], pd.Filmography[j]
+		if a.Year != b.Year {
+			return a.Year > b.Year // neuere zuerst; Jahr 0 (unbekannt) ans Ende
+		}
+		return a.Popularity > b.Popularity
+	})
+	c.cachePut(key, pd)
+	return pd, nil
 }
 
 // GetEpisodeCredits holt Cast + Guest-Stars einer Episode.

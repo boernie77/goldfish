@@ -1512,16 +1512,22 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 - Handler: `toggleFavoriteOnCard(item, btn)` analog zu `toggleWatchedOnCard`.
 
 ### Person-Filter (Schauspieler-Klick)
-- Klick auf einen Schauspieler-Cast öffnet einen library-übergreifenden
-  Filter (`state.personFilter`). Server-Endpoint `GET /api/items?personId=<tmdb>`.
-- **Split-Rendering** in zwei Sektionen:
-  - **🎬 Filme**: normale `renderCard`-Kacheln, client-seitig chronologisch
-    sortiert (neueste zuerst, via `metadata.releaseDate`/`releasedAt`).
-  - **📺 Serien**: Pro (libraryId + rel_path[0]) genau EINE Sammelkachel
-    (`renderPersonShowCard`). Poster via `/api/poster/metadata/<parentId>`
-    (Parent-Show-Metadata), Badge zeigt Anzahl gefundener Episoden. Klick
-    navigiert zum Show-Ordner wie der `data-show-link`-Klick auf einer
-    Episoden-Kachel.
+- Klick auf einen Schauspieler öffnet eine library-übergreifende Personen-Ansicht
+  (`state.personFilter = {tmdbId, name}`). Zwei parallele Fetches:
+  - `GET /api/items?personId=<tmdb>` — die im Bestand vorhandenen Titel (ACL-safe).
+  - `GET /api/person/<tmdb>` — **Bio-Daten + volle Filmografie** live von TMDB
+    (`tmdb.Client.GetPersonDetails`, ein Call mit `append_to_response=combined_credits`,
+    gecacht). Handler `getPerson` in `internal/api/cast.go`; Fallback auf den
+    lokalen `people`-Eintrag, wenn TMDB aus/fehlschlägt.
+- **Rendering:** `renderPersonHeader` (Foto `/api/person/<id>/profile` +
+  Lebensdaten + Bio mit „mehr"-Toggle) + EIN Filmografie-Grid
+  (`🎞 Filmografie · N`): jeder TMDB-Credit als Kachel — im Bestand → echte
+  `renderCard` (Film) bzw. `renderPersonShowCard` (Serie, 1 Sammelkachel pro
+  Show), sonst **ausgegraut** `renderPersonFilmCard` (`.person-film-missing`,
+  Badge „nicht vorhanden", TMDB-Poster, Rolle). Owned-Titel, die TMDB nicht
+  listet, werden hinten angehängt (nie verstecken, was der User hat).
+- **Fallback ohne TMDB:** altes Split-Rendering 🎬 Filme / 📺 Serien nur mit
+  den owned Treffern.
 - Sektion-Headings via `.person-section-title` (grid-column: 1/-1).
 
 ### Bulk-Selection

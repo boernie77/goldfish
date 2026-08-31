@@ -321,6 +321,43 @@ button.primary:hover { background: var(--accent-hover); }
 }
 .person-section-title:first-of-type { margin-top: 4px; }
 
+/* ---- Schauspieler-Info-Kopf ------------------------------------------------ */
+.person-header {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin: 4px 4px 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.person-header-photo {
+  flex: 0 0 120px;
+  width: 120px;
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+  background: var(--card-2) center/cover no-repeat;
+}
+.person-header-body { min-width: 0; }
+.person-header-body h2 { margin: 0 0 4px; font-size: 20px; }
+.person-header-facts {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  color: var(--text-dim); font-size: 13px; margin-bottom: 8px;
+}
+.person-header-bio { font-size: 13px; line-height: 1.55; color: var(--text); margin: 0; }
+
+/* ausgegraute „nicht in der Bibliothek"-Kachel in der Filmografie */
+.person-film-missing { opacity: 0.5; filter: grayscale(0.6); }
+.person-film-missing .thumb {
+  aspect-ratio: 2 / 3;
+  background: var(--card-2) center/cover no-repeat;
+  position: relative;
+}
+.person-film-missing .missing-badge {
+  background: rgba(100, 116, 139, 0.92);
+}
+.person-film-role { font-style: italic; }
+
 /* ---- Poster-Picker-Dialog ----------------------------------------------- */
 .poster-picker-modal {
   min-width: min(720px, 92vw);

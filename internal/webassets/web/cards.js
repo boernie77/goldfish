@@ -320,6 +320,67 @@ function appendSearchResultCards(frag, items) {
   return mergedRest.length + showList.length;
 }
 
+// renderPersonHeader: Info-Block über den Schauspieler (Foto + Lebensdaten +
+// Biografie mit „mehr"-Toggle). person: { tmdbId, name, biography, birthday,
+// deathday, placeOfBirth, knownForDepartment }.
+function renderPersonHeader(person) {
+  const el = document.createElement("div");
+  el.className = "person-header";
+  const facts = [];
+  if (person.knownForDepartment) {
+    const dep = person.knownForDepartment === "Acting" ? "Schauspiel" : person.knownForDepartment;
+    facts.push(dep);
+  }
+  const y = (d) => (d && d.length >= 4 ? d.slice(0, 4) : "");
+  if (person.birthday) {
+    facts.push(person.deathday
+      ? `${y(person.birthday)}–${y(person.deathday)}`
+      : `geb. ${fmtDate(person.birthday)}`);
+  }
+  if (person.placeOfBirth) facts.push(person.placeOfBirth);
+  const bio = (person.biography || "").trim();
+  const bioShort = bio.length > 320 ? bio.slice(0, 320).replace(/\s+\S*$/, "") + "…" : bio;
+  el.innerHTML = `
+    <div class="person-header-photo" style="background-image:url('/api/person/${person.tmdbId}/profile')"></div>
+    <div class="person-header-body">
+      <h2>${escapeHTML(person.name || "")}</h2>
+      ${facts.length ? `<div class="person-header-facts">${facts.map(f => `<span>${escapeHTML(f)}</span>`).join("")}</div>` : ""}
+      ${bio ? `<p class="person-header-bio">${escapeHTML(bioShort)}${
+        bio.length > bioShort.length ? ` <button type="button" class="link-btn person-bio-more">mehr</button>` : ""
+      }</p>` : ""}
+    </div>`;
+  if (bio.length > bioShort.length) {
+    const p = el.querySelector(".person-header-bio");
+    el.querySelector(".person-bio-more").addEventListener("click", () => {
+      p.textContent = bio;
+    });
+  }
+  return el;
+}
+
+// renderPersonFilmCard: ausgegraute Kachel für einen Filmografie-Eintrag, der
+// NICHT in der Bibliothek ist. credit: { tmdbId, mediaType, title, year, character, posterPath }.
+function renderPersonFilmCard(credit) {
+  const el = document.createElement("article");
+  el.className = "card card--poster person-film-missing";
+  const img = credit.posterPath
+    ? `https://image.tmdb.org/t/p/w342${credit.posterPath}`
+    : "/placeholder.svg";
+  el.innerHTML = `
+    <div class="thumb" style="background-image:url('${img}')">
+      <span class="missing-badge" title="Nicht in der Bibliothek">nicht vorhanden</span>
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${escapeHTML(credit.title)}">${escapeHTML(credit.title)}</div>
+      <div class="card-meta">
+        ${credit.year ? `<span>${credit.year}</span>` : ""}
+        ${credit.mediaType === "tv" ? `<span>📺 Serie</span>` : ""}
+        ${credit.character ? `<span class="person-film-role">als ${escapeHTML(credit.character)}</span>` : ""}
+      </div>
+    </div>`;
+  return el;
+}
+
 function renderCollectionCard(c) {
   const el = document.createElement("article");
   el.className = "card folder card--poster";
