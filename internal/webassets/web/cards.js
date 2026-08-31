@@ -499,6 +499,12 @@ function renderCard(it, opts = {}) {
   const dupeBadge = dupePaths.length
     ? `<span class="dupe-badge" title="Auch vorhanden als:&#10;${escapeHTML(dupePaths.join("\n"))}">⧉${dupePaths.length > 1 ? " ×" + dupePaths.length : ""}</span>`
     : "";
+  // Persönliche Sterne-Bewertung (Privat-Libs, user_item_state.rating 1..3).
+  // Overlay oben rechts unter dem Rating-Slot (top:66 right:6 laut CLAUDE.md-
+  // Koordinatentabelle). Nur wenn > 0.
+  const userRating = (itLib && itLib.kind === "private" && (it.rating || 0) > 0)
+    ? `<span class="user-rating-badge" title="${it.rating} Sterne">${"★".repeat(it.rating)}</span>`
+    : "";
   const selected = state.selection.has(it.id);
   if (selected) el.classList.add("selected");
   el.dataset.itemId = String(it.id);
@@ -513,6 +519,7 @@ function renderCard(it, opts = {}) {
       ${tp}
       ${variantBadge}
       ${dupeBadge}
+      ${userRating}
       <span class="badge">${(it.container || "").toUpperCase()}</span>
       ${res ? `<span class="res-badge">${res}</span>` : ""}
       <span class="duration">${fmtDuration(it.durationSec)}</span>

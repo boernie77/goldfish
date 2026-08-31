@@ -440,6 +440,23 @@ func (s *Store) SetFavoriteFor(userID, itemID int64, favorite bool) error {
 	return err
 }
 
+// SetItemRatingFor setzt die persönliche Sternebewertung (0–3) eines Users
+// für ein Item. rating wird auf 0..3 geklemmt.
+func (s *Store) SetItemRatingFor(userID, itemID int64, rating int) error {
+	if rating < 0 {
+		rating = 0
+	}
+	if rating > 3 {
+		rating = 3
+	}
+	_, err := s.db.Exec(`
+		INSERT INTO user_item_state(user_id, item_id, rating)
+		VALUES(?, ?, ?)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET rating=excluded.rating
+	`, userID, itemID, rating)
+	return err
+}
+
 // MigrateLegacyPlaylistOwners setzt user_id auf allen Playlists ohne Besitzer.
 func (s *Store) MigrateLegacyPlaylistOwners(userID int64) error {
 	_, err := s.db.Exec(`UPDATE playlists SET user_id = ? WHERE user_id IS NULL`, userID)

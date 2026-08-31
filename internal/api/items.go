@@ -377,21 +377,22 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	f := store.ItemFilter{
-		Search:     q.Get("search"),
-		Sort:       q.Get("sort"),
-		SortDir:    q.Get("dir"),
-		DateFrom:   parseDate(q.Get("dateFrom")),
-		DateTo:     parseDate(q.Get("dateTo")),
-		Folder:     q.Get("folder"),
-		Watched:    q.Get("watched"),
-		Favorite:   q.Get("favorite"),
-		MatchState: q.Get("match"),
-		DupesOnly:  q.Get("duplicates") == "yes",
-		FileDupesOnly: q.Get("fileDuplicates") == "yes",
-		Interlaced: q.Get("interlaced") == "yes",
+		Search:          q.Get("search"),
+		Sort:            q.Get("sort"),
+		SortDir:         q.Get("dir"),
+		DateFrom:        parseDate(q.Get("dateFrom")),
+		DateTo:          parseDate(q.Get("dateTo")),
+		Folder:          q.Get("folder"),
+		Watched:         q.Get("watched"),
+		Favorite:        q.Get("favorite"),
+		RatingFilter:    q.Get("rating"),
+		MatchState:      q.Get("match"),
+		DupesOnly:       q.Get("duplicates") == "yes",
+		FileDupesOnly:   q.Get("fileDuplicates") == "yes",
+		Interlaced:      q.Get("interlaced") == "yes",
 		TrickplayStatus: q.Get("trickplay"),
-		UserID:     me.ID,
-		IsAdmin:    me.IsAdmin,
+		UserID:          me.ID,
+		IsAdmin:         me.IsAdmin,
 	}
 	// Sicherheitslücke gefunden 2026-08-22 (User: "beim Benutzer Börnie werden bei der
 	// Startseiten-Suche Treffer aus Bibliotheken angezeigt, auf die er gar keinen Zugriff
@@ -449,12 +450,13 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	q := r.URL.Query()
 	f := store.ItemFilter{
-		Search:     q.Get("search"),
-		Sort:       "random",
-		Folder:     q.Get("folder"),
-		Watched:    q.Get("watched"),
-		Favorite:   q.Get("favorite"),
-		MatchState: q.Get("match"),
+		Search:       q.Get("search"),
+		Sort:         "random",
+		Folder:       q.Get("folder"),
+		Watched:      q.Get("watched"),
+		Favorite:     q.Get("favorite"),
+		RatingFilter: q.Get("rating"),
+		MatchState:   q.Get("match"),
 	}
 	if me != nil {
 		f.UserID = me.ID

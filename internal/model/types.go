@@ -131,6 +131,9 @@ type Item struct {
 	WatchedAt    time.Time `json:"watchedAt,omitempty"`
 	Favorite     bool      `json:"favorite"`
 	FavoritedAt  time.Time `json:"favoritedAt,omitempty"`
+	// Rating: persönliche Sternebewertung 0–3 (pro User, user_item_state.rating).
+	// 0 = keine Wertung.
+	Rating int `json:"rating,omitempty"`
 	TrickplayStatus string       `json:"trickplayStatus,omitempty"` // "" | "pending" | "done" | "failed"
 	Streams         []ItemStream `json:"streams,omitempty"`
 	// VariantCount: wieviele Items insgesamt dieselbe metadata_id haben (= dieses

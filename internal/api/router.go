@@ -131,6 +131,7 @@ func (s *Server) Router() http.Handler {
 		r.Delete("/watch-links/{partnerId}", s.unlinkWatchLink)
 
 		r.Put("/items/{id}/favorite", s.setFavorite)
+		r.Put("/items/{id}/rating", s.setItemRating)
 		r.Post("/items/{id}/played", s.touchPlayed)
 		r.Put("/items/{id}/resume", s.setResumePos)
 		r.Get("/items/{id}/resume", s.getResumePos)

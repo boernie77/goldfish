@@ -467,6 +467,12 @@ func (s *Store) migrate() error {
 	if err := addCol("intro_skip_folders", "season", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Persönliche Sternebewertung (0–3) pro User+Item — analog zur Mac/iOS-App
+	// (`LocalItem.rating`), aber server-seitig, damit sie im Browser + allen
+	// Clients gilt. 0 = keine Wertung.
+	if err := addCol("user_item_state", "rating", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Indizes erst nach ALTER
 	idxStmts := []string{
 		`CREATE INDEX IF NOT EXISTS items_released_idx ON items(released_at)`,
@@ -959,7 +965,11 @@ type ItemFilter struct {
 	Folder     string
 	Watched    string
 	Favorite   string
-	MatchState string
+	// RatingFilter: "" (aus) | "unrated" (0 Sterne) | "min1" | "min2" | "exact3"
+	// — persönliche Sternebewertung (user_item_state.rating), spiegelt den
+	// Filter der Mac/iOS-App.
+	RatingFilter string
+	MatchState   string
 	DupesOnly  bool // true = nur Items mit mehrfach vergebener metadata_id
 	// FileDupesOnly: nur Items, deren (size_bytes, duration_sec) mit einem
 	// anderen Item im selben Scope (LibraryID/LibraryIDs + Folder) übereinstimmt.
@@ -1006,7 +1016,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 	       COALESCE(i.trickplay_status, ''),
 	       COALESCE(i.episode_end, 0),
-	       COALESCE(i.variant_split, 0)
+	       COALESCE(i.variant_split, 0),
+	       COALESCE(us.rating, 0)
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -1107,6 +1118,16 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	}
 	if f.Favorite == "yes" {
 		q += ` AND COALESCE(us.favorite, 0) = 1`
+	}
+	switch f.RatingFilter {
+	case "unrated":
+		q += ` AND COALESCE(us.rating, 0) = 0`
+	case "min1":
+		q += ` AND COALESCE(us.rating, 0) >= 1`
+	case "min2":
+		q += ` AND COALESCE(us.rating, 0) >= 2`
+	case "exact3":
+		q += ` AND COALESCE(us.rating, 0) >= 3`
 	}
 	if f.MatchState == "unmatched" {
 		q += ` AND i.metadata_id IS NULL`
@@ -1365,7 +1386,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		var watchedAt, favoritedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit); err != nil {
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -1719,7 +1740,8 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		       COALESCE(i.trickplay_status, ''),
 		       COALESCE(i.episode_end, 0),
 		       COALESCE(i.variant_split, 0),
-		       i.intro_start_sec, i.intro_end_sec
+		       i.intro_start_sec, i.intro_end_sec,
+		       COALESCE(us.rating, 0)
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.id = ?`, userID, id).
@@ -1727,7 +1749,7 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&confirmed,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit,
-			&introStart, &introEnd)
+			&introStart, &introEnd, &it.Rating)
 	it.MetadataConfirmed = confirmed == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

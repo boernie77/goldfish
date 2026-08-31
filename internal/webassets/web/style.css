@@ -2649,6 +2649,30 @@ button.danger:hover { background: #991b1b; }
 }
 .detail-streams ul { list-style: none; margin: 0; padding: 0; }
 .detail-streams li { font-size: 12px; color: var(--text); line-height: 1.5; }
+
+/* Persönliche Sternebewertung im Detail-Dialog (Privat-Libs) */
+.detail-user-rating { display: flex; align-items: center; gap: 4px; margin: 8px 0 2px; }
+.detail-user-rating:empty { display: none; }
+.detail-user-rating .detail-rating-label {
+  font-size: 12px; color: var(--text-dim); margin-right: 6px;
+}
+.detail-user-rating .star-btn {
+  background: none; border: none; cursor: pointer; padding: 2px;
+  font-size: 20px; line-height: 1; color: var(--border);
+  transition: color 0.12s, transform 0.12s;
+}
+.detail-user-rating .star-btn:hover { transform: scale(1.15); }
+.detail-user-rating .star-btn.on { color: #fbbf24; }
+.detail-user-rating .star-clear { font-size: 13px; margin-left: 4px; color: var(--text-dim); }
+.detail-user-rating .star-clear.on { color: var(--text); }
+
+/* Kachel-Overlay: persönliche Sterne (Privat-Libs), top:66 right:6 */
+.user-rating-badge {
+  position: absolute; top: 66px; right: 6px;
+  background: rgba(0,0,0,0.65); color: #fbbf24;
+  font-size: 11px; letter-spacing: 1px; padding: 2px 5px; border-radius: 4px;
+  pointer-events: none;
+}
 .detail-modal .row { padding: 12px 20px 16px; margin: 0; border-top: 1px solid var(--border); }
 
 .match-results {

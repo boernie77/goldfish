@@ -111,6 +111,22 @@ function streamsInfoHTML(item) {
   return `<div class="detail-streams" id="detailStreams">${html}</div>`;
 }
 
+// ratingRowHTML: klickbare 3-Sterne-Bewertung für Privat-Lib-Items (analog zur
+// Mac/iOS-App `LocalItem.rating`). Für Nicht-Privat-Libs leer (dort gibt es das
+// TMDB-Rating). `item.rating` ist 0..3 (user_item_state.rating).
+function ratingRowHTML(item, lib) {
+  if (!lib || lib.kind !== "private") return `<div class="detail-user-rating" id="detailRating"></div>`;
+  const r = item.rating || 0;
+  const stars = [1, 2, 3].map(n =>
+    `<button type="button" class="star-btn${n <= r ? " on" : ""}" data-star="${n}" title="${n} Stern${n > 1 ? "e" : ""}">★</button>`
+  ).join("");
+  return `<div class="detail-user-rating" id="detailRating">
+    <span class="detail-rating-label">Bewertung</span>
+    ${stars}
+    <button type="button" class="star-btn star-clear${r === 0 ? " on" : ""}" data-star="0" title="Keine Bewertung">✕</button>
+  </div>`;
+}
+
 async function openDetail(item) {
   // Bei jedem Öffnen ein frisches Item vom Server holen — sonst zeigt das
   // Dialog die im Grid-Cache eingebetteten (alten) Metadaten, auch wenn
@@ -249,6 +265,7 @@ async function openDetail(item) {
           ${sub.map(x => `<span>${escapeHTML(x)}</span>`).join("")}
         </div>
         <p class="overview">${escapeHTML(overview || "—")}</p>
+        ${ratingRowHTML(item, state.libraries.find(l => l.id == item.libraryId))}
         ${variantDropdown}
         ${streamsInfoHTML(item)}
         <div id="detailCast" class="cast-strip hidden"></div>
@@ -299,6 +316,7 @@ async function openDetail(item) {
   updateDetailWatchedBtn();
   updateDetailFavBtn();
   updateConfirmBtn();
+  wireDetailRating(item);
   if (typeof initSubGenBtn === "function") initSubGenBtn(item);
   const itemLib = state.libraries.find(l => l.id == item.libraryId);
   $("#detailMatch").style.display = (itemLib && itemLib.kind === "private") ? "none" : "";
@@ -427,6 +445,37 @@ function updateDetailWatchedBtn() {
   btn.textContent = "✓";
   btn.classList.toggle("icon-btn--on-watched", on);
   btn.title = on ? "Als ungesehen markieren" : "Als gesehen markieren";
+}
+
+// wireDetailRating hängt Klick-Handler an die Sterne im Detail-Dialog (nur bei
+// Privat-Libs gerendert). Klick auf Stern N setzt Rating=N, „✕" setzt 0.
+// PUT /api/items/{id}/rating — aktualisiert das Item lokal + die Kachel im Grid.
+function wireDetailRating(item) {
+  const row = $("#detailRating");
+  if (!row || !row.querySelector(".star-btn")) return;
+  row.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".star-btn");
+    if (!btn) return;
+    const val = parseInt(btn.dataset.star, 10) || 0;
+    const target = state.currentItem || item;
+    try {
+      await api(`/api/items/${target.id}/rating`, {
+        method: "PUT",
+        body: JSON.stringify({ rating: val }),
+      });
+    } catch (err) {
+      showToast(`Fehler: ${err.message}`, { kind: "error" });
+      return;
+    }
+    target.rating = val;
+    // Sterne im Dialog updaten
+    row.querySelectorAll(".star-btn").forEach(b => {
+      const n = parseInt(b.dataset.star, 10) || 0;
+      b.classList.toggle("on", n === 0 ? val === 0 : n <= val);
+    });
+    // Kachel im Grid ohne Full-Reload nachziehen
+    if (typeof silentlyRefreshItem === "function") silentlyRefreshItem(target.id);
+  });
 }
 
 function updateConfirmBtn() {

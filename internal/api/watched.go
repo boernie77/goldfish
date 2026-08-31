@@ -38,6 +38,41 @@ func (s *Server) setFavorite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// setItemRating: PUT /api/items/{id}/rating {"rating": 0..3} — persönliche
+// Sternebewertung (pro User, kein Admin nötig).
+func (s *Server) setItemRating(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, _ := s.Store.GetItem(id)
+	if it == nil {
+		writeError(w, 404, "Item nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	var body struct {
+		Rating int `json:"rating"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetItemRatingFor(me.ID, id, body.Rating); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
 func (s *Server) setWatched(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	if me == nil {
