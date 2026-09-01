@@ -695,12 +695,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Manager, nur bei `kind=private` sichtbar (bei Filme/Serien ist Titel
   sowieso oben).
 - **Library-Manager-Row-Layout**: zweizeilig — Zeile 1 hat Name + Kind-
-  Select + 🗑-Icon (Tooltip „Bibliothek löschen"), Zeile 2 hat ▲▼ (globale
-  Reihenfolge, wirkt auf Reiter oben) + Toggle-Pille (🏷 Ordner oben). Beide
-  Zeilen mit `flex-wrap` für narrow Modals (`.modal` hat `max-width: 520px`).
-  **Kein „🏠 Startseite"-Toggle mehr hier** (seit 2026-09-02 entfernt) — war
-  nach Einführung des pro-User „🏠 Startseite anpassen"-Dialogs doppelt
-  gepflegt, siehe „Startseite (Home-View)".
+  Select + 🗑-Icon (Tooltip „Bibliothek löschen"), Zeile 2 (nur bei
+  `kind=private`) hat die Toggle-Pille 🏷 „Ordner oben" (wirkt nur im Grid
+  dieser Bibliothek, nicht im Dialog selbst — Tooltip präzisiert
+  2026-09-02, User fragte danach). Beide Zeilen mit `flex-wrap` für narrow
+  Modals (`.modal` hat `max-width: 520px`).
+  **Kein „🏠 Startseite"-Toggle und kein ▲▼ mehr hier** (seit 2026-09-02
+  entfernt) — beides ist jetzt pro Benutzer im „🏠 Startseite anpassen"-
+  Dialog geregelt (steuert dort zusätzlich die Bibliotheks-Reiterleiste,
+  siehe „Startseite (Home-View)") — war doppelt gepflegt.
+  `PUT /api/libraries/order` bleibt als Endpoint bestehen, nur ungenutzt
+  von der UI.
 
 ### Auto-Scan (zeitgesteuert, Browser-Admin-Menü)
 - Mehrere unabhängige **Scan-Aufgaben**, jede mit eigenem Zeitplan, Bibliothek und
@@ -1200,21 +1205,35 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   **Keine Admin-UI mehr dafür** (Checkbox seit 2026-09-02 aus dem
   Library-Manager entfernt, war doppelt gepflegt) — der Wert bleibt nur im
   Schema als Fallback, neue Libraries starten mit `on_home=1`.
-- **Pro-User-Override (seit 2026-09-01, um Reihenfolge erweitert 2026-09-02):**
-  Tabelle `user_home_prefs (user_id, library_id, on_home, sort_order)`
-  überschreibt für diesen User sowohl Sichtbarkeit als auch Reihenfolge der
-  Startseiten-Streifen (unabhängig vom globalen `libraries.on_home`/
-  `sort_order`-Default). **Für jeden User verfügbar, auch Admins** — über
-  „🏠 Startseite anpassen" (Zahnrad-Menü ODER Button direkt auf der
-  Startseite, `views.js openHomePrefsDialog`): Checkbox pro Lib +
-  ▲▼-Reihenfolge (gleiches Muster wie die globalen ▲▼ im Library-Manager,
-  aber wirkt NUR auf die eigenen Home-Streifen — **nicht** auf die
-  Bibliotheks-Reiter oben, die bleiben global/admin über
-  `PUT /api/libraries/order`, bewusste Design-Entscheidung um Tab-Reihenfolge
-  nicht pro User zu fragmentieren).
-  `GET/PUT /api/home/preferences[/{id}]` (Sichtbarkeit) +
-  `PUT /api/home/order` (Batch, komplette Liste) — beide authenticated,
-  NICHT admin-only, ACL-gefiltert.
+- **Pro-User-Override (seit 2026-09-01, um Reihenfolge erweitert 2026-09-02,
+  auf die Reiterleiste ausgeweitet 2026-09-02):** Tabelle `user_home_prefs
+  (user_id, library_id, on_home, sort_order)` überschreibt für diesen User
+  sowohl Sichtbarkeit als auch Reihenfolge — und zwar **einheitlich für
+  Startseiten-Streifen UND die Bibliotheks-Reiterleiste oben** (User-Wunsch:
+  eine ausgeblendete Library soll komplett aus der eigenen Ansicht
+  verschwinden, nicht nur von der Startseite). **Für jeden User verfügbar,
+  auch Admins** — über „🏠 Startseite anpassen" (Zahnrad-Menü ODER Button
+  direkt auf der Startseite, `views.js openHomePrefsDialog`): Checkbox pro
+  Lib + ▲▼-Reihenfolge. Frontend: `app.js visibleOrderedLibraries()` filtert/
+  sortiert `state.libraries` (aus `state.homePrefs`, in `loadLibraries()`
+  mitgeladen) für `renderLibNav()` — `state.libraries` selbst bleibt
+  unangetastet (Library-Manager/ACL-Editor brauchen die volle Liste). Die
+  **globalen ▲▼ im Library-Manager sind deshalb seit 2026-09-02 entfernt**
+  (redundant, siehe „Bibliotheken & Medien" oben). `GET/PUT
+  /api/home/preferences[/{id}]` (Sichtbarkeit) + `PUT /api/home/order`
+  (Batch, komplette Liste) — beide authenticated, NICHT admin-only,
+  ACL-gefiltert. `GET /api/home/preferences` liefert seit 2026-09-02
+  `{libraries, showContinue, showNextUp}` (Shape-Änderung, kein externer
+  Consumer betroffen).
+- **Globale Streifen abschaltbar (seit 2026-09-02):** „▶ Fortsetzen"/
+  „📺 Als nächstes" sind pro User ein-/ausblendbar (Checkbox oben im „🏠
+  Startseite anpassen"-Dialog). Neue generische Pro-User-KV-Tabelle
+  `user_settings (user_id, key, value)` — Keys `home_show_continue`/
+  `home_show_nextup`, Default an. `PUT /api/home/strips` togglet sie;
+  `GET /api/home` UND `/api/home/preferences` liefern beide Flags mit.
+  Serverseitige Berechnung von continue/nextUp bleibt unverändert (das
+  Frontend entscheidet nur, ob es die Streifen rendert), `renderHomeView`
+  prüft `data.showContinue`/`data.showNextUp`.
 - Library-Name-Überschrift klickbar → öffnet die Lib in Standard-Ansicht.
 - Suchfeld in der Topbar ist auf Home-View **library-übergreifend**:
   matcht gegen Titel + Schauspieler über alle Libraries mit ACL-Zugriff.
