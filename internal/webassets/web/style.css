@@ -1155,7 +1155,13 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
    zuverlässig (dort ist sticky in <dialog>-Elementen ein bekannter Bug,
    User-Report 2026-09-02). Diese Regeln stehen bewusst NACH den obigen
    Sticky-Fallback-Regeln, damit sie bei gleicher Spezifität gewinnen. */
-.modal.modal-flex {
+/* [open] ist Pflicht: .modal.modal-flex (zwei Klassen) hat höhere
+   Spezifität als das UA-Default dialog:not([open]){display:none} und hätte
+   es sonst überschrieben — der Dialog wäre AUCH GESCHLOSSEN permanent
+   sichtbar (als Inline-Block ohne Backdrop) gewesen. Echter Bug, live
+   reproduziert 2026-09-02 (User-Screenshot: Dialog erschien unten auf
+   Playlists/Startseite/Sammlungen, obwohl nie geöffnet). */
+.modal.modal-flex[open] {
   display: flex;
   flex-direction: column;
   padding: 0;
