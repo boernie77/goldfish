@@ -4,6 +4,92 @@
 // sind, bevor app.js sie nutzt. Reihenfolge in index.html: helpers.js →
 // dialogs.js → app.js.
 
+// normalizeModalLayout + showModal-Patch (2026-09-02): "Kopf/Fuß immer
+// sichtbar" war ursprünglich per CSS position:sticky gelöst (siehe .modal-
+// close/.modal h2/.modal .row-Regeln in style.css) — funktioniert in
+// Chrome/Safari, aber `position: sticky` innerhalb eines <dialog>-Elements
+// ist ein bekannter Firefox-Bug (der Sticky-Container "sieht" den <dialog>-
+// eigenen Scroll nicht zuverlässig, Kopf/Fuß bleiben einfach im normalen
+// Fluss und scrollen weg — User-Report 2026-09-02, reproduzierbar in
+// Firefox, in Chrome nicht reproduzierbar).
+// Fix OHNE sticky: verwandelt einen erkannten .modal-Dialog EINMALIG (beim
+// ersten showModal()) in echtes Flex-Layout — Kopf und Fuß werden aus dem
+// scrollenden Bereich HERAUSGELÖST in eigene, nicht scrollende Flex-Items,
+// dazwischen liegt ein <div class="modal-scroll"> mit overflow-y:auto. Das
+// ist plain CSS-Flexbox + normales overflow, keine Sticky-Positionierung
+// nötig — funktioniert dadurch identisch in jedem Browser.
+// Erkennung rein strukturell, damit KEIN einzelnes Dialog-Markup angefasst
+// werden muss:
+//   Kopf  = optionales führendes <button class="modal-close"> + folgendes <h2>
+//   Fuß   = letztes Kind mit .row/.modal-actions — ODER, wenn das letzte
+//           Kind ein <form> ist, dessen letztes Kind mit .row/.modal-actions
+//           (die Buttons bekommen dabei form="<id>", damit type=submit
+//           weiter dasselbe <form> submitted, obwohl sie optisch als Fuß
+//           AUSSERHALB des <form>-Elements landen)
+// Dialoge ohne erkennbaren Kopf (kein <h2> als erstes/zweites Element)
+// werden übersprungen und behalten das alte sticky-Verhalten als Fallback
+// (betrifft z. B. detailDialog mit seiner Sonderstruktur).
+(function () {
+  function normalizeModalLayout(dlg) {
+    if (!dlg.classList || !dlg.classList.contains("modal") || dlg.classList.contains("app-dialog")) return;
+    if (dlg.dataset.modalFlex) return;
+    const kids = Array.from(dlg.children);
+    if (kids.length < 2) return;
+
+    let i = 0;
+    if (kids[i] && kids[i].classList.contains("modal-close")) i++;
+    if (!(kids[i] && kids[i].tagName === "H2")) return; // kein erkennbarer Kopf → unangetastet lassen
+    i++;
+    const headerKids = kids.slice(0, i);
+    let rest = kids.slice(i);
+    if (!rest.length) return;
+
+    let footerEl = null, footerForm = null;
+    const last = rest[rest.length - 1];
+    if (last.classList && (last.classList.contains("row") || last.classList.contains("modal-actions"))) {
+      footerEl = last;
+      rest = rest.slice(0, -1);
+    } else if (last.tagName === "FORM") {
+      const fk = Array.from(last.children);
+      const flast = fk[fk.length - 1];
+      if (flast && flast.classList && (flast.classList.contains("row") || flast.classList.contains("modal-actions"))) {
+        footerEl = flast;
+        footerForm = last; // bleibt vorerst in `rest`, footerEl wird gleich rausgelöst
+      }
+    }
+
+    const headerDiv = document.createElement("div");
+    headerDiv.className = "modal-header-flex";
+    for (const el of headerKids) headerDiv.appendChild(el);
+
+    const scrollDiv = document.createElement("div");
+    scrollDiv.className = "modal-scroll";
+    for (const el of rest) scrollDiv.appendChild(el);
+
+    dlg.appendChild(headerDiv);
+    dlg.appendChild(scrollDiv);
+
+    if (footerEl) {
+      if (footerForm) {
+        if (!footerForm.id) footerForm.id = "modalForm_" + Math.random().toString(36).slice(2, 9);
+        Array.from(footerEl.querySelectorAll("button[type=submit]"))
+          .forEach(b => b.setAttribute("form", footerForm.id));
+      }
+      dlg.appendChild(footerEl); // holt footerEl aus scrollDiv/footerForm heraus
+    }
+
+    dlg.classList.add("modal-flex");
+    dlg.dataset.modalFlex = "1";
+  }
+  window.normalizeModalLayout = normalizeModalLayout;
+
+  const nativeShowModal = HTMLDialogElement.prototype.showModal;
+  HTMLDialogElement.prototype.showModal = function (...args) {
+    try { normalizeModalLayout(this); } catch (e) { /* Fallback: altes sticky-CSS greift weiter */ }
+    return nativeShowModal.apply(this, args);
+  };
+})();
+
 // Formatiert Sekunden als "M:SS" oder "H:MM:SS".
 function fmtDuration(sec) {
   sec = Math.round(sec || 0);

@@ -86,6 +86,10 @@ func (s *Server) Router() http.Handler {
 		r.Put("/home/preferences/{id}", s.setMyHomePreference)
 		r.Put("/home/order", s.setMyHomeOrder)
 		r.Put("/home/strips", s.setMyHomeStrips)
+		// Reiterleiste (Topbar) — bewusst getrennt von /home/*, siehe nav.go.
+		r.Get("/nav/preferences", s.myNavPreferences)
+		r.Put("/nav/preferences/{id}", s.setMyNavPreference)
+		r.Put("/nav/order", s.setMyNavOrder)
 
 		r.Get("/libraries", s.listLibraries)
 		r.Post("/libraries", requireAdmin(s.createLibrary))

@@ -1130,7 +1130,11 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   z-index: 4;
 }
 /* Letzte Button-Zeile bleibt beim Scrollen unten stehen (gleiche Falle wie
-   oben, hier mit .modal padding-bottom = 18px). */
+   oben, hier mit .modal padding-bottom = 18px).
+   FALLBACK für Dialoge, die normalizeModalLayout() (helpers.js) NICHT
+   umbauen konnte (kein erkennbarer Kopf, z. B. detailDialog) — für alle
+   anderen übernimmt die .modal-flex-Regel unten mit echtem Flex-Layout
+   statt sticky (Firefox-Bug: position:sticky in <dialog> unzuverlässig). */
 .modal:not(.app-dialog) > .row:last-child,
 .modal:not(.app-dialog) > form:last-child > .row:last-child,
 .modal:not(.app-dialog) > .modal-actions:last-child {
@@ -1143,6 +1147,48 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   background: var(--card);
   border-top: 1px solid var(--border);
   z-index: 3;
+}
+
+/* .modal-flex: echtes Flex-Layout statt sticky (helpers.js normalizeModalLayout,
+   läuft einmalig beim ersten showModal() jedes .modal-Dialogs). Kein
+   position:sticky mehr im Spiel — funktioniert dadurch auch in Firefox
+   zuverlässig (dort ist sticky in <dialog>-Elementen ein bekannter Bug,
+   User-Report 2026-09-02). Diese Regeln stehen bewusst NACH den obigen
+   Sticky-Fallback-Regeln, damit sie bei gleicher Spezifität gewinnen. */
+.modal.modal-flex {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.modal.modal-flex > .modal-header-flex {
+  flex: 0 0 auto;
+  position: relative;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.modal.modal-flex > .modal-header-flex > h2 { margin: 0; padding-right: 34px; }
+.modal.modal-flex > .modal-header-flex > .modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  float: none;
+  margin: 0;
+}
+.modal.modal-flex > .modal-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 14px 24px;
+}
+.modal.modal-flex > .row:last-child,
+.modal.modal-flex > .modal-actions:last-child {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+  box-shadow: none;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--border);
 }
 
 .form { display: flex; flex-direction: column; gap: 10px; }

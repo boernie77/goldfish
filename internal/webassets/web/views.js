@@ -123,102 +123,35 @@ function renderHomeView(grid, data) {
   state.lastRenderedItems = flatAll;
 }
 
-// openHomePrefsDialog: pro-Benutzer-Auswahl, was auf der Startseite UND in
-// der Bibliotheks-Reiterleiste oben erscheint (seit 2026-09-02 vereinheitlicht
-// — eine ausgeblendete Library verschwindet aus beidem, ersetzt den früheren
-// admin-only "🏠 Startseite"-Toggle in der Bibliotheksverwaltung, der doppelt
-// gepflegt war). Zusätzlich abschaltbar: die zwei globalen Streifen
-// "▶ Fortsetzen"/"📺 Als nächstes". Für jeden Benutzer verfügbar, kein Admin
-// nötig. Sichtbarkeits-Toggle schreibt sofort via
-// PUT /api/home/preferences/{libId} bzw. PUT /api/home/strips; ▲▼ verschiebt
-// die Zeile im DOM und schreibt die komplette Reihenfolge via
-// PUT /api/home/order. Beim Schließen wird die Startseite neu geladen
-// (falls offen) UND die Reiterleiste (renderLibNav) aktualisiert.
-async function openHomePrefsDialog() {
-  const dlg = $("#homePrefsDialog");
-  const list = $("#homePrefsList");
-  list.innerHTML = `<div class="hint">Lädt…</div>`;
-  if (!dlg.open) dlg.showModal();
-  let data;
-  try {
-    data = await api("/api/home/preferences");
-  } catch (e) {
-    list.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
-    return;
-  }
-  const libs = data.libraries || [];
-  let dirty = false;
-  list.innerHTML = "";
+// buildLibPrefList: baut eine Checkbox+▲▼-Liste für EINE der beiden pro-User-
+// Bibliotheks-Achsen (Reiterleiste ODER Startseite — bewusst getrennte
+// Datenquellen/Endpoints, siehe openHomePrefsDialog-Kommentar). `libs` ist
+// die vom Server bereits in effektiver Reihenfolge sortierte Liste.
+// `opts`: { checkedKey, toggleUrl(libId), toggleBody(checked), orderUrl }.
+// Rückgabe: true wenn min. eine Änderung geschrieben wurde (per Closure-Flag
+// über `onDirty` gemeldet, da mehrere Sections denselben dirty-Zustand teilen
+// können sollen).
+function buildLibPrefList(container, libs, opts, onDirty) {
   const kindLabel = { movies: "Filme", tv: "Serien", private: "Privat" };
 
-  // Globale Streifen (nur wenn es überhaupt Libraries gibt — sonst ist die
-  // Startseite eh leer und die Toggles wären nutzlos).
-  const stripLabel = document.createElement("div");
-  stripLabel.className = "drawer-section-label";
-  stripLabel.style.margin = "0 0 4px";
-  stripLabel.textContent = "Globale Streifen";
-  list.appendChild(stripLabel);
-  const stripDefs = [
-    { key: "showContinue", text: "▶ Fortsetzen", body: v => ({ showContinue: v }) },
-    { key: "showNextUp", text: "📺 Als nächstes", body: v => ({ showNextUp: v }) },
-  ];
-  for (const def of stripDefs) {
-    const row = document.createElement("div");
-    row.className = "home-pref-row";
-    const label = document.createElement("label");
-    label.className = "lib-toggle home-pref-toggle";
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.checked = data[def.key] !== false;
-    box.addEventListener("change", async () => {
-      box.disabled = true;
-      try {
-        await api("/api/home/strips", { method: "PUT", body: JSON.stringify(def.body(box.checked)) });
-        dirty = true;
-      } catch (e) {
-        box.checked = !box.checked;
-        appAlert(e.message);
-      } finally {
-        box.disabled = false;
-      }
-    });
-    label.appendChild(box);
-    label.appendChild(document.createTextNode(` ${def.text}`));
-    row.appendChild(label);
-    list.appendChild(row);
-  }
-
-  if (!libs.length) {
-    dlg.addEventListener("close", () => {
-      if (dirty && state.homeView) loadItems();
-    }, { once: true });
-    return;
-  }
-  const libHeading = document.createElement("div");
-  libHeading.className = "drawer-section-label";
-  libHeading.style.margin = "14px 0 4px";
-  libHeading.textContent = "Bibliotheken";
-  list.appendChild(libHeading);
-
   async function persistOrder() {
-    const ids = Array.from(list.querySelectorAll(".home-pref-row[data-lib-id]"))
+    const ids = Array.from(container.querySelectorAll(".home-pref-row"))
       .map(row => Number(row.dataset.libId))
       .filter(id => id > 0);
     try {
-      await api("/api/home/order", { method: "PUT", body: JSON.stringify({ ids }) });
-      dirty = true;
+      await api(opts.orderUrl, { method: "PUT", body: JSON.stringify({ ids }) });
+      onDirty();
     } catch (e) { appAlert(e.message); }
     updateArrowState();
   }
   function updateArrowState() {
-    const rows = Array.from(list.querySelectorAll(".home-pref-row[data-lib-id]"));
+    const rows = Array.from(container.querySelectorAll(".home-pref-row"));
     rows.forEach((row, i) => {
       row.querySelector(".home-pref-up").disabled = i === 0;
       row.querySelector(".home-pref-down").disabled = i === rows.length - 1;
     });
   }
 
-  // libs kommt vom Server bereits in effektiver Reihenfolge sortiert.
   for (const lib of libs) {
     const row = document.createElement("div");
     row.className = "home-pref-row";
@@ -228,15 +161,15 @@ async function openHomePrefsDialog() {
     label.className = "lib-toggle home-pref-toggle";
     const box = document.createElement("input");
     box.type = "checkbox";
-    box.checked = lib.onHome !== false;
+    box.checked = lib[opts.checkedKey] !== false;
     box.addEventListener("change", async () => {
       box.disabled = true;
       try {
-        await api(`/api/home/preferences/${lib.libraryId}`, {
+        await api(opts.toggleUrl(lib.libraryId), {
           method: "PUT",
-          body: JSON.stringify({ onHome: box.checked }),
+          body: JSON.stringify(opts.toggleBody(box.checked)),
         });
-        dirty = true;
+        onDirty();
       } catch (e) {
         box.checked = !box.checked;
         appAlert(e.message);
@@ -257,11 +190,8 @@ async function openHomePrefsDialog() {
     upBtn.textContent = "▲";
     upBtn.title = "Nach oben verschieben";
     upBtn.addEventListener("click", () => {
-      // previousElementSibling darf nur eine weitere Library-Zeile sein —
-      // sonst rutscht die Zeile vor die "Bibliotheken"-Überschrift bzw. die
-      // globalen Streifen-Toggles.
       const prev = row.previousElementSibling;
-      if (prev && prev.dataset.libId) { list.insertBefore(row, prev); persistOrder(); }
+      if (prev && prev.classList.contains("home-pref-row")) { container.insertBefore(row, prev); persistOrder(); }
     });
     const downBtn = document.createElement("button");
     downBtn.type = "button";
@@ -270,20 +200,124 @@ async function openHomePrefsDialog() {
     downBtn.title = "Nach unten verschieben";
     downBtn.addEventListener("click", () => {
       const next = row.nextElementSibling;
-      if (next && next.dataset.libId) { list.insertBefore(next, row); persistOrder(); }
+      if (next && next.classList.contains("home-pref-row")) { container.insertBefore(next, row); persistOrder(); }
     });
     arrows.appendChild(upBtn);
     arrows.appendChild(downBtn);
     row.appendChild(arrows);
 
-    list.appendChild(row);
+    container.appendChild(row);
   }
   updateArrowState();
+}
+
+// openHomePrefsDialog: pro-Benutzer-Einstellungen für alles, was mit "was
+// zeige ich mir selbst an" zu tun hat. DREI unabhängige Achsen (User-Wunsch
+// 2026-09-02, nach anfänglich vereinheitlichtem Versuch explizit getrennt
+// gefordert — eine Library kann z. B. aus der Reiterleiste ausgeblendet sein
+// und trotzdem auf der Startseite erscheinen, oder umgekehrt):
+//   1. Globale Streifen "▶ Fortsetzen"/"📺 Als nächstes" — PUT /api/home/strips
+//   2. Bibliotheks-REITERLEISTE (Topbar) — GET/PUT /api/nav/preferences[/{id}],
+//      PUT /api/nav/order (eigene Tabelle user_nav_prefs)
+//   3. STARTSEITE (welche Libs + welche Reihenfolge dort) —
+//      GET/PUT /api/home/preferences[/{id}], PUT /api/home/order (eigene
+//      Tabelle user_home_prefs)
+// Für jeden Benutzer verfügbar, kein Admin nötig. Beim Schließen wird —
+// falls irgendetwas geändert wurde — die Reiterleiste (loadLibraries()) UND
+// die Startseite (falls offen) neu geladen.
+async function openHomePrefsDialog() {
+  const dlg = $("#homePrefsDialog");
+  const list = $("#homePrefsList");
+  list.innerHTML = `<div class="hint">Lädt…</div>`;
+  if (!dlg.open) dlg.showModal();
+  let homeData, navData;
+  try {
+    [homeData, navData] = await Promise.all([
+      api("/api/home/preferences"),
+      api("/api/nav/preferences"),
+    ]);
+  } catch (e) {
+    list.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
+    return;
+  }
+  let dirty = false;
+  const markDirty = () => { dirty = true; };
+  list.innerHTML = "";
+
+  const addHeading = (text, first) => {
+    const h = document.createElement("div");
+    h.className = "drawer-section-label";
+    h.style.margin = first ? "0 0 4px" : "16px 0 4px";
+    h.textContent = text;
+    list.appendChild(h);
+    return h;
+  };
+
+  // 1) Globale Streifen
+  addHeading("Globale Streifen", true);
+  const stripDefs = [
+    { key: "showContinue", text: "▶ Fortsetzen", body: v => ({ showContinue: v }) },
+    { key: "showNextUp", text: "📺 Als nächstes", body: v => ({ showNextUp: v }) },
+  ];
+  for (const def of stripDefs) {
+    const row = document.createElement("div");
+    row.className = "home-pref-row";
+    const label = document.createElement("label");
+    label.className = "lib-toggle home-pref-toggle";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = homeData[def.key] !== false;
+    box.addEventListener("change", async () => {
+      box.disabled = true;
+      try {
+        await api("/api/home/strips", { method: "PUT", body: JSON.stringify(def.body(box.checked)) });
+        markDirty();
+      } catch (e) {
+        box.checked = !box.checked;
+        appAlert(e.message);
+      } finally {
+        box.disabled = false;
+      }
+    });
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(` ${def.text}`));
+    row.appendChild(label);
+    list.appendChild(row);
+  }
+
+  // 2) Reiterleiste
+  const navLibs = navData.libraries || [];
+  if (navLibs.length) {
+    addHeading("Bibliotheks-Reiter oben");
+    const navContainer = document.createElement("div");
+    list.appendChild(navContainer);
+    buildLibPrefList(navContainer, navLibs, {
+      checkedKey: "onNav",
+      toggleUrl: id => `/api/nav/preferences/${id}`,
+      toggleBody: v => ({ onNav: v }),
+      orderUrl: "/api/nav/order",
+    }, markDirty);
+  }
+
+  // 3) Startseite
+  const homeLibs = homeData.libraries || [];
+  if (homeLibs.length) {
+    addHeading("Startseite");
+    const homeContainer = document.createElement("div");
+    list.appendChild(homeContainer);
+    buildLibPrefList(homeContainer, homeLibs, {
+      checkedKey: "onHome",
+      toggleUrl: id => `/api/home/preferences/${id}`,
+      toggleBody: v => ({ onHome: v }),
+      orderUrl: "/api/home/order",
+    }, markDirty);
+  }
+
   dlg.addEventListener("close", async () => {
     if (!dirty) return;
-    // Reiterleiste neu aufbauen (Sichtbarkeit + Reihenfolge wirken dort
-    // genauso wie auf der Startseite) — loadLibraries() holt state.libraries
-    // UND state.homePrefs neu und ruft renderLibNav() selbst auf.
+    // loadLibraries() holt state.libraries UND state.navPrefs neu und ruft
+    // renderLibNav() selbst auf — deckt sowohl Reiterleiste- als auch reine
+    // Startseiten-Änderungen ab (letztere brauchen davon nur loadItems()).
     await loadLibraries();
     if (state.homeView) loadItems();
   }, { once: true });

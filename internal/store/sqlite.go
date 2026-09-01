@@ -185,6 +185,19 @@ func (s *Store) migrate() error {
 			sort_order INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY (user_id, library_id)
 		)`,
+		// Pro-User-Sichtbarkeit + Reihenfolge der Bibliotheks-REITERLEISTE
+		// (oben in der Topbar) — bewusst GETRENNT von user_home_prefs
+		// (Startseiten-Streifen): eine Library kann z.B. aus der Reiterleiste
+		// ausgeblendet sein, aber trotzdem auf der Startseite erscheinen,
+		// oder umgekehrt (User-Wunsch 2026-09-02, nach anfänglich
+		// vereinheitlichtem Versuch explizit getrennt gefordert).
+		`CREATE TABLE IF NOT EXISTS user_nav_prefs (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			on_nav INTEGER NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (user_id, library_id)
+		)`,
 		// Generische Pro-User-Einstellungen (Key-Value), analog zur globalen
 		// settings-Tabelle. Erster Einsatzzweck: Sichtbarkeit der beiden
 		// globalen Startseiten-Streifen "Fortsetzen"/"Als nächstes"
