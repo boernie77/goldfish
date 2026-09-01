@@ -2016,11 +2016,6 @@ body.selection-mode .card { cursor: pointer; }
   gap: 36px;
   padding: 8px 0 24px;
 }
-.home-view-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: -20px;
-}
 .home-lib-block {
   display: flex;
   flex-direction: column;

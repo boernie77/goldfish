@@ -26,18 +26,10 @@ function renderHomeView(grid, data) {
 
   const wrap = document.createElement("div");
   wrap.className = "home-view";
-
-  // Kopfzeile mit „Startseite anpassen" — für JEDEN Benutzer (nicht admin-only).
-  const hdr = document.createElement("div");
-  hdr.className = "home-view-toolbar";
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.className = "toggle-btn";
-  editBtn.textContent = "🏠 Startseite anpassen";
-  editBtn.title = "Welche Bibliotheken hier erscheinen";
-  editBtn.addEventListener("click", openHomePrefsDialog);
-  hdr.appendChild(editBtn);
-  wrap.appendChild(hdr);
+  // Kein Button hier auf der Startseite (2026-09-02 wieder entfernt, User
+  // wollte ihn nicht) — "🏠 Startseite anpassen" ist ausschließlich über das
+  // Zahnrad-Menü → "Mein Konto" erreichbar (app.js Drawer-Handler,
+  // views.js openHomePrefsDialog).
 
   const sections = data.sections || [];
 
