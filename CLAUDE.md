@@ -1501,6 +1501,21 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 ### Playlists (per User)
 - Jede Playlist gehört genau einem User; Items werden in `playlist_items` mit
   `position`-Reihenfolge gehalten.
+- **Strikt user-isoliert, KEINE Admin-Ausnahme** (seit 2026-09-02 gefixt,
+  Commit `3b2455b` — vorher echter Cross-User-Datenleck: Admin sah alle
+  Playlists jedes Users). Anders als Library-ACL (wo „Admin sieht alles ohne
+  explizite Einschränkung" bewusstes Design ist) gilt hier: Playlists sind
+  private Kuratierung, Admin-Status gibt KEINEN Zugriff auf fremde
+  Playlists. `Store.ListPlaylistsForUser` filtert immer `WHERE
+  p.user_id = ?` (Admins sehen zusätzlich eigentümerlose Legacy-Playlists,
+  `user_id IS NULL` — kein fremder Besitzer, also kein Cross-User-Fall).
+  `api.requirePlaylistAccess` prüft den Besitzer ausnahmslos.
+  `Store.PlaylistsForItem` (Checkmarks im „Zu Playlist hinzufügen"-Dialog)
+  ist ebenfalls user-gescoped. Regressionstest:
+  `internal/store/playlists_test.go TestPlaylistUserIsolation`. Siehe auch
+  Memory `feedback_user_isolation_before_deploy` — **bei jedem neuen
+  Feature mit privaten User-Daten explizit auf denselben Admin-Bypass-Reflex
+  prüfen**, bevor deployed wird.
 - Auto-Next: Beim `ended`-Event des Players spielt das nächste Queue-Item automatisch.
 - UI: Topbar zeigt Playlist-Auswahl; Detail-Dialog und Player-Control-Bar haben
   „Zu Playlist hinzufügen"-Button (neu-erstellen direkt aus dem Dialog möglich).
