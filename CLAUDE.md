@@ -695,9 +695,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Manager, nur bei `kind=private` sichtbar (bei Filme/Serien ist Titel
   sowieso oben).
 - **Library-Manager-Row-Layout**: zweizeilig — Zeile 1 hat Name + Kind-
-  Select + 🗑-Icon (Tooltip „Bibliothek löschen"), Zeile 2 hat ▲▼ +
-  Toggle-Pillen (🏠 Startseite, 🏷 Ordner oben). Beide Zeilen mit
-  `flex-wrap` für narrow Modals (`.modal` hat `max-width: 520px`).
+  Select + 🗑-Icon (Tooltip „Bibliothek löschen"), Zeile 2 hat ▲▼ (globale
+  Reihenfolge, wirkt auf Reiter oben) + Toggle-Pille (🏷 Ordner oben). Beide
+  Zeilen mit `flex-wrap` für narrow Modals (`.modal` hat `max-width: 520px`).
+  **Kein „🏠 Startseite"-Toggle mehr hier** (seit 2026-09-02 entfernt) — war
+  nach Einführung des pro-User „🏠 Startseite anpassen"-Dialogs doppelt
+  gepflegt, siehe „Startseite (Home-View)".
 
 ### Auto-Scan (zeitgesteuert, Browser-Admin-Menü)
 - Mehrere unabhängige **Scan-Aufgaben**, jede mit eigenem Zeitplan, Bibliothek und
@@ -1058,10 +1061,21 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `settingsDialog` vor die Buttonzeile verschoben). Braucht ein Dialog eine
   Sonderstruktur (z. B. `detailDialog`s `.icon-row`, danach folgt noch der
   versteckte Whisper-Popover im DOM), braucht es eine eigene, gezielte
-  CSS-Regel statt der generischen. **Keine negativen margins auf sticky-
-  Elementen** — reserviert in Chrome/Safari zu wenig Flow-Höhe, nachfolgender
-  Inhalt rutscht dann unter den Kopf (beobachtet, siehe Memory
-  `project_feature_user_home_and_sticky_dialogs`).
+  CSS-Regel statt der generischen.
+  **Deckung der `.modal`-eigenen Padding-Zone via `box-shadow`, NICHT
+  negativem margin** (2026-09-02 nachgebessert): `.modal` hat eigenes
+  vertikales Padding (20px oben/18px unten), das sticky-Elemente NICHT
+  automatisch mitdecken — Padding ist per Box-Model nur Leerraum,
+  überlaufender Scroll-Inhalt darf ihn füllen und blitzt dort unmaskiert
+  durch (User-Report + reproduziert: OCR-Dialog). Ein negativer
+  `margin-top`/`margin-bottom` „isst" den Gap zwar optisch weg, lässt Chrome
+  aber beim NACHFOLGENDEN Geschwister zu wenig Flow-Höhe reservieren →
+  Content rutscht unter den Kopf (eigener, echter Bug, kein Rendering-
+  Glitch — auch das beobachtet). **Richtige Lösung:** `box-shadow: 0 -20px 0
+  0 var(--card)` (Header) / `0 18px 0 0 var(--card)` (Footer), Werte =
+  `.modal`s eigenes Padding — verändert Box-Model/Flow nicht, deckt aber
+  blickdicht bis zum `.modal`-Rand ab. Siehe Memory
+  `project_feature_user_home_and_sticky_dialogs`.
 - Grid-Ansicht mit Kachel-Thumbnails oder TMDB-Poster. Movies/TV-Libraries nutzen
   **2:3-Poster-Kacheln** (`card--poster`), Private-Libs weiterhin 16:9-Thumbnail.
 - **Private-Libs (YouTube, Urlaubsvideos, …)**: Kachel zeigt den **Dateinamen**
@@ -1181,22 +1195,33 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   der Topbar. Zeigt pro Library einen eigenen Block mit drei Streifen:
   **▶ Fortsetzen** (Items mit Resume-Position), **📺 Als nächstes** (nächste
   ungesehene Episode je Serie, nur TV-Libs), **🆕 Zuletzt hinzugefügt**.
-- Libraries mit `on_home=0` (Checkbox im Library-Manager, Admin) werden
-  komplett ausgeblendet — das ist der globale Default.
-- **Pro-User-Override (seit 2026-09-01):** Tabelle `user_home_prefs
-  (user_id, library_id, on_home)` überschreibt den globalen Default NUR für
-  diesen User. Jeder User (nicht nur Admin) kann über „🏠 Startseite
-  anpassen" (Zahnrad-Menü ODER Button direkt auf der Startseite,
-  `views.js openHomePrefsDialog`) selbst wählen, welche seiner
-  ACL-sichtbaren Libraries erscheinen. `GET/PUT /api/home/preferences[/{id}]`
-  — authenticated, NICHT admin-only.
+- Libraries mit `on_home=0` (`libraries.on_home`) werden komplett
+  ausgeblendet — das ist der globale Default für User ohne eigene Auswahl.
+  **Keine Admin-UI mehr dafür** (Checkbox seit 2026-09-02 aus dem
+  Library-Manager entfernt, war doppelt gepflegt) — der Wert bleibt nur im
+  Schema als Fallback, neue Libraries starten mit `on_home=1`.
+- **Pro-User-Override (seit 2026-09-01, um Reihenfolge erweitert 2026-09-02):**
+  Tabelle `user_home_prefs (user_id, library_id, on_home, sort_order)`
+  überschreibt für diesen User sowohl Sichtbarkeit als auch Reihenfolge der
+  Startseiten-Streifen (unabhängig vom globalen `libraries.on_home`/
+  `sort_order`-Default). **Für jeden User verfügbar, auch Admins** — über
+  „🏠 Startseite anpassen" (Zahnrad-Menü ODER Button direkt auf der
+  Startseite, `views.js openHomePrefsDialog`): Checkbox pro Lib +
+  ▲▼-Reihenfolge (gleiches Muster wie die globalen ▲▼ im Library-Manager,
+  aber wirkt NUR auf die eigenen Home-Streifen — **nicht** auf die
+  Bibliotheks-Reiter oben, die bleiben global/admin über
+  `PUT /api/libraries/order`, bewusste Design-Entscheidung um Tab-Reihenfolge
+  nicht pro User zu fragmentieren).
+  `GET/PUT /api/home/preferences[/{id}]` (Sichtbarkeit) +
+  `PUT /api/home/order` (Batch, komplette Liste) — beide authenticated,
+  NICHT admin-only, ACL-gefiltert.
 - Library-Name-Überschrift klickbar → öffnet die Lib in Standard-Ansicht.
 - Suchfeld in der Topbar ist auf Home-View **library-übergreifend**:
   matcht gegen Titel + Schauspieler über alle Libraries mit ACL-Zugriff.
 - API: `GET /api/home` liefert `{sections: [{library, continue, nextUp,
-  recent}, …]}`, effektive Sichtbarkeit = `user_home_prefs`-Zeile falls
-  vorhanden, sonst `libraries.on_home`. `PUT /api/libraries/{id}/home-visibility`
-  togglet weiterhin den globalen Default (Admin-only, Library-Manager).
+  recent}, …]}`, bereits sortiert nach effektiver Reihenfolge (User-Override
+  falls vorhanden, sonst `libraries.sort_order`). Sichtbarkeit analog:
+  `user_home_prefs`-Zeile falls vorhanden, sonst `libraries.on_home`.
 
 ### Doppelfolgen (Episoden-Range)
 - Dateinamen wie `S07E23E24.mkv`, `S07E23-E24.mkv`, `S07E23 E24 Finale.mkv` werden
