@@ -1055,32 +1055,30 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   auswählen" arbeitet darauf.
 
 ### UI
-- **Dialoge (`.modal`) haben seit 2026-09-01 einen sticky Kopf + Fuß**
-  (style.css, generische Regel, `.app-dialog` = appConfirm/appPrompt
-  ausgenommen): erster `<h2>` klebt oben, letzte `.row`/`.modal-actions`
-  klebt unten, `.modal-close` ist `position: sticky; float: right` statt
-  `absolute` (scrollte vorher mit weg). Damit die generische Regel greift,
-  **muss die Buttonzeile das letzte Kind im Dialog sein** — Inhalt, der
-  danach kommt (z. B. eine Fußnote), verschiebt sie aus dem `:last-child`-
-  Treffer und sie bleibt un-sticky (Beispiel-Fix: TMDB-Attribution in
-  `settingsDialog` vor die Buttonzeile verschoben). Braucht ein Dialog eine
-  Sonderstruktur (z. B. `detailDialog`s `.icon-row`, danach folgt noch der
-  versteckte Whisper-Popover im DOM), braucht es eine eigene, gezielte
-  CSS-Regel statt der generischen.
-  **Deckung der `.modal`-eigenen Padding-Zone via `box-shadow`, NICHT
-  negativem margin** (2026-09-02 nachgebessert): `.modal` hat eigenes
-  vertikales Padding (20px oben/18px unten), das sticky-Elemente NICHT
-  automatisch mitdecken — Padding ist per Box-Model nur Leerraum,
-  überlaufender Scroll-Inhalt darf ihn füllen und blitzt dort unmaskiert
-  durch (User-Report + reproduziert: OCR-Dialog). Ein negativer
-  `margin-top`/`margin-bottom` „isst" den Gap zwar optisch weg, lässt Chrome
-  aber beim NACHFOLGENDEN Geschwister zu wenig Flow-Höhe reservieren →
-  Content rutscht unter den Kopf (eigener, echter Bug, kein Rendering-
-  Glitch — auch das beobachtet). **Richtige Lösung:** `box-shadow: 0 -20px 0
-  0 var(--card)` (Header) / `0 18px 0 0 var(--card)` (Footer), Werte =
-  `.modal`s eigenes Padding — verändert Box-Model/Flow nicht, deckt aber
-  blickdicht bis zum `.modal`-Rand ab. Siehe Memory
-  `project_feature_user_home_and_sticky_dialogs`.
+- **Dialoge (`.modal`) haben seit 2026-09-01 einen fixen Kopf + Fuß**
+  (`.app-dialog` = appConfirm/appPrompt ausgenommen, scrollt nie).
+  **Aktuelle Lösung (seit 2026-09-02, `helpers.js normalizeModalLayout()`):
+  echtes Flex-Layout statt `position: sticky`.** Ein Monkey-Patch auf
+  `HTMLDialogElement.prototype.showModal` baut jeden `.modal`-Dialog beim
+  ERSTEN Öffnen strukturell um: erkennt Kopf (führendes `.modal-close` +
+  `<h2>`) und Fuß (letzte `.row`/`.modal-actions`, auch wenn sie in einem
+  `<form>` steckt), löst beide aus dem scrollenden Bereich heraus in eigene
+  nicht-scrollende Flex-Items, dazwischen ein `<div class="modal-scroll">`
+  mit normalem `overflow-y:auto`. Rein strukturelle Erkennung — **kein
+  einzelnes Dialog-Markup muss angefasst werden.** Formular-Buttons, die
+  dabei optisch außerhalb ihres `<form>` landen, bekommen `form="<id>"`,
+  damit `type=submit` weiter dasselbe Formular auslöst. Dialoge ohne
+  erkennbaren Kopf (kein führendes `<h2>`, z. B. `detailDialog`) werden
+  übersprungen und behalten die ALTE sticky-CSS als Fallback (`.modal h2`,
+  `.modal .row:last-child`, `box-shadow`-Deckung der `.modal`-eigenen
+  Padding-Zone — siehe style.css-Kommentare).
+  **Warum kein `position: sticky` mehr:** funktionierte in Chrome/Safari
+  (mit `box-shadow` statt riskantem negativem `margin`, s. Memory), war
+  aber in **Firefox unzuverlässig** — `position: sticky` innerhalb eines
+  `<dialog>`-Elements ist dort ein bekannter Browser-Bug (User-Report
+  2026-09-02, auf Nachfrage als Firefox bestätigt). Das neue Flex-Layout
+  verzichtet komplett auf sticky und funktioniert dadurch browserunabhängig.
+  Details + Debugging-Verlauf: Memory `project_feature_user_home_and_sticky_dialogs`.
 - Grid-Ansicht mit Kachel-Thumbnails oder TMDB-Poster. Movies/TV-Libraries nutzen
   **2:3-Poster-Kacheln** (`card--poster`), Private-Libs weiterhin 16:9-Thumbnail.
 - **Private-Libs (YouTube, Urlaubsvideos, …)**: Kachel zeigt den **Dateinamen**
@@ -1205,35 +1203,40 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   **Keine Admin-UI mehr dafür** (Checkbox seit 2026-09-02 aus dem
   Library-Manager entfernt, war doppelt gepflegt) — der Wert bleibt nur im
   Schema als Fallback, neue Libraries starten mit `on_home=1`.
-- **Pro-User-Override (seit 2026-09-01, um Reihenfolge erweitert 2026-09-02,
-  auf die Reiterleiste ausgeweitet 2026-09-02):** Tabelle `user_home_prefs
-  (user_id, library_id, on_home, sort_order)` überschreibt für diesen User
-  sowohl Sichtbarkeit als auch Reihenfolge — und zwar **einheitlich für
-  Startseiten-Streifen UND die Bibliotheks-Reiterleiste oben** (User-Wunsch:
-  eine ausgeblendete Library soll komplett aus der eigenen Ansicht
-  verschwinden, nicht nur von der Startseite). **Für jeden User verfügbar,
-  auch Admins** — über „🏠 Startseite anpassen" (Zahnrad-Menü ODER Button
-  direkt auf der Startseite, `views.js openHomePrefsDialog`): Checkbox pro
-  Lib + ▲▼-Reihenfolge. Frontend: `app.js visibleOrderedLibraries()` filtert/
-  sortiert `state.libraries` (aus `state.homePrefs`, in `loadLibraries()`
-  mitgeladen) für `renderLibNav()` — `state.libraries` selbst bleibt
-  unangetastet (Library-Manager/ACL-Editor brauchen die volle Liste). Die
-  **globalen ▲▼ im Library-Manager sind deshalb seit 2026-09-02 entfernt**
-  (redundant, siehe „Bibliotheken & Medien" oben). `GET/PUT
-  /api/home/preferences[/{id}]` (Sichtbarkeit) + `PUT /api/home/order`
-  (Batch, komplette Liste) — beide authenticated, NICHT admin-only,
-  ACL-gefiltert. `GET /api/home/preferences` liefert seit 2026-09-02
-  `{libraries, showContinue, showNextUp}` (Shape-Änderung, kein externer
-  Consumer betroffen).
-- **Globale Streifen abschaltbar (seit 2026-09-02):** „▶ Fortsetzen"/
-  „📺 Als nächstes" sind pro User ein-/ausblendbar (Checkbox oben im „🏠
-  Startseite anpassen"-Dialog). Neue generische Pro-User-KV-Tabelle
-  `user_settings (user_id, key, value)` — Keys `home_show_continue`/
-  `home_show_nextup`, Default an. `PUT /api/home/strips` togglet sie;
-  `GET /api/home` UND `/api/home/preferences` liefern beide Flags mit.
-  Serverseitige Berechnung von continue/nextUp bleibt unverändert (das
-  Frontend entscheidet nur, ob es die Streifen rendert), `renderHomeView`
-  prüft `data.showContinue`/`data.showNextUp`.
+- **Pro-User-Overrides, DREI unabhängige Achsen** (seit 2026-09-01/02, im
+  „🏠 Startseite anpassen"-Dialog — Zahnrad-Menü ODER Button direkt auf der
+  Startseite, `views.js openHomePrefsDialog`, für jeden User verfügbar, auch
+  Admins). **Bewusst GETRENNTE Datenmodelle** — ein erster Versuch, alles
+  über eine gemeinsame Tabelle zu steuern, hatte einen echten Nebeneffekt
+  (Libraries, die nur im Reiter gewünscht waren, tauchten ungewollt im
+  globalen „Fortsetzen"-Streifen auf); User-Anforderung danach explizit:
+  „das muss alles separat gesteuert werden können":
+  1. **Globale Streifen** „▶ Fortsetzen"/„📺 Als nächstes" — pro User
+     ein-/ausblendbar. Generische Pro-User-KV-Tabelle
+     `user_settings (user_id, key, value)`, Keys `home_show_continue`/
+     `home_show_nextup`, Default an. `PUT /api/home/strips` togglet sie;
+     `GET /api/home` UND `/api/home/preferences` liefern beide Flags mit.
+     Serverseitige Berechnung von continue/nextUp bleibt unverändert (das
+     Frontend entscheidet nur, ob es rendert), `renderHomeView` prüft
+     `data.showContinue`/`data.showNextUp`.
+  2. **Bibliotheks-Reiterleiste (Topbar)** — eigene Tabelle `user_nav_prefs
+     (user_id, library_id, on_nav, sort_order)`, eigener Store
+     (`internal/store/nav_prefs.go`), eigene API (`internal/api/nav.go`:
+     `GET/PUT /api/nav/preferences[/{id}]`, `PUT /api/nav/order`). Frontend:
+     `app.js visibleOrderedLibraries()` filtert/sortiert `state.libraries`
+     (aus `state.navPrefs`, in `loadLibraries()` mitgeladen) für
+     `renderLibNav()` — `state.libraries` selbst bleibt unangetastet
+     (Library-Manager/ACL-Editor brauchen die volle Liste). Die **globalen
+     ▲▼ im Library-Manager sind deshalb seit 2026-09-02 entfernt**
+     (redundant, siehe „Bibliotheken & Medien" oben).
+  3. **Startseite** (welche Libs + welche Reihenfolge der Streifen dort) —
+     Tabelle `user_home_prefs (user_id, library_id, on_home, sort_order)`,
+     wie zuvor, `GET/PUT /api/home/preferences[/{id}]` (liefert
+     `{libraries, showContinue, showNextUp}`) + `PUT /api/home/order`.
+  Alle drei Endpoint-Gruppen: authenticated, NICHT admin-only, ACL-gefiltert.
+  `views.js buildLibPrefList()` ist der gemeinsame Rendering-Helper für die
+  beiden Bibliotheks-Sektionen (Reiter + Startseite) im Dialog — je eigene
+  Checkbox+▲▼-Liste, komplett unabhängig voneinander bedienbar.
 - Library-Name-Überschrift klickbar → öffnet die Lib in Standard-Ansicht.
 - Suchfeld in der Topbar ist auf Home-View **library-übergreifend**:
   matcht gegen Titel + Schauspieler über alle Libraries mit ACL-Zugriff.
