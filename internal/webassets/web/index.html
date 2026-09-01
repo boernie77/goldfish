@@ -150,13 +150,31 @@
 <div id="drawerOverlay" class="drawer-overlay hidden"></div>
 
 <!-- Settings Side Drawer -->
-<aside id="settingsMenu" class="settings-drawer" aria-label="Administration" aria-hidden="true">
+<aside id="settingsMenu" class="settings-drawer" aria-label="Menü" aria-hidden="true">
   <div class="drawer-header">
-    <span class="drawer-title">⚙ Administration</span>
+    <span class="drawer-title" id="drawerTitle">⚙ Menü</span>
     <button type="button" class="drawer-close" id="drawerClose" aria-label="Schließen">✕</button>
   </div>
 
   <div class="drawer-section">
+    <div class="drawer-section-label">Mein Konto</div>
+    <button class="drawer-item" data-action="myhome">
+      <span class="drawer-icon">🏠</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Startseite anpassen</span>
+        <span class="drawer-item-sub">Welche Bibliotheken erscheinen</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="mypassword">
+      <span class="drawer-icon">🔐</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Passwort ändern</span>
+        <span class="drawer-item-sub">Eigenes Anmelde-Passwort</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="drawer-section drawer-admin">
     <div class="drawer-section-label">Allgemein</div>
     <button class="drawer-item" data-action="settings">
       <span class="drawer-icon">⚙</span>
@@ -181,7 +199,7 @@
     </button>
   </div>
 
-  <div class="drawer-section">
+  <div class="drawer-section drawer-admin">
     <div class="drawer-section-label">Automatisierung</div>
     <button class="drawer-item" data-action="autoscan" id="settingsMenuAutoScan">
       <span class="drawer-icon">🕐</span>
@@ -192,7 +210,7 @@
     </button>
   </div>
 
-  <div class="drawer-section">
+  <div class="drawer-section drawer-admin">
     <div class="drawer-section-label">Bibliothek & Medien</div>
     <button class="drawer-item" data-action="trickplay" id="settingsMenuTrickplay">
       <span class="drawer-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg></span>
@@ -245,7 +263,7 @@
     </button>
   </div>
 
-  <div class="drawer-section">
+  <div class="drawer-section drawer-admin">
     <div class="drawer-section-label">Diagnose</div>
     <button class="drawer-item" data-action="missing" id="settingsMenuMissing">
       <span class="drawer-icon">📥</span>
@@ -836,6 +854,16 @@
   </form>
 </dialog>
 
+<!-- Startseite anpassen (pro Benutzer) -->
+<dialog id="homePrefsDialog" class="modal">
+  <h2>🏠 Startseite anpassen</h2>
+  <p class="hint" id="homePrefsHint" style="margin:2px 0 0">Angehakte Bibliotheken erscheinen auf deiner Startseite.</p>
+  <div id="homePrefsList" style="display:flex;flex-direction:column;gap:6px;margin:12px 0"></div>
+  <div class="row">
+    <button type="button" data-close class="primary">Fertig</button>
+  </div>
+</dialog>
+
 <!-- Library-Access für User -->
 <dialog id="userAclDialog" class="modal">
   <h2 id="userAclTitle">Bibliothek-Zugriff</h2>
@@ -943,10 +971,6 @@
     im Zahnrad-Menü einzeln rückgängig gemacht oder als CSV exportiert werden.
     Manuelle Einzel-Umbenennung über den 🏷-Button im Detail-Dialog ist immer verfügbar — unabhängig von dieser Einstellung.</p>
 
-    <div class="row">
-      <button type="submit" class="primary">Speichern</button>
-      <button type="button" data-close>Schließen</button>
-    </div>
     <div class="tmdb-attribution">
       <a href="https://www.themoviedb.org/" target="_blank" rel="noopener" aria-label="The Movie Database">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 185.04 133.4" height="18" style="vertical-align:middle">
@@ -955,6 +979,12 @@
         </svg>
       </a>
       Metadaten + Poster stammen von <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">The Movie Database</a>. Dieses Produkt nutzt die TMDB-API, ist aber nicht von TMDB unterstützt oder zertifiziert.
+    </div>
+    <!-- Buttonzeile bewusst als letztes Kind — die generische Sticky-Footer-Regel
+         (.modal .row:last-child) greift nur, wenn hier nichts mehr folgt. -->
+    <div class="row">
+      <button type="submit" class="primary">Speichern</button>
+      <button type="button" data-close>Schließen</button>
     </div>
   </form>
 </dialog>

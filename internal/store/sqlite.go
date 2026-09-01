@@ -175,6 +175,15 @@ func (s *Store) migrate() error {
 			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
 			PRIMARY KEY (user_id, library_id)
 		)`,
+		// Pro-User-Sichtbarkeit einer Library auf der Startseite. Eine Zeile
+		// überschreibt den globalen libraries.on_home-Default NUR für diesen
+		// User. Fehlt die Zeile, gilt weiterhin der globale Default.
+		`CREATE TABLE IF NOT EXISTS user_home_prefs (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			on_home INTEGER NOT NULL,
+			PRIMARY KEY (user_id, library_id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS item_streams (
 			item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
 			stream_index INTEGER NOT NULL,

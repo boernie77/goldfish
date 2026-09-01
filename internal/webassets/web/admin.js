@@ -40,10 +40,13 @@ function renderUserMenu() {
   $("#settingsMenuPathSearch").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuMissing").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuRefreshAllMeta").classList.toggle("hidden", !state.me.isAdmin);
-  // Das gesamte Zahnrad-Menü ist Admin-only: alle übrigen Einträge (Settings,
-  // Bibliotheken) sind ebenfalls administrative Aktionen. Für reguläre User
-  // wird der Button komplett ausgeblendet.
-  $("#settingsBtn").classList.toggle("hidden", !state.me.isAdmin);
+  // Das Zahnrad-Menü ist für ALLE Benutzer sichtbar. Nicht-Admins sehen nur
+  // die Sektion „Mein Konto" (Startseite anpassen, Passwort ändern) — die
+  // administrativen Sektionen (`.drawer-admin`) werden für sie ausgeblendet.
+  $("#settingsBtn").classList.remove("hidden");
+  document.querySelectorAll(".drawer-admin").forEach(el =>
+    el.classList.toggle("hidden", !state.me.isAdmin));
+  { const t = $("#drawerTitle"); if (t) t.textContent = state.me.isAdmin ? "⚙ Administration" : "⚙ Menü"; }
 
   // Server-Version im Menü-Fuß (aus /api/health). Einmalig, still bei Fehler.
   const verEl = $("#drawerVersion");

@@ -1240,6 +1240,8 @@ function wire() {
     if (!btn) return;
     closeDrawer();
     switch (btn.dataset.action) {
+      case "myhome":    openHomePrefsDialog(); break;
+      case "mypassword": $("#passwordDialog").showModal(); break;
       case "settings":  openSettings(); break;
       case "libraries": openManage(); break;
       case "users":     openUsersManager(); break;

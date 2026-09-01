@@ -1079,11 +1079,21 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   max-height: 90vh;
   overflow: auto;
 }
+/* Steuerfelder immer sichtbar: Kopf (Titel + Schließen) klebt oben, die
+   Aktions-Buttonzeile klebt unten — nur der Inhalt dazwischen scrollt.
+   Gilt generisch für jeden .modal-Dialog.
+   WICHTIG: keine negativen margins auf den sticky-Elementen — das lässt
+   Chrome/Safari beim Reservieren des Flow-Platzes zu wenig Höhe einrechnen
+   und nachfolgender Inhalt rutscht unter den Kopf (beobachtet 2026-09-01).
+   Stattdessen bleiben Kopf/Fuß innerhalb der normalen .modal-Padding-Box —
+   der winzige, permanent sichtbare Rand oben/unten fällt farblich nicht auf. */
 .modal-close {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  background: transparent;
+  position: sticky;
+  float: right;
+  top: 0;
+  margin: 0 0 0 8px;
+  z-index: 6;
+  background: var(--card);
   border: none;
   color: var(--text-dim);
   font-size: 18px;
@@ -1097,6 +1107,31 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .modal-close:hover { color: var(--text); background: var(--card-2); }
 .modal h2 { margin: 0 0 8px; }
 .modal h3 { margin: 14px 0 8px; font-size: 14px; color: var(--text-dim); }
+
+/* Erster Titel bleibt beim Scrollen oben stehen.
+   (app-dialog = appConfirm/appPrompt scrollt nie → ausgenommen.) */
+.modal:not(.app-dialog) > h2:first-of-type {
+  position: sticky;
+  top: 0;
+  margin: 0 0 10px;
+  padding-bottom: 10px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  z-index: 4;
+}
+/* Letzte Button-Zeile bleibt beim Scrollen unten stehen. */
+.modal:not(.app-dialog) > .row:last-child,
+.modal:not(.app-dialog) > form:last-child > .row:last-child,
+.modal:not(.app-dialog) > .modal-actions:last-child {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  z-index: 3;
+}
 
 .form { display: flex; flex-direction: column; gap: 10px; }
 .form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
@@ -1903,6 +1938,11 @@ body.selection-mode .card { cursor: pointer; }
   gap: 36px;
   padding: 8px 0 24px;
 }
+.home-view-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -20px;
+}
 .home-lib-block {
   display: flex;
   flex-direction: column;
@@ -2661,6 +2701,15 @@ button.danger:hover { background: #991b1b; }
 .dropdown button:hover { background: var(--card-2); }
 
 .detail-modal { min-width: 900px; max-width: 1200px; padding: 0; }
+/* Icon-Aktionsleiste (▶ ♡ ✓ ⬇ … ✕) klebt unten — sitzt strukturell nicht
+   als :last-child (der Whisper-Popover kommt danach), deshalb eigene Regel
+   statt der generischen .modal > .row:last-child. */
+.detail-modal > .row.icon-row {
+  position: sticky;
+  bottom: 0;
+  background: var(--card);
+  z-index: 3;
+}
 .detail-wrap {
   display: grid;
   /* minmax(0, 1fr) erlaubt der rechten Spalte zu shrinken — sonst sprengen

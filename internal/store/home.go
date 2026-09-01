@@ -159,3 +159,37 @@ func (s *Store) SetLibraryOnHome(libraryID int64, onHome bool) error {
 	_, err := s.db.Exec(`UPDATE libraries SET on_home = ? WHERE id = ?`, flag, libraryID)
 	return err
 }
+
+// GetUserHomePrefs liefert die pro-User-Overrides der Startseiten-Sichtbarkeit
+// als Map library_id → onHome. Nur explizit gesetzte Zeilen sind enthalten;
+// für alle übrigen Libraries gilt der globale libraries.on_home-Default.
+func (s *Store) GetUserHomePrefs(userID int64) (map[int64]bool, error) {
+	rows, err := s.db.Query(`SELECT library_id, on_home FROM user_home_prefs WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var libID int64
+		var onHome int
+		if err := rows.Scan(&libID, &onHome); err != nil {
+			return nil, err
+		}
+		out[libID] = onHome == 1
+	}
+	return out, rows.Err()
+}
+
+// SetUserHomePref setzt (Upsert) den pro-User-Override für eine Library.
+func (s *Store) SetUserHomePref(userID, libraryID int64, onHome bool) error {
+	flag := 0
+	if onHome {
+		flag = 1
+	}
+	_, err := s.db.Exec(`
+		INSERT INTO user_home_prefs (user_id, library_id, on_home) VALUES (?, ?, ?)
+		ON CONFLICT(user_id, library_id) DO UPDATE SET on_home = excluded.on_home`,
+		userID, libraryID, flag)
+	return err
+}

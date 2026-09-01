@@ -26,6 +26,19 @@ function renderHomeView(grid, data) {
 
   const wrap = document.createElement("div");
   wrap.className = "home-view";
+
+  // Kopfzeile mit „Startseite anpassen" — für JEDEN Benutzer (nicht admin-only).
+  const hdr = document.createElement("div");
+  hdr.className = "home-view-toolbar";
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "toggle-btn";
+  editBtn.textContent = "🏠 Startseite anpassen";
+  editBtn.title = "Welche Bibliotheken hier erscheinen";
+  editBtn.addEventListener("click", openHomePrefsDialog);
+  hdr.appendChild(editBtn);
+  wrap.appendChild(hdr);
+
   const sections = data.sections || [];
 
   // Globaler Streifen: ein Titel, eine flache Reihe Kacheln aus allen
@@ -105,6 +118,61 @@ function renderHomeView(grid, data) {
   }
   grid.appendChild(wrap);
   state.lastRenderedItems = flatAll;
+}
+
+// openHomePrefsDialog: pro-Benutzer-Auswahl, welche Bibliotheken auf der
+// Startseite erscheinen. Für jeden Benutzer verfügbar (kein Admin nötig).
+// Toggle schreibt sofort via PUT /api/home/preferences/{libId}; beim Schließen
+// wird die Startseite neu geladen, falls sie gerade offen ist.
+async function openHomePrefsDialog() {
+  const dlg = $("#homePrefsDialog");
+  const list = $("#homePrefsList");
+  list.innerHTML = `<div class="hint">Lädt…</div>`;
+  if (!dlg.open) dlg.showModal();
+  let libs;
+  try {
+    libs = await api("/api/home/preferences");
+  } catch (e) {
+    list.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
+    return;
+  }
+  let dirty = false;
+  list.innerHTML = "";
+  if (!libs.length) {
+    list.innerHTML = `<div class="hint">Keine Bibliotheken verfügbar.</div>`;
+  }
+  const kindLabel = { movies: "Filme", tv: "Serien", private: "Privat" };
+  for (const lib of libs) {
+    const row = document.createElement("label");
+    row.className = "lib-toggle";
+    row.style.width = "100%";
+    row.style.justifyContent = "flex-start";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = lib.onHome !== false;
+    box.addEventListener("change", async () => {
+      box.disabled = true;
+      try {
+        await api(`/api/home/preferences/${lib.libraryId}`, {
+          method: "PUT",
+          body: JSON.stringify({ onHome: box.checked }),
+        });
+        dirty = true;
+      } catch (e) {
+        box.checked = !box.checked;
+        appAlert(e.message);
+      } finally {
+        box.disabled = false;
+      }
+    });
+    row.appendChild(box);
+    row.appendChild(document.createTextNode(
+      ` ${lib.name}${kindLabel[lib.kind] ? ` · ${kindLabel[lib.kind]}` : ""}`));
+    list.appendChild(row);
+  }
+  dlg.addEventListener("close", () => {
+    if (dirty && state.homeView) loadItems();
+  }, { once: true });
 }
 
 // --- Staffel-Ansicht für Serien ---

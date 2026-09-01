@@ -80,6 +80,10 @@ func (s *Server) Router() http.Handler {
 
 		r.Get("/health", s.handleHealth)
 		r.Get("/home", s.home)
+		// Pro-User-Startseite: jeder User steuert für sich, welche seiner
+		// Bibliotheken auf der Startseite erscheinen (nicht admin-only).
+		r.Get("/home/preferences", s.myHomePreferences)
+		r.Put("/home/preferences/{id}", s.setMyHomePreference)
 
 		r.Get("/libraries", s.listLibraries)
 		r.Post("/libraries", requireAdmin(s.createLibrary))

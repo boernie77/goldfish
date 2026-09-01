@@ -23,6 +23,12 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	// Pro-User-Overrides der Startseiten-Sichtbarkeit (leer = überall Default).
+	homePrefs, err := s.Store.GetUserHomePrefs(me.ID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
 	type section struct {
 		Library  model.Library `json:"library"`
 		Continue []model.Item  `json:"continue"`
@@ -31,7 +37,11 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]section, 0, len(libs))
 	for _, lib := range libs {
-		if !lib.OnHome {
+		onHome := lib.OnHome
+		if v, ok := homePrefs[lib.ID]; ok {
+			onHome = v
+		}
+		if !onHome {
 			continue
 		}
 		// ACL-Check: Non-Admin sieht nur Libraries mit explizitem Zugriff.
@@ -116,6 +126,87 @@ func (s *Server) setLibraryHomeVisibility(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.Store.SetLibraryOnHome(id, body.OnHome); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
+// myHomePreferences liefert für den angemeldeten User alle Libraries, auf die
+// er ACL-Zugriff hat, samt effektiver Startseiten-Sichtbarkeit (pro-User-
+// Override, sonst globaler Default). Für jeden User verfügbar, nicht admin-only.
+func (s *Server) myHomePreferences(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	libs, err := s.Store.ListLibraries()
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	prefs, err := s.Store.GetUserHomePrefs(me.ID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	type row struct {
+		LibraryID int64  `json:"libraryId"`
+		Name      string `json:"name"`
+		Kind      string `json:"kind"`
+		OnHome    bool   `json:"onHome"`
+	}
+	out := make([]row, 0, len(libs))
+	for _, lib := range libs {
+		allowed, err := s.Store.UserHasLibraryAccess(me.ID, lib.ID, me.IsAdmin)
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		if !allowed {
+			continue
+		}
+		onHome := lib.OnHome
+		if v, ok := prefs[lib.ID]; ok {
+			onHome = v
+		}
+		out = append(out, row{LibraryID: lib.ID, Name: lib.Name, Kind: string(lib.Kind), OnHome: onHome})
+	}
+	writeJSON(w, 200, out)
+}
+
+// setMyHomePreference setzt den pro-User-Startseiten-Override für eine Library.
+// Body: {"onHome": bool}. Für jeden User verfügbar; die Library muss im
+// ACL-Zugriff des Users liegen.
+func (s *Server) setMyHomePreference(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	allowed, err := s.Store.UserHasLibraryAccess(me.ID, id, me.IsAdmin)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if !allowed {
+		writeError(w, 403, "kein Zugriff auf diese Bibliothek")
+		return
+	}
+	var body struct {
+		OnHome bool `json:"onHome"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetUserHomePref(me.ID, id, body.OnHome); err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
