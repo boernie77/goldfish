@@ -287,16 +287,24 @@ function renderSearchShowCard(show) {
 // appendSearchResultCards hängt Such-Treffer ans Fragment: Episoden werden pro
 // Serie (libraryId + erstes rel_path-Segment) zu EINER Sammelkachel
 // zusammengefasst (User-Wunsch, wie in der App), alles andere (Filme,
-// Privatvideos) bleibt eine normale Kachel. Rückgabe: sichtbare Kachel-Anzahl.
+// Privatvideos) bleibt eine normale Kachel. Die Treffer werden nach Bibliothek
+// gruppiert und in der Reihenfolge der Library-Reiter ausgegeben (Reihenfolge
+// von state.libraries), jede Gruppe mit einer Zwischenüberschrift.
+// Rückgabe: sichtbare Kachel-Anzahl (ohne Überschriften).
 function appendSearchResultCards(frag, items) {
-  const shows = new Map();
-  const rest = [];
+  // Pro Library ein Bucket: { rest: [...items], shows: Map<folder, showObj> }
+  const buckets = new Map();
+  const bucketFor = (libID) => {
+    let b = buckets.get(libID);
+    if (!b) { b = { rest: [], shows: new Map() }; buckets.set(libID, b); }
+    return b;
+  };
   for (const it of items || []) {
+    const b = bucketFor(it.libraryId);
     const isEp = it.metadata && it.metadata.tmdbType === "episode";
     const rel = (it.relPath || "").split("/");
     if (isEp && rel.length > 1) {
-      const key = it.libraryId + " " + rel[0];
-      let s = shows.get(key);
+      let s = b.shows.get(rel[0]);
       if (!s) {
         s = {
           libraryId: it.libraryId,
@@ -305,19 +313,46 @@ function appendSearchResultCards(frag, items) {
           fallbackThumbId: it.id,
           count: 0,
         };
-        shows.set(key, s);
+        b.shows.set(rel[0], s);
       }
       s.count++;
     } else {
-      rest.push(it);
+      b.rest.push(it);
     }
   }
-  const mergedRest = groupVariants(rest);
-  for (const m of mergedRest) frag.appendChild(renderCard(m));
-  const showList = Array.from(shows.values())
-    .sort((a, b) => a.folder.localeCompare(b.folder, "de"));
-  for (const s of showList) frag.appendChild(renderSearchShowCard(s));
-  return mergedRest.length + showList.length;
+
+  // Ausgabe-Reihenfolge der Libraries = Reiter-Reihenfolge; unbekannte
+  // Library-IDs (sollte nicht vorkommen) hinten anhängen.
+  const libOrder = (state.libraries || []).map(l => l.id);
+  const orderedLibIDs = [
+    ...libOrder.filter(id => buckets.has(id)),
+    ...Array.from(buckets.keys()).filter(id => !libOrder.includes(id)),
+  ];
+  const libName = (id) => {
+    const l = (state.libraries || []).find(x => x.id == id);
+    return l ? l.name : "Weitere";
+  };
+
+  let total = 0;
+  const multiLib = orderedLibIDs.length > 1;
+  for (const libID of orderedLibIDs) {
+    const b = buckets.get(libID);
+    const mergedRest = groupVariants(b.rest);
+    const showList = Array.from(b.shows.values())
+      .sort((a, c) => a.folder.localeCompare(c.folder, "de"));
+    const n = mergedRest.length + showList.length;
+    if (!n) continue;
+    if (multiLib) {
+      const h = document.createElement("div");
+      h.className = "person-section-title";
+      h.textContent = libName(libID) + " \u00b7 " + n;
+      frag.appendChild(h);
+    }
+    for (const m of mergedRest) frag.appendChild(renderCard(m));
+    for (const s of showList) frag.appendChild(renderSearchShowCard(s));
+    total += n;
+  }
+  return total;
 }
 
 // renderPersonHeader: Info-Block über den Schauspieler (Foto + Lebensdaten +
