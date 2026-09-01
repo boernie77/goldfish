@@ -740,8 +740,14 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `requireLibAccess(w, r, libID)` wird in jedem Item-/Stream-/Transcode-Handler
   aufgerufen. Der ACL-Editor holt die Gesamtliste über `/api/libraries?all=1`
   (admin-only). Test: `internal/store/acl_test.go`.
-- Nutzerverwaltung (anlegen, Passwort ändern, Admin togglen, ACL bearbeiten) in der UI
-  unter Settings → Benutzer (nur Admins).
+- Nutzerverwaltung (anlegen, Passwort *anderer* User zurücksetzen, Admin togglen,
+  ACL bearbeiten) in der UI unter Settings → Benutzer (nur Admins).
+- **Zahnrad-Menü ist seit 2026-09-01 für JEDEN User sichtbar** (vorher komplett
+  admin-only versteckt). Sektion „Mein Konto" (🏠 Startseite anpassen, 🔐
+  eigenes Passwort ändern via `PUT /api/auth/password`) ist für alle da; alle
+  übrigen Drawer-Sektionen tragen die Klasse `.drawer-admin` und werden für
+  Non-Admins per `renderUserMenu()` (admin.js) ausgeblendet. Drawer-Titel
+  wechselt „⚙ Menü" (User) / „⚙ Administration" (Admin).
 - Watched + Favorite sind **pro User** (`user_item_state`), nicht pro Item.
 
 ### Trickplay (Hover-Vorschau)
@@ -1041,6 +1047,21 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   auswählen" arbeitet darauf.
 
 ### UI
+- **Dialoge (`.modal`) haben seit 2026-09-01 einen sticky Kopf + Fuß**
+  (style.css, generische Regel, `.app-dialog` = appConfirm/appPrompt
+  ausgenommen): erster `<h2>` klebt oben, letzte `.row`/`.modal-actions`
+  klebt unten, `.modal-close` ist `position: sticky; float: right` statt
+  `absolute` (scrollte vorher mit weg). Damit die generische Regel greift,
+  **muss die Buttonzeile das letzte Kind im Dialog sein** — Inhalt, der
+  danach kommt (z. B. eine Fußnote), verschiebt sie aus dem `:last-child`-
+  Treffer und sie bleibt un-sticky (Beispiel-Fix: TMDB-Attribution in
+  `settingsDialog` vor die Buttonzeile verschoben). Braucht ein Dialog eine
+  Sonderstruktur (z. B. `detailDialog`s `.icon-row`, danach folgt noch der
+  versteckte Whisper-Popover im DOM), braucht es eine eigene, gezielte
+  CSS-Regel statt der generischen. **Keine negativen margins auf sticky-
+  Elementen** — reserviert in Chrome/Safari zu wenig Flow-Höhe, nachfolgender
+  Inhalt rutscht dann unter den Kopf (beobachtet, siehe Memory
+  `project_feature_user_home_and_sticky_dialogs`).
 - Grid-Ansicht mit Kachel-Thumbnails oder TMDB-Poster. Movies/TV-Libraries nutzen
   **2:3-Poster-Kacheln** (`card--poster`), Private-Libs weiterhin 16:9-Thumbnail.
 - **Private-Libs (YouTube, Urlaubsvideos, …)**: Kachel zeigt den **Dateinamen**
@@ -1160,13 +1181,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   der Topbar. Zeigt pro Library einen eigenen Block mit drei Streifen:
   **▶ Fortsetzen** (Items mit Resume-Position), **📺 Als nächstes** (nächste
   ungesehene Episode je Serie, nur TV-Libs), **🆕 Zuletzt hinzugefügt**.
-- Libraries mit `on_home=0` (Checkbox im Library-Manager) werden komplett
-  ausgeblendet.
+- Libraries mit `on_home=0` (Checkbox im Library-Manager, Admin) werden
+  komplett ausgeblendet — das ist der globale Default.
+- **Pro-User-Override (seit 2026-09-01):** Tabelle `user_home_prefs
+  (user_id, library_id, on_home)` überschreibt den globalen Default NUR für
+  diesen User. Jeder User (nicht nur Admin) kann über „🏠 Startseite
+  anpassen" (Zahnrad-Menü ODER Button direkt auf der Startseite,
+  `views.js openHomePrefsDialog`) selbst wählen, welche seiner
+  ACL-sichtbaren Libraries erscheinen. `GET/PUT /api/home/preferences[/{id}]`
+  — authenticated, NICHT admin-only.
 - Library-Name-Überschrift klickbar → öffnet die Lib in Standard-Ansicht.
 - Suchfeld in der Topbar ist auf Home-View **library-übergreifend**:
   matcht gegen Titel + Schauspieler über alle Libraries mit ACL-Zugriff.
 - API: `GET /api/home` liefert `{sections: [{library, continue, nextUp,
-  recent}, …]}`, `PUT /api/libraries/{id}/home-visibility` togglet `on_home`.
+  recent}, …]}`, effektive Sichtbarkeit = `user_home_prefs`-Zeile falls
+  vorhanden, sonst `libraries.on_home`. `PUT /api/libraries/{id}/home-visibility`
+  togglet weiterhin den globalen Default (Admin-only, Library-Manager).
 
 ### Doppelfolgen (Episoden-Range)
 - Dateinamen wie `S07E23E24.mkv`, `S07E23-E24.mkv`, `S07E23 E24 Finale.mkv` werden
