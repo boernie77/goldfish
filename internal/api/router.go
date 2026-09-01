@@ -85,6 +85,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/home/preferences", s.myHomePreferences)
 		r.Put("/home/preferences/{id}", s.setMyHomePreference)
 		r.Put("/home/order", s.setMyHomeOrder)
+		r.Put("/home/strips", s.setMyHomeStrips)
 
 		r.Get("/libraries", s.listLibraries)
 		r.Post("/libraries", requireAdmin(s.createLibrary))

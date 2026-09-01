@@ -263,18 +263,7 @@ async function openManage() {
   if (!state.libraries.length) {
     ul.innerHTML = `<li><em>Noch keine Bibliotheken angelegt.</em></li>`;
   }
-  // Reihenfolge nach Drag/Up-Down zum Server schicken.
-  async function persistOrder() {
-    const ids = Array.from(ul.querySelectorAll("li.lib-row"))
-      .map(li => Number(li.dataset.libId))
-      .filter(id => id > 0);
-    try {
-      await api(`/api/libraries/order`, { method: "PUT", body: JSON.stringify({ ids }) });
-      await loadLibraries();
-    } catch (e) { appAlert(e.message); }
-  }
-  for (let idx = 0; idx < state.libraries.length; idx++) {
-    const l = state.libraries[idx];
+  for (const l of state.libraries) {
     const li = document.createElement("li");
     li.classList.add("lib-row");
     li.dataset.libId = String(l.id);
@@ -282,7 +271,7 @@ async function openManage() {
 
     // Zwei-Zeilen-Layout fuer die schmale 520px-Dialog-Breite:
     //   Zeile 1: Name + Kind-Select + Loeschen-Icon  (gross/lesbar)
-    //   Zeile 2: ▲▼ + Toggle-Pillen                  (kompakt)
+    //   Zeile 2: Toggle-Pille "Ordner oben"           (nur Privat-Libs)
     // Beide Container haben flex-wrap, damit bei sehr schmalen Viewports
     // (z.B. Tablet hochkant) nichts mehr aus dem Dialog rausragt.
     const header = document.createElement("div");
@@ -328,52 +317,21 @@ async function openManage() {
 
     header.appendChild(topRow);
 
-    // Zeile 2: Reorder + Toggles
-    const toolbar = document.createElement("div");
-    toolbar.className = "lib-toolbar";
-
-    const upBtn = document.createElement("button");
-    upBtn.className = "icon-btn";
-    upBtn.textContent = "▲";
-    upBtn.title = "Nach oben verschieben";
-    upBtn.disabled = idx === 0;
-    upBtn.addEventListener("click", async () => {
-      const prev = li.previousElementSibling;
-      if (prev && prev.classList.contains("lib-row")) {
-        ul.insertBefore(li, prev);
-        await persistOrder();
-        openManage();
-      }
-    });
-    const downBtn = document.createElement("button");
-    downBtn.className = "icon-btn";
-    downBtn.textContent = "▼";
-    downBtn.title = "Nach unten verschieben";
-    downBtn.disabled = idx === state.libraries.length - 1;
-    downBtn.addEventListener("click", async () => {
-      const next = li.nextElementSibling;
-      if (next && next.classList.contains("lib-row")) {
-        ul.insertBefore(next, li);
-        await persistOrder();
-        openManage();
-      }
-    });
-    toolbar.appendChild(upBtn);
-    toolbar.appendChild(downBtn);
-
-    // Kein "🏠 Startseite"-Toggle mehr hier (bis 2026-09-01 global via
-    // libraries.on_home) — das ist jetzt pro Benutzer im "🏠 Startseite
-    // anpassen"-Dialog (views.js openHomePrefsDialog, für jeden User
-    // erreichbar) geregelt, sonst doppelt gepflegt. libraries.on_home bleibt
-    // im Schema als Sichtbarkeits-Default für User ohne eigene Auswahl,
-    // hat aber keine Admin-UI mehr.
-
-    // Card-Layout-Toggle nur bei Privat-Libs anzeigen — bei Filme/Serien
-    // ist sowieso der Titel oben (Kanal-Layout greift dort nicht).
+    // Zeile 2: nur noch der Card-Layout-Toggle (Privat-Libs). Kein ▲▼ mehr
+    // (seit 2026-09-02) — die Reihenfolge ist jetzt pro Benutzer im "🏠
+    // Startseite anpassen"-Dialog steuerbar und wirkt dort auf Reiterleiste
+    // UND Startseite gleichermaßen; ein globaler Admin-Wert wäre nur noch
+    // der Ausgangs-Default für User ohne eigene Auswahl (alphabetisch, da
+    // libraries.sort_order für alle neuen Libraries bei 0 bleibt — reicht).
+    // Kein "🏠 Startseite"-Toggle mehr hier (seit 2026-09-01 global via
+    // libraries.on_home) — ebenfalls jetzt im "🏠 Startseite anpassen"-Dialog
+    // geregelt, sonst doppelt gepflegt.
     if (l.kind === "private") {
+      const toolbar = document.createElement("div");
+      toolbar.className = "lib-toolbar";
       const layoutLabel = document.createElement("label");
       layoutLabel.className = "lib-toggle";
-      layoutLabel.title = "Top-Zeile: Ordner/Kanal statt Titel (YouTube-Style)";
+      layoutLabel.title = "Kachel-Titelzeile in dieser Bibliothek: oberster Ordnername (z. B. Kanal-/Serien-Name) statt Dateiname — YouTube-Style. Wirkung nur im Grid dieser Bibliothek sichtbar, nicht hier im Dialog.";
       const layoutBox = document.createElement("input");
       layoutBox.type = "checkbox";
       layoutBox.checked = l.channelLabelOnTop !== false;
@@ -389,9 +347,8 @@ async function openManage() {
       layoutLabel.appendChild(layoutBox);
       layoutLabel.appendChild(document.createTextNode(" 🏷 Ordner oben"));
       toolbar.appendChild(layoutLabel);
+      header.appendChild(toolbar);
     }
-
-    header.appendChild(toolbar);
     li.appendChild(header);
 
     // Paths-Liste

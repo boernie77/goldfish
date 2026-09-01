@@ -83,8 +83,11 @@ function renderHomeView(grid, data) {
   allContinue.sort((a, b) => tsKey(b, "lastPlayedAt").localeCompare(tsKey(a, "lastPlayedAt")));
   allNextUp.sort((a, b) => tsKey(b, "addedAt").localeCompare(tsKey(a, "addedAt")));
   // Cap: 24 / 24 — sonst werden die Streifen unuebersichtlich lang.
-  renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24));
-  renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24));
+  // Sichtbarkeit pro User abschaltbar (seit 2026-09-02, "🏠 Startseite
+  // anpassen"-Dialog) — Default an, wenn der Server (ältere Version) die
+  // Flags noch nicht mitschickt.
+  if (data.showContinue !== false) renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24));
+  if (data.showNextUp !== false) renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24));
 
   // Pro Library: nur „Zuletzt hinzugefuegt", in Library-Reihenfolge.
   const flatAll = [...allContinue, ...allNextUp];
@@ -120,36 +123,85 @@ function renderHomeView(grid, data) {
   state.lastRenderedItems = flatAll;
 }
 
-// openHomePrefsDialog: pro-Benutzer-Auswahl, welche Bibliotheken auf der
-// Startseite erscheinen UND in welcher Reihenfolge (seit 2026-09-02, ersetzt
-// den früheren admin-only "🏠 Startseite"-Toggle in der Bibliotheksverwaltung
-// — dort war es doppelt gepflegt). Für jeden Benutzer verfügbar, kein Admin
+// openHomePrefsDialog: pro-Benutzer-Auswahl, was auf der Startseite UND in
+// der Bibliotheks-Reiterleiste oben erscheint (seit 2026-09-02 vereinheitlicht
+// — eine ausgeblendete Library verschwindet aus beidem, ersetzt den früheren
+// admin-only "🏠 Startseite"-Toggle in der Bibliotheksverwaltung, der doppelt
+// gepflegt war). Zusätzlich abschaltbar: die zwei globalen Streifen
+// "▶ Fortsetzen"/"📺 Als nächstes". Für jeden Benutzer verfügbar, kein Admin
 // nötig. Sichtbarkeits-Toggle schreibt sofort via
-// PUT /api/home/preferences/{libId}; ▲▼ verschiebt die Zeile im DOM und
-// schreibt die komplette Reihenfolge via PUT /api/home/order. Beim Schließen
-// wird die Startseite neu geladen, falls sie gerade offen ist.
+// PUT /api/home/preferences/{libId} bzw. PUT /api/home/strips; ▲▼ verschiebt
+// die Zeile im DOM und schreibt die komplette Reihenfolge via
+// PUT /api/home/order. Beim Schließen wird die Startseite neu geladen
+// (falls offen) UND die Reiterleiste (renderLibNav) aktualisiert.
 async function openHomePrefsDialog() {
   const dlg = $("#homePrefsDialog");
   const list = $("#homePrefsList");
   list.innerHTML = `<div class="hint">Lädt…</div>`;
   if (!dlg.open) dlg.showModal();
-  let libs;
+  let data;
   try {
-    libs = await api("/api/home/preferences");
+    data = await api("/api/home/preferences");
   } catch (e) {
     list.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
     return;
   }
+  const libs = data.libraries || [];
   let dirty = false;
   list.innerHTML = "";
-  if (!libs.length) {
-    list.innerHTML = `<div class="hint">Keine Bibliotheken verfügbar.</div>`;
-    return;
-  }
   const kindLabel = { movies: "Filme", tv: "Serien", private: "Privat" };
 
+  // Globale Streifen (nur wenn es überhaupt Libraries gibt — sonst ist die
+  // Startseite eh leer und die Toggles wären nutzlos).
+  const stripLabel = document.createElement("div");
+  stripLabel.className = "drawer-section-label";
+  stripLabel.style.margin = "0 0 4px";
+  stripLabel.textContent = "Globale Streifen";
+  list.appendChild(stripLabel);
+  const stripDefs = [
+    { key: "showContinue", text: "▶ Fortsetzen", body: v => ({ showContinue: v }) },
+    { key: "showNextUp", text: "📺 Als nächstes", body: v => ({ showNextUp: v }) },
+  ];
+  for (const def of stripDefs) {
+    const row = document.createElement("div");
+    row.className = "home-pref-row";
+    const label = document.createElement("label");
+    label.className = "lib-toggle home-pref-toggle";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = data[def.key] !== false;
+    box.addEventListener("change", async () => {
+      box.disabled = true;
+      try {
+        await api("/api/home/strips", { method: "PUT", body: JSON.stringify(def.body(box.checked)) });
+        dirty = true;
+      } catch (e) {
+        box.checked = !box.checked;
+        appAlert(e.message);
+      } finally {
+        box.disabled = false;
+      }
+    });
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(` ${def.text}`));
+    row.appendChild(label);
+    list.appendChild(row);
+  }
+
+  if (!libs.length) {
+    dlg.addEventListener("close", () => {
+      if (dirty && state.homeView) loadItems();
+    }, { once: true });
+    return;
+  }
+  const libHeading = document.createElement("div");
+  libHeading.className = "drawer-section-label";
+  libHeading.style.margin = "14px 0 4px";
+  libHeading.textContent = "Bibliotheken";
+  list.appendChild(libHeading);
+
   async function persistOrder() {
-    const ids = Array.from(list.querySelectorAll(".home-pref-row"))
+    const ids = Array.from(list.querySelectorAll(".home-pref-row[data-lib-id]"))
       .map(row => Number(row.dataset.libId))
       .filter(id => id > 0);
     try {
@@ -159,7 +211,7 @@ async function openHomePrefsDialog() {
     updateArrowState();
   }
   function updateArrowState() {
-    const rows = Array.from(list.querySelectorAll(".home-pref-row"));
+    const rows = Array.from(list.querySelectorAll(".home-pref-row[data-lib-id]"));
     rows.forEach((row, i) => {
       row.querySelector(".home-pref-up").disabled = i === 0;
       row.querySelector(".home-pref-down").disabled = i === rows.length - 1;
@@ -205,8 +257,11 @@ async function openHomePrefsDialog() {
     upBtn.textContent = "▲";
     upBtn.title = "Nach oben verschieben";
     upBtn.addEventListener("click", () => {
+      // previousElementSibling darf nur eine weitere Library-Zeile sein —
+      // sonst rutscht die Zeile vor die "Bibliotheken"-Überschrift bzw. die
+      // globalen Streifen-Toggles.
       const prev = row.previousElementSibling;
-      if (prev) { list.insertBefore(row, prev); persistOrder(); }
+      if (prev && prev.dataset.libId) { list.insertBefore(row, prev); persistOrder(); }
     });
     const downBtn = document.createElement("button");
     downBtn.type = "button";
@@ -215,7 +270,7 @@ async function openHomePrefsDialog() {
     downBtn.title = "Nach unten verschieben";
     downBtn.addEventListener("click", () => {
       const next = row.nextElementSibling;
-      if (next) { list.insertBefore(next, row); persistOrder(); }
+      if (next && next.dataset.libId) { list.insertBefore(next, row); persistOrder(); }
     });
     arrows.appendChild(upBtn);
     arrows.appendChild(downBtn);
@@ -224,8 +279,13 @@ async function openHomePrefsDialog() {
     list.appendChild(row);
   }
   updateArrowState();
-  dlg.addEventListener("close", () => {
-    if (dirty && state.homeView) loadItems();
+  dlg.addEventListener("close", async () => {
+    if (!dirty) return;
+    // Reiterleiste neu aufbauen (Sichtbarkeit + Reihenfolge wirken dort
+    // genauso wie auf der Startseite) — loadLibraries() holt state.libraries
+    // UND state.homePrefs neu und ruft renderLibNav() selbst auf.
+    await loadLibraries();
+    if (state.homeView) loadItems();
   }, { once: true });
 }
 

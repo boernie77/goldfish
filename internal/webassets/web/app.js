@@ -4,6 +4,7 @@ const $ = (s, root = document) => root.querySelector(s);
 
 const state = {
   libraries: [],
+  homePrefs: [], // pro-User Sichtbarkeit/Reihenfolge aus /api/home/preferences — steuert Reiterleiste + Startseite (siehe visibleOrderedLibraries())
   playlists: [],
   currentLibrary: null,
   currentPlaylist: null, // wenn gesetzt, wird eine Playlist angezeigt statt einer Library
@@ -859,10 +860,16 @@ async function toggleFavoriteOnCard(item, btn) {
 // --- Libraries ---
 
 async function loadLibraries() {
-  [state.libraries, state.playlists] = await Promise.all([
+  let homePrefsResp;
+  [state.libraries, state.playlists, homePrefsResp] = await Promise.all([
     api("/api/libraries"),
     api("/api/playlists").catch(() => []),
+    // Pro-User-Sichtbarkeit + Reihenfolge (steuert seit 2026-09-02 auch die
+    // Reiterleiste, nicht nur die Startseite) — still bei Fehler, dann
+    // gilt für die Reiterleiste einfach die volle, unsortierte Liste.
+    api("/api/home/preferences").catch(() => null),
   ]);
+  state.homePrefs = (homePrefsResp && homePrefsResp.libraries) || [];
   const sel = $("#librarySelect");
   sel.innerHTML = "";
   if (state.libraries.length === 0 && state.playlists.length === 0) {
@@ -971,6 +978,30 @@ function libIcon(lib) {
 // Startseite · [eine Library pro Button] · Sammlungen · Playlists.
 // Aktive Auswahl wird hervorgehoben. Wird nach loadLibraries() und nach jedem
 // Navigationswechsel (in renderBreadcrumb) gerufen.
+// visibleOrderedLibraries: state.libraries gefiltert + sortiert nach den
+// pro-User-Overrides aus state.homePrefs (seit 2026-09-02 — vorher zeigte
+// die Reiterleiste immer ALLE ACL-Libraries in globaler Reihenfolge; jetzt
+// kann jeder User Bibliotheken aus seiner eigenen Reiterleiste ausblenden
+// und umsortieren, im "🏠 Startseite anpassen"-Dialog). state.libraries
+// selbst bleibt unverändert (Library-Manager/ACL-Editor brauchen die volle
+// Liste). Fällt ohne geladene Prefs auf die volle, unsortierte Liste zurück.
+function visibleOrderedLibraries() {
+  const libs = state.libraries || [];
+  const prefs = state.homePrefs;
+  if (!prefs || !prefs.length) return libs;
+  const byId = new Map(prefs.map(p => [p.libraryId, p]));
+  return libs
+    .filter(l => { const p = byId.get(l.id); return !p || p.onHome !== false; })
+    .slice()
+    .sort((a, b) => {
+      const pa = byId.get(a.id), pb = byId.get(b.id);
+      const oa = pa ? pa.order : (a.sortOrder || 0);
+      const ob = pb ? pb.order : (b.sortOrder || 0);
+      if (oa !== ob) return oa - ob;
+      return a.name.localeCompare(b.name, "de");
+    });
+}
+
 function renderLibNav() {
   const nav = $("#libNav");
   if (!nav) return;
@@ -990,8 +1021,8 @@ function renderLibNav() {
   // Startseite
   nav.appendChild(make("🏠 Startseite", !!state.homeView, goHomeView, "Startseite"));
 
-  // Pro Library ein Button
-  const libs = state.libraries || [];
+  // Pro Library ein Button — gefiltert/sortiert nach pro-User-Prefs.
+  const libs = visibleOrderedLibraries();
   if (libs.length) nav.appendChild(sep());
   for (const l of libs) {
     const active = !state.homeView && !state.collectionsView && !state.playlistsView

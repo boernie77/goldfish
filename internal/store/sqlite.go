@@ -185,6 +185,16 @@ func (s *Store) migrate() error {
 			sort_order INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY (user_id, library_id)
 		)`,
+		// Generische Pro-User-Einstellungen (Key-Value), analog zur globalen
+		// settings-Tabelle. Erster Einsatzzweck: Sichtbarkeit der beiden
+		// globalen Startseiten-Streifen "Fortsetzen"/"Als nächstes"
+		// (home_show_continue / home_show_nextup, Werte "0"/"1").
+		`CREATE TABLE IF NOT EXISTS user_settings (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			key TEXT NOT NULL,
+			value TEXT NOT NULL,
+			PRIMARY KEY (user_id, key)
+		)`,
 		`CREATE TABLE IF NOT EXISTS item_streams (
 			item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
 			stream_index INTEGER NOT NULL,

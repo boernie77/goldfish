@@ -8,6 +8,12 @@ import (
 	"github.com/boernie77/goldfish/internal/model"
 )
 
+// Pro-User-Settings-Keys für die beiden globalen Startseiten-Streifen.
+const (
+	userSettingShowContinue = "home_show_continue"
+	userSettingShowNextUp   = "home_show_nextup"
+)
+
 // home liefert die Daten der Startseite, gruppiert nach Bibliothek:
 // für jede Library mit on_home=true werden Fortsetzen / Als nächstes /
 // Zuletzt hinzugefügt befüllt. Sektionen ohne Einträge bleiben leer, damit
@@ -17,6 +23,22 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	if me == nil {
 		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	// Sichtbarkeit der globalen Streifen (Default: an). Das Frontend baut
+	// "Fortsetzen"/"Als nächstes" client-seitig aus den pro-Library
+	// continue/nextUp-Arrays — die Server-Berechnung bleibt unverändert
+	// (andere Libraries brauchen sie ggf. trotzdem für "Zuletzt hinzugefügt"-
+	// unabhängige Zwecke), nur die beiden Flags sagen dem Client, ob er die
+	// Streifen überhaupt rendern soll.
+	showContinue, err := s.Store.GetUserSettingBool(me.ID, userSettingShowContinue, true)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	showNextUp, err := s.Store.GetUserSettingBool(me.ID, userSettingShowNextUp, true)
+	if err != nil {
+		writeError(w, 500, err.Error())
 		return
 	}
 	libs, err := s.Store.ListLibraries()
@@ -102,7 +124,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		}
 		return out[i].Library.Name < out[j].Library.Name
 	})
-	writeJSON(w, 200, map[string]any{"sections": out})
+	writeJSON(w, 200, map[string]any{"sections": out, "showContinue": showContinue, "showNextUp": showNextUp})
 }
 
 // setLibraryOrder schreibt die User-definierte Library-Reihenfolge. Admin-only.
@@ -198,7 +220,54 @@ func (s *Server) myHomePreferences(w http.ResponseWriter, r *http.Request) {
 		}
 		return out[i].Name < out[j].Name
 	})
-	writeJSON(w, 200, out)
+	showContinue, err := s.Store.GetUserSettingBool(me.ID, userSettingShowContinue, true)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	showNextUp, err := s.Store.GetUserSettingBool(me.ID, userSettingShowNextUp, true)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"libraries":    out,
+		"showContinue": showContinue,
+		"showNextUp":   showNextUp,
+	})
+}
+
+// setMyHomeStrips togglet die Sichtbarkeit der beiden globalen Startseiten-
+// Streifen "▶ Fortsetzen"/"📺 Als nächstes" für den angemeldeten User.
+// Body: {"showContinue": bool, "showNextUp": bool} — beide Felder optional,
+// nur mitgeschickte Felder werden geändert.
+func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	var body struct {
+		ShowContinue *bool `json:"showContinue"`
+		ShowNextUp   *bool `json:"showNextUp"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if body.ShowContinue != nil {
+		if err := s.Store.SetUserSettingBool(me.ID, userSettingShowContinue, *body.ShowContinue); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+	}
+	if body.ShowNextUp != nil {
+		if err := s.Store.SetUserSettingBool(me.ID, userSettingShowNextUp, *body.ShowNextUp); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+	}
+	w.WriteHeader(204)
 }
 
 // setMyHomeOrder schreibt die pro-User-Reihenfolge der Startseiten-Streifen.
