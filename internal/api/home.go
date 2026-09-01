@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 
 	"github.com/boernie77/goldfish/internal/model"
 )
@@ -39,7 +40,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	for _, lib := range libs {
 		onHome := lib.OnHome
 		if v, ok := homePrefs[lib.ID]; ok {
-			onHome = v
+			onHome = v.OnHome
 		}
 		if !onHome {
 			continue
@@ -86,6 +87,21 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, section{Library: lib, Continue: cont, NextUp: next, Recent: recent})
 	}
+	// Pro-User-Reihenfolge: homePrefs[id].Order falls gesetzt, sonst der
+	// globale libraries.sort_order-Default (stabiler Sort, Name als Tie-Break).
+	effOrder := func(libID int64, fallback int) int {
+		if v, ok := homePrefs[libID]; ok {
+			return v.Order
+		}
+		return fallback
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		oi, oj := effOrder(out[i].Library.ID, out[i].Library.SortOrder), effOrder(out[j].Library.ID, out[j].Library.SortOrder)
+		if oi != oj {
+			return oi < oj
+		}
+		return out[i].Library.Name < out[j].Library.Name
+	})
 	writeJSON(w, 200, map[string]any{"sections": out})
 }
 
@@ -156,6 +172,7 @@ func (s *Server) myHomePreferences(w http.ResponseWriter, r *http.Request) {
 		Name      string `json:"name"`
 		Kind      string `json:"kind"`
 		OnHome    bool   `json:"onHome"`
+		Order     int    `json:"order"`
 	}
 	out := make([]row, 0, len(libs))
 	for _, lib := range libs {
@@ -167,13 +184,61 @@ func (s *Server) myHomePreferences(w http.ResponseWriter, r *http.Request) {
 		if !allowed {
 			continue
 		}
-		onHome := lib.OnHome
+		onHome, order := lib.OnHome, lib.SortOrder
 		if v, ok := prefs[lib.ID]; ok {
-			onHome = v
+			onHome, order = v.OnHome, v.Order
 		}
-		out = append(out, row{LibraryID: lib.ID, Name: lib.Name, Kind: string(lib.Kind), OnHome: onHome})
+		out = append(out, row{LibraryID: lib.ID, Name: lib.Name, Kind: string(lib.Kind), OnHome: onHome, Order: order})
 	}
+	// Bereits in effektiver Reihenfolge zurückgeben — der Dialog zeigt/sortiert
+	// die Checkboxen direkt so, wie sie auf der Startseite erscheinen würden.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Order != out[j].Order {
+			return out[i].Order < out[j].Order
+		}
+		return out[i].Name < out[j].Name
+	})
 	writeJSON(w, 200, out)
+}
+
+// setMyHomeOrder schreibt die pro-User-Reihenfolge der Startseiten-Streifen.
+// Body: {"ids": [3, 1, 2, …]} — komplette Liste in der gewünschten Reihenfolge.
+// Für jeden User verfügbar; IDs ohne ACL-Zugriff des Users werden ignoriert
+// (kein Fehler, damit ein knapp veralteter Client-Snapshot nicht die ganze
+// Aktion blockiert).
+func (s *Server) setMyHomeOrder(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	filtered := make([]int64, 0, len(body.IDs))
+	for _, id := range body.IDs {
+		allowed, err := s.Store.UserHasLibraryAccess(me.ID, id, me.IsAdmin)
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		if allowed {
+			filtered = append(filtered, id)
+		}
+	}
+	if len(filtered) == 0 {
+		writeError(w, 400, "keine gültigen ids")
+		return
+	}
+	if err := s.Store.SetUserHomeOrder(me.ID, filtered); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
 }
 
 // setMyHomePreference setzt den pro-User-Startseiten-Override für eine Library.

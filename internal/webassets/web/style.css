@@ -1109,17 +1109,28 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 .modal h3 { margin: 14px 0 8px; font-size: 14px; color: var(--text-dim); }
 
 /* Erster Titel bleibt beim Scrollen oben stehen.
-   (app-dialog = appConfirm/appPrompt scrollt nie → ausgenommen.) */
+   (app-dialog = appConfirm/appPrompt scrollt nie → ausgenommen.)
+   WICHTIG — box-shadow statt negativem margin: .modal hat eigenes
+   padding-top (20px), das NICHT zum sticky-Element gehört. Scrollt Inhalt
+   dahinter vorbei, blitzt er in genau dieser Padding-Zone unmaskiert durch
+   (Box-Model: padding ist nur Leerraum, überlaufender Inhalt darf ihn
+   füllen). Ein negativer margin-top "frisst" den Gap zwar optisch, lässt
+   Chrome aber beim nachfolgenden Geschwister zu wenig Flow-Höhe reservieren
+   (Content rutscht unter den Header, beobachtet 2026-09-01/02). Ein
+   box-shadow verändert Box-Model/Flow NICHT, malt aber blickdicht bis zum
+   .modal-Rand — deckt die Padding-Zone sauber ab, ohne Nebenwirkungen. */
 .modal:not(.app-dialog) > h2:first-of-type {
   position: sticky;
   top: 0;
   margin: 0 0 10px;
   padding-bottom: 10px;
   background: var(--card);
+  box-shadow: 0 -20px 0 0 var(--card);
   border-bottom: 1px solid var(--border);
   z-index: 4;
 }
-/* Letzte Button-Zeile bleibt beim Scrollen unten stehen. */
+/* Letzte Button-Zeile bleibt beim Scrollen unten stehen (gleiche Falle wie
+   oben, hier mit .modal padding-bottom = 18px). */
 .modal:not(.app-dialog) > .row:last-child,
 .modal:not(.app-dialog) > form:last-child > .row:last-child,
 .modal:not(.app-dialog) > .modal-actions:last-child {
@@ -1127,6 +1138,7 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   bottom: 0;
   margin-top: 12px;
   padding-top: 12px;
+  box-shadow: 0 18px 0 0 var(--card);
   padding-bottom: 12px;
   background: var(--card);
   border-top: 1px solid var(--border);
@@ -1206,6 +1218,26 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   white-space: nowrap;
 }
 .lib-toggle input { margin: 0; }
+
+/* "🏠 Startseite anpassen"-Dialog: Zeile = Checkbox+Name links, ▲▼ rechts */
+.home-pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.home-pref-row:last-child { border-bottom: none; }
+.home-pref-toggle {
+  flex: 1 1 auto;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+.home-pref-arrows { flex: 0 0 auto; }
+.home-pref-arrows .icon-btn { padding: 4px 8px; font-size: 12px; }
 .lib-paths {
   margin-top: 8px;
   display: flex;

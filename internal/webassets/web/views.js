@@ -121,8 +121,12 @@ function renderHomeView(grid, data) {
 }
 
 // openHomePrefsDialog: pro-Benutzer-Auswahl, welche Bibliotheken auf der
-// Startseite erscheinen. Für jeden Benutzer verfügbar (kein Admin nötig).
-// Toggle schreibt sofort via PUT /api/home/preferences/{libId}; beim Schließen
+// Startseite erscheinen UND in welcher Reihenfolge (seit 2026-09-02, ersetzt
+// den früheren admin-only "🏠 Startseite"-Toggle in der Bibliotheksverwaltung
+// — dort war es doppelt gepflegt). Für jeden Benutzer verfügbar, kein Admin
+// nötig. Sichtbarkeits-Toggle schreibt sofort via
+// PUT /api/home/preferences/{libId}; ▲▼ verschiebt die Zeile im DOM und
+// schreibt die komplette Reihenfolge via PUT /api/home/order. Beim Schließen
 // wird die Startseite neu geladen, falls sie gerade offen ist.
 async function openHomePrefsDialog() {
   const dlg = $("#homePrefsDialog");
@@ -140,13 +144,36 @@ async function openHomePrefsDialog() {
   list.innerHTML = "";
   if (!libs.length) {
     list.innerHTML = `<div class="hint">Keine Bibliotheken verfügbar.</div>`;
+    return;
   }
   const kindLabel = { movies: "Filme", tv: "Serien", private: "Privat" };
+
+  async function persistOrder() {
+    const ids = Array.from(list.querySelectorAll(".home-pref-row"))
+      .map(row => Number(row.dataset.libId))
+      .filter(id => id > 0);
+    try {
+      await api("/api/home/order", { method: "PUT", body: JSON.stringify({ ids }) });
+      dirty = true;
+    } catch (e) { appAlert(e.message); }
+    updateArrowState();
+  }
+  function updateArrowState() {
+    const rows = Array.from(list.querySelectorAll(".home-pref-row"));
+    rows.forEach((row, i) => {
+      row.querySelector(".home-pref-up").disabled = i === 0;
+      row.querySelector(".home-pref-down").disabled = i === rows.length - 1;
+    });
+  }
+
+  // libs kommt vom Server bereits in effektiver Reihenfolge sortiert.
   for (const lib of libs) {
-    const row = document.createElement("label");
-    row.className = "lib-toggle";
-    row.style.width = "100%";
-    row.style.justifyContent = "flex-start";
+    const row = document.createElement("div");
+    row.className = "home-pref-row";
+    row.dataset.libId = String(lib.libraryId);
+
+    const label = document.createElement("label");
+    label.className = "lib-toggle home-pref-toggle";
     const box = document.createElement("input");
     box.type = "checkbox";
     box.checked = lib.onHome !== false;
@@ -165,11 +192,38 @@ async function openHomePrefsDialog() {
         box.disabled = false;
       }
     });
-    row.appendChild(box);
-    row.appendChild(document.createTextNode(
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(
       ` ${lib.name}${kindLabel[lib.kind] ? ` · ${kindLabel[lib.kind]}` : ""}`));
+    row.appendChild(label);
+
+    const arrows = document.createElement("span");
+    arrows.className = "btn-group home-pref-arrows";
+    const upBtn = document.createElement("button");
+    upBtn.type = "button";
+    upBtn.className = "icon-btn home-pref-up";
+    upBtn.textContent = "▲";
+    upBtn.title = "Nach oben verschieben";
+    upBtn.addEventListener("click", () => {
+      const prev = row.previousElementSibling;
+      if (prev) { list.insertBefore(row, prev); persistOrder(); }
+    });
+    const downBtn = document.createElement("button");
+    downBtn.type = "button";
+    downBtn.className = "icon-btn home-pref-down";
+    downBtn.textContent = "▼";
+    downBtn.title = "Nach unten verschieben";
+    downBtn.addEventListener("click", () => {
+      const next = row.nextElementSibling;
+      if (next) { list.insertBefore(next, row); persistOrder(); }
+    });
+    arrows.appendChild(upBtn);
+    arrows.appendChild(downBtn);
+    row.appendChild(arrows);
+
     list.appendChild(row);
   }
+  updateArrowState();
   dlg.addEventListener("close", () => {
     if (dirty && state.homeView) loadItems();
   }, { once: true });

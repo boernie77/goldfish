@@ -361,24 +361,12 @@ async function openManage() {
     toolbar.appendChild(upBtn);
     toolbar.appendChild(downBtn);
 
-    const onHomeLabel = document.createElement("label");
-    onHomeLabel.className = "lib-toggle";
-    onHomeLabel.title = "Auf der Startseite anzeigen";
-    const onHomeBox = document.createElement("input");
-    onHomeBox.type = "checkbox";
-    onHomeBox.checked = l.onHome !== false;
-    onHomeBox.addEventListener("change", async () => {
-      try {
-        await api(`/api/libraries/${l.id}/home-visibility`, {
-          method: "PUT",
-          body: JSON.stringify({ onHome: onHomeBox.checked }),
-        });
-        await loadLibraries();
-      } catch (e) { appAlert(e.message); }
-    });
-    onHomeLabel.appendChild(onHomeBox);
-    onHomeLabel.appendChild(document.createTextNode(" 🏠 Startseite"));
-    toolbar.appendChild(onHomeLabel);
+    // Kein "🏠 Startseite"-Toggle mehr hier (bis 2026-09-01 global via
+    // libraries.on_home) — das ist jetzt pro Benutzer im "🏠 Startseite
+    // anpassen"-Dialog (views.js openHomePrefsDialog, für jeden User
+    // erreichbar) geregelt, sonst doppelt gepflegt. libraries.on_home bleibt
+    // im Schema als Sichtbarkeits-Default für User ohne eigene Auswahl,
+    // hat aber keine Admin-UI mehr.
 
     // Card-Layout-Toggle nur bei Privat-Libs anzeigen — bei Filme/Serien
     // ist sowieso der Titel oben (Kanal-Layout greift dort nicht).

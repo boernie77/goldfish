@@ -160,36 +160,74 @@ func (s *Store) SetLibraryOnHome(libraryID int64, onHome bool) error {
 	return err
 }
 
-// GetUserHomePrefs liefert die pro-User-Overrides der Startseiten-Sichtbarkeit
-// als Map library_id → onHome. Nur explizit gesetzte Zeilen sind enthalten;
-// für alle übrigen Libraries gilt der globale libraries.on_home-Default.
-func (s *Store) GetUserHomePrefs(userID int64) (map[int64]bool, error) {
-	rows, err := s.db.Query(`SELECT library_id, on_home FROM user_home_prefs WHERE user_id = ?`, userID)
+// UserHomePref ist der pro-User-Override für eine Library: Sichtbarkeit auf
+// der Startseite UND Reihenfolge der Streifen dort (beides unabhängig von
+// libraries.on_home/sort_order, die weiterhin den Default für User ohne
+// eigene Zeile liefern).
+type UserHomePref struct {
+	OnHome bool
+	Order  int
+}
+
+// GetUserHomePrefs liefert die pro-User-Overrides als Map library_id → Pref.
+// Nur explizit gesetzte Zeilen sind enthalten; für alle übrigen Libraries
+// gelten die globalen libraries.on_home/sort_order-Defaults.
+func (s *Store) GetUserHomePrefs(userID int64) (map[int64]UserHomePref, error) {
+	rows, err := s.db.Query(`SELECT library_id, on_home, sort_order FROM user_home_prefs WHERE user_id = ?`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[int64]bool{}
+	out := map[int64]UserHomePref{}
 	for rows.Next() {
 		var libID int64
-		var onHome int
-		if err := rows.Scan(&libID, &onHome); err != nil {
+		var onHome, order int
+		if err := rows.Scan(&libID, &onHome, &order); err != nil {
 			return nil, err
 		}
-		out[libID] = onHome == 1
+		out[libID] = UserHomePref{OnHome: onHome == 1, Order: order}
 	}
 	return out, rows.Err()
 }
 
-// SetUserHomePref setzt (Upsert) den pro-User-Override für eine Library.
+// SetUserHomePref setzt (Upsert) den pro-User-Sichtbarkeits-Override für eine
+// Library. sort_order bleibt bei einem bestehenden Datensatz unangetastet;
+// bei einer neuen Zeile wird der aktuelle globale sort_order als Startwert
+// übernommen (kein NULL-Sentinel nötig — bis zur ersten expliziten
+// Umsortierung via SetUserHomeOrder verhält sich das identisch zum Fallback
+// auf den globalen Wert).
 func (s *Store) SetUserHomePref(userID, libraryID int64, onHome bool) error {
 	flag := 0
 	if onHome {
 		flag = 1
 	}
 	_, err := s.db.Exec(`
-		INSERT INTO user_home_prefs (user_id, library_id, on_home) VALUES (?, ?, ?)
+		INSERT INTO user_home_prefs (user_id, library_id, on_home, sort_order)
+		VALUES (?, ?, ?, COALESCE((SELECT sort_order FROM libraries WHERE id = ?), 0))
 		ON CONFLICT(user_id, library_id) DO UPDATE SET on_home = excluded.on_home`,
-		userID, libraryID, flag)
+		userID, libraryID, flag, libraryID)
 	return err
+}
+
+// SetUserHomeOrder schreibt die pro-User-Reihenfolge der Startseiten-Streifen.
+// `orderedLibraryIDs` ist die komplette, vom User per Drag/▲▼ sortierte
+// Liste — jede enthaltene Library bekommt ihren Index als sort_order.
+// on_home bleibt beim bestehenden Wert (falls schon eine Zeile existiert)
+// bzw. übernimmt sonst den aktuellen globalen Default.
+func (s *Store) SetUserHomeOrder(userID int64, orderedLibraryIDs []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for i, libID := range orderedLibraryIDs {
+		if _, err := tx.Exec(`
+			INSERT INTO user_home_prefs (user_id, library_id, on_home, sort_order)
+			VALUES (?, ?, COALESCE((SELECT on_home FROM libraries WHERE id = ?), 1), ?)
+			ON CONFLICT(user_id, library_id) DO UPDATE SET sort_order = excluded.sort_order`,
+			userID, libID, libID, i); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

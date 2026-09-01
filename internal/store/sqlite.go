@@ -182,6 +182,7 @@ func (s *Store) migrate() error {
 			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
 			on_home INTEGER NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY (user_id, library_id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS item_streams (
@@ -419,6 +420,13 @@ func (s *Store) migrate() error {
 	// YouTube-Style), 0 = klassisch Titel oben. Bestands-Private-Libs behalten
 	// damit das aktuelle Verhalten; User kann pro Lib im Library-Manager opten.
 	if err := addCol("libraries", "channel_label_on_top", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		return err
+	}
+	// Pro-User-Reihenfolge der Startseiten-Streifen (zusätzlich zum
+	// pro-User on_home-Override in derselben Tabelle). addCol nötig, weil
+	// user_home_prefs bereits vor dieser Spalte live war (CREATE TABLE IF
+	// NOT EXISTS legt sie auf Bestands-DBs nicht nachträglich an).
+	if err := addCol("user_home_prefs", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	// Doppelfolgen: "S07E23E24.mkv" wird auf E23 gematcht; episode_end trägt die
