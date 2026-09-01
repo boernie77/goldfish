@@ -52,7 +52,14 @@ func (s *Server) createPlaylist(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, pl)
 }
 
-// requirePlaylistAccess prüft, ob der aktuelle User auf eine Playlist zugreifen darf.
+// requirePlaylistAccess prüft, ob der aktuelle User auf eine Playlist zugreifen
+// darf. STRIKT pro Besitzer — auch Admins dürfen NICHT auf die Playlist eines
+// ANDEREN Users zugreifen (Playlists sind private Kuratierung, kein
+// Bibliotheks-Zugriffsrecht; ein früherer Admin-Bypass hier war ein echter
+// Cross-User-Datenleck, User-Report 2026-09-02). Einzige Ausnahme:
+// eigentümerlose Legacy-Playlists (owner==0, aus der Zeit vor Playlists-pro-
+// User) bleiben admin-only verwaltbar — das ist verwaistes Altsystem-Datum
+// ohne fremden Besitzer, kein Cross-User-Zugriff.
 func (s *Server) requirePlaylistAccess(w http.ResponseWriter, r *http.Request, plID int64) bool {
 	me := currentUser(r)
 	if me == nil {
@@ -64,12 +71,14 @@ func (s *Server) requirePlaylistAccess(w http.ResponseWriter, r *http.Request, p
 		writeError(w, 500, err.Error())
 		return false
 	}
-	if owner == 0 && !me.IsAdmin {
-		// legacy-Playlists (ohne Besitzer) nur für Admin
-		writeError(w, 403, "kein Zugriff")
-		return false
+	if owner == 0 {
+		if !me.IsAdmin {
+			writeError(w, 403, "kein Zugriff")
+			return false
+		}
+		return true
 	}
-	if !me.IsAdmin && owner != me.ID {
+	if owner != me.ID {
 		writeError(w, 403, "kein Zugriff auf diese Playlist")
 		return false
 	}
@@ -219,14 +228,20 @@ func (s *Server) reorderPlaylist(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
-// playlistsForItem: welche Playlists enthalten dieses Item? (für Detail-Dialog)
+// playlistsForItem: in welchen EIGENEN Playlists steckt dieses Item schon?
+// (für die Checkmarks im "Zu Playlist hinzufügen"-Dialog)
 func (s *Server) playlistsForItem(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
 	id, err := pathInt(r, "id")
 	if err != nil {
 		writeError(w, 400, "ungültige id")
 		return
 	}
-	ids, err := s.Store.PlaylistsForItem(id)
+	ids, err := s.Store.PlaylistsForItem(id, me.ID)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

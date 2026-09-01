@@ -11,9 +11,15 @@ import (
 
 // ListPlaylistsForUser liefert Playlists, deren user_id dem angegebenen User entspricht
 // (oder NULL = legacy, wird nur von Admin gesehen).
+// ListPlaylistsForUser liefert AUSSCHLIESSLICH die Playlists des angegebenen
+// Users — strikt, OHNE Admin-Ausnahme (Playlists sind private Kuratierung,
+// kein Bibliotheks-Zugriffsrecht; ein früherer "Admin sieht alle"-Zweig war
+// ein echter Cross-User-Datenleck, User-Report 2026-09-02: Admin "Börnie"
+// sah 37 Playlists von User "Christian"). Einzige Ausnahme: eigentümerlose
+// Legacy-Playlists (user_id IS NULL, aus der Zeit vor Playlists-pro-User)
+// sind zusätzlich für Admins sichtbar — das ist keine fremde Nutzerdaten,
+// sondern verwaistes Altsystem-Datum ohne Besitzer.
 func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool) ([]model.Playlist, error) {
-	var q string
-	var args []any
 	// Sub-Query liefert das erste Item (nach position) dieser Playlist, das ein
 	// TMDB-Poster ODER ein eigenes Thumbnail hat — als Cover für die Kachel.
 	posterCols := `
@@ -32,26 +38,19 @@ func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool) ([]model.Playli
 		  WHERE pi2.playlist_id = p.id
 		    AND m.poster_path IS NOT NULL AND m.poster_path <> ''
 		  ORDER BY pi2.position LIMIT 1) AS poster_meta`
+	adminFlag := 0
 	if isAdmin {
-		q = `
-			SELECT p.id, p.name, p.created_at, COUNT(pi.item_id) AS cnt,
-			       ` + posterCols + `
-			FROM playlists p
-			LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
-			GROUP BY p.id, p.name, p.created_at
-			ORDER BY p.name COLLATE NOCASE`
-	} else {
-		q = `
-			SELECT p.id, p.name, p.created_at, COUNT(pi.item_id) AS cnt,
-			       ` + posterCols + `
-			FROM playlists p
-			LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
-			WHERE p.user_id = ?
-			GROUP BY p.id, p.name, p.created_at
-			ORDER BY p.name COLLATE NOCASE`
-		args = append(args, userID)
+		adminFlag = 1
 	}
-	rows, err := s.db.Query(q, args...)
+	q := `
+		SELECT p.id, p.name, p.created_at, COUNT(pi.item_id) AS cnt,
+		       ` + posterCols + `
+		FROM playlists p
+		LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
+		WHERE p.user_id = ? OR (p.user_id IS NULL AND ? = 1)
+		GROUP BY p.id, p.name, p.created_at
+		ORDER BY p.name COLLATE NOCASE`
+	rows, err := s.db.Query(q, userID, adminFlag)
 	if err != nil {
 		return nil, err
 	}
@@ -287,10 +286,15 @@ func (s *Store) PlaylistItems(playlistID int64, sort, dir string, userID int64) 
 	return out, nil
 }
 
-// PlaylistsForItem gibt zurück, in welchen Playlists ein Item enthalten ist.
-func (s *Store) PlaylistsForItem(itemID int64) ([]int64, error) {
+// PlaylistsForItem gibt zurück, in welchen Playlists DES ANGEGEBENEN USERS
+// ein Item enthalten ist (für die "Zu Playlist hinzufügen"-Checkmarks im
+// Detail-Dialog). Strikt user-gescoped seit 2026-09-02 (vorher ungefiltert
+// über ALLE User — Teil desselben Cross-User-Leaks wie ListPlaylistsForUser).
+func (s *Store) PlaylistsForItem(itemID, userID int64) ([]int64, error) {
 	rows, err := s.db.Query(
-		`SELECT playlist_id FROM playlist_items WHERE item_id = ?`, itemID)
+		`SELECT pi.playlist_id FROM playlist_items pi
+		   JOIN playlists p ON p.id = pi.playlist_id
+		  WHERE pi.item_id = ? AND p.user_id = ?`, itemID, userID)
 	if err != nil {
 		return nil, err
 	}
