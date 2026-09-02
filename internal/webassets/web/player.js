@@ -384,6 +384,10 @@ async function openDetail(item) {
   // Confirm-Button nur sinnvoll bei TMDB-matchen Items (nicht private, nicht
   // unmatched — sonst gibt's nichts zu bestätigen).
   $("#detailConfirm").style.display = (isAdminUser && !(itemLib && itemLib.kind === "private") && item.metadataId) ? "" : "none";
+  // Zuordnung entfernen: nur sinnvoll, wenn überhaupt eine da ist (User-
+  // Vorgabe 2026-09-02: "eine falsche Zuordnung löschen" — ergänzt "Manuell
+  // zuordnen", das nur ERSETZEN, nicht entfernen kann).
+  $("#detailUnmatch").style.display = (isAdminUser && !(itemLib && itemLib.kind === "private") && item.metadataId) ? "" : "none";
   // Refresh-Button: nur sinnvoll wenn TMDB-Zuordnung existiert (Admin-only)
   $("#detailRefreshMeta").style.display = ((state.me && state.me.isAdmin) && item.metadataId && !(itemLib && itemLib.kind === "private")) ? "" : "none";
   // Delete nur für Admins

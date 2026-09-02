@@ -1394,6 +1394,25 @@ function wire() {
       openMatchItem(state.currentItem);
     }
   });
+  $("#detailUnmatch").addEventListener("click", async () => {
+    if (!state.currentItem) return;
+    const title = state.currentItem.metadata ? state.currentItem.metadata.title : state.currentItem.title;
+    if (!(await appConfirm(`Zuordnung zu "${title}" wirklich entfernen? Die Datei erscheint danach ohne Poster/Beschreibung als "Ohne TMDB-Zuordnung", bis sie neu zugeordnet wird.`))) return;
+    const id = state.currentItem.id;
+    try {
+      await api(`/api/items/${id}/unmatch`, { method: "POST" });
+      const fresh = await silentlyRefreshItem(id);
+      if (fresh && state.currentItem && state.currentItem.id === id) {
+        const carriedVariants = state.currentItem._variants;
+        state.currentItem = fresh;
+        if (carriedVariants) state.currentItem._variants = carriedVariants;
+      }
+      $("#detailDialog").close();
+      showToast("Zuordnung entfernt", { kind: "success" });
+      invalidateItemsCache();
+      loadItems();
+    } catch (e) { appAlert("Fehler: " + e.message); }
+  });
   $("#detailEditMeta").addEventListener("click", openEditMetaDialog);
   $("#editMetaForm").addEventListener("submit", handleEditMetaSubmit);
   $("#editMetaPoster").addEventListener("click", openPosterPicker);

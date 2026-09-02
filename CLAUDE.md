@@ -1509,6 +1509,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
     bleibt die individuell bestätigte Episode erhalten)
   - Lösen Auto-NFO-Write aus (siehe „NFO-Sidecars")
 - Unmatch (`SetItemMetadata(id, 0)`) setzt confirmed ebenfalls auf 0 zurück.
+- **🚫 Zuordnung entfernen** (Detail-Dialog, seit 2026-09-02, admin-only,
+  neben 🔍 „Manuell zuordnen"): bis dahin gab es nur „Manuell zuordnen" zum
+  ERSETZEN einer Zuordnung — keinen Weg, ein Item wieder komplett in den
+  unmatched-Zustand zu versetzen (User-Anfrage: „eine falsche Zuordnung
+  löschen"). `POST /items/{id}/unmatch` (`unmatchItemMetadata` in
+  `internal/api/tmdb.go`) ruft `Store.SetItemMetadata(id, 0)` — löscht damit
+  `metadata_id`, `metadata_confirmed` UND eine ggf. gesetzte Doppelfolgen-
+  Range in einem Rutsch (bereits vorhandene Store-Logik, war nur nie über
+  einen eigenen Endpoint für Einzel-Items erreichbar). Button sichtbar wenn
+  `item.metadataId` gesetzt ist (nichts zu entfernen sonst), mit
+  `appConfirm`-Bestätigung davor.
 
 ### NFO-Sidecars (Plex/Jellyfin-Kompatibilität)
 - Kodi-kompatibles XML-Format in `<Dateiname>.nfo` neben der Videodatei,

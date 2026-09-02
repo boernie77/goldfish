@@ -214,6 +214,34 @@ func (s *Server) setItemMetadata(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// unmatchItemMetadata entfernt die TMDB-Zuordnung eines einzelnen Items
+// wieder komplett (User-Anfrage 2026-09-02: "eine falsche Zuordnung
+// löschen" — bisher gab es nur "Manuell zuordnen" zum ERSETZEN, keinen Weg,
+// ein Item wieder in den unmatched-Zustand zu versetzen). Setzt metadata_id
+// auf NULL, metadata_confirmed zurück auf 0 und löscht eine ggf. gesetzte
+// Doppelfolgen-Range (alles in Store.SetItemMetadata(id, 0) gebündelt).
+// Admin-only, analog zu "Manuell zuordnen"/"Bestätigen".
+func (s *Server) unmatchItemMetadata(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil || it == nil {
+		writeError(w, 404, "Item nicht gefunden")
+		return
+	}
+	if err := s.Store.SetItemMetadata(id, 0); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_unmatch", fmt.Sprintf("%q", it.Title))
+	}
+	w.WriteHeader(204)
+}
+
 // autoMergeDuplicates durchsucht alle Ordner der Library und führt Items mit
 // gleichem Parent-Folder zusammen, sobald im Ordner *genau eine* TMDB-Zuordnung
 // vorhandensein ist. Items ohne Zuordnung oder mit der gleichen Zuordnung werden

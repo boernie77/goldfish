@@ -181,6 +181,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/enrich/status", s.enrichStatus)
 		r.Get("/metadata/search", requireAdmin(s.searchMetadata))
 		r.Post("/items/{id}/metadata", requireAdmin(s.setItemMetadata))
+		r.Post("/items/{id}/unmatch", requireAdmin(s.unmatchItemMetadata))
 		r.Post("/items/{id}/metadata-manual", requireAdmin(s.createCustomMetadata))
 		r.Post("/items/{id}/refresh-metadata", requireAdmin(s.refreshItemMetadata))
 		r.Post("/enrich/refresh-all-metadata", requireAdmin(s.startRefreshAllMetadata))
@@ -320,7 +321,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.0.38"
+const appVersion = "1.0.39"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{
