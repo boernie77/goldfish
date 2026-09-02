@@ -1277,6 +1277,7 @@ function wire() {
     switch (btn.dataset.action) {
       case "myhome":    openHomePrefsDialog(); break;
       case "mypassword": $("#passwordDialog").showModal(); break;
+      case "anleitung": window.open("/anleitung.html", "_blank", "noopener"); break;
       case "settings":  openSettings(); break;
       case "libraries": openManage(); break;
       case "users":     openUsersManager(); break;

@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Anleitung – Goldfish</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/style.css" />
+<style>
+body { display: flex; justify-content: center; padding: 24px; }
+.legal-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px 40px;
+  max-width: 820px;
+  width: 100%;
+  line-height: 1.6;
+}
+.legal-card h1 { margin-top: 0; font-size: 22px; }
+.legal-card h2 { font-size: 17px; margin-top: 34px; border-top: 1px solid var(--border); padding-top: 18px; }
+.legal-card h3 { font-size: 14.5px; margin: 18px 0 6px; }
+.legal-card a { color: inherit; }
+.legal-card .back { display: inline-block; margin-bottom: 18px; font-size: 13px; }
+.legal-card ul, .legal-card ol { padding-left: 20px; }
+.legal-card li { margin-bottom: 4px; }
+.legal-card dl { margin: 10px 0; }
+.legal-card dt { font-weight: 600; margin-top: 12px; }
+.legal-card dt code, .legal-card p code, .legal-card li code {
+  background: rgba(127,127,127,.15); border-radius: 4px; padding: 1px 5px; font-size: .92em;
+}
+.legal-card dd { margin: 3px 0 0; color: var(--muted, inherit); }
+.toc { background: rgba(127,127,127,.08); border-radius: 10px; padding: 14px 18px; margin: 18px 0; }
+.toc summary { cursor: pointer; font-weight: 600; }
+.toc ul { margin: 10px 0 0; }
+.toc ul ul { margin-top: 2px; }
+.note { border-left: 3px solid #3cbec9; padding: 4px 14px; margin: 12px 0; background: rgba(60,190,201,.08); border-radius: 0 6px 6px 0; }
+.jellyfin-box { border-left: 3px solid #9b7bd8; padding: 4px 14px; margin: 12px 0; background: rgba(155,123,216,.08); border-radius: 0 6px 6px 0; }
+.badge-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0; }
+.badge-legend span.k { font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="legal-card">
+  <a class="back" href="/">&larr; Zurück zu Goldfish</a>
+  <h1>📖 Anleitung</h1>
+  <p>
+    Diese Seite erklärt jeden Reiter, Knopf und Menüpunkt von Goldfish in
+    einfacher Sprache — ohne Vorwissen. Sie richtet sich sowohl an alle
+    Familienmitglieder, die einfach nur Filme/Serien schauen wollen, als auch
+    an den Administrator-Account, der die Bibliotheken und Server-Einstellungen
+    pflegt (diese Punkte sind entsprechend gekennzeichnet).
+  </p>
+
+  <div class="jellyfin-box">
+    <strong>Was ist Goldfish überhaupt?</strong><br />
+    Goldfish ist ein eigener kleiner „Streaming-Dienst" — wie Netflix oder
+    Disney+, nur dass die Filme/Serien nicht bei einer Firma liegen, sondern
+    auf dem eigenen Heimserver, und nur die Familie/Freunde Zugriff haben.
+    Man öffnet Goldfish im Browser (oder als App), meldet sich mit einem
+    Benutzernamen + Passwort an, und sieht dann eine Übersicht der eigenen
+    Filme, Serien und Videos als Kacheln mit Poster-Bild — genau wie bei
+    einem klassischen Streaming-Anbieter. Wer bereits <strong>Jellyfin</strong>
+    oder <strong>Plex</strong> kennt: Goldfish funktioniert nach demselben
+    Grundprinzip (ein Server im eigenen Netzwerk indiziert die Videodateien,
+    lädt automatisch Poster/Beschreibung von einer Filmdatenbank nach und
+    spielt sie im Browser ab — bei Bedarf wird das Video dabei "on the fly"
+    in ein kompatibles Format umgewandelt), ist aber bewusst schlanker
+    gehalten: ein einzelnes Programm ohne komplizierte Zusatzserver, dafür
+    mit ein paar Zusatzfunktionen, die es bei Jellyfin nicht gibt (z. B.
+    automatische Vorspann-Erkennung oder KI-erzeugte Untertitel).
+  </div>
+
+  <details class="toc" open>
+    <summary>Inhaltsverzeichnis</summary>
+    <ul>
+      <li><a href="#anmelden">Anmelden</a></li>
+      <li><a href="#kacheln">Die Kacheln — was die kleinen Symbole bedeuten</a></li>
+      <li><a href="#topbar">Die Werkzeugleiste oben (Suche, Sortierung, Filter, Buttons)</a></li>
+      <li><a href="#reiter">Die Reiterleiste (Startseite / Bibliotheken / Sammlungen / Playlists)</a></li>
+      <li><a href="#startseite">Die Startseite im Detail (Fortsetzen, Als nächstes, Zuletzt hinzugefügt)</a></li>
+      <li><a href="#player">Ein Video ansehen (Player)</a></li>
+      <li><a href="#menu">Das Menü (⚙-Symbol oben rechts)</a>
+        <ul>
+          <li><a href="#menu-konto">Mein Konto</a></li>
+          <li><a href="#menu-einstellungen">Einstellungen (ausführlich)</a></li>
+          <li><a href="#menu-bibliotheken">Bibliotheken</a></li>
+          <li><a href="#menu-benutzer">Benutzer</a></li>
+          <li><a href="#menu-autoscan">Auto-Scan</a></li>
+          <li><a href="#menu-medien">Bibliothek &amp; Medien (Trickplay, Untertitel, Statistik, …)</a></li>
+          <li><a href="#menu-diagnose">Diagnose</a></li>
+        </ul>
+      </li>
+    </ul>
+  </details>
+
+  <h2 id="anmelden">Anmelden</h2>
+  <p>
+    Beim Aufruf von Goldfish erscheint zuerst eine Login-Seite mit
+    Benutzername und Passwort. Accounts werden nicht selbst angelegt —
+    ein Administrator legt sie in der Benutzerverwaltung für jedes
+    Familienmitglied an (siehe <a href="#menu-benutzer">Benutzer</a>). Ist
+    Single-Sign-On (SSO) eingerichtet, gibt es zusätzlich einen Knopf
+    „Mit SSO anmelden" — beides führt zum selben Konto, SSO ist nur ein
+    bequemerer Anmeldeweg über einen zentralen Login-Dienst.
+  </p>
+
+  <h2 id="kacheln">Die Kacheln — was die kleinen Symbole bedeuten</h2>
+  <p>Jeder Film/jede Folge wird als Kachel mit Poster-Bild angezeigt. Darauf liegen kleine Symbole:</p>
+  <div class="badge-legend">
+    <span><span class="k">✓</span> oben links: Gesehen-Haken — anklicken markiert als gesehen/ungesehen</span>
+    <span><span class="k">♡/♥</span> oben rechts: Favorit — anklicken merkt den Titel als Favorit</span>
+    <span><span class="k">★</span> oben rechts: Bewertung von TMDB (Fremdbewertung, keine eigene)</span>
+    <span><span class="k">×N</span> Badge: es gibt N Datei-Varianten desselben Films (z. B. 1080p + 4K)</span>
+    <span><span class="k">1080p</span> unten links: Bildauflösung der Datei</span>
+    <span><span class="k">1:42 h</span> unten rechts: Laufzeit</span>
+  </div>
+  <p>Ein Klick auf eine Kachel öffnet den <strong>Detail-Dialog</strong> mit Beschreibung,
+  Besetzung, Bewertung und den Aktions-Knöpfen „Abspielen", „Als gesehen markieren",
+  „♡ Favorit", „Zu Playlist hinzufügen", „Download" — sowie, nur für den
+  Administrator, „Löschen" und „Manuell zuordnen" (falls Goldfish den
+  falschen Film/die falsche Serie zugeordnet hat).</p>
+
+  <h2 id="topbar">Die Werkzeugleiste oben (Suche, Sortierung, Filter, Buttons)</h2>
+  <p>Über dem Kachel-Raster sitzt eine Leiste mit folgenden Feldern und Knöpfen:</p>
+  <dl>
+    <dt>🔍 Suchfeld</dt>
+    <dd>Sucht nach Titel <em>und</em> Schauspielername, über die gerade offene Bibliothek
+    hinweg (auf der Startseite sogar über alle Bibliotheken hinweg, für die man Zugriff hat).</dd>
+
+    <dt>Sortierung + Pfeil-Knopf</dt>
+    <dd>Bestimmt die Reihenfolge der Kacheln. Neben den üblichen Optionen (Name,
+    Veröffentlicht, Hinzugefügt, Laufzeit, Auflösung, eigene ★-Bewertung, Zuletzt
+    abgespielt) gibt es ein paar besondere „Filter-als-Sortierung"-Einträge:
+    <strong>🎲 Zufällig</strong> mischt die Reihenfolge, <strong>Duplikate</strong> zeigt Dateien,
+    die mehrfach vorhanden sind, <strong>🔀 Mehrere Versionen</strong> zeigt Titel mit mehreren
+    Qualitäts-Varianten, <strong>≈ Ähnliche Dateinamen</strong> findet vermutliche
+    Doppel-Downloads, <strong>♡ Nur Favoriten</strong> blendet alles andere aus,
+    <strong>Ohne TMDB-Zuordnung</strong> und <strong>⚠ Verdächtige Zuordnungen</strong> sind
+    Aufräum-Hilfen für den Administrator, <strong>🪤 Nur Interlaced</strong> zeigt Dateien mit
+    Zeilensprungverfahren (altes Kamera-/DVD-Format, das im Player leicht kämmig aussehen kann).
+    Der kleine ⬇/⬆-Knopf daneben dreht die Richtung um.</dd>
+
+    <dt>Gesehen</dt>
+    <dd>Blendet nach „Alle", „Nur ungesehen" oder „Nur gesehen" ein.</dd>
+
+    <dt>Bewertung</dt>
+    <dd>Filtert nach der eigenen, persönlichen Sternebewertung (nicht die TMDB-Bewertung) —
+    z. B. „★★ und mehr". Nur in privaten Video-Bibliotheken nutzbar, wo man selbst bewerten kann.</dd>
+
+    <dt>Auflösung</dt>
+    <dd>Mehrfachauswahl-Dropdown, um z. B. nur 4K- oder nur 1080p-Dateien zu sehen.</dd>
+
+    <dt>📂 Flach</dt>
+    <dd>Blendet die Ordnerstruktur aus und zeigt alle Videos der Bibliothek in einer
+    einzigen, langen Liste statt Ordner für Ordner durchklicken zu müssen.</dd>
+
+    <dt>📺 Staffeln</dt>
+    <dd>Nur in Serien-Bibliotheken sichtbar. Zeigt eine Serie als Staffel-Kacheln
+    (Staffel 1, Staffel 2, …) statt aller Folgen einzeln, inklusive Kennzeichnung fehlender
+    Folgen, die man noch nicht hat.</dd>
+
+    <dt>☑ Auswählen</dt>
+    <dd>Aktiviert den Mehrfachauswahl-Modus: auf jeder Kachel erscheint eine Checkbox,
+    und eine Leiste unten erlaubt Sammel-Aktionen (Favorit setzen, als gesehen markieren,
+    zu einer Playlist hinzufügen, herunterladen, verschieben oder — nur Administrator —
+    löschen) für alle markierten Titel auf einmal.</dd>
+
+    <dt>🔤 A-Z</dt>
+    <dd>Blendet eine Buchstabenleiste am rechten Rand ein/aus, mit der man direkt zu
+    Titeln springen kann, die mit einem bestimmten Buchstaben beginnen.</dd>
+
+    <dt>🎲 Zufall / 🎯</dt>
+    <dd>🎲 startet sofort ein zufälliges Video aus der aktuellen Auswahl (Bibliothek,
+    Ordner, Suchergebnis, …) — im Player gibt es dann ⏮/⏭-Knöpfe, um durch weitere
+    Zufallstitel zu blättern. Der 🎯-Knopf daneben öffnet einen Ordner-Auswahl-Dialog,
+    mit dem man die Zufallswiedergabe gezielt auf bestimmte Ordner oder sogar mehrere
+    Bibliotheken gleichzeitig einschränken kann (z. B. „nur Kinderfilme").</dd>
+
+    <dt>⟳ Scan (nur Administrator)</dt>
+    <dd>Durchsucht die Bibliothek erneut nach neuen/geänderten/gelöschten Dateien.
+    Der kleine ▾-Pfeil daneben öffnet weitere Varianten: nur den aktuellen Ordner statt
+    der ganzen Bibliothek, „force" (alles komplett neu einlesen statt nur Änderungen),
+    oder gleich alle Bibliotheken auf einmal.</dd>
+
+    <dt>🔔 Glocke</dt>
+    <dd>Sammelt Benachrichtigungen, aktuell vor allem über fertiggestellte oder
+    fehlgeschlagene KI-Untertitel-Jobs. Eine rote Zahl zeigt, wie viele ungelesen sind.</dd>
+
+    <dt>⚙ Zahnrad</dt>
+    <dd>Öffnet das <a href="#menu">Menü</a> — siehe unten, eigener Abschnitt.</dd>
+  </dl>
+
+  <h2 id="reiter">Die Reiterleiste (Startseite / Bibliotheken / Sammlungen / Playlists)</h2>
+  <p>Direkt unter der Werkzeugleiste liegt eine Reihe von Reitern:</p>
+  <ul>
+    <li><strong>🏠 Startseite</strong> — die Übersichtsseite beim Öffnen von Goldfish, siehe
+    <a href="#startseite">eigener Abschnitt</a> unten.</li>
+    <li><strong>Eine Schaltfläche pro Bibliothek</strong> (z. B. „🎬 Filme", „📺 Serien",
+    „📼 Urlaubsvideos") — öffnet genau diese Bibliothek als Kachel-Raster.</li>
+    <li><strong>📚 Sammlungen</strong> — zeigt automatisch erkannte Film-Reihen (z. B. „James
+    Bond", „Star Wars") als eigene Kacheln, jeweils mit einem grünen „✓ komplett"-Abzeichen,
+    wenn man wirklich alle Teile im Bestand hat.</li>
+    <li><strong>📋 Playlists</strong> — eigene, frei zusammengestellte Wiedergabelisten
+    (siehe „+ Neue Playlist" dort).</li>
+  </ul>
+  <p class="note">
+    Welche Bibliotheken hier überhaupt erscheinen und in welcher Reihenfolge, lässt sich
+    individuell für den eigenen Account einstellen — siehe „🏠 Startseite anpassen" im
+    <a href="#menu-konto">Menü</a>. Das ist unabhängig davon, was auf der Startseite selbst
+    angezeigt wird (siehe nächster Abschnitt) — beides kann getrennt voneinander gewählt werden.
+  </p>
+
+  <h2 id="startseite">Die Startseite im Detail</h2>
+  <p>Die Startseite zeigt pro sichtbarer Bibliothek bis zu drei waagerecht scrollbare Reihen:</p>
+  <dl>
+    <dt>▶ Fortsetzen</dt>
+    <dd>Videos, die bereits angefangen, aber noch nicht zu Ende geschaut wurden — mit der
+    zuletzt erreichten Position. Bibliotheks-übergreifend über alle sichtbaren Bibliotheken.</dd>
+    <dt>📺 Als nächstes</dt>
+    <dd>Bei Serien: die jeweils nächste noch nicht gesehene Folge jeder begonnenen Serie.</dd>
+    <dt>🆕 Zuletzt hinzugefügt</dt>
+    <dd>Die neuesten Dateien dieser einzelnen Bibliothek (kein globaler Streifen, sondern
+    pro Bibliotheks-Block).</dd>
+  </dl>
+  <p>
+    Über „🏠 Startseite anpassen" im Menü lässt sich einstellen: ob die beiden globalen
+    Streifen „▶ Fortsetzen"/„📺 Als nächstes" überhaupt angezeigt werden sollen, welche
+    Bibliotheken oben in der Reiterleiste erscheinen (und in welcher Reihenfolge), und
+    welche Bibliotheken auf der Startseite selbst erscheinen (und in welcher Reihenfolge).
+    Diese drei Einstellungen sind bewusst voneinander unabhängig — eine Bibliothek kann
+    z. B. aus der Reiterleiste ausgeblendet, aber trotzdem auf der Startseite sichtbar sein.
+  </p>
+
+  <h2 id="player">Ein Video ansehen (Player)</h2>
+  <p>
+    Ein Klick auf „Abspielen" öffnet den Videoplayer. Oben im Player-Fenster lassen sich bei
+    Bedarf umstellen: der Wiedergabe-<strong>Modus</strong> (Auto/Direct Play/Transcode —
+    „Auto" ist fast immer die richtige Wahl, siehe Erklärung unten bei
+    „Hardware-Beschleunigung"), die Qualitätsstufe („Profil"), die <strong>Tonspur</strong>
+    (bei mehrsprachigen Dateien) und die <strong>Untertitel</strong>. In der Steuerleiste des
+    Players selbst gibt es außerdem: ⏮/⏭ für Zufallswiedergabe, ♡ Favorit, 📋 Playlist
+    hinzufügen und — nur Administrator — 🗑 Löschen. Ist eine automatische
+    Vorspann-Erkennung für die Serie aktiv, erscheint bei erkanntem Intro ein
+    „⏩ Vorspann überspringen"-Knopf direkt im Bild.
+  </p>
+
+  <h2 id="menu">Das Menü (⚙-Symbol oben rechts)</h2>
+  <p>
+    Ein Klick auf das Zahnrad öffnet eine Seitenleiste mit mehreren Abschnitten. Der Abschnitt
+    „Mein Konto" ist für <strong>jeden</strong> Benutzer da; alle anderen Abschnitte
+    (Allgemein, Automatisierung, Bibliothek &amp; Medien, Diagnose) sind
+    <strong>nur für den Administrator-Account</strong> sichtbar — normale Familienmitglieder
+    sehen diese Menüpunkte gar nicht.
+  </p>
+
+  <h3 id="menu-konto">Mein Konto (für alle)</h3>
+  <dl>
+    <dt>🏠 Startseite anpassen</dt>
+    <dd>Siehe <a href="#startseite">Startseite im Detail</a> oben — Reiterleiste, Startseite
+    und globale Streifen individuell für den eigenen Account einstellen.</dd>
+    <dt>🔐 Passwort ändern</dt>
+    <dd>Ändert nur das eigene Anmelde-Passwort. Nichts anderes.</dd>
+  </dl>
+
+  <h3 id="menu-einstellungen">⚙ Einstellungen (Administrator, ausführlich)</h3>
+  <p>Dieser Menüpunkt betrifft den ganzen Server, nicht nur den eigenen Account.</p>
+  <dl>
+    <dt>Puffer (Sekunden)</dt>
+    <dd>Wie viele Sekunden Video der Player vorausschauend lädt, bevor sie tatsächlich
+    gebraucht werden — wie ein „Sicherheitspolster" gegen kurze Verbindungsaussetzer. Höhere
+    Werte helfen bei langsamem WLAN/Internet, brauchen aber mehr Arbeitsspeicher im Browser.
+    Der Standardwert (30s) passt für die meisten Heimnetzwerke.</dd>
+
+    <dt>Startpuffer (Sekunden)</dt>
+    <dd>Wie lange der Player <em>vor dem ersten Bild</em> wartet und schon mal lädt, statt
+    sofort loszuspielen und dann eventuell mittendrin zu stocken. 0 = sofort starten
+    (Standard). Nur sinnvoll bei sehr instabilen Verbindungen; kann den Wert oben (Puffer)
+    nicht überschreiten.</dd>
+
+    <dt>Trickplay-Intervall (Sekunden)</dt>
+    <dd>Beim Überfahren der Fortschrittsleiste mit der Maus zeigt Goldfish kleine
+    Vorschaubilder (wie bei YouTube). Dieser Wert legt fest, alle wie viele Sekunden ein
+    solches Vorschaubild erzeugt wird — kleinere Werte = feinere Vorschau, aber mehr
+    Rechenzeit und Speicherplatz bei der (einmaligen) Erzeugung. Gilt nur für <em>neu</em>
+    erzeugte Vorschaubilder, bereits vorhandene ändern sich nicht rückwirkend.</dd>
+
+    <dt>TMDB-Anreicherung (TMDB-Key / OMDb-Key)</dt>
+    <dd>TMDB („The Movie Database") ist die kostenlose Online-Datenbank, aus der Goldfish
+    automatisch Poster, Beschreibungstext, Bewertung, Besetzung und Erscheinungsjahr für
+    jeden erkannten Film/jede Serie lädt — ähnlich wie Jellyfin das über sogenannte
+    „Metadaten-Provider" macht. Ohne einen (kostenlosen) TMDB-Zugangsschlüssel funktioniert
+    diese automatische Erkennung nicht, Dateien bleiben dann als reine Dateinamen ohne
+    Poster stehen. OMDb ist ein zweiter, ebenfalls kostenloser Dienst, der nur als
+    Rückfalllösung einspringt, wenn TMDB zu einem Titel nichts findet. Der Knopf
+    „Jetzt anreichern" stößt den automatischen Abgleich sofort an, statt auf den
+    nächsten automatischen Durchlauf (alle 5 Minuten) zu warten.</dd>
+
+    <dt>Hardware-Beschleunigung</dt>
+    <dd>
+      Betrifft, <strong>wie</strong> der Server ein Video umwandelt, wenn eine Datei nicht
+      direkt im Original-Format abgespielt werden kann (siehe „Direct Play vs. Transcode"
+      weiter unten — genau das entscheidet auch, ob überhaupt umgewandelt werden muss).
+      Für diese Umwandlung kann entweder die im Server verbaute Grafikkarte genutzt werden
+      (deutlich schneller, kaum Prozessor-Last) oder der normale Prozessor (langsamer, aber
+      funktioniert garantiert überall). Die vier Auswahlmöglichkeiten:
+      <ul>
+        <li><strong>Automatisch (empfohlen):</strong> Goldfish erkennt selbst, welche
+        Grafikkarte verfügbar ist, und nutzt automatisch die schnellste Möglichkeit — im
+        Zweifel diese Einstellung einfach so lassen.</li>
+        <li><strong>Intel/AMD VAAPI:</strong> nutzt die in vielen Prozessoren eingebaute
+        Grafikeinheit („iGPU"). Funktioniert „von Haus aus", ohne Zusatz-Setup.</li>
+        <li><strong>NVIDIA NVENC:</strong> nutzt eine separat eingebaute NVIDIA-Grafikkarte.
+        Braucht auf Unraid zusätzlich das NVIDIA-Plugin und passende Container-Einstellungen
+        (technisches Detail, das nur beim Ersteinrichten einmalig relevant ist).</li>
+        <li><strong>Software (CPU):</strong> reine Prozessor-Umwandlung, ohne jede
+        Grafikkarten-Hilfe. Funktioniert immer, ist aber am langsamsten und belastet den
+        Prozessor am meisten — nur als Rückfall-Option gedacht, falls die
+        Hardware-Beschleunigung aus irgendeinem Grund nicht funktioniert.</li>
+      </ul>
+    </dd>
+
+    <dt>Direct Play vs. Transcode</dt>
+    <dd>
+      Das ist die wichtigste Grundregel, um zu verstehen, warum manche Videos sofort und
+      verzögerungsfrei starten und andere nicht:
+      <ul>
+        <li><strong>Direct Play</strong> heißt: die Originaldatei wird 1:1, unverändert an
+        den Browser geschickt. Keine Umwandlung nötig, beste Bildqualität, quasi keine
+        Serverlast. Geht aber nur, wenn das Dateiformat zum Browser passt (z. B. eine
+        MP4-Datei mit H.264-Bild und AAC-Ton — das klassische „Web-Format").</li>
+        <li><strong>Transcode</strong> heißt: der Server wandelt das Video während der
+        Wiedergabe live in ein browser-kompatibles Format um (z. B. eine ältere AVI- oder
+        eine MKV-Datei mit exotischem Ton-Format). Vorteil: es spielt praktisch jede Datei
+        ab, egal in welchem Format sie vorliegt, und man kann dabei auch gezielt die
+        Qualitätsstufe reduzieren (z. B. für unterwegs mit schwachem Internet). Nachteil:
+        braucht Rechenleistung auf dem Server — genau dafür ist die
+        Hardware-Beschleunigung oben gedacht.</li>
+      </ul>
+      Im „Modus"-Auswahlfeld des Players kann man das mit „Auto" (Goldfish entscheidet
+      selbst pro Datei) übersteuern und „Direct Play" oder „Transcode" erzwingen — im
+      normalen Alltag ist „Auto" aber fast immer richtig.
+    </dd>
+
+    <dt>Datei-Umbenennung (automatisches Umbenennen bestätigter Filme)</dt>
+    <dd>Ist dieser Schalter an, benennt Goldfish die Datei eines Films automatisch in das
+    saubere Schema <code>Titel (Jahr).mp4</code> um, sobald man die TMDB-Zuordnung dieses
+    Films manuell mit dem „✅"-Knopf im Detail-Dialog bestätigt hat. Betrifft nur Filme
+    (keine Serien-Episoden, keine privaten Videos). Jede Umbenennung wird protokolliert und
+    lässt sich unter „📝 Umbenennungen verwalten" (siehe unten) einzeln wieder rückgängig
+    machen. Der 🏷-Knopf im Detail-Dialog erlaubt eine einzelne, manuelle Umbenennung
+    jederzeit, auch wenn dieser Schalter aus ist.</dd>
+  </dl>
+
+  <h3 id="menu-bibliotheken">📁 Bibliotheken (Administrator)</h3>
+  <p>
+    Verwaltung der Video-Ordner, die Goldfish überhaupt kennt. Jede Bibliothek hat einen
+    Namen, einen <strong>Typ</strong> („Filme" und „Serien" laden automatisch Metadaten von
+    TMDB nach, „Privatvideos" tun das nicht — gedacht für eigene Aufnahmen, YouTube-Downloads
+    o. Ä.) und einen oder mehrere Ordnerpfade, die durchsucht werden. Eine Bibliothek kann
+    beliebig viele Quellordner haben (z. B. zwei verschiedene Festplatten unter einer
+    gemeinsamen „Filme"-Bibliothek zusammenfassen).
+  </p>
+
+  <h3 id="menu-benutzer">👥 Benutzer (Administrator)</h3>
+  <p>
+    Hier werden Accounts für Familie/Freunde angelegt, Passwörter zurückgesetzt und der
+    Administrator-Status vergeben. Über „ACL bearbeiten" lässt sich pro Benutzer
+    einschränken, <strong>welche</strong> Bibliotheken er überhaupt sehen darf (z. B. eine
+    private Bibliothek nur für Erwachsene ausblenden). Zusätzlich gibt es eine
+    <strong>Altersfreigabe-Grenze (FSK)</strong> pro Benutzer — damit werden Filme/Serien
+    oberhalb der eingestellten Altersfreigabe komplett unsichtbar für dieses Konto, auch
+    innerhalb einer ansonsten freigegebenen Bibliothek.
+  </p>
+
+  <h3 id="menu-autoscan">🕐 Auto-Scan (Administrator)</h3>
+  <p>
+    Statt jedes Mal manuell auf „⟳ Scan" zu klicken, lassen sich hier beliebig viele
+    zeitgesteuerte Scan-Aufgaben einrichten — jede mit eigenem Zeitplan (täglich um eine
+    feste Uhrzeit, alle N Stunden, oder wöchentlich an einem bestimmten Wochentag), eigener
+    Ziel-Bibliothek (oder „alle") und der Wahl zwischen einem schnellen inkrementellen Scan
+    (nur neue/geänderte Dateien) oder einem vollständigen Scan (alles neu einlesen).
+  </p>
+
+  <h3 id="menu-medien">Bibliothek &amp; Medien (Administrator)</h3>
+  <dl>
+    <dt>Trickplay</dt>
+    <dd>Verwaltet die kleinen Vorschaubilder, die beim Überfahren der Fortschrittsleiste mit
+    der Maus erscheinen (siehe Trickplay-Intervall oben). Hier sieht man, für welche Videos
+    das schon erledigt, noch ausstehend oder fehlgeschlagen ist, kann fehlgeschlagene
+    erneut versuchen lassen oder alle vorhandenen Vorschaubilder komplett löschen.</dd>
+
+    <dt>🎤 Whisper-Untertitel</dt>
+    <dd>Erzeugt automatisch KI-Untertitel für Videos, die keine (brauchbaren) Untertitel
+    mitbringen — die Sprache wird per KI erkannt und in Text umgewandelt (immer zuerst
+    Englisch), optional danach automatisch ins Deutsche/Italienische übersetzt. Hier stellt
+    man ein, welcher Übersetzungsdienst genutzt werden soll (keiner / DeepL / ein
+    selbst betriebener LibreTranslate-Server) und trägt bei Bedarf den nötigen
+    Zugangsschlüssel ein. Läuft komplett lokal auf dem eigenen Server, es werden keine
+    Videoinhalte an Dritte übertragen (nur ggf. der reine Untertitel-Text zur Übersetzung).</dd>
+
+    <dt>⏭️ Intro-Erkennung</dt>
+    <dd>Erkennt automatisch den Vorspann/das Opening einer Serie, indem mehrere Folgen
+    miteinander verglichen werden (Ton <em>und</em> Bild) — dafür werden mindestens zwei
+    Folgen derselben Serie gebraucht. Muss pro Serien-Ordner einzeln aktiviert werden (es
+    gibt bewusst keinen „für alle Serien auf einmal"-Schalter). Ist die Erkennung für eine
+    Serie aktiv und wird ein Vorspann gefunden, erscheint beim Schauen automatisch ein
+    „⏩ Vorspann überspringen"-Knopf im Videobild.</dd>
+
+    <dt>📝 OCR-Untertitel erzeugen</dt>
+    <dd>Manche Blu-ray-Kopien haben Untertitel nur als „eingebranntes Bild" statt als Text
+    (typisch bei Formaten wie PGS/VOBSUB) — solche Untertitel lassen sich normalerweise
+    nicht ein-/ausblenden. Diese Funktion liest den Text per Texterkennung (OCR) aus den
+    Bildern heraus und macht daraus ganz normale, ein-/ausblendbare Text-Untertitel. Muss
+    pro Bibliothek aktiviert werden, läuft danach automatisch im Hintergrund für neu
+    gescannte Dateien mit.</dd>
+
+    <dt>↻ Metadaten neu laden</dt>
+    <dd>Stößt für <strong>alle</strong> Filme und Serien einen erneuten Abgleich mit TMDB an
+    — z. B. sinnvoll, wenn sich dort nachträglich Beschreibungstexte oder Poster geändert
+    haben.</dd>
+
+    <dt>📝 Umbenennungen</dt>
+    <dd>Protokoll aller automatischen und manuellen Datei-Umbenennungen/-Verschiebungen
+    (siehe „Datei-Umbenennung" weiter oben). Jeder Eintrag lässt sich einzeln per
+    „↩ Undo" rückgängig machen; die komplette Liste kann als CSV-Datei exportiert werden.</dd>
+
+    <dt>📊 Statistik</dt>
+    <dd>Zeigt für die gerade geöffnete Bibliothek (oder den gerade geöffneten Ordner)
+    Gesamtzahl der Dateien, Gesamtgröße auf der Festplatte, Gesamtlaufzeit sowie
+    Balkendiagramme nach Auflösung, Dateityp und Länge.</dd>
+  </dl>
+
+  <h3 id="menu-diagnose">Diagnose (Administrator)</h3>
+  <dl>
+    <dt>📥 Fehlende Inhalte</dt>
+    <dd>Listet Filme/Episoden, die laut TMDB zu einer vorhandenen Serie/Sammlung gehören,
+    aber noch nicht im eigenen Bestand sind — als Export-Liste, die man z. B. in Programme
+    wie Radarr/Sonarr einspeisen kann, um sie gezielt zu besorgen.</dd>
+
+    <dt>🔍 Datei/Ordner suchen</dt>
+    <dd>Ein technisches Such-Werkzeug, um eine bestimmte Datei anhand ihres Namens oder
+    Pfads wiederzufinden und direkt zu sehen, welche (ggf. falsche) TMDB-Zuordnung sie
+    aktuell hat — nützlich, um Zuordnungsfehler gezielt zu korrigieren.</dd>
+  </dl>
+
+  <div class="note">
+    Diese Anleitung beschreibt den aktuellen Funktionsstand von Goldfish und wird bei
+    größeren Änderungen an der Oberfläche mit aktualisiert. Bei Fragen, die hier nicht
+    beantwortet werden, wendet euch an den Administrator-Account.
+  </div>
+</div>
+</body>
+</html>

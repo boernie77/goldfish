@@ -1846,9 +1846,12 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Bei `partCount=0` (Parts noch nicht gefetcht) Fallback auf den alten Zähler.
 
 ### Einstellungen / Admin-UI
-- **Zahnrad-Button** (`#settingsBtn`) ist für Non-Admin-User komplett
-  ausgeblendet (`hidden`-Klasse in `renderUserMenu`). Das Menü enthält
-  ausschließlich administrative Einträge.
+- **Zahnrad-Button** (`#settingsBtn`) ist seit 2026-09-01 für JEDEN Benutzer
+  sichtbar (siehe „Benutzer & Zugriff" oben — die vorherige Doku-Aussage
+  „für Non-Admin komplett ausgeblendet" war veraltet, korrigiert 2026-09-02).
+  Nur die Sektionen `.drawer-admin` (Allgemein, Automatisierung, Bibliothek
+  & Medien, Diagnose) werden für Non-Admins per `renderUserMenu()`
+  ausgeblendet — „Mein Konto" (inkl. „📖 Anleitung", s. u.) bleibt für alle da.
 - **Entfernt aus dem Menü**: „Duplikate zusammenführen" (Auto-Merge passiert
   eh bei gleicher TMDB-ID) und „NFO für alle bestätigten" (läuft automatisch
   beim Bestätigen). Die Server-Endpoints bleiben erhalten, nur die UI-Einträge
@@ -1856,6 +1859,16 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 - **Toast-Helper** `showToast(msg, {kind:"info"|"success"|"error", duration?})`:
   unaufdringliches, nicht-modales Feedback rechts unten. Container
   `#toastRoot` wird bei Bedarf lazy angelegt.
+- **📖 Anleitung** (seit 2026-09-02, `data-action="anleitung"` in „Mein
+  Konto", für alle sichtbar): öffnet `/anleitung.html` in einem neuen Tab
+  (statische Seite, gleiches Muster wie `datenschutz.html` — kein Login
+  nötig, `isPublicPath` lässt jedes Nicht-`/api/*`-Asset ohnehin durch).
+  Laien-verständliche Erklärung jedes Topbar-Buttons, der Reiterleiste, der
+  Startseiten-Streifen und **jedes** Menüpunkts inkl. seiner Optionen —
+  Einstellungen (Puffer/Startpuffer/Trickplay-Intervall/TMDB-OMDb/
+  Hardware-Beschleunigung/Direct-Play-vs-Transcode/Auto-Rename) besonders
+  ausführlich. Muss bei größeren UI-Änderungen manuell mitgepflegt werden
+  (kein automatischer Abgleich mit dem Code).
 
 ### Playlists als eigene Seite
 - **NICHT** mehr im Library-Dropdown. Der 📋-Button in der Topbar öffnet eine
