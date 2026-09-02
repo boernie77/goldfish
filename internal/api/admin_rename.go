@@ -111,6 +111,9 @@ func (s *Server) renameItemNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, code, msg)
 		return
 	}
+	if me := currentUser(r); me != nil && histID != 0 {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_rename", fmt.Sprintf("%q → %q", filepath.Base(it.Path), filepath.Base(target)))
+	}
 	writeJSON(w, 200, map[string]any{
 		"renameHistoryId": histID,
 		"newPath":         target,
@@ -265,6 +268,10 @@ func (s *Server) renameAllConfirmed(w http.ResponseWriter, r *http.Request) {
 			stats.Renamed++
 		}
 	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_rename_bulk",
+			fmt.Sprintf("%d umbenannt, %d übersprungen, %d fehlgeschlagen (von %d)", stats.Renamed, stats.Skipped, stats.Failed, stats.Total))
+	}
 	writeJSON(w, 200, stats)
 }
 
@@ -306,6 +313,9 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 	if code != 0 {
 		writeError(w, code, msg)
 		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_move", fmt.Sprintf("%q → %q", it.RelPath, target))
 	}
 	writeJSON(w, 200, map[string]any{
 		"renameHistoryId": histID,
@@ -432,6 +442,10 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		stats.Moved++
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_move_bulk",
+			fmt.Sprintf("%d verschoben, %d fehlgeschlagen (von %d) → %q", stats.Moved, stats.Failed, stats.Total, body.TargetFolder))
 	}
 	writeJSON(w, 200, stats)
 }

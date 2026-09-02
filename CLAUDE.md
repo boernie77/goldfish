@@ -2128,6 +2128,83 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   `folderCount` für Folder-Kachel-Badges — separater, unveränderter Endpoint).
   Frontend: `openStatistikDialog()` in `admin.js`.
 
+### Aktivitäts-Protokoll & Backup/Restore (seit 2026-09-02)
+
+- **Zweck (User-Wunsch):** nachvollziehen, wer sich an-/abgemeldet hat, was
+  manuell bearbeitet/ausgelöst wurde und wer was schaut — plus die Möglichkeit,
+  die komplette Datenbank zu sichern und im Bedarfsfall wiedereinzuspielen.
+- **Neue Tabelle `activity_log`** (`internal/store/sqlite.go`):
+  `id, at, user_id, username, category, action, detail`. `category` ∈
+  `auth|playback|admin|job`. `LogActivity`/`ListActivityLog` in
+  `internal/store/activity_log.go` — Pagination über `beforeId` (id-basierter
+  Cursor), Retention: bei ~1 von 200 Inserts werden Einträge `> 180 Tage`
+  gelöscht (kein eigener Hintergrund-Worker nötig).
+- **Bewusst EIN Eintrag pro Lauf, nicht pro Datei** (User-Vorgabe: „Trickplay
+  oder OCR, aber dann nicht jede Datei extra"): ein Scan-Start, ein
+  Trickplay-„Fehler erneut versuchen", ein OCR-„alle jetzt erzeugen" erzeugen
+  jeweils genau eine Zeile mit einer Zusammenfassung (z. B. „N zurückgesetzt").
+  Einzel-Item-Retries (z. B. `retryItemTrickplay`, `ocrSubRetryItem`,
+  `retryIntroSkipFolder`) sind bewusst NICHT geloggt — das wäre exakt die
+  Pro-Datei-Granularität, die der User ausdrücklich nicht wollte.
+- **Protokollierte Aktionen** (siehe `LogActivity`-Aufrufstellen, verteilt über
+  `internal/api/*.go`): Login/Logout (`auth.go`, inkl. `oidc.go` für SSO),
+  fehlgeschlagene Logins (mit versuchtem Usernamen, ohne Passwort), Wiedergabe-
+  Start (`stream.go playbackInfo` — „wer schaut was", ein Eintrag pro
+  Player-Open, kann bei mehreren Audio/Sub-Wechseln währenddessen mehrfach
+  feuern, bewusst in Kauf genommen statt Overengineering), Einstellungen
+  speichern (`settings.go`, ohne Klartext-Keys), Bibliothek anlegen/löschen,
+  Benutzer anlegen/löschen/Passwort-Reset/Admin-Toggle/ACL-Änderung
+  (`users.go`), Datei löschen/umbenennen/verschieben (einzeln + Bulk,
+  `delete_download.go`/`admin_rename.go`), manuelle TMDB-Zuordnung + Bestätigen
+  (`tmdb.go`/`items.go`), Scan-Start (`scan.go`, deckt sowohl manuellen
+  ⟳-Button als auch ausgelöste Aufgaben aus Auto-Scan ab, da beide über
+  denselben Handler laufen), Trickplay-Retry/Alles-löschen, OCR-Run-All/
+  Retry-Failed/Ordner- und Global-Toggle, Intro-Erkennung-Ordner-Toggle,
+  Backup-Download/-Restore.
+- **API:** `GET /api/admin/activity-log?category=&beforeId=&limit=` — admin-only.
+- **Frontend:** `#activityLogDialog` (`admin.js openActivityLogDialog`/
+  `refreshActivityLog`), Zahnrad-Menü → „Daten & Sicherheit" → „📜 Protokoll".
+  `ACTIVITY_LOG_LABELS` übersetzt die internen Action-Codes in lesbare
+  deutsche Labels für die Tabelle.
+- **Backup:** `Store.BackupToFile` (`internal/store/backup.go`) nutzt SQLites
+  eingebautes `VACUUM INTO` — checkpointed den WAL automatisch, liefert eine
+  einzelne konsistente Datei OHNE die riskante manuelle
+  `.db`+`.db-wal`+`.db-shm`-Kopie im laufenden Betrieb. `GET /api/admin/backup`
+  erzeugt sie in einen Temp-Pfad und liefert sie als Download
+  (`goldfish-backup-<Datum>.db`), löscht die Temp-Datei danach. Enthält NICHT
+  die Mediendateien oder Poster-/Trickplay-Caches (jederzeit neu erzeugbar) —
+  nur die eigentliche SQLite-DB.
+- **Restore ist bewusst restart-basiert, kein Live-Hot-Swap:** mehrere
+  Hintergrund-Worker (Enrich, Trickplay, Introskip, OCR, Whisper, Auto-Scan)
+  halten langlebige `*Store`-Referenzen — ein `*sql.DB`-Austausch unter allen
+  laufenden Zugriffen wäre fehleranfällig. `Store.RestoreFromFile`
+  (1) sichert die AKTUELLE DB nach `<config>/backups/pre-restore-<Zeitstempel>.db`
+  (Schutz vor Fehlgriffen), (2) schließt die eigene DB-Verbindung, (3) entfernt
+  `.db-wal`/`.db-shm` der alten Datei, (4) verschiebt die hochgeladene Datei an
+  ihre Stelle. Der Handler (`internal/api/backup.go uploadRestore`) validiert
+  die Upload-Datei VORHER (`store.ValidateBackupFile` — `PRAGMA
+  integrity_check` + Kern-Tabellen-Check `users/items/settings/libraries` in
+  einer eigenen readonly-Verbindung, rührt nicht an der aktiven DB) und ruft
+  danach bewusst **`os.Exit(0)`** nach einer kurzen Verzögerung (Response muss
+  erst beim Client ankommen) — **Docker `restart: unless-stopped` startet den
+  Container automatisch mit der wiederhergestellten Datenbank neu.** Ohne
+  diesen Neustart bliebe die alte, geschlossene `*sql.DB`-Verbindung im
+  Prozess hängen.
+  **NICHT** versuchen, das auf einen Live-Hot-Swap umzubauen, ohne die
+  Hintergrund-Worker-Referenzen mitzudenken.
+- **`POST /api/admin/backup/restore`** (multipart, Feld `file`, bis 2 GiB).
+  Upload landet zunächst im selben Verzeichnis wie die aktive DB
+  (`s.ConfigDir`) — `os.Rename` kann sonst nicht dateisystemübergreifend
+  verschieben.
+- **Frontend:** `#backupDialog` (`admin.js downloadBackup`/`uploadRestoreFile`),
+  Download via `window.location.href` (Cookie-Auth, gleiches Muster wie der
+  bestehende CSV-Export bei Umbenennungen), Restore via `fetch()` +
+  `FormData` + doppelter `appConfirm`-Bestätigung (danger-Style) + Redirect
+  nach 15 s (Wartezeit für den Container-Neustart).
+- Tests: `internal/store/activity_log_test.go` (Insert/Filter/Pagination),
+  `internal/store/backup_test.go` (Backup→Validate→Restore-Rundlauf inkl.
+  Ablehnung einer kaputten Datei).
+
 ### Auto-Rename bestätigter Filme (seit 2026-04-30)
 - Setting `auto_rename_confirmed_movies` (Toggle in Settings → „Datei-Umbenennung",
   iOS-Style Slider rechts in der Zeile). Wenn an: jede ✅-Bestätigung eines

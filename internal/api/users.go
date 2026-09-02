@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -40,6 +41,9 @@ func (s *Server) createUserAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, _ := s.Store.GetUser(id)
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_create", fmt.Sprintf("%q (Admin: %v)", body.Username, body.IsAdmin))
+	}
 	writeJSON(w, 201, u)
 }
 
@@ -54,9 +58,13 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Kann eigenen Account nicht löschen")
 		return
 	}
+	target, _ := s.Store.GetUser(id)
 	if err := s.Store.DeleteUser(id); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	if me != nil && target != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_delete", fmt.Sprintf("%q", target.Username))
 	}
 	w.WriteHeader(204)
 }
@@ -82,6 +90,14 @@ func (s *Server) resetUserPassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	if me := currentUser(r); me != nil {
+		target, _ := s.Store.GetUser(id)
+		name := ""
+		if target != nil {
+			name = target.Username
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_password_reset", fmt.Sprintf("%q", name))
+	}
 	w.WriteHeader(204)
 }
 
@@ -106,6 +122,14 @@ func (s *Server) setUserAdmin(w http.ResponseWriter, r *http.Request) {
 	if err := s.Store.SetUserAdmin(id, body.IsAdmin); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	if me != nil {
+		target, _ := s.Store.GetUser(id)
+		name := ""
+		if target != nil {
+			name = target.Username
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_admin_toggle", fmt.Sprintf("%q → Admin: %v", name, body.IsAdmin))
 	}
 	w.WriteHeader(204)
 }
@@ -174,6 +198,14 @@ func (s *Server) setUserLibraries(w http.ResponseWriter, r *http.Request) {
 	if err := s.Store.SetUserLibraryAccess(id, body.LibraryIDs); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	if me := currentUser(r); me != nil {
+		target, _ := s.Store.GetUser(id)
+		name := ""
+		if target != nil {
+			name = target.Username
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_acl_change", fmt.Sprintf("%q → %d Bibliothek(en)", name, len(body.LibraryIDs)))
 	}
 	w.WriteHeader(204)
 }

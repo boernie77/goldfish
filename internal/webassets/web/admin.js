@@ -965,6 +965,131 @@ function downloadRenamesCSV() {
   window.location.href = "/api/admin/renames.csv";
 }
 
+// --- Protokoll (Activity-Log) ---
+
+const activityLogState = { beforeId: 0, done: false };
+
+const ACTIVITY_LOG_LABELS = {
+  login: "Anmeldung", login_failed: "Anmeldung fehlgeschlagen", logout: "Abmeldung",
+  play: "Wiedergabe gestartet",
+  settings_change: "Einstellungen geändert",
+  library_create: "Bibliothek angelegt", library_delete: "Bibliothek gelöscht",
+  user_create: "Benutzer angelegt", user_delete: "Benutzer gelöscht",
+  user_password_reset: "Passwort zurückgesetzt", user_admin_toggle: "Admin-Rechte geändert",
+  user_acl_change: "Bibliotheks-Zugriff geändert",
+  item_delete: "Datei gelöscht", item_rename: "Datei umbenannt", item_rename_bulk: "Bulk-Umbenennung",
+  item_move: "Datei verschoben", item_move_bulk: "Bulk-Verschiebung",
+  metadata_confirm: "Zuordnung bestätigt/gelöst", metadata_manual_match: "Manuelle Zuordnung",
+  scan_run: "Scan gestartet",
+  trickplay_retry_failed: "Trickplay: Fehler erneut versucht", trickplay_delete_all: "Trickplay: alles gelöscht",
+  ocr_run_all: "OCR: alle erzeugen", ocr_retry_failed: "OCR: Fehler erneut versucht",
+  ocr_folder_toggle: "OCR: Ordner umgeschaltet", ocr_enabled_toggle: "OCR: global umgeschaltet",
+  introskip_folder_toggle: "Intro-Erkennung: Serie umgeschaltet",
+  backup_download: "Backup heruntergeladen", backup_restore: "Backup wiederhergestellt",
+};
+
+async function openActivityLogDialog() {
+  $("#activityLogDialog").showModal();
+  await refreshActivityLog(true);
+}
+
+async function refreshActivityLog(reset) {
+  const body = $("#activityLogBody");
+  const moreBtn = $("#activityLogMoreBtn");
+  if (reset) {
+    activityLogState.beforeId = 0;
+    activityLogState.done = false;
+    body.innerHTML = `<div class="hint">Lädt…</div>`;
+  }
+  const category = $("#activityLogCategory").value;
+  const params = new URLSearchParams({ limit: "100" });
+  if (category) params.set("category", category);
+  if (activityLogState.beforeId) params.set("beforeId", String(activityLogState.beforeId));
+  let data;
+  try {
+    data = await api(`/api/admin/activity-log?${params.toString()}`);
+  } catch (e) {
+    body.innerHTML = `<div class="hint">Fehler: ${escapeHTML(e.message)}</div>`;
+    return;
+  }
+  const entries = data.entries || [];
+  if (reset && !entries.length) {
+    body.innerHTML = `<div class="hint">Noch keine Einträge.</div>`;
+    moreBtn.classList.add("hidden");
+    return;
+  }
+  const rows = entries.map(e => {
+    const dt = new Date(e.at).toLocaleString("de-DE");
+    const label = ACTIVITY_LOG_LABELS[e.action] || e.action;
+    return `
+      <tr>
+        <td style="white-space:nowrap;font-size:12px;color:#94a3b8">${escapeHTML(dt)}</td>
+        <td style="font-size:12px">${escapeHTML(e.username || "—")}</td>
+        <td style="font-size:12px">${escapeHTML(label)}</td>
+        <td style="font-size:12px">${escapeHTML(e.detail || "")}</td>
+      </tr>`;
+  }).join("");
+  const table = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334">
+          <th style="padding:6px 4px">Zeit</th>
+          <th style="padding:6px 4px">Benutzer</th>
+          <th style="padding:6px 4px">Aktion</th>
+          <th style="padding:6px 4px">Details</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  if (reset) {
+    body.innerHTML = table;
+  } else {
+    body.insertAdjacentHTML("beforeend", rows);
+  }
+  if (entries.length) {
+    activityLogState.beforeId = entries[entries.length - 1].id;
+  }
+  moreBtn.classList.toggle("hidden", entries.length < 100);
+}
+
+// --- Backup & Wiederherstellen ---
+
+function downloadBackup() {
+  window.location.href = "/api/admin/backup";
+}
+
+async function uploadRestoreFile() {
+  const input = $("#restoreFileInput");
+  const status = $("#restoreStatus");
+  const file = input.files && input.files[0];
+  if (!file) {
+    appAlert("Bitte zuerst eine Backup-Datei auswählen.");
+    return;
+  }
+  if (!(await appConfirm(
+    `Datenbank WIRKLICH durch "${file.name}" ersetzen?\n\n` +
+    `Alles, was seit dem Backup passiert ist, geht dabei verloren. Der Server ` +
+    `startet danach neu. Eine Sicherheitskopie der aktuellen Datenbank wird ` +
+    `vorher automatisch angelegt.`,
+    { danger: true, okLabel: "Ja, ersetzen" }
+  ))) return;
+
+  status.textContent = "Lade hoch und prüfe Datei…";
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/admin/backup/restore", { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    status.textContent = data.message || "Wiederhergestellt. Server startet neu…";
+    showToast("Wiederhergestellt — Server startet neu", { kind: "success", duration: 4000 });
+    setTimeout(() => window.location.reload(), 15000);
+  } catch (e) {
+    status.textContent = "";
+    appAlert("Restore fehlgeschlagen: " + e.message);
+  }
+}
+
 // --- Auto-Scan-Einstellungen (mehrere Aufgaben) ---
 
 // Arbeitskopie der Aufgabenliste — wird beim Speichern an den Server gesendet.

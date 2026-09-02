@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -217,6 +218,10 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hw, _ := s.Store.GetSetting("hwaccel_mode", "auto")
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "settings_change",
+			fmt.Sprintf("Puffer=%ds, Startpuffer=%ds, Hardware=%s", body.BufferSeconds, body.StartBufferSeconds, hw))
+	}
 	writeJSON(w, 200, settingsDTO{
 		BufferSeconds:             body.BufferSeconds,
 		StartBufferSeconds:        body.StartBufferSeconds,

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -64,6 +65,9 @@ func (s *Server) ocrSubSetEnabled(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_enabled_toggle", fmt.Sprintf("global aktiv: %v", body.Enabled))
+	}
 	writeJSON(w, 200, map[string]any{"enabled": body.Enabled})
 }
 
@@ -114,6 +118,14 @@ func (s *Server) ocrSubSetFolder(w http.ResponseWriter, r *http.Request) {
 	if body.Enabled && s.OCRSub != nil {
 		go func() { _, _ = s.OCRSub.EnqueueBacklogAndRun() }()
 	}
+	if me := currentUser(r); me != nil {
+		lib, _ := s.Store.GetLibrary(body.LibraryID)
+		name := ""
+		if lib != nil {
+			name = lib.Name
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_folder_toggle", fmt.Sprintf("%q → aktiv: %v", name, body.Enabled))
+	}
 	w.WriteHeader(204)
 }
 
@@ -132,7 +144,7 @@ func (s *Server) ocrSubLog(w http.ResponseWriter, r *http.Request) {
 
 // ocrSubRunAll: "alle jetzt erzeugen" — Backlog aller aktivierten Bibliotheken
 // einreihen + Worker triggern.
-func (s *Server) ocrSubRunAll(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) ocrSubRunAll(w http.ResponseWriter, r *http.Request) {
 	if s.OCRSub == nil {
 		writeError(w, 503, "OCR-Untertitel nicht verfügbar")
 		return
@@ -142,10 +154,13 @@ func (s *Server) ocrSubRunAll(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_run_all", fmt.Sprintf("%d eingereiht", n))
+	}
 	writeJSON(w, 200, map[string]any{"queued": n})
 }
 
-func (s *Server) ocrSubRetryFailed(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) ocrSubRetryFailed(w http.ResponseWriter, r *http.Request) {
 	// Erst den Müll aus der ersten (zu breiten) Enqueue-Runde entfernen:
 	// failed-Jobs für Items ohne PGS-Stream (VOBSUB/DVB) werden nie klappen.
 	purged, _ := s.Store.PurgeNonPGSOCRSubJobs()
@@ -156,6 +171,9 @@ func (s *Server) ocrSubRetryFailed(w http.ResponseWriter, _ *http.Request) {
 	}
 	if s.OCRSub != nil {
 		s.OCRSub.Trigger()
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_retry_failed", fmt.Sprintf("%d erneut versucht, %d bereinigt", n, purged))
 	}
 	writeJSON(w, 200, map[string]any{"retried": n, "purged": purged})
 }

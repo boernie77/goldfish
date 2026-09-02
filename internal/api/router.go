@@ -134,6 +134,10 @@ func (s *Server) Router() http.Handler {
 		r.Post("/items/move", requireAdmin(s.moveItemsBulk))
 		r.Get("/libraries/{id}/all-folders", requireAdmin(s.listAllFolders))
 
+		r.Get("/admin/activity-log", requireAdmin(s.activityLogList))
+		r.Get("/admin/backup", requireAdmin(s.downloadBackup))
+		r.Post("/admin/backup/restore", requireAdmin(s.uploadRestore))
+
 		// Gesehen-Sync zwischen zwei Usern (kein Admin nötig — jeder User
 		// darf für sich selbst einen Partner vorschlagen/bestätigen/trennen)
 		r.Get("/users/names", s.listOtherUsernames)
@@ -315,7 +319,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.0.34"
+const appVersion = "1.0.35"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

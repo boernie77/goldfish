@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -83,6 +84,9 @@ func (s *Server) createLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lib, _ := s.Store.GetLibrary(id)
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "library_create", fmt.Sprintf("%q (%s, %s)", body.Name, kind, body.Path))
+	}
 	writeJSON(w, 201, lib)
 }
 
@@ -251,9 +255,13 @@ func (s *Server) deleteLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "ungültige id")
 		return
 	}
+	lib, _ := s.Store.GetLibrary(id)
 	if err := s.Store.DeleteLibrary(id); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	if me := currentUser(r); me != nil && lib != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "library_delete", fmt.Sprintf("%q", lib.Name))
 	}
 	w.WriteHeader(204)
 }

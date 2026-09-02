@@ -32,6 +32,9 @@ func registerNaturalCollation() {
 
 type Store struct {
 	db *sql.DB
+	// path: Dateipfad der SQLite-DB, wie an Open() übergeben — gebraucht für
+	// Backup (VACUUM INTO) und Restore (Dateitausch), siehe backup.go.
+	path string
 	// forceAdminOnlyLibraries: siehe hardening.go / SetForceAdminOnlyLibraries.
 	forceAdminOnlyLibraries map[string]bool
 }
@@ -43,7 +46,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	s := &Store{db: db}
+	s := &Store{db: db, path: path}
 	if err := s.migrate(); err != nil {
 		return nil, err
 	}
@@ -359,6 +362,16 @@ func (s *Store) migrate() error {
 			CHECK (user_a_id < user_b_id),
 			UNIQUE(user_a_id, user_b_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS activity_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			user_id INTEGER,
+			username TEXT NOT NULL DEFAULT '',
+			category TEXT NOT NULL,
+			action TEXT NOT NULL,
+			detail TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS activity_log_at_idx ON activity_log(at DESC)`,
 	}
 	for _, q := range baseStmts {
 		if _, err := s.db.Exec(q); err != nil {

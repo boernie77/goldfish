@@ -89,6 +89,7 @@ body { display: flex; justify-content: center; padding: 24px; }
           <li><a href="#menu-autoscan">Auto-Scan</a></li>
           <li><a href="#menu-medien">Bibliothek &amp; Medien (Trickplay, Untertitel, Statistik, …)</a></li>
           <li><a href="#menu-diagnose">Diagnose</a></li>
+          <li><a href="#menu-daten">Daten &amp; Sicherheit (Protokoll, Backup)</a></li>
         </ul>
       </li>
     </ul>
@@ -442,6 +443,35 @@ body { display: flex; justify-content: center; padding: 24px; }
     <dd>Ein technisches Such-Werkzeug, um eine bestimmte Datei anhand ihres Namens oder
     Pfads wiederzufinden und direkt zu sehen, welche (ggf. falsche) TMDB-Zuordnung sie
     aktuell hat — nützlich, um Zuordnungsfehler gezielt zu korrigieren.</dd>
+  </dl>
+
+  <h3 id="menu-daten">Daten &amp; Sicherheit (Administrator)</h3>
+  <dl>
+    <dt>📜 Protokoll</dt>
+    <dd>Eine durchsuchbare Liste: wer sich wann an-/abgemeldet hat, welche Videos
+    angesehen wurden, und was am Server manuell geändert oder angestoßen wurde —
+    Zuordnungen, Umbenennungen, Verschiebungen, Löschungen, Einstellungsänderungen,
+    Benutzerverwaltung sowie ausgelöste Hintergrund-Läufe (Scan, Trickplay, OCR, …).
+    Ein solcher Lauf erscheint dabei als <strong>eine einzige Zeile für den ganzen
+    Lauf</strong>, nicht als eine Zeile pro bearbeiteter Datei. Über das
+    Kategorie-Dropdown lässt sich z. B. nur auf An-/Abmeldungen filtern.</dd>
+
+    <dt>💾 Backup &amp; Wiederherstellen</dt>
+    <dd>
+      <strong>Backup:</strong> „⬇ Jetzt herunterladen" erzeugt eine einzelne Datei mit
+      der kompletten Datenbank — Benutzer, alle Bibliotheks-Einträge und TMDB-
+      Zuordnungen, Gesehen-Status, persönliche Bewertungen, OCR-/KI-Untertitel-Jobs,
+      Einstellungen und auch das Protokoll selbst. Die Videodateien selbst sowie
+      Poster-/Vorschaubild-Caches sind <strong>nicht</strong> enthalten (die lassen sich
+      jederzeit aus den Videodateien neu erzeugen) — nur die eigentlichen Daten, die
+      man bei einem Datenverlust nicht einfach neu bekäme.<br /><br />
+      <strong>Wiederherstellen:</strong> eine zuvor heruntergeladene Backup-Datei
+      auswählen und hochladen ersetzt die komplette aktuelle Datenbank durch den
+      Stand des Backups — alles, was seit dem Backup passiert ist (neue Filme,
+      neue Bewertungen, …), geht dabei verloren. Vor dem Einspielen wird
+      automatisch eine Sicherheitskopie der bisherigen Datenbank angelegt, für den
+      Fall, dass man sich vertan hat. Der Server startet danach kurz neu.
+    </dd>
   </dl>
 
   <div class="note">

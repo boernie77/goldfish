@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -152,8 +153,12 @@ func (s *Server) setItemMetadata(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// NFO gleich mitschreiben
-		if it2, _ := s.Store.GetItem(id); it2 != nil {
+		it2, _ := s.Store.GetItem(id)
+		if it2 != nil {
 			_, _ = s.writeNFOForItem(it2)
+		}
+		if me := currentUser(r); me != nil && it2 != nil {
+			_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_manual_match", fmt.Sprintf("%q → IMDb %s", it2.Title, body.IMDBID))
 		}
 		w.WriteHeader(204)
 		return
@@ -199,8 +204,12 @@ func (s *Server) setItemMetadata(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	if it2, _ := s.Store.GetItem(id); it2 != nil {
+	it2, _ := s.Store.GetItem(id)
+	if it2 != nil {
 		_, _ = s.writeNFOForItem(it2)
+	}
+	if me := currentUser(r); me != nil && it2 != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_manual_match", fmt.Sprintf("%q → TMDB %s/%d", it2.Title, body.TMDBType, body.TMDBID))
 	}
 	w.WriteHeader(204)
 }
@@ -418,6 +427,9 @@ func (s *Server) setFolderMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	// Episoden dieses Ordners sofort matchen (statt auf den 5-Min-Ticker zu warten)
 	s.Enrich.EnrichFolderNow(libID, body.Folder)
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_manual_match", fmt.Sprintf("Ordner %q → %q (TMDB %d)", body.Folder, meta.Title, meta.TMDBID))
+	}
 	w.WriteHeader(204)
 }
 

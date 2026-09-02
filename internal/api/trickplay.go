@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 )
@@ -18,7 +19,7 @@ func (s *Server) cancelTrickplay(w http.ResponseWriter, _ *http.Request) {
 
 // retryFailedTrickplay setzt alle Items mit status=failed zurück auf "", damit der
 // Worker sie erneut probiert (nach verbessertem Filter / neuem ffmpeg-Config).
-func (s *Server) retryFailedTrickplay(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) retryFailedTrickplay(w http.ResponseWriter, r *http.Request) {
 	if s.Trickplay == nil {
 		writeError(w, 503, "Trickplay nicht initialisiert")
 		return
@@ -29,6 +30,9 @@ func (s *Server) retryFailedTrickplay(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	s.Trickplay.Trigger()
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "trickplay_retry_failed", fmt.Sprintf("%d Fehler zurückgesetzt", n))
+	}
 	writeJSON(w, 200, map[string]any{"reset": n})
 }
 
@@ -64,7 +68,7 @@ func (s *Server) retryItemTrickplay(w http.ResponseWriter, r *http.Request) {
 }
 
 // deleteAllTrickplay entfernt alle generierten Trickplay-Dateien + resettet Status.
-func (s *Server) deleteAllTrickplay(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) deleteAllTrickplay(w http.ResponseWriter, r *http.Request) {
 	if s.Trickplay == nil {
 		writeError(w, 503, "Trickplay nicht initialisiert")
 		return
@@ -78,6 +82,9 @@ func (s *Server) deleteAllTrickplay(w http.ResponseWriter, _ *http.Request) {
 	if err := s.Store.ResetAllTrickplayStatus(); err != nil {
 		writeError(w, 500, "reset db: "+err.Error())
 		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "trickplay_delete_all", "")
 	}
 	w.WriteHeader(204)
 }

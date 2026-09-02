@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -26,6 +27,17 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, err.Error())
 		return
 	}
+	if me := currentUser(r); me != nil {
+		scope := "gesamte Bibliothek"
+		if folder != "" {
+			scope = "Ordner " + folder
+		}
+		forceNote := ""
+		if force {
+			forceNote = " (force)"
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("%q, %s%s", lib.Name, scope, forceNote))
+	}
 	writeJSON(w, 202, map[string]any{"status": "started", "force": force, "folder": folder})
 }
 
@@ -37,6 +49,13 @@ func (s *Server) startScanAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	force := r.URL.Query().Get("force") == "true"
+	if me := currentUser(r); me != nil {
+		forceNote := ""
+		if force {
+			forceNote = " (force)"
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("alle %d Bibliotheken%s", len(libs), forceNote))
+	}
 	go func() {
 		for _, l := range libs {
 			if err := s.Scanner.Start(l, force, ""); err != nil {

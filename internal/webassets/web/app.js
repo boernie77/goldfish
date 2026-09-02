@@ -1291,6 +1291,8 @@ function wire() {
       case "renames": openRenamesManager(); break;
       case "autoscan": openAutoScan(); break;
       case "statistik": openStatistikDialog(); break;
+      case "activitylog": openActivityLogDialog(); break;
+      case "backup": $("#backupDialog").showModal(); break;
     }
   });
   // Home/Sammlungen/Playlists/Library-Wechsel laufen über die pinned Lib-Nav
@@ -1558,6 +1560,12 @@ function wire() {
   $("#renamesReloadBtn").addEventListener("click", refreshRenamesManager);
   $("#renamesCsvBtn").addEventListener("click", downloadRenamesCSV);
   $("#renamesBulkBtn").addEventListener("click", runBulkRenameConfirmed);
+  // Protokoll + Backup
+  $("#activityLogReloadBtn").addEventListener("click", () => refreshActivityLog(true));
+  $("#activityLogCategory").addEventListener("change", () => refreshActivityLog(true));
+  $("#activityLogMoreBtn").addEventListener("click", () => refreshActivityLog(false));
+  $("#backupDownloadBtn").addEventListener("click", downloadBackup);
+  $("#restoreUploadBtn").addEventListener("click", uploadRestoreFile);
 }
 
 function debounce(fn, ms) {

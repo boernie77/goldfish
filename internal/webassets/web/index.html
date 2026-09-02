@@ -288,6 +288,24 @@
     </button>
   </div>
 
+  <div class="drawer-section drawer-admin">
+    <div class="drawer-section-label">Daten &amp; Sicherheit</div>
+    <button class="drawer-item" data-action="activitylog" id="settingsMenuActivityLog">
+      <span class="drawer-icon">📜</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Protokoll</span>
+        <span class="drawer-item-sub">Logins, Änderungen, Aktionen</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="backup" id="settingsMenuBackup">
+      <span class="drawer-icon">💾</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Backup &amp; Wiederherstellen</span>
+        <span class="drawer-item-sub">Datenbank sichern/einspielen</span>
+      </span>
+    </button>
+  </div>
+
   <div class="drawer-version">Goldfish <span id="drawerVersion">—</span></div>
 </aside>
 
@@ -901,6 +919,66 @@
   <p class="hint" id="statistikScope"></p>
   <div id="statistikBody" style="max-height:65vh;overflow-y:auto"></div>
   <div class="row" style="margin-top:12px">
+    <span style="flex:1"></span>
+    <button type="button" data-close>Schließen</button>
+  </div>
+</dialog>
+
+<dialog id="activityLogDialog" class="modal" style="max-width:900px">
+  <h2>📜 Protokoll</h2>
+  <p class="hint" style="margin-top:0">
+    Wer sich an-/abgemeldet hat, was manuell bearbeitet oder ausgelöst wurde
+    (Zuordnungen, Umbenennungen, Löschungen, Einstellungen, Scans, Trickplay/
+    OCR-Läufe, …) sowie welche Videos angesehen wurden. Ein ausgelöster Lauf
+    (z. B. Scan oder OCR) erzeugt genau eine Zeile für den ganzen Lauf, nicht
+    eine pro Datei.
+  </p>
+  <div class="row" style="gap:8px;margin-bottom:10px">
+    <label style="font-size:13px">Kategorie
+      <select id="activityLogCategory" style="margin-left:6px">
+        <option value="">Alle</option>
+        <option value="auth">Anmeldung</option>
+        <option value="playback">Wiedergabe</option>
+        <option value="admin">Administration</option>
+        <option value="job">Hintergrund-Läufe</option>
+      </select>
+    </label>
+    <span style="flex:1"></span>
+    <button type="button" id="activityLogReloadBtn">Neu laden</button>
+    <button type="button" data-close>Schließen</button>
+  </div>
+  <div id="activityLogBody" style="max-height:60vh;overflow-y:auto"></div>
+  <div class="row" style="margin-top:10px;justify-content:center">
+    <button type="button" id="activityLogMoreBtn" class="hidden">Weitere laden…</button>
+  </div>
+</dialog>
+
+<dialog id="backupDialog" class="modal" style="max-width:640px">
+  <h2>💾 Backup &amp; Wiederherstellen</h2>
+  <p class="hint" style="margin-top:0">
+    Sichert die komplette Datenbank — Benutzer, Bibliotheken, alle TMDB-
+    Zuordnungen, Gesehen-Status, Bewertungen, OCR-/Whisper-Untertitel-Jobs,
+    Einstellungen und das Protokoll selbst. Enthält <strong>nicht</strong> die
+    Videodateien selbst und keine Poster-/Trickplay-Caches (die lassen sich
+    jederzeit neu erzeugen).
+  </p>
+  <h3 style="margin-bottom:6px;font-size:14px">Backup herunterladen</h3>
+  <div class="row" style="justify-content:flex-start;margin-bottom:16px">
+    <button type="button" id="backupDownloadBtn" class="primary">⬇ Jetzt herunterladen</button>
+  </div>
+  <h3 style="margin-bottom:6px;font-size:14px">Wiederherstellen</h3>
+  <p class="hint" style="margin-top:0;color:#f59e0b">
+    ⚠ Ersetzt die GESAMTE aktuelle Datenbank durch die hochgeladene Datei —
+    alles, was seit dem Backup passiert ist, geht dabei verloren. Vor dem
+    Einspielen wird automatisch eine Sicherheitskopie der aktuellen Datenbank
+    angelegt. Der Server startet danach neu (ca. 15 Sekunden).
+  </p>
+  <div class="row" style="justify-content:flex-start;gap:8px">
+    <input type="file" id="restoreFileInput" accept=".db" />
+    <button type="button" id="restoreUploadBtn" class="danger">Wiederherstellen</button>
+  </div>
+  <div id="restoreStatus" class="hint"></div>
+  <div class="row" style="margin-top:14px">
     <span style="flex:1"></span>
     <button type="button" data-close>Schließen</button>
   </div>

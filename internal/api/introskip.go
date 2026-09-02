@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/boernie77/goldfish/internal/store"
@@ -121,6 +122,9 @@ func (s *Server) setIntroSkipFolder(w http.ResponseWriter, r *http.Request) {
 		if s.IntroSkip != nil {
 			s.IntroSkip.Trigger()
 		}
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "introskip_folder_toggle", fmt.Sprintf("%q → aktiv: %v", body.Folder, body.Enabled))
 	}
 	w.WriteHeader(204)
 }

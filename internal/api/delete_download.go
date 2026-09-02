@@ -59,6 +59,7 @@ func (s *Server) deleteItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_delete", fmt.Sprintf("%q (%s)", it.Title, it.RelPath))
 	w.WriteHeader(204)
 }
 

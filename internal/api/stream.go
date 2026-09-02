@@ -53,6 +53,9 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgeAllowed(w, r, it.MetadataID) {
 		return
 	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", it.Title)
+	}
 
 	q := r.URL.Query()
 	profile := q.Get("profile")
