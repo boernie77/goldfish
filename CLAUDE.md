@@ -1872,13 +1872,38 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   `loadItems()`.
 
 ### Sammlungs-Komplett-Badge
-- `store.Collection` enthält `PartCount` (alle TMDB-Parts der Sammlung) und
-  `HiddenCount` (davon vom aktuellen User ausgeblendet). `ListCollections`
-  nimmt jetzt `userID` als Parameter.
-- Frontend (`renderCollectionCard`): `complete = movieCount >= partCount - hiddenCount`.
+- `store.Collection` enthält `PartCount` (alle TMDB-Parts der Sammlung),
+  `HiddenCount` (davon vom aktuellen User ausgeblendet) und `UnreleasedCount`
+  (davon noch nicht erschienen, s.u.). `ListCollections` nimmt `userID` als
+  Parameter.
+- Frontend (`cards.js` in `renderCollectionCard`):
+  `complete = movieCount >= partCount - hiddenCount - unreleasedCount`.
   Wenn true, grünes „✓ komplett"-Badge oben links (`.collection-complete`).
-- Der Zähler unten rechts zeigt standardmäßig `N/Total Filme` (statt nur `N Filme`).
-  Bei `partCount=0` (Parts noch nicht gefetcht) Fallback auf den alten Zähler.
+- Der Zähler unten rechts zeigt standardmäßig `N/Total Filme` (statt nur `N Filme`,
+  `Total` bereits abzüglich `hiddenCount`). Bei `partCount=0` (Parts noch nicht
+  gefetcht) Fallback auf den alten Zähler.
+- **Zukünftige/unangekündigte Filme zählen nicht gegen „komplett"** (User-
+  Anforderung 2026-09-02: „Zukünftige Filme dürfen erscheinen, aber die
+  Sammlung soll erst auf Unvollständig wechseln, wenn der Film tatsächlich
+  erschienen ist" — Ziel: nicht jedes Mal manuell ausblenden müssen und dann
+  vergessen wieder einzublenden). `UnreleasedCount` in `ListCollections`
+  zählt Parts, deren `release_date` **leer ODER in der Zukunft** ist.
+  **🔴 Bug + Fix am selben Tag:** die erste Version verlangte ein konkretes
+  ZUKÜNFTIGES Datum (`release_date > date('now')`) — ein Part mit leerem
+  `release_date` (typisch bei früh angekündigten Fortsetzungen, die bei TMDB
+  schon ein Poster, aber noch kein Datum haben, real beobachtet: „Den of
+  Thieves 3" in der „Criminal Squad"-Sammlung) fiel dadurch durchs Raster und
+  zählte als „fehlt wirklich" statt „noch nicht erschienen" — Sammlung blieb
+  trotz vollständigem Bestand als unvollständig markiert. Fix: Bedingung ist
+  jetzt `release_date IS NULL OR release_date = '' OR release_date > date('now')`.
+  Enrichment (`internal/enrich/worker.go`, Collection-Parts-Fetch) überspringt
+  Parts nur, wenn SOWOHL `release_date` ALS AUCH `poster_path` leer sind
+  (reine TMDB-Platzhalter ohne jede Info) — ein Part mit nur fehlendem Datum
+  aber vorhandenem Poster bleibt als „Bald"-Kachel sichtbar.
+  Frontend: `renderCollectionPartCard` (`cards.js`) zeigt für solche Teile
+  ein blaues „Bald"-Badge (`.missing-badge--upcoming`) statt des roten
+  „Fehlt"-Badges — rein kosmetisch, ändert nichts an der Vollständigkeits-Logik.
+  Test: `internal/store/collections_acl_test.go TestCollectionsUnreleasedParts`.
 
 ### Einstellungen / Admin-UI
 - **Zahnrad-Button** (`#settingsBtn`) ist seit 2026-09-01 für JEDEN Benutzer

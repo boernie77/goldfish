@@ -226,3 +226,83 @@ func TestCollectionsAgeRating(t *testing.T) {
 		t.Errorf("ohne FSK-Limit sollten beide Filme sichtbar sein, bekam %d", len(itemsUnrestricted))
 	}
 }
+
+// TestCollectionsUnreleasedParts sichert den Fix vom 2026-09-02 ab (User-
+// Report: "Criminal Squad Filmreihe" zeigte 2/3 statt "✓ komplett", obwohl
+// der einzige fehlende Teil ("Den of Thieves 3") noch gar nicht erschienen
+// ist). Root Cause: ein früh angekündigter Teil hat bei TMDB oft schon ein
+// Poster, aber NOCH KEIN Erscheinungsdatum (release_date=""). Die alte
+// unreleased_count-Query verlangte ein konkretes ZUKÜNFTIGES Datum und
+// übersah damit Teile ganz ohne Datum — die zählten fälschlich als "fehlt
+// wirklich" statt "noch nicht erschienen".
+func TestCollectionsUnreleasedParts(t *testing.T) {
+	s := newTestStore(t)
+
+	lib, err := s.CreateLibrary("Filme", t.TempDir(), model.KindMovies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var collectionID int64
+	if err := s.db.QueryRow(
+		`INSERT INTO collections(tmdb_id, name) VALUES(555, 'Criminal Squad Filmreihe') RETURNING id`,
+	).Scan(&collectionID); err != nil {
+		t.Fatal(err)
+	}
+
+	insertOwnedMovie := func(tmdbID int64, title, path string) {
+		t.Helper()
+		var metaID int64
+		if err := s.db.QueryRow(
+			`INSERT INTO metadata(tmdb_type, tmdb_id, title, collection_id) VALUES('movie', ?, ?, ?) RETURNING id`,
+			tmdbID, title, collectionID,
+		).Scan(&metaID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.db.Exec(
+			`INSERT INTO items(library_id, path, rel_path, title, container, width, height, duration_sec, size_bytes, bitrate_kbps, mod_time, added_at, metadata_id)
+			 VALUES(?, ?, ?, ?, 'mkv', 1920, 1080, 100, 1000, 1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)`,
+			lib, path, path, path, metaID,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insertOwnedMovie(1, "Criminal Squad", "/Filme/1.mkv")
+	insertOwnedMovie(2, "Criminal Squad 2", "/Filme/2.mkv")
+
+	// Zwei collection_parts owned (release_date gesetzt, in der Vergangenheit),
+	// ein dritter angekündigter Teil OHNE release_date (typisch: Poster da,
+	// Datum noch nicht bekannt).
+	if _, err := s.db.Exec(
+		`INSERT INTO collection_parts(collection_id, tmdb_movie_id, title, release_date, poster_path, ord) VALUES
+		 (?,1,'Criminal Squad','2018-01-01','/p1.jpg',1),
+		 (?,2,'Criminal Squad 2','2025-01-01','/p2.jpg',2),
+		 (?,3,'Den of Thieves 3','','/p3.jpg',3)`,
+		collectionID, collectionID, collectionID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cols, err := s.ListCollections(0, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cols) != 1 {
+		t.Fatalf("expected 1 collection, got %d", len(cols))
+	}
+	c := cols[0]
+	if c.PartCount != 3 {
+		t.Errorf("expected PartCount=3, got %d", c.PartCount)
+	}
+	if c.MovieCount != 2 {
+		t.Errorf("expected MovieCount=2, got %d", c.MovieCount)
+	}
+	if c.UnreleasedCount != 1 {
+		t.Errorf("expected UnreleasedCount=1 (Den of Thieves 3 has no release_date yet), got %d", c.UnreleasedCount)
+	}
+	// Vollständigkeits-Formel wie im Frontend (cards.js): complete wenn
+	// movieCount >= partCount - hiddenCount - unreleasedCount.
+	releasedTotal := c.PartCount - c.HiddenCount - c.UnreleasedCount
+	if c.MovieCount < releasedTotal {
+		t.Errorf("Sammlung sollte als komplett gelten (movieCount=%d >= releasedTotal=%d), tut es aber nicht", c.MovieCount, releasedTotal)
+	}
+}

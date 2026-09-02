@@ -62,9 +62,15 @@ type Collection struct {
 	// den Vollständigkeits-Indikator bilden: complete = movieCount >= partCount - hiddenCount.
 	PartCount   int `json:"partCount,omitempty"`
 	HiddenCount int `json:"hiddenCount,omitempty"`
-	// UnreleasedCount: Parts deren TMDB-release_date in der Zukunft liegt
-	// (noch nicht erschienen). Zählen für die Vollständigkeits-Anzeige nicht
-	// als „fehlend" — Sammlung gilt als komplett solange nur unreleased fehlt.
+	// UnreleasedCount: Parts, die noch NICHT nachweislich erschienen sind —
+	// TMDB-release_date liegt in der Zukunft ODER ist (noch) gar nicht gesetzt
+	// (typisch bei früh angekündigten Fortsetzungen, die schon ein Poster,
+	// aber noch kein Datum haben, z.B. "Den of Thieves 3"). Bug 2026-09-02:
+	// ein leeres release_date fiel vorher durchs Raster und zählte als
+	// "fehlt wirklich" statt "noch nicht erschienen" — Sammlung wurde
+	// faelschlich als unvollstaendig markiert. Zählen für die
+	// Vollständigkeits-Anzeige nicht als „fehlend" — Sammlung gilt als
+	// komplett solange nur unreleased fehlt.
 	UnreleasedCount int `json:"unreleasedCount,omitempty"`
 	// Fallback-Metadata-ID: einer der Filme dieser Sammlung, dessen Poster als
 	// Kachelbild genutzt werden kann, wenn die Sammlung selbst kein Poster hat.
@@ -135,9 +141,11 @@ func (s *Store) ListCollections(userID int64, isAdmin bool, maxAgeRating int) ([
 		          WHERE hcp.collection_id = c.id AND hcp.user_id = ?) AS hidden_count,
 		       (SELECT COUNT(*) FROM collection_parts cp2
 		          WHERE cp2.collection_id = c.id
-		            AND cp2.release_date IS NOT NULL
-		            AND cp2.release_date <> ''
-		            AND cp2.release_date > date('now')) AS unreleased_count,
+		            AND (
+		              cp2.release_date IS NULL
+		              OR cp2.release_date = ''
+		              OR cp2.release_date > date('now')
+		            )) AS unreleased_count,
 		       COALESCE(
 		         (SELECT m.id FROM metadata m
 		            WHERE m.collection_id = c.id

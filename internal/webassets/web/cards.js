@@ -73,16 +73,22 @@ function renderCollectionPartCard(p, collectionId) {
     ? `https://image.tmdb.org/t/p/w342${p.posterPath}`
     : "/placeholder.svg";
   const year = (p.releaseDate || "").slice(0, 4);
+  // Noch nicht erschienene Teile (kein Datum oder Datum in der Zukunft)
+  // zeigen "Bald" statt "Fehlt" — sie zählen serverseitig auch nicht gegen
+  // die "✓ komplett"-Markierung der Sammlung, siehe ListCollections.
+  const isUnreleased = !p.releaseDate || p.releaseDate > new Date().toISOString().slice(0, 10);
+  const badgeLabel = isUnreleased ? "Bald" : "Fehlt";
+  const badgeTitle = isUnreleased ? "Noch nicht erschienen" : "Film nicht in der Bibliothek";
   el.innerHTML = `
     <div class="thumb">
       <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${imgUrl}">
-      <span class="missing-badge" title="Film nicht in der Bibliothek">Fehlt</span>
+      <span class="missing-badge${isUnreleased ? " missing-badge--upcoming" : ""}" title="${badgeTitle}">${badgeLabel}</span>
     </div>
     <div class="card-body">
       <div class="card-title" title="${escapeHTML(p.title)}">${escapeHTML(p.title)}</div>
       <div class="card-meta">
         ${year ? `<span>${year}</span>` : ""}
-        <span style="color:#94a3b8">Fehlt</span>
+        <span style="color:#94a3b8">${badgeLabel}</span>
       </div>
     </div>
   `;

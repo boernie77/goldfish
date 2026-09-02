@@ -2349,6 +2349,9 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
   text-transform: uppercase;
   z-index: 3;
 }
+.missing-badge--upcoming {
+  background: rgba(59, 130, 246, 0.92);
+}
 .trickplay-stats {
   display: flex;
   gap: 16px;
