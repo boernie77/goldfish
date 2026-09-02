@@ -32,6 +32,8 @@ func registerNaturalCollation() {
 
 type Store struct {
 	db *sql.DB
+	// forceAdminOnlyLibraries: siehe hardening.go / SetForceAdminOnlyLibraries.
+	forceAdminOnlyLibraries map[string]bool
 }
 
 func Open(path string) (*Store, error) {
@@ -1236,6 +1238,11 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// eigener ACL-Zeile nirgends mehr auftauchten).
 		q += ` AND i.library_id IN (SELECT library_id FROM user_library_access WHERE user_id = ?)`
 		args = append(args, f.UserID)
+		// forceAdminOnlyLibraries (hardening.go) überstimmt jede ACL-Zeile —
+		// no-op, solange nichts konfiguriert ist.
+		exclSQL, exclArgs := s.forceAdminOnlyExclusionSQL("i.library_id")
+		q += ` AND ` + exclSQL
+		args = append(args, exclArgs...)
 	}
 	if f.Search != "" {
 		pattern := "%" + f.Search + "%"

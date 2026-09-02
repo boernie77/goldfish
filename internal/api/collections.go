@@ -14,11 +14,18 @@ import (
 func (s *Server) listCollections(w http.ResponseWriter, r *http.Request) {
 	var userID int64
 	var isAdmin bool
+	var maxAgeRating int
 	if me := currentUser(r); me != nil {
 		userID = me.ID
 		isAdmin = me.IsAdmin
+		// FSK-Fix 2026-09-02 (gleicher Tag wie der ACL-Fund): Sammlungen müssen
+		// dieselbe Altersgrenze respektieren wie das normale Grid — sonst sieht
+		// ein eingeschränkter Account FSK-18-Filme über den Sammlungs-Umweg.
+		if !me.IsAdmin && me.MaxAgeRating != nil {
+			maxAgeRating = *me.MaxAgeRating
+		}
 	}
-	cs, err := s.Store.ListCollections(userID, isAdmin)
+	cs, err := s.Store.ListCollections(userID, isAdmin, maxAgeRating)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -44,7 +51,11 @@ func (s *Server) collectionItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "ungültige id")
 		return
 	}
-	parts, err := s.Store.GetCollectionParts(id, me.ID, me.IsAdmin)
+	var maxAgeRating int
+	if !me.IsAdmin && me.MaxAgeRating != nil {
+		maxAgeRating = *me.MaxAgeRating
+	}
+	parts, err := s.Store.GetCollectionParts(id, me.ID, me.IsAdmin, maxAgeRating)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -54,7 +65,7 @@ func (s *Server) collectionItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Fallback für alte Sammlungen, deren parts noch nicht gefetcht sind.
-	items, err := s.Store.ListItemsInCollection(id, me.ID, me.IsAdmin)
+	items, err := s.Store.ListItemsInCollection(id, me.ID, me.IsAdmin, maxAgeRating)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

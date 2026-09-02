@@ -15,11 +15,38 @@ import (
 // ListCollections) — ein einzelner Kandidat für Positionsfehler bei
 // wiederholt eingesetzten `?`-Platzhaltern statt mehrerer Kopien derselben
 // Handschrift-SQL.
-func aclLibraryClause(col string, userID int64, isAdmin bool) (string, []any) {
+func (s *Store) aclLibraryClause(col string, userID int64, isAdmin bool) (string, []any) {
 	if isAdmin {
 		return "1=1", nil
 	}
-	return col + " IN (SELECT library_id FROM user_library_access WHERE user_id = ?)", []any{userID}
+	exclSQL, exclArgs := s.forceAdminOnlyExclusionSQL(col)
+	args := []any{userID}
+	args = append(args, exclArgs...)
+	return "(" + col + " IN (SELECT library_id FROM user_library_access WHERE user_id = ?) AND " + exclSQL + ")", args
+}
+
+// itemVisibilityClause kombiniert die Library-ACL (`aclLibraryClause`) MIT der
+// FSK-Altersgrenze (`ItemFilter.MaxAgeRating`-Logik aus `ListItems`, hier
+// dupliziert statt geteilt, weil `ListItems`' Version fest an dessen eigene
+// Query-String-Struktur gebunden ist) — Sicherheitscheck 2026-09-02 nach dem
+// Sammlungen-ACL-Fund: FSK ist eine ZWEITE, unabhängige Einschränkung
+// (Kinder-/eingeschränkte Accounts), die list Bei reiner Library-ACL-Prüfung
+// übersehen worden wäre. `metaCol` ist die metadata_id-Spalte des Items im
+// jeweiligen Query-Kontext (i.d.R. "i.metadata_id").
+func (s *Store) itemVisibilityClause(libCol string, metaCol string, userID int64, isAdmin bool, maxAgeRating int) (string, []any) {
+	aclSQL, args := s.aclLibraryClause(libCol, userID, isAdmin)
+	if maxAgeRating <= 0 {
+		return aclSQL, args
+	}
+	ageSQL := `COALESCE(
+		NULLIF((SELECT CAST(age_rating AS INTEGER) FROM metadata WHERE id = ` + metaCol + ` AND age_rating <> ''), 0),
+		NULLIF((SELECT CAST(p.age_rating AS INTEGER) FROM metadata m2
+		          LEFT JOIN metadata p ON p.id = m2.parent_id
+		         WHERE m2.id = ` + metaCol + ` AND p.age_rating IS NOT NULL AND p.age_rating <> ''), 0),
+		0
+	) <= ?`
+	args = append(args, maxAgeRating)
+	return "(" + aclSQL + ") AND (" + ageSQL + ")", args
 }
 
 // Collection beschreibt eine TMDB-Sammlung (James Bond, Star Wars, …).
@@ -88,13 +115,14 @@ func (s *Store) SetMetadataCollection(metadataID, collectionID int64) error {
 // Bibliotheken (per `i.library_id IN (SELECT ... WHERE user_id = ?)`-Klausel
 // in jeder betroffenen Item-Query — hier UND in GetCollectionParts /
 // ListItemsInCollection).
-func (s *Store) ListCollections(userID int64, isAdmin bool) ([]Collection, error) {
+func (s *Store) ListCollections(userID int64, isAdmin bool, maxAgeRating int) ([]Collection, error) {
 	// Statt derselben Textklausel mehrfach zu wiederholen (fehleranfällig beim
 	// Abzählen der `?`-Platzhalter in der richtigen Reihenfolge — ist beim
 	// ersten Entwurf dieses Fixes tatsächlich passiert), wird die ACL-Prüfung
 	// EINMAL vorab in Go ausgewertet: entweder "keine Einschränkung" (Admin)
-	// oder eine konkrete Menge erlaubter Library-IDs (Non-Admin).
-	aclSQL, aclArgs := aclLibraryClause("i.library_id", userID, isAdmin)
+	// oder eine konkrete Menge erlaubter Library-IDs (Non-Admin). `maxAgeRating`
+	// (FSK-Fix, gleicher Tag) ist über denselben Helper mit reingefaltet.
+	aclSQL, aclArgs := s.itemVisibilityClause("i.library_id", "i.metadata_id", userID, isAdmin, maxAgeRating)
 	q := `
 		SELECT c.id, c.tmdb_id, c.name, COALESCE(c.poster_path,''),
 		       COALESCE(c.backdrop_path,''),
@@ -173,8 +201,8 @@ func (s *Store) ListCollections(userID int64, isAdmin bool) ([]Collection, error
 // Per-User-Zustand (watched/favorite) wird via JOIN auf user_item_state mitgegeben.
 // Wiederverwendet das bestehende ListItems-Schema über einen Wrapper.
 // ACL-Fix 2026-09-02 — siehe Kommentar bei ListCollections.
-func (s *Store) ListItemsInCollection(collectionID, userID int64, isAdmin bool) ([]any, error) {
-	aclSQL, aclArgs := aclLibraryClause("i.library_id", userID, isAdmin)
+func (s *Store) ListItemsInCollection(collectionID, userID int64, isAdmin bool, maxAgeRating int) ([]any, error) {
+	aclSQL, aclArgs := s.itemVisibilityClause("i.library_id", "i.metadata_id", userID, isAdmin, maxAgeRating)
 	args := []any{userID, collectionID}
 	args = append(args, aclArgs...)
 	rows, err := s.db.Query(`
@@ -358,8 +386,8 @@ type CollectionPartRow struct {
 // ein Part in einer für den User unzugänglichen Library soll wie ein
 // fehlender Part aussehen (owned:false), nicht die ganze Zeile verschwinden
 // lassen und damit verraten, dass der Film eigentlich vorhanden ist.
-func (s *Store) GetCollectionParts(collectionID, userID int64, isAdmin bool) ([]map[string]any, error) {
-	aclSQL, aclArgs := aclLibraryClause("i.library_id", userID, isAdmin)
+func (s *Store) GetCollectionParts(collectionID, userID int64, isAdmin bool, maxAgeRating int) ([]map[string]any, error) {
+	aclSQL, aclArgs := s.itemVisibilityClause("i.library_id", "i.metadata_id", userID, isAdmin, maxAgeRating)
 	args := []any{userID, userID}
 	args = append(args, aclArgs...)
 	args = append(args, collectionID)

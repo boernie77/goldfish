@@ -1098,6 +1098,26 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   vorhanden ist. Test: `internal/store/collections_acl_test.go`. Siehe
   [[feedback_user_isolation_before_deploy]] — wieder ein Fall von "neues
   Feature mit User-sichtbaren Daten hatte keine ACL-Prüfung".
+- **🔴 FSK-Fix 2026-09-02** (gleicher Tag, zweiter Fund beim Nachprüfen): die
+  Bibliotheks-ACL war jetzt korrekt, aber Sammlungen prüften die
+  FSK-Altersgrenze (`ItemFilter.MaxAgeRating`, sonst überall im Grid aktiv)
+  gar nicht — ein Kind-/eingeschränkter Account hätte einen FSK-18-Film über
+  den Sammlungs-Umweg trotzdem gesehen. Neuer gemeinsamer Helper
+  `Store.itemVisibilityClause` kombiniert Library-ACL UND FSK-Grenze für alle
+  drei Sammlungs-Queries. Test: `TestCollectionsAgeRating` in
+  `collections_acl_test.go`.
+- **⚠ Generisches Hardening (`internal/store/hardening.go`, 2026-09-02):**
+  optionale, rein per Env-Var (`GOLDFISH_FORCE_ADMIN_ONLY_LIBRARIES`,
+  kommagetrennte Bibliotheks-NAMEN) konfigurierte Sperre — für die dort
+  genannten Bibliotheken sehen NUR Admins etwas, egal welche
+  `user_library_access`-Zeilen für einen Non-Admin existieren oder später
+  gesetzt werden. Greift zentral in `UserHasLibraryAccess`,
+  `ListLibrariesForUser`, dem `ListItems`-ACL-Block UND den
+  Sammlungs-Queries (`aclLibraryClause`). Leer/unset ist ein reines No-op —
+  **welche Bibliotheken (falls überhaupt) das betrifft, ist bewusst NICHT
+  Teil dieses Repos** (nur als Laufzeit-Env-Var auf dem jeweiligen Server
+  gesetzt, siehe Portainer-Stack-Env). Test: `TestForceAdminOnlyLibraries`
+  in `hardening_test.go` (mit generischen Test-Bibliotheksnamen).
 - TMDB liefert bei Film-Details `belongs_to_collection` (James Bond, Star Wars, …).
 - Wird beim Enrichment automatisch in `collections` upsertet und via
   `metadata.collection_id` verknüpft.

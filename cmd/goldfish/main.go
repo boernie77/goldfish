@@ -48,6 +48,16 @@ func main() {
 	backfillIntroSkipDisableAllExceptChuckS2(db)
 	backfillOrphanedLibraryPaths(db)
 
+	// Generisches Hardening (siehe internal/store/hardening.go): optionale,
+	// rein per Env-Var konfigurierte Liste von Bibliotheks-NAMEN, die für
+	// JEDEN Non-Admin immer gesperrt bleiben — unabhängig davon, was in der
+	// Benutzerverwaltung eingestellt wird. Bewusst nicht in irgendeiner
+	// Konfigurationsdatei im Repo, nur als Laufzeit-Env-Var — leer/unset ist
+	// ein reines No-op.
+	if v := os.Getenv("GOLDFISH_FORCE_ADMIN_ONLY_LIBRARIES"); v != "" {
+		db.SetForceAdminOnlyLibraries(strings.Split(v, ","))
+	}
+
 	hw := playback.Detect()
 	// Settings-Override: User kann VAAPI/NVENC/Software erzwingen.
 	hwMode, _ := db.GetSetting("hwaccel_mode", "auto")

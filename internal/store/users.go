@@ -322,10 +322,16 @@ func (s *Store) UserHasExplicitLibraryACL(userID int64) (bool, error) {
 }
 
 // UserHasLibraryAccess: Admin sieht IMMER alles (siehe Kommentar bei
-// UserHasExplicitLibraryACL). Non-Admin → nur über ACL.
+// UserHasExplicitLibraryACL). Non-Admin → nur über ACL, ES SEI DENN die
+// Library steht in `forceAdminOnlyLibraries` (siehe hardening.go) — das
+// überstimmt jede ACL-Zeile, egal was in der Benutzerverwaltung eingestellt
+// wird.
 func (s *Store) UserHasLibraryAccess(userID, libID int64, isAdmin bool) (bool, error) {
 	if isAdmin {
 		return true, nil
+	}
+	if s.isForceAdminOnlyLibrary(libID) {
+		return false, nil
 	}
 	var n int
 	err := s.db.QueryRow(
@@ -500,13 +506,16 @@ func (s *Store) ListLibrariesForUser(userID int64, isAdmin bool) ([]model.Librar
 	if isAdmin {
 		return s.ListLibraries()
 	}
+	exclSQL, exclArgs := s.forceAdminOnlyExclusionSQL("l.id")
+	args := []any{userID}
+	args = append(args, exclArgs...)
 	rows, err := s.db.Query(`
 		SELECT l.id, l.name, l.path, l.kind, l.created_at
 		FROM libraries l
 		JOIN user_library_access a ON a.library_id = l.id
-		WHERE a.user_id = ?
+		WHERE a.user_id = ? AND `+exclSQL+`
 		ORDER BY l.name
-	`, userID)
+	`, args...)
 	if err != nil {
 		return nil, err
 	}
