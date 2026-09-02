@@ -30,17 +30,15 @@ COPY . .
 
 # Frontend-Assets lokal bereitstellen (statt CDN-Abhängigkeit).
 # Video.js 8 bringt eigene HLS-Unterstützung (VHS) mit — HLS.js nicht mehr nötig.
+# videojs-vtt-thumbnails wurde entfernt (2026-09-02, Lizenz-Check): totes Gewicht,
+# Trickplay-Hover ist ein eigenes Mini-Plugin inline in player.js (siehe CLAUDE.md),
+# das externe Plugin wurde nirgends mehr referenziert.
 ARG VIDEOJS_VERSION=8.17.3
-ARG VTT_THUMBS_VERSION=0.0.13
 RUN set -eux \
  && curl -fsSL "https://cdn.jsdelivr.net/npm/video.js@${VIDEOJS_VERSION}/dist/video.min.js" \
       -o /src/internal/webassets/web/video.min.js \
  && curl -fsSL "https://cdn.jsdelivr.net/npm/video.js@${VIDEOJS_VERSION}/dist/video-js.min.css" \
-      -o /src/internal/webassets/web/video-js.min.css \
- && curl -fsSL "https://cdn.jsdelivr.net/npm/videojs-vtt-thumbnails@${VTT_THUMBS_VERSION}/dist/videojs-vtt-thumbnails.js" \
-      -o /src/internal/webassets/web/videojs-vtt-thumbnails.js \
- && curl -fsSL "https://cdn.jsdelivr.net/npm/videojs-vtt-thumbnails@${VTT_THUMBS_VERSION}/dist/videojs-vtt-thumbnails.css" \
-      -o /src/internal/webassets/web/videojs-vtt-thumbnails.css
+      -o /src/internal/webassets/web/video-js.min.css
 
 # go mod tidy erzeugt go.sum und lädt Abhängigkeiten in einem Schritt
 RUN go mod tidy

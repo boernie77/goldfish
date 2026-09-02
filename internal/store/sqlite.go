@@ -17,6 +17,11 @@ import (
 // jedem ORDER BY nutzbar (Zahlen werden als ganze Zahlen verglichen,
 // case-insensitive). Wird nur einmal pro Prozess registriert; spaetere
 // Aufrufe von Open koennen kein Re-Register triggern.
+// ErrLastLibraryPath: eine Bibliothek muss immer mindestens einen Quellordner
+// behalten (siehe `DeleteLibraryPath`-Kommentar für den Bug, den diese Sperre
+// verhindert).
+var ErrLastLibraryPath = errors.New("letzter Pfad einer Bibliothek kann nicht entfernt werden")
+
 var registerNaturalOnce sync.Once
 
 func registerNaturalCollation() {
@@ -682,9 +687,109 @@ func (s *Store) AddLibraryPath(libraryID int64, path string) error {
 
 // DeleteLibraryPath entfernt einen Quellordner. Items aus diesem Pfad werden beim
 // nächsten Scan als "weg" erkannt und aus der DB entfernt.
+//
+// Realer Bug (2026-09-02, User-Report): `libraries.path` (die alte
+// Single-Path-Spalte von vor dem Multi-Path-Feature, UNIQUE constraint,
+// dient heute nur noch als Fallback für `scanner.go`/`admin_rename.go`,
+// falls `library_paths` mal leer sein sollte) wurde bei Entfernen NIE
+// nachgezogen. Entfernte man den ursprünglichen Erstellungs-Pfad einer
+// Library wieder, blieb er trotzdem in `libraries.path` UNIQUE-reserviert —
+// unsichtbar in der Ordner-Liste, aber ein Anlegen einer NEUEN Library mit
+// genau diesem Pfad schlug mit "UNIQUE constraint failed: libraries.path"
+// fehl. Zusätzlich gab es keine Sperre gegen das Entfernen des LETZTEN
+// verbleibenden Pfads — leer gewordene `library_paths` hätte den Scanner
+// (Zeile `if len(paths) == 0 { paths = []string{lib.Path} }`) STILLSCHWEIGEND
+// auf den (eigentlich entfernten) alten Pfad zurückfallen lassen. Fix: (1)
+// Entfernen des letzten Pfads wird abgelehnt, (2) `libraries.path` wird beim
+// Entfernen des aktuell dort hinterlegten Pfads auf einen verbleibenden
+// echten Pfad nachgezogen, damit die Spalte nie einen stillen Karteileichen-
+// Wert behält.
 func (s *Store) DeleteLibraryPath(libraryID int64, path string) error {
-	_, err := s.db.Exec(`DELETE FROM library_paths WHERE library_id = ? AND path = ?`, libraryID, path)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM library_paths WHERE library_id = ?`, libraryID).Scan(&count); err != nil {
+		return err
+	}
+	if count <= 1 {
+		return ErrLastLibraryPath
+	}
+
+	if _, err := tx.Exec(`DELETE FROM library_paths WHERE library_id = ? AND path = ?`, libraryID, path); err != nil {
+		return err
+	}
+
+	var currentPrimary string
+	if err := tx.QueryRow(`SELECT path FROM libraries WHERE id = ?`, libraryID).Scan(&currentPrimary); err != nil {
+		return err
+	}
+	if currentPrimary == path {
+		var replacement string
+		if err := tx.QueryRow(`SELECT path FROM library_paths WHERE library_id = ? ORDER BY path LIMIT 1`, libraryID).Scan(&replacement); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE libraries SET path = ? WHERE id = ?`, replacement, libraryID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// RepairOrphanedLibraryPaths behebt bereits VOR diesem Fix entstandene
+// Karteileichen in `libraries.path` (siehe Kommentar bei `DeleteLibraryPath`)
+// — für jede Library, deren `libraries.path` nicht mehr in `library_paths`
+// auftaucht, wird die Spalte auf einen tatsächlich noch existierenden Pfad
+// der Library gesetzt. Einmaliger Backfill, aufgerufen aus `main.go`.
+func (s *Store) RepairOrphanedLibraryPaths() (int, error) {
+	rows, err := s.db.Query(`
+		SELECT l.id, l.path
+		FROM libraries l
+		WHERE NOT EXISTS (
+			SELECT 1 FROM library_paths lp WHERE lp.library_id = l.id AND lp.path = l.path
+		)
+	`)
+	if err != nil {
+		return 0, err
+	}
+	type orphan struct {
+		id   int64
+		path string
+	}
+	var orphans []orphan
+	for rows.Next() {
+		var o orphan
+		if err := rows.Scan(&o.id, &o.path); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		orphans = append(orphans, o)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	_ = rows.Close()
+
+	fixed := 0
+	for _, o := range orphans {
+		var replacement string
+		err := s.db.QueryRow(`SELECT path FROM library_paths WHERE library_id = ? ORDER BY path LIMIT 1`, o.id).Scan(&replacement)
+		if err != nil {
+			// Kein einziger Pfad mehr vorhanden (sollte durch die neue Sperre in
+			// DeleteLibraryPath nicht mehr vorkommen, aber vor diesem Fix denkbar) —
+			// nichts zu reparieren, Library bleibt wie sie ist statt sie kaputt zu machen.
+			continue
+		}
+		if _, err := s.db.Exec(`UPDATE libraries SET path = ? WHERE id = ?`, replacement, o.id); err != nil {
+			return fixed, err
+		}
+		fixed++
+	}
+	return fixed, nil
 }
 
 // CountItems zählt Items einer Bibliothek. folder=="" → alle Items der Lib,

@@ -31,6 +31,10 @@ The Video.js NOTICE accompanying its distribution is preserved in its source
 bundle at `internal/webassets/web/video.min.js` (header comment) and
 `internal/webassets/web/video-js.min.css`.
 
+`videojs-vtt-thumbnails` was removed from the Dockerfile (2026-09-02) — it
+was fetched but never referenced by any served page (Trickplay hover is a
+custom inline plugin in `player.js`, see CLAUDE.md).
+
 ## Go modules (compiled into the binary)
 
 | Module | License |
@@ -51,6 +55,9 @@ bundle at `internal/webassets/web/video.min.js` (header comment) and
 | github.com/mattn/go-isatty | MIT |
 | github.com/ncruces/go-strftime | MIT |
 | github.com/hashicorp/golang-lru/v2 | MPL-2.0 |
+| github.com/coreos/go-oidc/v3 | Apache-2.0 |
+| github.com/go-jose/go-jose/v4 | Apache-2.0 |
+| golang.org/x/oauth2 | BSD-3-Clause |
 
 The `golang-lru` component is licensed under the Mozilla Public License 2.0
 (file-level copyleft). The unmodified source is distributed as part of the
@@ -69,11 +76,21 @@ under its own license. Redistribution must follow those licenses.
 - `intel-media-va-driver`, `i965-va-driver`, `libva*` — MIT / Apache-2.0
 - `vainfo` — MIT
 - `ca-certificates`, `tzdata` — Mozilla Public License / public domain
+- `libchromaprint-tools` (`fpcalc`, used by Intro-Erkennung) — LGPL-2.1+
+- `tesseract-ocr` + `tesseract-ocr-deu/-eng/-ita` (OCR-Untertitel) — Apache-2.0
+- `mkvtoolnix` (`mkvextract`, used internally by `pgsrip`) — **GPL-2.0+**
+- `pgsrip` (PyPI, PGS/VOBSUB → SRT via Tesseract) — MIT
+- `whisper.cpp` (built from source, `WHISPER_TAG` pinned in `Dockerfile`,
+  KI-Untertitel) — MIT, <https://github.com/ggerganov/whisper.cpp>
+- `libopenblas0`/`libopenblas-dev` (whisper.cpp's BLAS backend) — BSD-3-Clause
 
-When redistributing the Docker image, the GPL-2.0+ components in ffmpeg
-require that you either make the corresponding source available or link to
-a publicly accessible source location (e.g. Debian's package archive at
-<https://packages.debian.org/>).
+When redistributing the Docker image, the GPL-2.0+ components (ffmpeg's
+GPL-licensed encoders, `libx264`/`libx265`, `mkvtoolnix`) require that you
+either make the corresponding source available or link to a publicly
+accessible source location (e.g. Debian's package archive at
+<https://packages.debian.org/>). `fpcalc` (LGPL) is invoked as a separate
+process, not linked — mere aggregation, but the binary itself is still
+subject to LGPL-2.1 if redistributed as part of the image.
 
 ---
 

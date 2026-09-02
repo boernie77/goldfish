@@ -2,11 +2,13 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/boernie77/goldfish/internal/model"
+	"github.com/boernie77/goldfish/internal/store"
 )
 
 func (s *Server) listLibraries(w http.ResponseWriter, r *http.Request) {
@@ -149,6 +151,10 @@ func (s *Server) deleteLibraryPath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Store.DeleteLibraryPath(id, path); err != nil {
+		if errors.Is(err, store.ErrLastLibraryPath) {
+			writeError(w, 400, err.Error())
+			return
+		}
 		writeError(w, 500, err.Error())
 		return
 	}

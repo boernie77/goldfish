@@ -334,12 +334,42 @@ oben gelten weiterhin immer.
   im WKWebView hilft nur Bitwarden-Desktop mit globalem Autofill-Hotkey (⌘\) +
   Bedienungshilfen-Freigabe.
 - **Signierung + Version in `project.yml` verankert** (2026-08-28):
-  `DEVELOPMENT_TEAM: F95969PBFU` (persönliches Team) + `CFBundleVersion` in
+  `DEVELOPMENT_TEAM` (persönliches Team) + `CFBundleVersion` in
   `info.properties` (`xcodegen generate` setzte die plist-Datei sonst auf „1"
   zurück). `xcodebuild`-CLI kann mit der Free-Personal-Team-ID nicht
   auto-signieren → echt signierte Builds über Xcode (Run/Archive) oder manuell
   mit `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=<hash>`. Signierte 1.0-Kopie:
   `~/Desktop/Goldfish_1.0.app` (Build 170).
+  **⚠ Die Personal-Team-ID ist NICHT stabil über Mac-Wechsel/Neuinstallationen
+  hinweg** (2026-09-02 auf neuem Mac verifiziert): war `F95969PBFU` auf dem
+  alten Mac, danach fälschlich `YP6683AT3R` vermutet (das ist die ID aus
+  alten, auf dem neuen Mac wiederhergestellten Provisioning-Profilen anderer
+  Apps/der Lernapp — aber NICHT die ID, für die Xcode auf DIESEM Mac ein
+  Zertifikat erzeugt hatte), am Ende korrekt war `Y83997R5WL` (die ID des
+  frisch in Xcode → Settings → Accounts erzeugten „Apple Development"-
+  Zertifikats, per `security find-identity -v -p codesigning` verifizierbar).
+  **Bei „No Account for Team"/„No signing certificate found" nach
+  Mac-Wechsel: NICHT von alten Provisioning-Profilen/anderen Projekten auf
+  die Team-ID schließen** — stattdessen einmal ⌘R in der Xcode-GUI
+  (erzeugt das Zertifikat), danach `security find-identity -v -p
+  codesigning` und die dort angezeigte Team-ID in `DEVELOPMENT_TEAM`
+  eintragen.
+  **`com.goldfish.ios` war zusätzlich noch beim alten Team reserviert**
+  (App-IDs sind teamgebunden, ein neues Team kann sie nicht übernehmen) →
+  für Geräte-Tests auf `com.goldfish.iosdev` geändert (nur lokale
+  Bundle-ID, keine Store-Relevanz).
+  **`xcodebuild` von der Kommandozeile kann bei einem Free-Personal-Team
+  grundsätzlich NICHT signieren/auf einem echten Gerät laufen** — auch mit
+  `-allowProvisioningUpdates` nicht (kein OAuth-Zugriff außerhalb der
+  Xcode-GUI). Für Runs auf einem echten iPhone/iPad IMMER über die
+  Xcode-GUI (⌘R) gehen, nicht per CLI versuchen.
+  **iOS-Simulator-„Duplicate of `<UUID>`"-Hänger (siehe weiter unten) durch
+  Mac-Neustart am 2026-09-02 behoben** — GoldfishiOS baut seither auch im
+  Simulator sauber (BUILD SUCCEEDED, iPhone 17 Pro, iOS 26.5).
+  **Abmelden-Button im App-Header entfernt** (2026-09-02, `RootView.swift`,
+  gilt für Mac+iOS gemeinsam) — war doppelt zum bestehenden „Abmelden" im
+  Einstellungen-Tab (`SettingsView.swift` Account-Section), Username-Anzeige
+  im Header bleibt.
 - **SSO-Kontowechsel** (Build 171): der eingebettete Authentik-WebView
   (`OIDCLoginView`) hat einen persistenten `WKWebsiteDataStore` — beim erneuten
   „Mit SSO anmelden" wurde stillschweigend derselbe Authentik-User wieder
@@ -428,6 +458,71 @@ oben gelten weiterhin immer.
 
 ## Was die App NICHT hat
 - Kein Windows/Linux-Target (nur macOS + iOS).
+
+## Eigenes Passwort ändern + schlanke iPhone-App (Build 181, 2026-09-02)
+
+- **Passwort ändern:** `GoldfishClient.changePassword(oldPassword:newPassword:)`
+  (`PUT /api/auth/password`, gleicher Endpoint wie im Browser) + neuer
+  „Passwort ändern…"-Button in `SettingsView.swift`s Account-Section, öffnet
+  `ChangePasswordSheet` (zwei `SecureField`s, `canSave` ab 6 Zeichen neues
+  Passwort, grünes Erfolgs-Feedback, Server-Fehlertext inline rot). War
+  bisher komplett gefehlt — der Browser konnte es (`PUT /api/auth/password`
+  existiert dort schon lange), die App nicht.
+- **iOS als reiner Online-Player (User-Anfrage 2026-09-02):** GoldfishiOS
+  soll „grundsätzlich nur zum Abspielen der Videos aus den online
+  Bibliotheken" da sein + Downloads. Alles, was **lokale/externe
+  Bibliotheken** betrifft, ist in `SettingsView.swift` jetzt in
+  `#if os(macOS) … #endif` gewrappt und existiert im iOS-Build gar nicht
+  mehr: „Lokale Bibliotheken" (hinzufügen/umbenennen/löschen/rescannen),
+  „Lokale Wiedergabe"-Puffer-Regler, „Bibliotheken zusammenlegen",
+  „Duplikate finden". **Downloads sind davon NICHT betroffen** — die laufen
+  über einen komplett separaten Pfad (`PlayerView` + `downloads.localFileURL`),
+  der `LocalPlaybackSettings.bufferSeconds` nie referenziert (das nutzt
+  ausschließlich `LocalPlayerView.swift`, verifiziert per Grep vor dem
+  Trimmen). `LibrariesView.swift`/`RootView.swift` brauchten keine Änderung —
+  die lokalen Bibliotheks-Kacheln verschwinden von selbst, sobald
+  `localLibrary.libraries` durch den fehlenden Einstiegspunkt leer bleibt.
+  Filter/Sortierung/Suche bleiben zwischen Mac und iOS identisch (gemeinsamer
+  Code, nicht angefasst — User-Vorgabe „funktionsmäßig an der Apple App
+  orientieren").
+- **Build-Nummer:** `CFBundleVersion` liegt seit 2026-08-28 direkt in
+  `project.yml` (beide Targets), nicht mehr nur in den Info-plists — dort auf
+  **181** angehoben, danach `xcodegen generate` laufen lassen (Entitlements
+  bleiben dabei `<dict/>`, kein Reset beobachtet dieses Mal).
+- **`GoldfishMac` baut sauber** (`xcodebuild … CODE_SIGN_STYLE=Manual
+  CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`).
+  `GoldfishiOS` konnte in dieser Session **nicht** per CLI verifiziert werden
+  (siehe „⚠ iOS-Simulator-Runtime" unten) — steht noch aus.
+
+### ⚠ iOS-Simulator-Runtime ließ sich auf diesem Mac nicht sauber installieren
+
+- Dieser Mac hatte vor dieser Session **nur das iOS-SDK, aber keine
+  heruntergeladene Simulator-Runtime** (`xcrun simctl list runtimes` leer,
+  kein `iPhoneSimulator`-Image unter `/Library/Developer/CoreSimulator/`).
+  Dadurch schlug jeder `GoldfishiOS`-Build mit `No available simulator
+  runtimes for platform iphonesimulator` fehl — unabhängig vom App-Code.
+- `xcodebuild -downloadPlatform iOS` lädt zwar 8,5 GB runter und meldet am
+  Ende `Done.`, **persistiert das Runtime-Image aber nicht** — Ursache
+  vermutlich fehlende Root-Rechte für den finalen Cryptex-Mount unter
+  `/Library/Developer/CoreSimulator/` aus dem nicht-interaktiven
+  Terminal-Tool heraus (dieses Verzeichnis ist `root:wheel`, nicht
+  admin-group-writable; die GUI löst das über einen Autorisierungs-Dialog,
+  den es aus einem Bash-Tool heraus nicht gibt). Ein `killall
+  CoreSimulatorService` macht es NICHT besser — danach verschwindet sogar
+  der kurzzeitig sichtbare Eintrag wieder.
+- Im Xcode-GUI-Downloads-Fenster (⌘, → Components) zeigte der iOS-26.5-
+  Simulator-Download wiederholt **„Failed — Duplicate of <UUID>"** — auch
+  nach Klick auf ↺ (Retry) erneut derselbe Fehler. Ein tvOS-26.5-Download
+  im selben Fenster lief dagegen einwandfrei durch, was auf einen
+  **iOS-spezifischen hängengebliebenen Download-Session-Eintrag** in Xcodes
+  eigener (nicht im üblichen `~/Library/Caches/com.apple.dt.Xcode`
+  liegenden) Download-Verwaltung hindeutet, nicht auf einen App/Code-Fehler.
+  Lokale Cache-Verzeichnisse wurden geprüft und waren leer/nicht vorhanden —
+  der Konflikt sitzt serverseitig/in einem laufenden Prozess-Handle.
+  **Nächster Versuch: Mac-Neustart** (räumt hängende CoreSimulator-/
+  Downloadd-Prozesshandles zuverlässiger auf als einzelne `killall`-Befehle),
+  danach den iOS-26.5-Simulator nochmal über Xcode → Settings → Components
+  installieren und `GoldfishiOS` bauen.
 
 ## Lokale Bibliotheken — Player/Formatanpassung/Puffer (seit 2026-08-24, Stand Build 0153)
 

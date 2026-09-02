@@ -46,6 +46,7 @@ func main() {
 	backfillEpisodeRanges(db)
 	backfillIntroSkipOutliers(db)
 	backfillIntroSkipDisableAllExceptChuckS2(db)
+	backfillOrphanedLibraryPaths(db)
 
 	hw := playback.Detect()
 	// Settings-Override: User kann VAAPI/NVENC/Software erzwingen.
@@ -203,6 +204,29 @@ func backfillEpisodeRanges(db *store.Store) {
 		log.Printf("[backfill] %d Doppelfolgen-Items mit episode_end befüllt (von %d Kandidaten)", updated, len(rows))
 	} else {
 		log.Printf("[backfill] %d Episoden-Kandidaten geprüft, keine Doppelfolgen erkannt", len(rows))
+	}
+}
+
+// backfillOrphanedLibraryPaths läuft einmal beim Container-Start (Fix
+// 2026-09-02, User-Report "UNIQUE constraint failed: libraries.path" beim
+// Anlegen einer neuen Bibliothek) und repariert Libraries, deren alte
+// Single-Path-Spalte `libraries.path` noch einen bereits über "Entfernen"
+// gelöschten Pfad trägt — siehe Kommentar bei `Store.DeleteLibraryPath`.
+// Ohne diesen Backfill bliebe der Karteileichen-Pfad UNIQUE-blockiert und
+// könnte nie wieder für eine neue Bibliothek verwendet werden.
+func backfillOrphanedLibraryPaths(db *store.Store) {
+	done, _ := db.GetSetting("library_path_repair_v1", "")
+	if done == "1" {
+		return
+	}
+	fixed, err := db.RepairOrphanedLibraryPaths()
+	if err != nil {
+		log.Printf("[backfill] library-path-repair: %v", err)
+		return
+	}
+	_ = db.SetSetting("library_path_repair_v1", "1")
+	if fixed > 0 {
+		log.Printf("[backfill] %d Bibliothek(en) mit verwaistem Pfad repariert", fixed)
 	}
 }
 
