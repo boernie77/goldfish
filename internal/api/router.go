@@ -29,9 +29,9 @@ type Server struct {
 	Whisper   *whisper.Worker
 	IntroSkip *introskip.Worker
 	OCRSub    *ocrsub.Worker
-	SubsDir   string    // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
-	ConfigDir string    // z.B. /config — Basis für alle persistenten Daten
-	PosterDir string    // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
+	SubsDir   string // z.B. /config/subs — Cache für extrahierte Untertitel-VTTs
+	ConfigDir string // z.B. /config — Basis für alle persistenten Daten
+	PosterDir string // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
 	WebFS     fs.FS
 	OIDC      *OIDCRuntime // optional, nil/disabled wenn OIDC_*-Env nicht gesetzt
 	bgCtx     context.Context
@@ -75,6 +75,7 @@ func (s *Server) Router() http.Handler {
 		r.Put("/users/{id}/password", requireAdmin(s.resetUserPassword))
 		r.Put("/users/{id}/admin", requireAdmin(s.setUserAdmin))
 		r.Put("/users/{id}/age-rating", requireAdmin(s.setUserAgeRating))
+		r.Put("/users/{id}/can-download", requireAdmin(s.setUserCanDownload))
 		r.Get("/users/{id}/libraries", requireAdmin(s.getUserLibraries))
 		r.Put("/users/{id}/libraries", requireAdmin(s.setUserLibraries))
 
@@ -119,7 +120,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/download/{id}", s.downloadItem)
 		r.Get("/download/{id}/compat-status", s.downloadCompatStatus)
 		r.Put("/items/{id}/watched", s.setWatched)
-		r.Put("/items/{id}/confirm", s.confirmItemMetadata)
+		r.Put("/items/{id}/confirm", requireAdmin(s.confirmItemMetadata))
 		r.Post("/items/{id}/write-nfo", requireAdmin(s.writeItemNFO))
 		r.Post("/items/write-all-nfos", requireAdmin(s.writeAllConfirmedNFOs))
 		// Auto-Rename: Preview ist lesend (nicht-admin OK), die schreibenden
@@ -319,7 +320,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.0.36"
+const appVersion = "1.0.37"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

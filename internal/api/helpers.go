@@ -73,6 +73,20 @@ func (s *Server) requireAgeAllowed(w http.ResponseWriter, r *http.Request, itemM
 	return true
 }
 
+// requireDownloadAllowed: 403 wenn der User Downloads nicht erlaubt hat.
+// Admins ignorieren den Wert (siehe model.User.CanDownload-Kommentar).
+func (s *Server) requireDownloadAllowed(w http.ResponseWriter, r *http.Request) bool {
+	me := currentUser(r)
+	if me == nil {
+		return true
+	}
+	if me.IsAdmin || me.CanDownload {
+		return true
+	}
+	writeError(w, 403, "Downloads sind für dieses Konto nicht erlaubt")
+	return false
+}
+
 // isAgeAllowedForUser ist der reine (writer-lose) Kern von requireAgeAllowed —
 // wiederverwendet für die Gesehen-Sync-Propagation (internal/api/watch_links.go),
 // wo kein http.ResponseWriter zur Hand ist, sondern nur "darf der Partner

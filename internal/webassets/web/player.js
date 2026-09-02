@@ -372,10 +372,18 @@ async function openDetail(item) {
   wireDetailAVSelects(item);
   if (typeof initSubGenBtn === "function") initSubGenBtn(item);
   const itemLib = state.libraries.find(l => l.id == item.libraryId);
-  $("#detailMatch").style.display = (itemLib && itemLib.kind === "private") ? "none" : "";
+  const isAdminUser = !!(state.me && state.me.isAdmin);
+  // Download-Erlaubnis ist pro User in der Benutzerverwaltung einstellbar
+  // (User-Vorgabe 2026-09-02). Server lehnt ohnehin mit 403 ab — hier nur
+  // UI-Komfort, damit der Button gar nicht erst zum Klicken einlädt.
+  $("#detailDownload").style.display = (isAdminUser || (state.me && state.me.canDownload !== false)) ? "" : "none";
+  // Manuell zuordnen + Zuordnung bestätigen sind Admin-Funktionen (User-
+  // Vorgabe 2026-09-02) — vorher fehlte hier die isAdmin-Prüfung komplett,
+  // jeder eingeloggte User konnte TMDB-Zuordnungen manuell ändern/bestätigen.
+  $("#detailMatch").style.display = (isAdminUser && !(itemLib && itemLib.kind === "private")) ? "" : "none";
   // Confirm-Button nur sinnvoll bei TMDB-matchen Items (nicht private, nicht
   // unmatched — sonst gibt's nichts zu bestätigen).
-  $("#detailConfirm").style.display = ((itemLib && itemLib.kind === "private") || !item.metadataId) ? "none" : "";
+  $("#detailConfirm").style.display = (isAdminUser && !(itemLib && itemLib.kind === "private") && item.metadataId) ? "" : "none";
   // Refresh-Button: nur sinnvoll wenn TMDB-Zuordnung existiert (Admin-only)
   $("#detailRefreshMeta").style.display = ((state.me && state.me.isAdmin) && item.metadataId && !(itemLib && itemLib.kind === "private")) ? "" : "none";
   // Delete nur für Admins

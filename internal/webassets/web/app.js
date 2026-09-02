@@ -1582,7 +1582,7 @@ async function checkAuth() {
       location.href = "/login.html";
       return false;
     }
-    state.me = { username: d.username, isAdmin: d.isAdmin };
+    state.me = { username: d.username, isAdmin: d.isAdmin, canDownload: d.canDownload !== false };
     return true;
   } catch {
     location.href = "/login.html";
@@ -1592,6 +1592,12 @@ async function checkAuth() {
 
 (async function boot() {
   if (!await checkAuth()) return;
+  // Bulk-Download-Button: Erlaubnis ändert sich waehrend einer Session nicht,
+  // daher einmalig beim Start ausblenden statt bei jedem Bulk-Bar-Render neu
+  // zu pruefen (User-Vorgabe 2026-09-02: Download ist pro User steuerbar).
+  if (!state.me.isAdmin && state.me.canDownload === false) {
+    $("#bulkDownload").classList.add("hidden");
+  }
   try { state.flatView = localStorage.getItem("flatView") === "1"; } catch {}
   try {
     const raw = localStorage.getItem("shuffleFolders");

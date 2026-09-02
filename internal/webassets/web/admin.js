@@ -112,6 +112,12 @@ function renderUserCard(u) {
         <label>Bibliotheken</label>
         <button type="button" class="user-btn user-acl-btn">🗂 Verwalten</button>
       </div>
+      <div class="user-field">
+        <label class="switch-row" style="gap:8px">
+          <span>⬇ Downloads erlauben</span>
+          <span class="switch"><input type="checkbox" class="user-download-toggle" /><span class="slider"></span></span>
+        </label>
+      </div>
       <div class="user-field user-actions">
         <label>Aktionen</label>
         <div class="user-action-row">
@@ -144,6 +150,20 @@ function renderUserCard(u) {
     }
   });
   card.querySelector(".user-acl-btn").addEventListener("click", () => openUserAcl(u));
+  const dlToggle = card.querySelector(".user-download-toggle");
+  dlToggle.checked = u.canDownload !== false;
+  dlToggle.addEventListener("change", async () => {
+    try {
+      await api(`/api/users/${u.id}/can-download`, {
+        method: "PUT",
+        body: JSON.stringify({ canDownload: dlToggle.checked }),
+      });
+      showToast(`${u.username}: Downloads ${dlToggle.checked ? "erlaubt" : "gesperrt"}`, { kind: "success" });
+    } catch (e) {
+      appAlert(e.message);
+      dlToggle.checked = !dlToggle.checked;
+    }
+  });
   card.querySelector(".user-pw-btn").addEventListener("click", async () => {
     const np = await appPrompt(`Neues Passwort für ${u.username} (min. 6 Zeichen):`);
     if (!np || np.length < 6) return;

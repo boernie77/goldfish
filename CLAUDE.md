@@ -866,6 +866,41 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Non-Admins per `renderUserMenu()` (admin.js) ausgeblendet. Drawer-Titel
   wechselt „⚙ Menü" (User) / „⚙ Administration" (Admin).
 - Watched + Favorite sind **pro User** (`user_item_state`), nicht pro Item.
+- **🔴 FSK-Altersfreigabe griff bei KEINER eingeloggten Session (Bug,
+  gefixt 2026-09-02):** `Store.GetSession` — die Query, die `currentUser(r)`
+  bei JEDEM authentifizierten Request befüllt — hat `max_age_rating` schlicht
+  NICHT mitgeladen. Jeder `me.MaxAgeRating`-Check (`requireAgeAllowed`,
+  `ListItems`-Filter, Collections-ACL) sah dadurch IMMER `nil`, unabhängig
+  vom tatsächlichen DB-Wert — eine für einen Kinder-Account gesetzte FSK-16-
+  Grenze hatte de facto NIE eine Wirkung. Nur der einmalige Login-Query
+  (`GetUserByName`) hatte das Feld korrekt gesetzt, wurde aber danach nie
+  wieder gelesen (Session-Cookie trägt nur den Token, nicht den User selbst).
+  Fix: `GetSession` lädt jetzt `max_age_rating` (und `can_download`, s.u.)
+  mit. Test: `internal/store/users_test.go
+  TestGetSessionCarriesMaxAgeRatingAndCanDownload`. **Bei jeder künftigen
+  Änderung an der `users`-Tabelle/`model.User`: prüfen, ob `GetSession`
+  (und nicht nur `GetUserByName`/`GetUser`) das neue Feld auch mitlädt** —
+  das ist der eigentliche Angriffspunkt für `currentUser(r)`.
+- **⬇ Downloads pro User steuerbar (seit 2026-09-02):** `users.can_download`
+  (Default 1 = erlaubt). Admin togglet es in der Benutzerverwaltung
+  (`PUT /api/users/{id}/can-download`, `Store.SetUserCanDownload`). Admins
+  ignorieren den Wert (gleiche Konvention wie `MaxAgeRating`). Durchsetzung
+  serverseitig in `downloadItem` (`internal/api/delete_download.go`,
+  `requireDownloadAllowed`-Helper in `helpers.go`) — 403 bei `can_download=0`
+  und Nicht-Admin. Frontend blendet `#detailDownload`/`#bulkDownload` bei
+  fehlender Erlaubnis zusätzlich aus (reiner UI-Komfort, kein Ersatz für die
+  Server-Prüfung). `GET /api/auth/status` liefert `canDownload` mit, damit
+  `state.me.canDownload` im Client verfügbar ist.
+- **🔴 „Manuell zuordnen" (🔍) + „Zuordnung bestätigen" (✅) waren KEINE
+  Admin-Funktionen (Bug, gefixt 2026-09-02):** `player.js` zeigte beide
+  Buttons im Detail-Dialog für JEDEN eingeloggten User (nur nach Library-Kind
+  gefiltert, nicht nach `state.me.isAdmin`). Serverseitig war
+  `POST /items/{id}/metadata` bereits korrekt `requireAdmin`-geschützt (ein
+  Klick eines Non-Admins wäre also nur mit 403 gescheitert), aber
+  `PUT /items/{id}/confirm` (Bestätigen) hatte GAR KEINEN Admin-Schutz — jeder
+  eingeloggte User konnte `metadata_confirmed` direkt per API togglen. Fix:
+  Route jetzt `requireAdmin(s.confirmItemMetadata)`; beide Buttons in
+  `player.js` prüfen jetzt zusätzlich `state.me.isAdmin`.
 
 ### Trickplay (Hover-Vorschau)
 - Background-Worker erzeugt Sprite-JPGs + WebVTT (10 s-Intervalle, konfigurierbar) pro Item.

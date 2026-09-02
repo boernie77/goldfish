@@ -64,7 +64,9 @@ func (s *Server) deleteItem(w http.ResponseWriter, r *http.Request) {
 }
 
 // downloadItem serviert eine Videodatei als Download (Content-Disposition: attachment).
-// Alle authentifizierten User mit Library-ACL dürfen herunterladen.
+// Authentifizierte User mit Library-ACL + Alterserlaubnis dürfen herunterladen —
+// zusätzlich seit 2026-09-02 nur, wenn der Account das per Benutzerverwaltung
+// zugestandene "Downloads erlauben" nicht deaktiviert hat (Admins ausgenommen).
 func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")
 	if err != nil {
@@ -84,6 +86,9 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.requireAgeAllowed(w, r, it.MetadataID) {
+		return
+	}
+	if !s.requireDownloadAllowed(w, r) {
 		return
 	}
 

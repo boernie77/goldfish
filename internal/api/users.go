@@ -163,6 +163,37 @@ func (s *Server) setUserAgeRating(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// setUserCanDownload erlaubt/verbietet Datei-Downloads für einen User.
+// Body: `{"canDownload": true|false}`. Admins ignorieren den Wert (siehe
+// requireDownloadAllowed in delete_download.go).
+func (s *Server) setUserCanDownload(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		CanDownload bool `json:"canDownload"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetUserCanDownload(id, body.CanDownload); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if me := currentUser(r); me != nil {
+		target, _ := s.Store.GetUser(id)
+		name := ""
+		if target != nil {
+			name = target.Username
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_can_download_toggle", fmt.Sprintf("%q → Downloads erlaubt: %v", name, body.CanDownload))
+	}
+	w.WriteHeader(204)
+}
+
 // getUserLibraries gibt die ACL-Liste zurück.
 func (s *Server) getUserLibraries(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")

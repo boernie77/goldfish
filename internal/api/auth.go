@@ -127,10 +127,11 @@ func requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 // --- Handler ---
 
 type authStatusResponse struct {
-	Setup         bool   `json:"setup"` // wenn true → noch kein User vorhanden
-	LoggedIn      bool   `json:"loggedIn"`
-	Username      string `json:"username,omitempty"`
-	IsAdmin       bool   `json:"isAdmin"`
+	Setup       bool   `json:"setup"` // wenn true → noch kein User vorhanden
+	LoggedIn    bool   `json:"loggedIn"`
+	Username    string `json:"username,omitempty"`
+	IsAdmin     bool   `json:"isAdmin"`
+	CanDownload bool   `json:"canDownload"`
 }
 
 func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +145,7 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 		resp.LoggedIn = true
 		resp.Username = u.Username
 		resp.IsAdmin = u.IsAdmin
+		resp.CanDownload = u.IsAdmin || u.CanDownload
 	}
 	writeJSON(w, 200, resp)
 }

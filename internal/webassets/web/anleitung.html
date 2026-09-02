@@ -118,8 +118,9 @@ body { display: flex; justify-content: center; padding: 24px; }
   </div>
   <p>Ein Klick auf eine Kachel öffnet den <strong>Detail-Dialog</strong> mit Beschreibung,
   Besetzung, Bewertung und den Aktions-Knöpfen „Abspielen", „Als gesehen markieren",
-  „♡ Favorit", „Zu Playlist hinzufügen", „Download" — sowie, nur für den
-  Administrator, „Löschen" und „Manuell zuordnen" (falls Goldfish den
+  „♡ Favorit", „Zu Playlist hinzufügen" und — sofern für das eigene Konto erlaubt
+  (siehe „Benutzer" weiter unten) — „Download". Nur für den Administrator sichtbar:
+  „Löschen", „🔍 Manuell zuordnen" und „✅ Zuordnung bestätigen" (falls Goldfish den
   falschen Film/die falsche Serie zugeordnet hat).</p>
 
   <h2 id="topbar">Die Werkzeugleiste oben (Suche, Sortierung, Filter, Buttons)</h2>
@@ -371,7 +372,10 @@ body { display: flex; justify-content: center; padding: 24px; }
     private Bibliothek nur für Erwachsene ausblenden). Zusätzlich gibt es eine
     <strong>Altersfreigabe-Grenze (FSK)</strong> pro Benutzer — damit werden Filme/Serien
     oberhalb der eingestellten Altersfreigabe komplett unsichtbar für dieses Konto, auch
-    innerhalb einer ansonsten freigegebenen Bibliothek.
+    innerhalb einer ansonsten freigegebenen Bibliothek. Der Schalter
+    <strong>„⬇ Downloads erlauben"</strong> steuert unabhängig davon, ob dieser Benutzer
+    Dateien überhaupt herunterladen darf — steht er aus, verschwindet der Download-Knopf
+    für dieses Konto sowohl im Detail-Dialog als auch in der Mehrfachauswahl.
   </p>
 
   <h3 id="menu-autoscan">🕐 Auto-Scan (Administrator)</h3>

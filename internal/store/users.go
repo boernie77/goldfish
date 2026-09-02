@@ -21,7 +21,7 @@ func (s *Store) CountUsers() (int, error) {
 
 func (s *Store) ListUsers() ([]model.User, error) {
 	rows, err := s.db.Query(`
-		SELECT id, username, is_admin, max_age_rating, created_at
+		SELECT id, username, is_admin, max_age_rating, can_download, created_at
 		FROM users ORDER BY username COLLATE NOCASE
 	`)
 	if err != nil {
@@ -31,12 +31,13 @@ func (s *Store) ListUsers() ([]model.User, error) {
 	out := []model.User{}
 	for rows.Next() {
 		var u model.User
-		var isAdmin int
+		var isAdmin, canDownload int
 		var maxAge sql.NullInt64
-		if err := rows.Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &canDownload, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		u.IsAdmin = isAdmin == 1
+		u.CanDownload = canDownload == 1
 		if maxAge.Valid {
 			v := int(maxAge.Int64)
 			u.MaxAgeRating = &v
@@ -48,11 +49,11 @@ func (s *Store) ListUsers() ([]model.User, error) {
 
 func (s *Store) GetUser(id int64) (*model.User, error) {
 	var u model.User
-	var isAdmin int
+	var isAdmin, canDownload int
 	var maxAge sql.NullInt64
 	err := s.db.QueryRow(
-		`SELECT id, username, is_admin, max_age_rating, created_at FROM users WHERE id = ?`, id,
-	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt)
+		`SELECT id, username, is_admin, max_age_rating, can_download, created_at FROM users WHERE id = ?`, id,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &canDownload, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -60,6 +61,7 @@ func (s *Store) GetUser(id int64) (*model.User, error) {
 		return nil, err
 	}
 	u.IsAdmin = isAdmin == 1
+	u.CanDownload = canDownload == 1
 	if maxAge.Valid {
 		v := int(maxAge.Int64)
 		u.MaxAgeRating = &v
@@ -69,13 +71,13 @@ func (s *Store) GetUser(id int64) (*model.User, error) {
 
 func (s *Store) GetUserByName(username string) (*model.User, string, error) {
 	var u model.User
-	var isAdmin int
+	var isAdmin, canDownload int
 	var maxAge sql.NullInt64
 	var hash string
 	err := s.db.QueryRow(
-		`SELECT id, username, is_admin, max_age_rating, created_at, password_hash FROM users WHERE username = ?`,
+		`SELECT id, username, is_admin, max_age_rating, can_download, created_at, password_hash FROM users WHERE username = ?`,
 		username,
-	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt, &hash)
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &canDownload, &u.CreatedAt, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", nil
 	}
@@ -83,6 +85,7 @@ func (s *Store) GetUserByName(username string) (*model.User, string, error) {
 		return nil, "", err
 	}
 	u.IsAdmin = isAdmin == 1
+	u.CanDownload = canDownload == 1
 	if maxAge.Valid {
 		v := int(maxAge.Int64)
 		u.MaxAgeRating = &v
@@ -97,6 +100,18 @@ func (s *Store) SetUserMaxAgeRating(userID int64, max *int) error {
 		return err
 	}
 	_, err := s.db.Exec(`UPDATE users SET max_age_rating = ? WHERE id = ?`, *max, userID)
+	return err
+}
+
+// SetUserCanDownload erlaubt/verbietet Datei-Downloads für diesen User
+// (Detail-Dialog + Bulk-Download). Admins ignorieren den Wert (siehe
+// requireDownloadAllowed in internal/api).
+func (s *Store) SetUserCanDownload(userID int64, allowed bool) error {
+	v := 0
+	if allowed {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE users SET can_download = ? WHERE id = ?`, v, userID)
 	return err
 }
 
@@ -150,11 +165,11 @@ func VerifyPassword(hash, password string) bool {
 // Liefert (nil, nil) wenn keiner verknüpft ist.
 func (s *Store) GetUserByOIDCSubject(sub string) (*model.User, error) {
 	var u model.User
-	var isAdmin int
+	var isAdmin, canDownload int
 	var maxAge sql.NullInt64
 	err := s.db.QueryRow(
-		`SELECT id, username, is_admin, max_age_rating, created_at FROM users WHERE oidc_subject = ?`, sub,
-	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt)
+		`SELECT id, username, is_admin, max_age_rating, can_download, created_at FROM users WHERE oidc_subject = ?`, sub,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &canDownload, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -162,6 +177,7 @@ func (s *Store) GetUserByOIDCSubject(sub string) (*model.User, error) {
 		return nil, err
 	}
 	u.IsAdmin = isAdmin == 1
+	u.CanDownload = canDownload == 1
 	if maxAge.Valid {
 		v := int(maxAge.Int64)
 		u.MaxAgeRating = &v
@@ -173,11 +189,11 @@ func (s *Store) GetUserByOIDCSubject(sub string) (*model.User, error) {
 // als Fallback genutzt, wenn noch keine Verknüpfung existiert.
 func (s *Store) GetUserByNameCI(username string) (*model.User, error) {
 	var u model.User
-	var isAdmin int
+	var isAdmin, canDownload int
 	var maxAge sql.NullInt64
 	err := s.db.QueryRow(
-		`SELECT id, username, is_admin, max_age_rating, created_at FROM users WHERE username = ? COLLATE NOCASE`, username,
-	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &u.CreatedAt)
+		`SELECT id, username, is_admin, max_age_rating, can_download, created_at FROM users WHERE username = ? COLLATE NOCASE`, username,
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &canDownload, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -185,6 +201,7 @@ func (s *Store) GetUserByNameCI(username string) (*model.User, error) {
 		return nil, err
 	}
 	u.IsAdmin = isAdmin == 1
+	u.CanDownload = canDownload == 1
 	if maxAge.Valid {
 		v := int(maxAge.Int64)
 		u.MaxAgeRating = &v
@@ -230,13 +247,22 @@ func (s *Store) GetSession(token string) (*model.User, error) {
 		return nil, nil
 	}
 	var u model.User
-	var isAdmin int
+	var isAdmin, canDownload int
+	var maxAge sql.NullInt64
 	var expires time.Time
+	// Bugfix 2026-09-02: diese Query hat vorher max_age_rating GAR NICHT
+	// mitgeladen — jeder per currentUser(r) geladene User hatte dadurch
+	// IMMER MaxAgeRating==nil, egal was in der DB stand. Alle FSK-Checks
+	// (requireAgeAllowed, ListItems-Filter, Collections) hängen an genau
+	// diesem Feld — die Altersfreigabe-Sperre griff dadurch bei KEINER
+	// eingeloggten Session, sie wurde nur beim allerersten Login-Query
+	// (GetUserByName, dort korrekt) kurz korrekt gesetzt und danach nie
+	// wieder gelesen.
 	err := s.db.QueryRow(`
-		SELECT u.id, u.username, u.is_admin, u.created_at, s.expires_at
+		SELECT u.id, u.username, u.is_admin, u.max_age_rating, u.can_download, u.created_at, s.expires_at
 		FROM sessions s JOIN users u ON u.id = s.user_id
 		WHERE s.token = ?`, token,
-	).Scan(&u.ID, &u.Username, &isAdmin, &u.CreatedAt, &expires)
+	).Scan(&u.ID, &u.Username, &isAdmin, &maxAge, &canDownload, &u.CreatedAt, &expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -248,6 +274,11 @@ func (s *Store) GetSession(token string) (*model.User, error) {
 		return nil, nil
 	}
 	u.IsAdmin = isAdmin == 1
+	u.CanDownload = canDownload == 1
+	if maxAge.Valid {
+		v := int(maxAge.Int64)
+		u.MaxAgeRating = &v
+	}
 	return &u, nil
 }
 

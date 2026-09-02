@@ -266,6 +266,39 @@
   exposed. UI-Code MUSS `observeLibrariesForUser` nutzen. Bei jedem
   weiteren Schema-Bump (v5, v6 …) NICHT vergessen LOCAL_MIGRATION_x_y in
   AppModule.provideLocalAppDatabase.addMigrations(...) mit zu listen.
+- **⚠ REGRESSION + Re-Fix (2026-09-02):** der obige Fix wurde in einer
+  spaeteren Session zweimal wieder aufgeweicht, OHNE dass dieser Eintrag
+  aktualisiert wurde — das hat den Leak wieder scharf gemacht (User-Report:
+  "Börnie sieht die lokalen Bibliotheken von Christian"):
+  1. `HomeViewModel.kt` nutzt seit einem authStatus-Timing-Fix (Admin wurde
+     durch `flatMapLatest(authStatus)` in Edge-Cases ausgesperrt) wieder
+     das ungefilterte `observeLibraries()` + einen CLIENT-SEITIGEN Filter
+     — der aber `ownerUsername.isNullOrBlank()` als "gehoert mir" fuer
+     JEDEN User durchliess statt nur fuer den rechtmaessigen Owner.
+  2. `claimUnownedFor` (der hier oben beschriebene Auto-Migration-Claim)
+     wurde in `LocalLibrariesViewModel.kt` komplett entfernt (eigener,
+     unabhaengiger Bugfix: "hat Libs an den falschen User zugeordnet wenn
+     der Familien-User zuerst eingeloggt war") — aber NIRGENDS sonst neu
+     aufgerufen. Damit blieben NULL-Owner-Libs fuer immer NULL, UND
+     HomeViewModel zeigte sie deshalb dauerhaft JEDEM User.
+  3. `LocalLibraryViewModel.load()`s "Defense-in-depth Owner-Check" aus
+     Punkt 1 des Fixes oben existiert im aktuellen Code NICHT — dort steht
+     ein expliziter Kommentar, dass der Check bewusst weggelassen wurde
+     ("Admin sperrt sich aus"-Sorge), im Vertrauen darauf, dass der Aufrufer
+     (Home/Settings) schon nur erlaubte IDs uebergibt. Das war also die
+     EINZIGE Schutzschicht — und genau die war in Punkt 1 kaputt.
+  **Re-Fix:** `HomeViewModel.displayLibraries()`-Filter ist jetzt wieder
+  strikt (`ownerUsername == currentUser`, kein Null-Passthrough mehr) —
+  unclaimed Libs sind jetzt fuer NIEMANDEN sichtbar statt fuer ALLE, bis
+  sie ueber "Andere Bibliotheken" → "Mir zuordnen" (Settings) manuell
+  geclaimt werden. Toter `claimUnownedFor`-Code + zugehoerige
+  LocalLibrariesViewModel-Leiche (`appContext`/`prefs`/
+  `LEGACY_CLAIM_DONE_KEY`, nie gelesen) entfernt.
+  **Lehre:** bei sicherheitsrelevanten Fixes, die spaeter aus Usability-
+  Gruenden nochmal angefasst werden, MUSS dieser Decision-Log-Eintrag
+  mitgepflegt werden — sonst hält die Doku einen Fix für lebendig, der
+  laengst durch einen unabhaengigen, korrekt begruendeten Folge-Fix
+  wieder ausgehebelt wurde.
 
 ### ✅ Android: NoDeclaredBrand-MP4 — Extractor lehnt Sniff ab (2026-05-25)
 - **Symptom:** Manche .mp4 lieferten im LocalPlayer den Fehler

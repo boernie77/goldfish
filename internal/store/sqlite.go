@@ -489,6 +489,12 @@ func (s *Store) migrate() error {
 	if err := addCol("users", "max_age_rating", "INTEGER"); err != nil {
 		return err
 	}
+	// Pro-User Download-Erlaubnis. Default 1 (erlaubt) — bestehende Accounts
+	// bleiben unverändert nutzbar, Admin kann pro User gezielt einschränken.
+	// Admins ignorieren den Wert (siehe requireDownloadAllowed in internal/api).
+	if err := addCol("users", "can_download", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		return err
+	}
 	// OIDC-Subject-Claim (z.B. Email aus Authentik). Nullable, partial-unique:
 	// nur gesetzte Werte müssen unique sein, NULL bleibt für lokale Logins.
 	if err := addCol("users", "oidc_subject", "TEXT"); err != nil {
@@ -1151,7 +1157,7 @@ type ItemFilter struct {
 	// Filter der Mac/iOS-App.
 	RatingFilter string
 	MatchState   string
-	DupesOnly  bool // true = nur Items mit mehrfach vergebener metadata_id
+	DupesOnly    bool // true = nur Items mit mehrfach vergebener metadata_id
 	// FileDupesOnly: nur Items, deren (size_bytes, duration_sec) mit einem
 	// anderen Item im selben Scope (LibraryID/LibraryIDs + Folder) übereinstimmt.
 	// Ergänzung zu DupesOnly für Bibliotheken ohne TMDB-Metadata (kind=private) —
