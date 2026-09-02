@@ -86,43 +86,6 @@ func (s *Server) similarNames(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 
-// nameDupes: Items in der Library {id} (optional auf ?folder=<rel> beschränkt),
-// deren Dateiname + Größe (± ?tol Bytes, Default 2048) auch in einem ANDEREN
-// Ordner derselben Library vorkommen. Jedes Item trägt `dupeOtherPaths` mit den
-// rel_path(s) der Zwillinge — die Kachel markiert das (Sort-Dropdown-Pseudomodus
-// „⧉ Datei in anderem Ordner"). Zweck: versehentliche Doppel-Kopien finden und
-// eine davon manuell löschen.
-func (s *Server) nameDupes(w http.ResponseWriter, r *http.Request) {
-	me := currentUser(r)
-	if me == nil {
-		writeError(w, 401, "nicht angemeldet")
-		return
-	}
-	libID, err := pathInt(r, "id")
-	if err != nil || libID <= 0 {
-		writeError(w, 400, "ungültige Library-id")
-		return
-	}
-	if !s.requireLibAccess(w, r, libID) {
-		return
-	}
-	var tol int64 = 2048
-	if v := r.URL.Query().Get("tol"); v != "" {
-		if n, e := strconv.ParseInt(v, 10, 64); e == nil && n >= 0 {
-			tol = n
-		}
-	}
-	items, err := s.Store.CrossFolderNameDupes(libID, me.ID, me.IsAdmin, r.URL.Query().Get("folder"), tol)
-	if err != nil {
-		writeError(w, 500, err.Error())
-		return
-	}
-	if items == nil {
-		items = []model.Item{}
-	}
-	writeJSON(w, 200, items)
-}
-
 // writeNFOForItem ist der gemeinsame Helper, der für ein Item die passende
 // Kodi-kompatible .nfo schreibt (movie oder episode) und bei Episoden zusätzlich
 // die tvshow.nfo im Top-Level-Serienordner anlegt. Kein Pre-Check auf

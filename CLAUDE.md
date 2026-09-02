@@ -614,7 +614,7 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   **Achtung:** Repo-Compose zeigt historisch `:ro`, der LIVE-Stack (Portainer
   Stack 37) mountet es aber **read-write** (`- /mnt/user:/media`, kein `:ro`) —
   verifiziert 2026-08-28. Deshalb kann Goldfish Media-Dateien löschen
-  (Detail-Dialog 🗑, „Datei in anderem Ordner"-Aufräumen). Der Kommentar in
+  (Detail-Dialog 🗑, Dubletten-Aufräumen über „≈ Ähnliche Dateinamen"). Der Kommentar in
   `internal/api/delete_download.go` über „ist /media read-only gemountet?" ist
   entsprechend meist gegenstandslos.
 - `/config` (rw) → SQLite-DB, Thumbnails, TMDB-Poster-Cache, Transcode-Cache
@@ -1165,31 +1165,26 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Titel** verglichen (sonst würden alle Folgen „verdächtig" sein).
   Bestätigte Items (metadata_confirmed=1) werden ausgefiltert.
   Backend: `GET /api/items/suspicious`, Store: `store/suspicious.go`.
-- **⧉ Datei in anderem Ordner** im Sort-Dropdown (`namedupes`, seit
-  2026-08-28): Items, deren Dateiname (case-insensitiv) + Größe (±`tol`
-  Bytes, Default 2048) auch in einem ANDEREN Ordner derselben Library
-  vorkommen — für versehentliche Doppel-Kopien (z. B. ein Sammel-Ordner
-  neben dem eigentlichen Ablageort; „57-Byte-Zwillinge"). Folder-gescoped
-  wenn man in einem Ordner steht, sonst ganze Library. Kachel bekommt einen
-  orangenen **⧉-Badge** (Overlay `top:66 right:6`) + eine „↳ auch in: …"-Zeile
-  mit den anderen Ordnern; `item.dupeOtherPaths` trägt die vollen rel_paths.
-  Backend: `GET /api/libraries/{id}/name-dupes?folder=&tol=`,
-  `store/namedupes.go` (`CrossFolderNameDupes` — Name→Index über die ganze
-  Library, dann `ListItems` für die vollen Items). Registriert in
-  `currentSortMode`/`PSEUDO_FILTER_MODES`/`directionless`.
+- **⧉ Datei in anderem Ordner (`namedupes`) am 2026-09-02 komplett entfernt**
+  (Dropdown, Frontend-Branch, Backend-Endpoint `GET
+  /api/libraries/{id}/name-dupes`, `store/namedupes.go`) — war eine echte
+  Teilmenge von `simnames` (jedes exakte Größen-Duplikat hat zwangsläufig
+  auch gleiche Auflösung+Länge) und brachte zuletzt immer 0 Treffer, weil
+  `simnames` die verbliebenen Fälle längst gefunden+bereinigt hatte
+  (User-Bestätigung). Für Doppel-Kopien jetzt **≈ Ähnliche Dateinamen**
+  nutzen.
 - **≈ Ähnliche Dateinamen** im Sort-Dropdown (`simnames`, seit 2026-08-31):
   Fast-Duplikate — Dateiname nach Normalisierung (klein, ohne Endung, ohne
   `" (N)"`-Kopiesuffix, `._-` → Leerzeichen) zu **≥ threshold** (Query-Param,
   Default 0.9, per normalisierter Levenshtein-Ähnlichkeit) identisch **UND**
   exakt gleiche Auflösung (width×height) **UND** Laufzeit ±1 s. Fängt
-  `film.mp4` ↔ `film (2).mp4` und `film.wmv` ↔ `film.mp4`, die weder der
-  strenge `duplicates`-Filter (gleiche `metadata_id`) noch `namedupes`
-  (exakter Name + Größe, nur ordnerübergreifend) sehen. Folder-gescoped
+  `film.mp4` ↔ `film (2).mp4` und `film.wmv` ↔ `film.mp4`, die der strenge
+  `duplicates`-Filter (gleiche `metadata_id`) nicht sieht. Folder-gescoped
   (rekursiv) wenn man in einem Ordner steht, sonst ganze Library — Matching
-  läuft NUR innerhalb des Scopes. Nutzt denselben `item.dupeOtherPaths` +
-  ⧉-Badge wie `namedupes`; die „↳ auch: …"-Zeile in `renderCard` zeigt bei
-  Zwillingen im GLEICHEN Ordner den Dateinamen statt des (identischen)
-  Ordnerpfads. Backend: `GET /api/libraries/{id}/similar-names?folder=&threshold=`,
+  läuft NUR innerhalb des Scopes. `item.dupeOtherPaths` + orangener
+  ⧉-Badge (Overlay `top:66 right:6`); die „↳ auch: …"-Zeile in `renderCard`
+  zeigt bei Zwillingen im GLEICHEN Ordner den Dateinamen statt des
+  (identischen) Ordnerpfads. Backend: `GET /api/libraries/{id}/similar-names?folder=&threshold=`,
   `store/simnames.go` (`SimilarNameDupes` — Auflösungs-Bucket + Dauer-
   Sliding-Window ±1 s + Union-Find; `normalizeSimName`, `levenshtein`,
   `nameSimilarity`; Tests in `simnames_test.go`). Registriert in

@@ -525,51 +525,15 @@ async function loadItemsBody() {
     return;
   }
 
-  // "Datei in anderem Ordner" (Dropdown-Option): Items, deren Dateiname + Größe
-  // (±2 KB) auch in einem ANDEREN Ordner derselben Library vorkommen. Kachel
-  // bekommt einen ⧉-Badge mit dem/den anderen Pfad(en). Scoped auf den aktuellen
-  // Ordner (falls in einem), sonst ganze Library.
-  if ($("#sortSelect").value === "namedupes" && state.currentLibrary) {
-    const searchQ = $("#searchInput").value.trim();
-    const p = new URLSearchParams({});
-    if (state.currentFolder) p.set("folder", state.currentFolder);
-    let items = [];
-    try {
-      items = await apiGetCached(`/api/libraries/${state.currentLibrary}/name-dupes?${p}`);
-    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
-    if (stale()) return;
-    if (searchQ) {
-      const q = searchQ.toLowerCase();
-      items = items.filter(it => (it.title || "").toLowerCase().includes(q)
-        || (it.relPath || "").toLowerCase().includes(q)
-        || (it.dupeOtherPaths || []).some(pp => pp.toLowerCase().includes(q)));
-    }
-    $("#searchClear").classList.toggle("hidden", searchQ === "");
-    // Nach Dateiname gruppieren, damit gleichnamige Treffer nebeneinander stehen.
-    items.sort((a, b) => {
-      const fa = (a.relPath || "").split("/").pop().toLowerCase();
-      const fb = (b.relPath || "").split("/").pop().toLowerCase();
-      return fa.localeCompare(fb) || (a.relPath || "").localeCompare(b.relPath || "");
-    });
-    renderBreadcrumb({ searchCount: items.length, nameDupesView: true });
-    if (!items.length) {
-      grid.innerHTML = `<div class="empty">Keine gleichnamigen Dateien in einem anderen Ordner gefunden. ✓</div>`;
-      return;
-    }
-    state.lastRenderedItems = items;
-    const frag = document.createDocumentFragment();
-    items.forEach(it => frag.appendChild(renderCard(it)));
-    grid.innerHTML = "";
-    grid.appendChild(frag);
-    return;
-  }
-
   // "≈ Ähnliche Dateinamen" (Dropdown-Option): Fast-Duplikate — Dateiname zu
   // ≥ 90 % identisch (nach Normalisierung: klein, ohne Endung, ohne " (N)"),
   // exakt gleiche Auflösung, Laufzeit ±1 s. Fängt "film.mp4" ↔ "film (2).mp4"
-  // und "film.wmv" ↔ "film.mp4", die der "Duplikate"-Filter (metadata_id) und
-  // "Datei in anderem Ordner" (exakter Name + Größe) nicht sehen. Scoped auf
-  // den aktuellen Ordner (falls in einem, rekursiv), sonst ganze Library.
+  // und "film.wmv" ↔ "film.mp4", die der "Duplikate"-Filter (metadata_id)
+  // nicht sieht. Löste 2026-09-02 den strengeren "⧉ Datei in anderem Ordner"-
+  // Filter (exakter Name + Größe) komplett ab, der eine echte Teilmenge davon
+  // war (jedes Größen-Duplikat hat zwangsläufig auch gleiche Auflösung+Länge)
+  // und zuletzt immer 0 Treffer brachte. Scoped auf den aktuellen Ordner
+  // (falls in einem, rekursiv), sonst ganze Library.
   if ($("#sortSelect").value === "simnames" && state.currentLibrary) {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({});

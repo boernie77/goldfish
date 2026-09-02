@@ -101,7 +101,6 @@ func (s *Server) Router() http.Handler {
 		r.Put("/libraries/order", requireAdmin(s.setLibraryOrder))
 		r.Get("/libraries/{id}/stats", s.libraryStats)
 		r.Get("/libraries/{id}/stats-detail", s.libraryStatDetail)
-		r.Get("/libraries/{id}/name-dupes", s.nameDupes)
 		r.Get("/libraries/{id}/similar-names", s.similarNames)
 		r.Get("/libraries/{id}/seasons", s.seriesSeasons)
 		r.Get("/libraries/{id}/paths", requireAdmin(s.listLibraryPaths))

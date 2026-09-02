@@ -1096,23 +1096,6 @@ function renderBreadcrumb(opts) {
     return;
   }
 
-  if (opts.nameDupesView) {
-    const lib = state.libraries.find(l => l.id == state.currentLibrary);
-    const libName = lib ? lib.name : "";
-    const scope = state.currentFolder ? `Ordner „${state.currentFolder}"` : `Bibliothek ${libName}`;
-    const cur = document.createElement("span");
-    cur.className = "current";
-    cur.textContent = `⧉ Datei auch in anderem Ordner — ${scope}`;
-    bc.appendChild(cur);
-    const count = document.createElement("span");
-    count.className = "count";
-    if (opts.searchCount !== undefined && opts.searchCount !== null) {
-      count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} Treffer)`;
-    }
-    bc.appendChild(count);
-    return;
-  }
-
   if (opts.simNamesView) {
     const lib = state.libraries.find(l => l.id == state.currentLibrary);
     const libName = lib ? lib.name : "";
