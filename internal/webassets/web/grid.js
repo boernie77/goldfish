@@ -487,6 +487,44 @@ async function loadItemsBody() {
     return;
   }
 
+  // "🔀 Mehrere Versionen" (Dropdown-Option, seit 2026-09-02): zeigt genau die
+  // Kacheln, die im normalen Grid einen ×N-Varianten-Badge tragen würden —
+  // im Unterschied zu "Duplikate" (flach, jede Datei einzeln, library-
+  // übergreifend über alle Libs gleichen Kinds) bleibt diese Ansicht auf die
+  // GERADE BETRACHTETE Bibliothek beschränkt (User-Wunsch: "jeweils auf
+  // Bibliotheken bezogen, in Serien nur von Serien") und mergt wie gewohnt
+  // zu einer Kachel pro Titel/Episode. Nutzt items[].variantCount, das
+  // ListItems ohnehin für JEDES Item mitliefert (global gezählt, s.
+  // attachVariantCounts) — kein neuer Server-Endpoint nötig. Scope wie die
+  // anderen Flat-Sorts: aktueller Ordner rekursiv falls gesetzt, sonst ganze
+  // Library.
+  if ($("#sortSelect").value === "multiversion" && state.currentLibrary) {
+    const searchQ = $("#searchInput").value.trim();
+    const p = new URLSearchParams({ libraryId: state.currentLibrary, sort: "title", dir: "asc" });
+    if (state.currentFolder) p.set("folder", state.currentFolder);
+    if (searchQ) p.set("search", searchQ);
+    $("#searchClear").classList.toggle("hidden", searchQ === "");
+    let items = [];
+    try {
+      items = await apiGetCached(`/api/items?${p}`);
+    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+    items = items.filter(it => (it.variantCount || 0) >= 2);
+    const merged = groupVariants(items);
+    applyNaturalTitleSort(merged);
+    renderBreadcrumb({ searchCount: merged.length, multiVersionView: true });
+    if (!merged.length) {
+      grid.innerHTML = `<div class="empty">Keine Titel mit mehreren Versionen gefunden. ✓</div>`;
+      return;
+    }
+    state.lastRenderedItems = merged;
+    const frag = document.createDocumentFragment();
+    merged.forEach(it => frag.appendChild(renderCard(it)));
+    grid.innerHTML = "";
+    grid.appendChild(frag);
+    return;
+  }
+
   // "Datei in anderem Ordner" (Dropdown-Option): Items, deren Dateiname + Größe
   // (±2 KB) auch in einem ANDEREN Ordner derselben Library vorkommen. Kachel
   // bekommt einen ⧉-Badge mit dem/den anderen Pfad(en). Scoped auf den aktuellen
