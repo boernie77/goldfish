@@ -14,6 +14,8 @@
 # Voraussetzung:
 #   - $UNRAID_HOST gesetzt (z.B. die LAN-IP des Unraid-Servers)
 #   - python3 vorhanden für JSON-Verarbeitung
+#   - Optional: $GOLDFISH_LIVE (öffentliche URL, für den OIDC-Health-Check
+#     nach dem Redeploy) — nur falls SSO konfiguriert ist, sonst weglassen.
 
 set -euo pipefail
 
@@ -22,7 +24,7 @@ if [[ -z "${UNRAID_HOST:-}" && -z "${PORTAINER_HOST:-}" ]]; then
   exit 1
 fi
 PORTAINER_HOST="${PORTAINER_HOST:-http://${UNRAID_HOST}:9000}"
-GOLDFISH_LIVE="${GOLDFISH_LIVE:-https://goldfish.<your-domain>}"
+GOLDFISH_LIVE="${GOLDFISH_LIVE:-}"
 GOLDFISH_LAN="${GOLDFISH_LAN:-http://${UNRAID_HOST:-localhost}:8098}"
 ENDPOINT_ID="${ENDPOINT_ID:-3}"
 STACK_ID="${STACK_ID:-37}"
@@ -102,14 +104,17 @@ sleep 5
 HEALTH=$(curl -sS http://${UNRAID_HOST:-<UNRAID-LAN-IP>}:8098/api/health -o /dev/null -w "%{http_code}" || echo "fail")
 echo "  /api/health: $HEALTH"
 
-# OIDC-Health gegenchecken
-OIDC=$(curl -sS -o /dev/null -w "%{http_code}" -i https://goldfish.<your-domain>/api/auth/oidc/login -L --max-redirs 0 || true)
-if [[ "$OIDC" == "302" ]]; then
-  echo "  OIDC: ✓ 302 Redirect zu Authentik (SSO live)"
-elif [[ "$OIDC" == "503" ]]; then
-  echo "  OIDC: ✗ 503 — Env-Vars sind weg, NEU SETZEN" >&2
-  exit 1
-else
-  echo "  OIDC: $OIDC (unerwartet)"
+# OIDC-Health gegenchecken (nur falls $GOLDFISH_LIVE gesetzt ist — OIDC/SSO
+# ist ein optionales Feature, nicht jeder Self-Hoster hat das konfiguriert).
+if [[ -n "$GOLDFISH_LIVE" ]]; then
+  OIDC=$(curl -sS -o /dev/null -w "%{http_code}" -i "$GOLDFISH_LIVE/api/auth/oidc/login" -L --max-redirs 0 || true)
+  if [[ "$OIDC" == "302" ]]; then
+    echo "  OIDC: ✓ 302 Redirect zu Authentik (SSO live)"
+  elif [[ "$OIDC" == "503" ]]; then
+    echo "  OIDC: ✗ 503 — Env-Vars sind weg, NEU SETZEN" >&2
+    exit 1
+  else
+    echo "  OIDC: $OIDC (unerwartet)"
+  fi
 fi
 echo "✓ Redeploy fertig."

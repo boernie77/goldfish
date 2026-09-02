@@ -458,7 +458,7 @@
 
 ### ✅ Stack-Update via Portainer-API zerstört Stack-Env-Variablen (2026-05-08)
 - **Symptom:** Nach mehreren `PUT /api/stacks/37`-Calls antwortete
-  `https://goldfish.<your-domain>/api/auth/oidc/login` mit **503 „SSO nicht
+  `<öffentliche-domain>/api/auth/oidc/login` mit **503 „SSO nicht
   konfiguriert"**. Browser-SSO-Login tot. App war nicht betroffen, weil sie
   Email/Passwort nutzt.
 - **Ursache:** Portainer-Stack-Update löscht das `Env`-Array, wenn der
