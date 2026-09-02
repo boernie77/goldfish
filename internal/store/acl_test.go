@@ -17,8 +17,12 @@ func newTestStore(t *testing.T) *Store {
 	return s
 }
 
-// TestLibraryACL sichert die Bibliotheks-Trennung ab — inklusive der Regel
-// (2026-08-31): eine explizite ACL greift AUCH für einen Admin.
+// TestLibraryACL sichert die Bibliotheks-Trennung ab. Ein Admin sieht IMMER
+// alle Bibliotheken, unabhängig von etwaigen eigenen user_library_access-
+// Zeilen — die 2026-08-31 eingeführte Admin-Selbsteinschränkung wurde am
+// 2026-09-02 zurückgenommen (siehe Kommentar bei UserHasExplicitLibraryACL
+// in users.go): eine neu angelegte Bibliothek tauchte für einen Admin mit
+// eigener ACL-Liste nirgends mehr auf, auch nicht im Verwaltungs-Dialog.
 func TestLibraryACL(t *testing.T) {
 	s := newTestStore(t)
 
@@ -39,7 +43,9 @@ func TestLibraryACL(t *testing.T) {
 	if err := s.SetUserLibraryAccess(normalID, []int64{libA}); err != nil {
 		t.Fatal(err)
 	}
-	// restrictedAdmin: nur B (obwohl Admin!)
+	// restrictedAdmin: hat trotzdem eine ACL-Zeile auf nur B (z. B. weil er sie
+	// früher mal für sich selbst gesetzt hatte) — muss als Admin TROTZDEM
+	// beides sehen.
 	if err := s.SetUserLibraryAccess(restrictedAdminID, []int64{libB}); err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +63,8 @@ func TestLibraryACL(t *testing.T) {
 		{"normal sieht B NICHT", normalID, false, libB, false},
 		{"admin ohne ACL sieht A", adminID, true, libA, true},
 		{"admin ohne ACL sieht B", adminID, true, libB, true},
-		{"restricted-admin sieht B", restrictedAdminID, true, libB, true},
-		{"restricted-admin sieht A NICHT", restrictedAdminID, true, libA, false},
+		{"admin mit ACL-Zeile sieht B trotzdem", restrictedAdminID, true, libB, true},
+		{"admin mit ACL-Zeile sieht A trotzdem", restrictedAdminID, true, libA, true},
 	} {
 		got, err := s.UserHasLibraryAccess(c.user, c.lib, c.isAdmin)
 		if err != nil {
@@ -81,7 +87,7 @@ func TestLibraryACL(t *testing.T) {
 	}
 	check("normal", normalID, false, 1)
 	check("admin ohne ACL", adminID, true, 2)
-	check("restricted-admin", restrictedAdminID, true, 1)
+	check("admin mit ACL-Zeile sieht trotzdem alles", restrictedAdminID, true, 2)
 
 	// ListItems: die zentrale Sperre greift auch, wenn kein libraryId-Filter
 	// gesetzt ist (library-übergreifend).

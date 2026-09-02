@@ -13,10 +13,12 @@ import (
 // Bibliothek haben.
 func (s *Server) listCollections(w http.ResponseWriter, r *http.Request) {
 	var userID int64
+	var isAdmin bool
 	if me := currentUser(r); me != nil {
 		userID = me.ID
+		isAdmin = me.IsAdmin
 	}
-	cs, err := s.Store.ListCollections(userID)
+	cs, err := s.Store.ListCollections(userID, isAdmin)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -42,7 +44,7 @@ func (s *Server) collectionItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "ungültige id")
 		return
 	}
-	parts, err := s.Store.GetCollectionParts(id, me.ID)
+	parts, err := s.Store.GetCollectionParts(id, me.ID, me.IsAdmin)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -52,7 +54,7 @@ func (s *Server) collectionItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Fallback für alte Sammlungen, deren parts noch nicht gefetcht sind.
-	items, err := s.Store.ListItemsInCollection(id, me.ID)
+	items, err := s.Store.ListItemsInCollection(id, me.ID, me.IsAdmin)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

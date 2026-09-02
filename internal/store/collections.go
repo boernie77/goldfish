@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+// aclLibraryClause liefert einen SQL-Boolean-Ausdruck für `col` (z. B.
+// "i.library_id") plus die dazugehörigen Query-Args, in genau der
+// Reihenfolge, in der sie im zurückgegebenen SQL-Fragment auftauchen —
+// Admin: immer wahr (keine Einschränkung, siehe CLAUDE.md "Benutzer &
+// Zugriff"). Non-Admin: nur Libraries aus der eigenen `user_library_access`.
+// Zentraler Baustein für alle Sammlungs-Queries (siehe ACL-Fix-Kommentar bei
+// ListCollections) — ein einzelner Kandidat für Positionsfehler bei
+// wiederholt eingesetzten `?`-Platzhaltern statt mehrerer Kopien derselben
+// Handschrift-SQL.
+func aclLibraryClause(col string, userID int64, isAdmin bool) (string, []any) {
+	if isAdmin {
+		return "1=1", nil
+	}
+	return col + " IN (SELECT library_id FROM user_library_access WHERE user_id = ?)", []any{userID}
+}
+
 // Collection beschreibt eine TMDB-Sammlung (James Bond, Star Wars, …).
 type Collection struct {
 	ID           int64     `json:"id"`
@@ -63,14 +79,29 @@ func (s *Store) SetMetadataCollection(metadataID, collectionID int64) error {
 // in der Bibliothek haben. Inklusive Anzahl der zugeordneten Filme + einer
 // Fallback-Metadata-ID, deren Poster als Kachelbild dienen kann, falls die
 // Sammlung selbst (noch) kein Poster hat.
-func (s *Store) ListCollections(userID int64) ([]Collection, error) {
-	rows, err := s.db.Query(`
+//
+// ACL-Fix 2026-09-02 (User-Report: "Benutzer 'reviewer' sieht Sammlungen von
+// Filmen und Bluray, obwohl er darauf keinen Zugriff hat"): Sammlungen waren
+// komplett ohne ACL-Prüfung implementiert — jeder eingeloggte User sah jede
+// Sammlung, unabhängig von `user_library_access`. `isAdmin` steuert wie
+// überall sonst: Admin sieht alles, Non-Admin nur Items aus erlaubten
+// Bibliotheken (per `i.library_id IN (SELECT ... WHERE user_id = ?)`-Klausel
+// in jeder betroffenen Item-Query — hier UND in GetCollectionParts /
+// ListItemsInCollection).
+func (s *Store) ListCollections(userID int64, isAdmin bool) ([]Collection, error) {
+	// Statt derselben Textklausel mehrfach zu wiederholen (fehleranfällig beim
+	// Abzählen der `?`-Platzhalter in der richtigen Reihenfolge — ist beim
+	// ersten Entwurf dieses Fixes tatsächlich passiert), wird die ACL-Prüfung
+	// EINMAL vorab in Go ausgewertet: entweder "keine Einschränkung" (Admin)
+	// oder eine konkrete Menge erlaubter Library-IDs (Non-Admin).
+	aclSQL, aclArgs := aclLibraryClause("i.library_id", userID, isAdmin)
+	q := `
 		SELECT c.id, c.tmdb_id, c.name, COALESCE(c.poster_path,''),
 		       COALESCE(c.backdrop_path,''),
 		       (SELECT COUNT(DISTINCT m.id)
 		          FROM items i
 		          JOIN metadata m ON m.id = i.metadata_id
-		         WHERE m.collection_id = c.id) AS movie_count,
+		         WHERE m.collection_id = c.id AND ` + aclSQL + `) AS movie_count,
 		       (SELECT COUNT(*) FROM collection_parts cp WHERE cp.collection_id = c.id) AS part_count,
 		       (SELECT COUNT(*) FROM hidden_collection_parts hcp
 		          WHERE hcp.collection_id = c.id AND hcp.user_id = ?) AS hidden_count,
@@ -92,7 +123,7 @@ func (s *Store) ListCollections(userID int64) ([]Collection, error) {
 		WHERE EXISTS (
 			SELECT 1 FROM items i
 			JOIN metadata m ON m.id = i.metadata_id
-			WHERE m.collection_id = c.id
+			WHERE m.collection_id = c.id AND ` + aclSQL + `
 		)
 		AND (
 			c.parts_fetched_at IS NULL
@@ -110,9 +141,17 @@ func (s *Store) ListCollections(userID int64) ([]Collection, error) {
 				SELECT hcp.tmdb_movie_id FROM hidden_collection_parts hcp
 				WHERE hcp.collection_id = c.id AND hcp.user_id = ?
 			)
+			AND ` + aclSQL + `
 		) >= 2
 		ORDER BY c.name COLLATE NOCASE
-	`, userID, userID)
+	`
+	var args []any
+	args = append(args, aclArgs...)
+	args = append(args, userID)
+	args = append(args, aclArgs...)
+	args = append(args, userID)
+	args = append(args, aclArgs...)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +172,11 @@ func (s *Store) ListCollections(userID int64) ([]Collection, error) {
 // ListItemsInCollection liefert alle Items, deren Metadata zu der Collection gehört.
 // Per-User-Zustand (watched/favorite) wird via JOIN auf user_item_state mitgegeben.
 // Wiederverwendet das bestehende ListItems-Schema über einen Wrapper.
-func (s *Store) ListItemsInCollection(collectionID, userID int64) ([]any, error) {
+// ACL-Fix 2026-09-02 — siehe Kommentar bei ListCollections.
+func (s *Store) ListItemsInCollection(collectionID, userID int64, isAdmin bool) ([]any, error) {
+	aclSQL, aclArgs := aclLibraryClause("i.library_id", userID, isAdmin)
+	args := []any{userID, collectionID}
+	args = append(args, aclArgs...)
 	rows, err := s.db.Query(`
 		SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container,
 		       COALESCE(i.video_codec,''), COALESCE(i.audio_codec,''),
@@ -147,9 +190,9 @@ func (s *Store) ListItemsInCollection(collectionID, userID int64) ([]any, error)
 		FROM items i
 		JOIN metadata m ON m.id = i.metadata_id
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
-		WHERE m.collection_id = ?
+		WHERE m.collection_id = ? AND `+aclSQL+`
 		ORDER BY COALESCE(m.release_date, m.year), m.title COLLATE NOCASE
-	`, userID, collectionID)
+	`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +352,17 @@ type CollectionPartRow struct {
 // (damit die UI die normale Film-Kachel rendern kann: Watched-Toggle,
 // Format-Badge, Auflösung, Laufzeit, …). Fehlende Parts bekommen nur die
 // TMDB-Basisinfos.
-func (s *Store) GetCollectionParts(collectionID, userID int64) ([]map[string]any, error) {
+// ACL-Fix 2026-09-02 — siehe Kommentar bei ListCollections. `items i` ist ein
+// LEFT JOIN (Parts ohne eigene Datei sollen als "fehlend" erscheinen) — die
+// ACL-Klausel steckt deshalb bewusst IM JOIN, nicht in der WHERE-Klausel:
+// ein Part in einer für den User unzugänglichen Library soll wie ein
+// fehlender Part aussehen (owned:false), nicht die ganze Zeile verschwinden
+// lassen und damit verraten, dass der Film eigentlich vorhanden ist.
+func (s *Store) GetCollectionParts(collectionID, userID int64, isAdmin bool) ([]map[string]any, error) {
+	aclSQL, aclArgs := aclLibraryClause("i.library_id", userID, isAdmin)
+	args := []any{userID, userID}
+	args = append(args, aclArgs...)
+	args = append(args, collectionID)
 	rows, err := s.db.Query(`
 		SELECT cp.tmdb_movie_id, cp.title, cp.release_date, cp.poster_path, cp.ord,
 		       i.id, i.library_id, i.path, i.rel_path, i.title,
@@ -324,7 +377,7 @@ func (s *Store) GetCollectionParts(collectionID, userID int64) ([]map[string]any
 		FROM collection_parts cp
 		LEFT JOIN metadata m
 		       ON m.tmdb_type='movie' AND m.tmdb_id = cp.tmdb_movie_id
-		LEFT JOIN items i ON i.metadata_id = m.id
+		LEFT JOIN items i ON i.metadata_id = m.id AND `+aclSQL+`
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		LEFT JOIN hidden_collection_parts hcp
 		       ON hcp.user_id = ?
@@ -332,7 +385,7 @@ func (s *Store) GetCollectionParts(collectionID, userID int64) ([]map[string]any
 		      AND hcp.tmdb_movie_id = cp.tmdb_movie_id
 		WHERE cp.collection_id = ?
 		ORDER BY cp.ord, cp.release_date, cp.title COLLATE NOCASE
-	`, userID, userID, collectionID)
+	`, args...)
 	if err != nil {
 		return nil, err
 	}

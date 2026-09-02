@@ -835,14 +835,28 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Account wird automatisch Admin.
 - Login per bcrypt; Session-Token in HttpOnly-Cookie (SameSite=Lax).
 - **ACL:** Non-Admins sehen nur die in `user_library_access` gelisteten Libs.
-  **Admins:** OHNE eigene ACL-Zeile → alle Libraries; MIT expliziter ACL-Liste
-  → nur diese Liste (User-Wunsch 2026-08-31 — auch Admins sollen Bibliotheken
-  ausblenden können). Entscheider: `Store.UserHasExplicitLibraryACL(userID)`,
-  angewandt in `UserHasLibraryAccess`, `ListLibrariesForUser` UND dem zentralen
-  `ListItems`-ACL-Block (dort per `NOT EXISTS(…) OR library_id IN(…)`).
+  **Admins sehen IMMER alle Bibliotheken**, unabhängig von etwaigen eigenen
+  ACL-Zeilen. **Historie:** 2026-08-31 gab es kurzzeitig eine
+  Admin-Selbsteinschränkung (eigene ACL-Zeile → auch für den Admin nur diese
+  Liste) — am 2026-09-02 zurückgenommen, weil eine frisch angelegte
+  Bibliothek für einen Admin mit eigener ACL-Liste dann NIRGENDS mehr
+  auftauchte, auch nicht im „Bibliotheken verwalten"-Dialog (real erlebt:
+  neue "Demo"-Bibliothek erschien nur noch über den ungefilterten
+  `/api/libraries?all=1`-Diagnose-Endpoint, nicht im normalen
+  `/api/libraries`, das der Verwaltungsdialog nutzt — wirkte wie ein Bug, war
+  aber die ACL-Einschränkung). Sichtbarkeits-Personalisierung für den eigenen
+  täglichen Gebrauch läuft stattdessen ausschließlich über die dafür gebaute
+  „🏠 Startseite anpassen"-Funktion (`user_home_prefs`/`user_nav_prefs`,
+  siehe „Startseite (Home-View)" weiter unten) — ACL ist wieder rein ein
+  Werkzeug, um Nicht-Admin-Usern Zugriff zu entziehen.
+  Entscheider: `Store.UserHasLibraryAccess`/`ListLibrariesForUser` geben für
+  `isAdmin=true` immer sofort `true`/alle zurück; der zentrale `ListItems`-
+  ACL-Block überspringt die Einschränkung komplett bei `f.IsAdmin`.
   `requireLibAccess(w, r, libID)` wird in jedem Item-/Stream-/Transcode-Handler
   aufgerufen. Der ACL-Editor holt die Gesamtliste über `/api/libraries?all=1`
-  (admin-only). Test: `internal/store/acl_test.go`.
+  (admin-only) — dort lässt sich für einen Admin-Account zwar weiterhin eine
+  ACL-Liste speichern, sie hat aber keine Wirkung mehr. Test:
+  `internal/store/acl_test.go`.
 - Nutzerverwaltung (anlegen, Passwort *anderer* User zurücksetzen, Admin togglen,
   ACL bearbeiten) in der UI unter Settings → Benutzer (nur Admins).
 - **Zahnrad-Menü ist seit 2026-09-01 für JEDEN User sichtbar** (vorher komplett
@@ -1071,6 +1085,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `GET /api/items?personId=<tmdbId>`.
 
 ### Sammlungen (TMDB-Collections)
+- **🔴 ACL-Fix 2026-09-02** (User-Report: Non-Admin "reviewer" sah Sammlungen
+  aus Bibliotheken, auf die er per ACL keinen Zugriff hatte): `ListCollections`/
+  `GetCollectionParts`/`ListItemsInCollection` liefen komplett OHNE ACL-Prüfung
+  — jeder eingeloggte User sah jede Sammlung inkl. voller Item-Objekte
+  (Datei-Pfad!) aus fremden Bibliotheken. Alle drei nehmen jetzt `isAdmin` und
+  filtern per `store.aclLibraryClause(col, userID, isAdmin)`-Helper (Admin
+  immer alles, Non-Admin nur `user_library_access`). Bei `GetCollectionParts`
+  sitzt die ACL-Klausel bewusst im `LEFT JOIN` auf `items`, nicht in der
+  WHERE-Klausel — ein unzugänglicher Part soll wie ein fehlender Part
+  aussehen (`owned:false`), nicht verraten, dass der Film eigentlich
+  vorhanden ist. Test: `internal/store/collections_acl_test.go`. Siehe
+  [[feedback_user_isolation_before_deploy]] — wieder ein Fall von "neues
+  Feature mit User-sichtbaren Daten hatte keine ACL-Prüfung".
 - TMDB liefert bei Film-Details `belongs_to_collection` (James Bond, Star Wars, …).
 - Wird beim Enrichment automatisch in `collections` upsertet und via
   `metadata.collection_id` verknüpft.
