@@ -817,8 +817,19 @@ async function loadItemsBody() {
   // Bei aktivem „Ohne TMDB-Zuordnung"-Filter muss die Staffel-Ansicht jedoch
   // weichen — die Seasons-API kennt nur Items mit erkennbarem SxxExx im Pfad,
   // unmatched Bonus-/Extras-/Behind-the-Scenes-Dateien wären sonst unsichtbar.
+  // GLEICHES gilt für einen aktiven Auflösungsfilter (seit 2026-09-02,
+  // User-Wunsch): die Seasons-API mergt mehrere Dateien derselben Episode
+  // (z. B. 720p + 360p) zu EINEM Owned-Slot mit Varianten-Dropdown — ein
+  // Auflösungsfilter hätte dort keinerlei Wirkung ("aktuell passiert gar
+  // nichts", User-Report) UND würde die gezielte Auswahl "nur die 360p-Datei
+  // dieser Folge, nicht die 720p-Variante" unmöglich machen. Mit aktivem
+  // Filter fällt die Ansicht auf die normale flache Ordner-Liste zurück
+  // (weiterhin auf state.currentFolder = den Show-Ordner gescoped, rekursiv
+  // wie jeder andere Ordner) — dort filtert der Server pro Datei, jede
+  // Auflösungs-Variante bleibt ein eigenes, einzeln löschbares Item.
   const matchMode = currentMatchMode();
-  if (state.seasonView && lib && lib.kind === "tv" && state.currentFolder && matchMode !== "unmatched") {
+  if (state.seasonView && lib && lib.kind === "tv" && state.currentFolder
+      && matchMode !== "unmatched" && state.resBuckets.size === 0) {
     let data;
     try {
       data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
