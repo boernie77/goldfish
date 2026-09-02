@@ -1041,6 +1041,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `grid.js` wählt anhand `lib.kind === "private"` zwischen beiden. Fängt keine
   inhaltlich identischen, aber unterschiedlich großen/re-encodeten Dateien ab
   (bewusst konservativ, um False-Positives zu vermeiden).
+- **„🔀 Mehrere Versionen" (Sort-Dropdown, seit 2026-09-02):** zeigt genau die
+  Kacheln mit ×N-Varianten-Badge — im Unterschied zu „Duplikate" (flach, jede
+  Datei einzeln, library-übergreifend über alle Libs gleichen Kinds) bleibt
+  diese Ansicht auf die gerade betrachtete Bibliothek beschränkt und mergt
+  wie gewohnt zu einer Kachel pro Titel/Episode (User-Wunsch: „jeweils auf
+  Bibliotheken bezogen, in Serien nur von Serien"). Braucht KEINEN neuen
+  Server-Endpoint — filtert client-seitig auf `item.variantCount >= 2` (das
+  `ListItems` ohnehin für jedes Item global mitliefert, exakt die Quelle des
+  ×N-Badges) und mergt via `groupVariants()`. Scope wie die anderen
+  Flat-Sorts (aktueller Ordner rekursiv, sonst ganze Library).
 
 ### Flat-View & Bulk-Selection
 - **Flat-View-Toggle** im Toolbar (📂) — blendet die Ordner-Navigation aus und
