@@ -49,8 +49,9 @@ func nullIfZero(id int64) any {
 // ActivityLogFilter: alle Felder optional (Zero-Value = kein Filter).
 type ActivityLogFilter struct {
 	Category string
-	BeforeID int64 // Pagination: nur Einträge mit id < BeforeID (0 = ab neuestem)
-	Limit    int   // Default 100, Cap 500
+	Username string // exakter Match, siehe ListActivityLog
+	BeforeID int64  // Pagination: nur Einträge mit id < BeforeID (0 = ab neuestem)
+	Limit    int    // Default 100, Cap 500
 }
 
 func (s *Store) ListActivityLog(f ActivityLogFilter) ([]ActivityEntry, error) {
@@ -66,6 +67,10 @@ func (s *Store) ListActivityLog(f ActivityLogFilter) ([]ActivityEntry, error) {
 	if f.Category != "" {
 		q += ` AND category = ?`
 		args = append(args, f.Category)
+	}
+	if f.Username != "" {
+		q += ` AND username = ?`
+		args = append(args, f.Username)
 	}
 	if f.BeforeID > 0 {
 		q += ` AND id < ?`

@@ -35,6 +35,14 @@ func TestActivityLog(t *testing.T) {
 		t.Fatalf("expected 2 auth entries, got %d", len(authOnly))
 	}
 
+	adminOnly, err := s.ListActivityLog(ActivityLogFilter{Username: "admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(adminOnly) != 2 {
+		t.Fatalf("expected 2 entries for username=admin, got %d", len(adminOnly))
+	}
+
 	// Pagination: mit beforeId auf die älteste Zeile zeigen sollte nur ältere liefern.
 	oldest := all[len(all)-1]
 	page, err := s.ListActivityLog(ActivityLogFilter{BeforeID: oldest.ID + 1, Limit: 1})

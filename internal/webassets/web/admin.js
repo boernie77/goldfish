@@ -990,7 +990,21 @@ const ACTIVITY_LOG_LABELS = {
 
 async function openActivityLogDialog() {
   $("#activityLogDialog").showModal();
+  await populateActivityLogUserFilter();
   await refreshActivityLog(true);
+}
+
+async function populateActivityLogUserFilter() {
+  const sel = $("#activityLogUser");
+  if (sel.dataset.loaded) return; // einmal pro Session reicht, Userliste ändert sich selten
+  try {
+    const users = await api("/api/users");
+    const current = sel.value;
+    sel.innerHTML = `<option value="">Alle</option>` +
+      users.map(u => `<option value="${escapeHTML(u.username)}">${escapeHTML(u.username)}</option>`).join("");
+    sel.value = current;
+    sel.dataset.loaded = "1";
+  } catch (e) { /* Dropdown bleibt bei "Alle" — kein Blocker fürs Protokoll selbst */ }
 }
 
 async function refreshActivityLog(reset) {
@@ -1002,8 +1016,10 @@ async function refreshActivityLog(reset) {
     body.innerHTML = `<div class="hint">Lädt…</div>`;
   }
   const category = $("#activityLogCategory").value;
+  const username = $("#activityLogUser").value;
   const params = new URLSearchParams({ limit: "100" });
   if (category) params.set("category", category);
+  if (username) params.set("username", username);
   if (activityLogState.beforeId) params.set("beforeId", String(activityLogState.beforeId));
   let data;
   try {

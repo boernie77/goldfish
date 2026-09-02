@@ -1563,6 +1563,7 @@ function wire() {
   // Protokoll + Backup
   $("#activityLogReloadBtn").addEventListener("click", () => refreshActivityLog(true));
   $("#activityLogCategory").addEventListener("change", () => refreshActivityLog(true));
+  $("#activityLogUser").addEventListener("change", () => refreshActivityLog(true));
   $("#activityLogMoreBtn").addEventListener("click", () => refreshActivityLog(false));
   $("#backupDownloadBtn").addEventListener("click", downloadBackup);
   $("#restoreUploadBtn").addEventListener("click", uploadRestoreFile);

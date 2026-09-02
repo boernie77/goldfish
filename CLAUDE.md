@@ -2161,11 +2161,15 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   denselben Handler laufen), Trickplay-Retry/Alles-löschen, OCR-Run-All/
   Retry-Failed/Ordner- und Global-Toggle, Intro-Erkennung-Ordner-Toggle,
   Backup-Download/-Restore.
-- **API:** `GET /api/admin/activity-log?category=&beforeId=&limit=` — admin-only.
+- **API:** `GET /api/admin/activity-log?category=&username=&beforeId=&limit=`
+  — admin-only. `username` ist exakter Match (kein LIKE), gespeist aus dem
+  bestehenden `GET /api/users` (voller Admin-Endpoint, bewusst nicht das
+  Self-Exclusion-`listOtherUsernames`).
 - **Frontend:** `#activityLogDialog` (`admin.js openActivityLogDialog`/
-  `refreshActivityLog`), Zahnrad-Menü → „Daten & Sicherheit" → „📜 Protokoll".
-  `ACTIVITY_LOG_LABELS` übersetzt die internen Action-Codes in lesbare
-  deutsche Labels für die Tabelle.
+  `refreshActivityLog`/`populateActivityLogUserFilter`), Zahnrad-Menü →
+  „Daten & Sicherheit" → „📜 Protokoll". Zwei Filter-Dropdowns (Kategorie +
+  Benutzer, User-Wunsch 2026-09-02 nachträglich ergänzt). `ACTIVITY_LOG_LABELS`
+  übersetzt die internen Action-Codes in lesbare deutsche Labels für die Tabelle.
 - **Backup:** `Store.BackupToFile` (`internal/store/backup.go`) nutzt SQLites
   eingebautes `VACUUM INTO` — checkpointed den WAL automatisch, liefert eine
   einzelne konsistente Datei OHNE die riskante manuelle
