@@ -1268,6 +1268,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Setting-Flag verhindert Re-Run nach Restart.
 
 ### Staffel-Ansicht für Serien
+- **Auflösungsfilter weicht auf die normale flache Ordner-Liste zurück**
+  (seit 2026-09-02, `grid.js`, gleiches Muster wie der bestehende „Ohne
+  TMDB-Zuordnung"-Bypass): die Seasons-API kennt `bucket=` nicht UND mergt
+  mehrere Dateien derselben Episode (z. B. 720p+360p) zu einem Owned-Slot
+  mit Varianten-Dropdown — ein Filter hätte dort weder gewirkt noch die
+  gezielte Auswahl „nur die 360p-Datei dieser Folge löschen, 720p behalten"
+  ermöglicht. Mit `state.resBuckets.size > 0` fällt die Ansicht auf
+  `/api/items?folder=<Show>&bucket=…` zurück (rekursiv wie jede normale
+  Ordner-Navigation) — jede Auflösungs-Variante bleibt dort ein eigenes,
+  einzeln löschbares Item.
 - Toggle-Button `📺 Staffeln` in der Topbar, nur in TV-Libs sichtbar.
   Zwei Ebenen:
   - **Library-Default**: localStorage `seasonView:lib:<libID>` = "1"/"0"
