@@ -1117,3 +1117,205 @@
   Zahlen; Jahres-Ausschluss (1900–2099) und Plausibilitäts-Check (S 1–29, E 1–99).
   Bei Filmen **nicht** aktiv (`Matrix 1999 1080.mkv` soll nicht S10E80 sein).
 
+## GoldfishApple (Mac/iOS/tvOS) — historische Bugfixes
+
+Ausführliche, aus CLAUDE.md ausgelagerte Fassung der abgeschlossenen GoldfishApple-Bugs
+(dort steht nur noch die Kurzfassung im Abschnitt „Gelöste Bugs"). Reihenfolge = Build-Chronologie.
+
+### ✅ Fenster-Verschwinden-Bug (Build 0100, 2026-08-19)
+- **Symptom:** Player-Fenster verschwand teils komplett (kein Dock-Icon-Klick brachte es zurück).
+- **Ursache (zwei unabhängige Root-Causes):** (1) `PlayerLaunchCoordinator.pendingPlayer/
+  pendingLocalPlayer` wurden beim Schließen nie auf `nil` zurückgesetzt → SwiftUI/AppKit-
+  Fenster-Bookkeeping lief auseinander. (2) Das Hauptfenster konnte über den grünen Button
+  in einen eigenen nativen Vollbild-Space rutschen (`onScreen=false`, Frame = Bildschirmgröße)
+  und landete dann auf einer anderen Space als der Player.
+- **Lösung:** Coordinator-Felder korrekt zurücksetzen; `window.collectionBehavior =
+  [.managed, .participatesInCycle, .canJoinAllSpaces]` als Ganzwert-Neuzuweisung (`.remove()`/
+  `.insert()` auf der Property hielt NICHT zuverlässig) + Fenster zieht sich beim Start auf
+  `screen.visibleFrame`.
+- **Debugging-Lehre:** NSLog+Console.app funktionierte trotz aktivem Streaming NIE (0
+  Mitteilungen trotz Reproduktion) — Umstieg auf File-Logging (`~/Desktop/goldfish-window-
+  debug.log`, `FileHandle`-Append) war der Durchbruch. `Read`/`cat` auf `~/Desktop/*`
+  scheitert aus dem Coding-Environment an macOS-Datenschutz (EPERM) — User muss die Datei
+  selbst öffnen oder per `! cat …` liefern.
+
+### ✅ Bibliotheks-Vorschaubilder offline weg (mehrfach „gefixt", Build 165)
+- **Symptom:** Library-Kacheln fielen offline auf den farbigen Gradienten-Kreis zurück statt
+  das zuletzt gecachte Poster zu zeigen.
+- **Ursache:** `LibrariesView.load()` befüllte `previewURLs` NUR im Erfolgsfall von
+  `fetchLibraries()`. Offline → `catch` → `previewURLs` blieb leer. Frühere Fixes
+  (Offline-Lib-Liste in UserDefaults, `GoldfishLibraryPreviews/`-Cache, `file://`-Handling in
+  `PosterImage`) waren nötig, aber keiner hängte den Cache-Read in den Offline-Zweig.
+- **Lösung:** `hydratePreviewsFromCache()` läuft jetzt IMMER, unabhängig vom Netzwerk-Call.
+  Zusätzlich zieht `loadPreviews()` nur noch EINMALIG ein Zufalls-Poster pro Bibliothek
+  (User: „genau die AKTUELLEN Bilder speichern") — vorhandene Cache-Datei wird behalten statt
+  bei jedem Öffnen überschrieben.
+
+### ✅ Offline→online: Bibliotheken kommen nicht wieder, „Session abgelaufen" (Build 166)
+- **Symptom:** Nach Offline-Phase blieb die App auf einer rohen 401-Fehlermeldung hängen, ohne
+  Retry-Button oder Weg zurück zum Login.
+- **Ursache:** (1) `RootView.refreshSessionStatus()` lief nur EINMAL beim Start. (2)
+  `LibrariesView.load()`/`HomeView` behandelten 401 fälschlich als `isOffline=true` (der Server
+  hatte ja geantwortet) und zeigten bei leerem Cache die Server-Rohmeldung als Sackgasse. (3)
+  nichts routete eine tote Session zurück zu `LoginView`.
+  `internal/api/auth.go`.
+- **Lösung:** `GoldfishClient.isAuthError()` + `markSessionInvalid()` (löscht lokalen Login-
+  State + Cookies → `RootView` zeigt `LoginView`); `RootView` gleicht die Session bei jedem
+  Wechsel in den Vordergrund neu ab (`scenePhase == .active`); `LibrariesView`/`HomeView`
+  unterscheiden Connectivity- vs. Auth- vs. sonstige Fehler und haben einen „Erneut
+  versuchen"-Button.
+
+### ✅ SSO-Login in der Mac/iOS-App schlug still fehl (Build 167)
+- **Symptom:** Klick auf „Mit SSO anmelden" schloss den Flow, App blieb aber auf dem
+  Login-Screen ohne Fehlermeldung.
+- **Ursache:** `OIDCWebViewRepresentable`-Coordinator kopierte die WKWebView-Cookies EINMALIG
+  im `didFinish` für `/` — das `Set-Cookie` aus der OIDC-Callback-Weiterleitung war zu dem
+  Zeitpunkt oft noch nicht im WKWebView-Cookie-Store (bekanntes WKWebView-Timing).
+- **Lösung:** `syncCookies` pollt jetzt bis ~2,5 s (8 × 0,3 s) auf den `goldfish_session`-
+  Cookie; kommt keiner, meldet der Flow explizit einen Fehler. `LoginView.refreshAfterOIDC()`
+  fasst zusätzlich 5× nach.
+
+### ✅ SSO-Sheet war auf macOS leer (Build 168)
+- **Symptom:** Der eigentliche „SSO tut nichts"-Grund, kam VOR dem Cookie-Sync-Bug oben.
+- **Ursache:** `OIDCLoginView` setzte keine explizite Größe; ein `NSViewRepresentable`
+  (WKWebView) hat keine intrinsische Größe → das `.sheet` schrumpfte auf Header + „Abbrechen",
+  Authentik-Seite bekam 0 Höhe.
+- **Lösung:** `#if os(macOS) .frame(minWidth:720, minHeight:760, ideal 900×900)` auf dem
+  `NavigationStack` + `.frame(maxWidth/maxHeight: .infinity)` auf dem Representable (Muster
+  aus `ShuffleScopeSheet`).
+
+### ✅ Team-ID für Code-Signing instabil über Mac-Wechsel (2026-09-02)
+- **Symptom:** „No Account for Team"/„No signing certificate found" nach Mac-Wechsel.
+- **Ursache:** Die Personal-Team-ID ist NICHT stabil über Neuinstallationen — war `F95969PBFU`
+  auf dem alten Mac, danach fälschlich `YP6683AT3R` vermutet (ID aus wiederhergestellten
+  Provisioning-Profilen anderer Apps, nicht die ID des auf DIESEM Mac erzeugten Zertifikats).
+- **Lösung:** Einmal ⌘R in der Xcode-GUI (erzeugt das Zertifikat), danach `security
+  find-identity -v -p codesigning` und die dort angezeigte Team-ID in `DEVELOPMENT_TEAM`
+  eintragen (am Ende korrekt: `Y83997R5WL`). Zusätzlich war `com.goldfish.ios` noch beim alten
+  Team reserviert (App-IDs sind teamgebunden) → für Geräte-Tests auf `com.goldfish.iosdev`
+  geändert. `xcodebuild` von der CLI kann bei einem Free-Personal-Team grundsätzlich NICHT
+  signieren/auf einem echten Gerät laufen (auch nicht mit `-allowProvisioningUpdates`) — Runs
+  auf echten Geräten IMMER über die Xcode-GUI (⌘R).
+
+### ✅ SSO-Kontowechsel unmöglich (Build 171)
+- **Symptom:** Erneutes „Mit SSO anmelden" meldete stillschweigend denselben Authentik-User
+  wieder an — kein Wechsel Admin ↔ normaler Benutzer möglich.
+- **Ursache:** Der eingebettete Authentik-`WKWebView` hat einen persistenten
+  `WKWebsiteDataStore`.
+- **Lösung:** Neuer Button „Mit anderem Konto anmelden" setzt `OIDCLoginView
+  (clearSessionFirst: true)` → `WKWebsiteDataStore.default()` wird vor dem Laden geleert.
+
+### ✅ Gesehen-Status propagierte nicht ans Downloads-Grid
+- **Symptom:** `setWatched` lief, aber Downloads-Tab-Kacheln zeigten weiter „ungesehen".
+- **Ursache:** Downloads-Kacheln rendern aus `DownloadRecord.cachedItem`, einem beim Download
+  eingefrorenen JSON-Snapshot, der nie nachgezogen wurde.
+- **Lösung:** `Item.withWatched(_:)` + `DownloadManager.updateCachedWatched(itemId:watched:)`,
+  verdrahtet an jedem `setWatched`-Call-Site (PlayerView, ItemCard, ItemDetailView).
+
+## Lokale Bibliotheken (GoldfishApple) — externe Datenträger, Player/Formatanpassung/Puffer (seit 2026-08-24)
+
+Große Session rund um USB-Platten/SD-Karten als lokale Bibliotheken. Aus CLAUDE.md
+ausgelagerte Detailfassung — dort steht nur noch die Kurzfassung.
+
+### ✅ Mauszeiger blieb dauerhaft versteckt
+- **Ursache:** `NSCursor.hide()/unhide()` ist app-weit refcounted, nicht fensterbezogen — bei
+  `onDisappear`-Ausfall (unzuverlässig beim Schließen über den nativen roten Knopf) blieb der
+  Cursor versteckt.
+- **Lösung:** `setHiddenUntilMouseMoves(true)` statt manuellem Pairing.
+
+### ✅ I/O-Contention zwischen Formatanpassung und Wiedergabe auf langsamen externen Platten
+- **Ursache:** Die Konvertierungs-Queue (und ab Build 0152 auch der Thumbnail-/Auflösungs-
+  Hintergrund-Loop) lief parallel zur aktiven Wiedergabe und konkurrierte um I/O auf demselben
+  Datenträger.
+- **Lösung:** `LocalTranscodeService.beginPlayback()`/`endPlayback()`/
+  `waitWhilePlaybackActive()` pausieren die Queue während aktiver Wiedergabe. Safety-Net:
+  `LocalPlayerView`s `NSWindow.willCloseNotification`-Observer ruft
+  `LocalTranscodeService.resetPlaybackActive()` (Hard-Reset) für den Fall eines verpassten
+  `onDisappear`. Build 0154 fand zwei WEITERE I/O-Contention-Quellen: verwaiste ffmpeg-Prozesse
+  überlebten einen App-Neustart nicht mehr (`terminateAllActiveProcesses()` in
+  `applicationWillTerminate`), und mehrere lokale Bibliotheken feuerten je einen eigenen
+  Thumbnail-Task ab statt einer geteilten Warteschlange (`LocalLibraryManager.thumbnailQueue`).
+  **Diagnose-Reflex bei künftigen Ruckel-Reports:** `ps aux | grep ffmpeg` (Zombie-Check) +
+  `lsof +D <externes-Volume>` während Wiedergabe (Contention-Quelle suchen).
+
+### ✅ Cache-Cap schützte nicht vor „No space left on device"
+- **Ursache:** `maxCacheBytes` (80 GB nominell) allein prüft nicht, ob die Platte aus anderen
+  Gründen voll ist.
+- **Lösung:** `enforceCacheSizeCap()` hält zusätzlich `minFreeBytes` (15 GB) über
+  `.volumeAvailableCapacityKey` frei (bewusst NICHT `...ForImportantUsage` — zählt verwerfbare
+  Time-Machine-Snapshots optimistisch mit). `performRemux` prüft das jetzt VORAB.
+
+### ✅ Cache-Eviction warf teure Re-Encodes für neuere schnelle Remuxe raus
+- **Ursache:** Reine Alt-zuerst-Eviction unterschied nicht zwischen teuren Re-Encodes und
+  billigen Remuxen.
+- **Lösung:** `performRemux` hält die Slow/Fast-Klassifizierung persistent fest
+  (`.slow-classification.json`, überlebt Neustarts). `enforceCacheSizeCap()` opfert erst alle
+  schnellen Einträge (älteste zuerst), erst danach langsame.
+
+### ✅ Formatanpassungs-Priorität ignorierte parallele Scans
+- **Ursache:** Reines Anhängen an die Konvertierungs-Queue reichte nicht — bei mehreren
+  parallel scannenden Bibliotheken kamen langsame Items zu spät dran (Build 0145).
+- **Lösung:** Langsame Items werden per `insert(at: 0)` global vor alle schnellen gestellt.
+  `rescanAllLibraries()` scannt Bibliotheken parallel (`withTaskGroup`), damit eine
+  hängende/nicht angeschlossene Bibliothek nicht alle anderen blockiert.
+
+Aktueller Stand (bleibt in CLAUDE.md): Resume-Dialog, Puffer-Regler (`bufferSecondsKey`,
+5–180s), lokale Auflösungs-Erkennung (`LocalItem.width/height`), Downloads-Resume
+(`resumeData`), Download-Metadaten-Nachkorrektur, Löschen im lokalen Player + „Alle Downloads
+löschen".
+
+### ✅ „Kill Bill spielt nicht ab" — Saga über mehrere Fixversuche (2026-08-27 bis 2026-08-30)
+- **Symptom:** Kill-Bill-Rip (Blu-ray) ließ sich über den `?compat=1`-Download in der
+  Mac/iOS-App wiederholt nicht abspielen — schwarzes Bild, teils stummer Ton, teils
+  „Datei kann nicht abgespielt werden".
+- **Ursache 1 (Audio):** E-AC-3 5.1 (`ec-3`-Tag in MP4) spielt AVFoundation nicht ab →
+  schwarz/stumm. Danach AAC 5.1 OHNE `-ac 2` versucht — erzeugte bei DTS-Quellen
+  `channel_layout=unknown`, AVFoundation blieb STUMM.
+- **Ursache 2 (Muxing):** ffmpegs `elst`-Edit-List (B-Frame-Delay) brachte AVFoundation bei
+  kopiertem h264 dazu, die Datei GAR NICHT abzuspielen (VLC spielte sie klaglos ab).
+- **Ursache 3 (Cache-Staleness):** `convVersion` wurde bei `buildArgs`-Änderungen nicht immer
+  hochgezählt — eine mit alter, kaputter Logik erzeugte Cache-Kopie wurde ewig weiter
+  ausgeliefert, weil der Cache-Validator nur Quelle-mtime+size vergleicht.
+- **Ursache 4 (die eigentliche, am 2026-08-30 gefundene):** Der compat-Download kam längst als
+  sauberes MP4 an (avc1 h264 8-Bit + 2× AAC 5.1, per ffprobe verifiziert) — die **Mac/iOS-App
+  speicherte die Datei aber als `.mkv`** (Dateiname aus `item.container` statt aus der
+  Server-Antwort abgeleitet), AVFoundation verweigerte allein wegen der Dateiendung.
+- **Lösung (kumulativ):** AAC-LC Stereo (`-ac 2 -b:a 256k`) für JEDE Tonspur, auch AAC-Quellen
+  (`convVersion = 4`); `-movflags +negative_cts_offsets` immer (negative CTS statt edit-list);
+  `convVersion`-Disziplin bei jeder `buildArgs`-Änderung; GoldfishApple Build 178 erzwingt
+  `.mp4`-Endung bei `?compat=1`-Downloads unabhängig von `item.container`.
+- **Lehre:** Bei App-seitigen Wiedergabeproblemen zuerst verifizieren, WAS tatsächlich beim
+  Client ankommt (ffprobe auf die heruntergeladene Datei), bevor am Server weiter gedreht wird
+  — die Server-Fixes waren einzeln alle berechtigt, aber keiner war der Auslöser für DIESEN
+  Fall.
+
+### ✅ Compat-Download blieb bei 99 % hängen (2026-08-27)
+- **Symptom:** Große Dateien über `?compat=1` in der Apple-App klebten beim Download bei 99 %.
+- **Ursache:** Die ffmpeg-Konvertierung lief synchron am Request-Context (`r.Context()`) und
+  servte am Ende mit der ModTime der Cache-Datei als einzigem Validator. Die App lief bei
+  großen Dateien in ihren 60-s-Read-Timeout, startete per `resumeData` neu → neuer Request
+  killte das erste ffmpeg und startete ein frisches (in dieselbe `.tmp.mp4`); beim Resume
+  matchte `If-Range` nicht mehr (Cache-ModTime hatte sich geändert) → `ServeContent` lieferte
+  200 statt 206.
+- **Lösung:** `internal/download` bekam eine `prepRegistry` (detachable single-flight pro
+  `outPath`) — paralleles Warmen läuft mit `context.Background()` (+2h-Cap) weiter, auch wenn
+  der Client abbricht; nur das *Warten* im Handler respektiert `r.Context()`. Unique
+  `.tmp.<ns>.mp4` + disk-space-Guard vor ffmpeg. `ETag`/`Last-Modified` an die QUELLDATEI
+  gekoppelt (nicht die Cache-Kopie) → `If-Range` bleibt über Resume-Versuche stabil. Apple-App:
+  `timeoutIntervalForRequest = 600`.
+
+### ✅ Sammlungen liefen ohne ACL- und FSK-Prüfung (2026-09-02)
+- **Symptom:** Non-Admin „reviewer" sah Sammlungen (inkl. Datei-Pfaden) aus Bibliotheken, auf
+  die er per ACL keinen Zugriff hatte.
+- **Ursache:** `ListCollections`/`GetCollectionParts`/`ListItemsInCollection` liefen komplett
+  ohne ACL-Prüfung. Beim Nachprüfen am selben Tag zweiter Fund: die (dann korrigierte)
+  Library-ACL prüfte zwar, aber die FSK-Altersgrenze (`ItemFilter.MaxAgeRating`) gar nicht — ein
+  eingeschränkter Account hätte einen FSK-18-Film über den Sammlungs-Umweg trotzdem gesehen.
+- **Lösung:** Alle drei Queries filtern jetzt per `store.aclLibraryClause(col, userID,
+  isAdmin)` (Admin immer alles, Non-Admin nur `user_library_access`) — bei
+  `GetCollectionParts` sitzt die Klausel bewusst im `LEFT JOIN`, ein unzugänglicher Part soll
+  wie ein fehlender Part aussehen (`owned:false`), nicht verraten dass der Film vorhanden ist.
+  Neuer gemeinsamer Helper `Store.itemVisibilityClause` kombiniert Library-ACL UND FSK-Grenze.
+  Tests: `internal/store/collections_acl_test.go`. Siehe `feedback_user_isolation_before_deploy`
+  (Memory) — wiederkehrendes Muster: neues Feature mit User-sichtbaren Daten ohne ACL-Prüfung.
+

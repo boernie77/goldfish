@@ -230,182 +230,56 @@ oben gelten weiterhin immer.
   'platform=macOS' build`, dann App-Bundle aus DerivedData auf den Desktop
   kopieren zum Testen (kein Simulator für Mac-Target nötig).
 
-## Gelöste Bugs (Stand 2026-08-19, Build 0100)
-- **Fenster-Verschwinden-Bug** (viele Fixversuche, am Ende zwei echte Root-Causes):
-  1. `PlayerLaunchCoordinator.pendingPlayer/pendingLocalPlayer` wurden beim
-     Schließen nie auf `nil` zurückgesetzt → SwiftUI/AppKit-Fenster-Bookkeeping
-     lief auseinander.
-  2. Das Hauptfenster konnte über den grünen Button in einen eigenen nativen
-     Vollbild-Space rutschen (`onScreen=false` im Diagnose-Log, Frame = exakt
-     Bildschirmgröße) — landete dann auf einer anderen Space als der Player.
-     Fix: `window.collectionBehavior = [.managed, .participatesInCycle,
-     .canJoinAllSpaces]` (Ganzwert-Neuzuweisung, `.remove()`/`.insert()` auf
-     der Property hat NICHT zuverlässig gehalten) + Fenster zieht sich beim
-     Start auf `screen.visibleFrame` auf (fast Vollbild ohne echtes Fullscreen).
-  - **Debugging-Lehre:** NSLog+Console.app hat trotz aktivem Streaming NIE
-    einwandfrei funktioniert (0 Mitteilungen trotz Reproduktion) — Umstieg auf
-    eigenes File-Logging (`~/Desktop/goldfish-window-debug.log`, append via
-    `FileHandle`) war der Durchbruch. `Read`/`cat` auf `~/Desktop/*` scheitert
-    aus dem Coding-Environment heraus an macOS-Datenschutz (EPERM) — User muss
-    die Datei selbst öffnen/einfügen oder `! cat ...` selbst ausführen.
-- **„Von Anfang" startete mitten im Video** (Transcode): identischer Root-Cause
-  wie im Browser (siehe DECISIONS.md „„Von Anfang" startet mitten im Film") —
-  Server matched eine bereits vorangeschrittene gecachte Transcode-Session.
-  Fix mirrored `player.js`: `&fresh=1` (wenn Start=0) + `_t=<timestamp>`
-  Cache-Bust an die Transcode-URL anhängen (`PlayerView.transcodeURLWithParams`).
-- Per-User-Isolation für lokale Bibliotheken/Downloads/Shuffle-Scope (analog
-  zum früheren Android-Bug, gleiche Klasse von Fehler: fehlender User-Filter).
-- **Bibliotheks-Vorschaubilder offline weg** (mehrfach „gefixt", Build 165 die
-  echte Ursache): in `LibrariesView.load()` wurde `previewURLs` NUR aus
-  `loadPreviews()` befüllt, und das lief ausschließlich im Erfolgsfall von
-  `fetchLibraries()`. Offline → `catch` → `previewURLs` leer → jede
-  `LibraryCard` fiel auf den farbigen Gradienten-Kreis zurück. Die früheren
-  Fixes (Offline-Lib-Liste in UserDefaults, eigener `GoldfishLibraryPreviews/`-
-  Platten-Cache, `file://`-Handling in `PosterImage`) waren alle nötig, aber
-  keiner hat den Cache-Read in den Offline-Zweig gehängt. Fix:
-  `hydratePreviewsFromCache()` läuft jetzt IMMER (vor + unabhängig vom
-  Netzwerk-Call). Zusätzlich (User: „genau die AKTUELLEN Bilder speichern"):
-  `loadPreviews()` zieht nur noch EINMALIG ein Zufalls-Poster pro Bibliothek —
-  ist die Cache-Datei da, wird sie behalten statt bei jedem Öffnen mit einem
-  neuen Zufallsbild überschrieben. Bild ist damit online wie offline stabil.
-- **Zufallsmodus-Auto-Weiter** (Build 173): `PlayerView` + `LocalPlayerView`
-  starten am Videoende (`AVPlayerItemDidPlayToEndTime`-Observer) automatisch
-  das nächste Zufallsvideo, wenn ein Zufallskontext aktiv ist (`randomContext`
-  bzw. `randomPool`) → `jumpRandom(by:1)` / `jump(by:1)`, gleicher Pfad wie ⏭.
-  `LocalPlayerView` hatte vorher keinen End-Observer; markiert bei Auto-Weiter
-  jetzt auch als gesehen.
-- **Gesehene Downloads löschen + Staffel-Gesehen + lokale Sternebewertung**
-  (Build 174): (1) `DownloadsView`-Toolbar-„Alle löschen" ist jetzt ein `Menu`
-  mit zusätzlichem „Alle gesehenen löschen" (`DownloadManager
-  .deleteWatchedDownloads()` = nur `state==.done` + `cachedItem?.watched`;
-  `watchedDownloadCount`). (2) `ShowSeasonsView.SeasonCard` hat einen
-  Gesehen-Toggle, der ALLE vorhandenen Folgen der Staffel auf einmal
-  markiert (`client.setWatched` je `episode.itemId`). (3) Lokale Bibliotheken:
-  `LocalItem.rating` (0–3, Default → alte Indizes dekodieren, Rescan behält's),
-  `LocalLibraryManager.setRating`, Kontextmenü-Bewertung + Stern-Overlay
-  (oben rechts) auf `LocalItemCard` + `LocalRatingFilter` im Filter-Menü.
-- **Ton-/Untertitel-Dropdowns im Detail-Dialog + Untertitel-Overlay**
-  (Build 179): `ItemDetailView` hat zwei `Picker` (🔊 Tonspur = alle
-  Audiostreams, 💬 Untertitel = NUR `MediaStream.isDisplayableGeneratedSub`,
-  also codec `webvtt-ocr`/`webvtt-generated` — Bitmap-Subs PGS/VOBSUB werden
-  gar nicht mehr angeboten). Streams jetzt aus `client.playback(itemId:)` statt
-  `fetchItem` (nur der Playback-Endpoint liefert die erzeugten Untertitel mit).
-  Auswahl → `preferredAudioIndex`/`preferredSubtitle` (`PreferredSubtitle`-Struct,
-  `vttPath(itemID:)`) in `PlayerLaunchRequest` (macOS) UND `PlayerView(...)`
-  (iOS). `PlayerView` rendert ein eigenes WebVTT-Overlay (`SubtitleCue`,
-  `parseVTT`, `activeSubtitleText`, `loadSubtitleCues`) + Ein/Aus-Button in
-  `PlayerControlsBar`. `currentTime` ist im Transcode-Modus bereits absolut
-  (virtualOffset applied) → KEIN Cue-Shift nötig (Browser verschiebt die VTT
-  dagegen um `-virtualOffset`). `GoldfishClient.fetchText(serverPath:)` neu.
-- **Offline→online: Bibliotheken kommen nicht wieder, „Session abgelaufen"**
-  (Build 166): der Text ist die wörtliche 401-Antwort des Servers
-  (`internal/api/auth.go` — Cookie wird gesendet, aber die Session ist
-  serverseitig weg/abgelaufen). App-seitige Fehler: (1)
-  `RootView.refreshSessionStatus()` lief nur EINMAL beim Start — offline→online
-  hat die Session nie neu abgeglichen. (2) `LibrariesView.load()`/`HomeView`
-  behandelten den 401 als `isOffline=true` (falsch — der Server hat ja
-  geantwortet) und zeigten bei leerem Cache die rohe Server-Meldung als
-  Vollbild-Sackgasse OHNE Retry-Knopf und ohne Weg zurück zum Login. (3) nichts
-  hat eine tote Session je nach `LoginView` geroutet. Fixe:
-  `GoldfishClient.isAuthError()` + `markSessionInvalid()` (löscht lokalen
-  Login-State + Host-Cookies → `RootView` zeigt `LoginView`); `RootView`
-  gleicht die Session bei jedem Wechsel in den Vordergrund neu ab
-  (`scenePhase == .active`, `authStatus` ist public/kein 401, wirft nur bei
-  echtem Verbindungsproblem → kein Fehlalarm-Logout); `LibrariesView`/`HomeView`
-  laden bei `scenePhase == .active` neu, unterscheiden Connectivity- vs.
-  Auth- vs. sonstige Fehler und haben jetzt einen „Erneut versuchen"-Button
-  (Offline-Banner ist zusätzlich antippbar).
-- **SSO-Login in der Mac/iOS-App schlug still fehl** (Build 167): der
-  `OIDCWebViewRepresentable`-Coordinator kopierte die WKWebView-Cookies EINMALIG
-  im `didFinish` für `/` nach `HTTPCookieStorage.shared`. Das `Set-Cookie` aus
-  der OIDC-Callback-Weiterleitung ist zu dem Zeitpunkt aber oft noch nicht im
-  WKWebView-Cookie-Store (bekanntes WKWebView-Timing) → `goldfish_session` wurde
-  nicht übernommen → `authStatus()` = `loggedIn:false` → App blieb auf dem
-  Login-Screen, ohne Fehlermeldung. Fix: `syncCookies` pollt jetzt bis zu ~2,5 s
-  (8 × 0,3 s), bis der `goldfish_session`-Cookie auftaucht; kommt keiner, meldet
-  der Flow das explizit als Fehler statt still zu schließen.
-  `LoginView.refreshAfterOIDC()` fasst zusätzlich 5× kurz nach (`authStatus`),
-  bevor es aufgibt, und zeigt sonst eine klare Meldung.
-- **SSO-Sheet war auf macOS leer** (Build 168, der eigentliche „SSO tut nichts"-
-  Grund — kam VOR dem Cookie-Sync): `OIDCLoginView` setzte keine explizite Größe.
-  Ein `NSViewRepresentable` (WKWebView) hat keine intrinsische Größe → das
-  `.sheet` schrumpfte auf Header + „Abbrechen", die Authentik-Seite bekam 0 Höhe
-  und war unsichtbar. Fix: `#if os(macOS) .frame(minWidth:720, minHeight:760,
-  ideal 900×900)` auf dem `NavigationStack` + `.frame(maxWidth/maxHeight:
-  .infinity)` auf dem Representable — dasselbe Muster, das `ShuffleScopeSheet`
-  in `LibrariesView` schon hatte.
-- **Passwort-Manager-AutoFill im Login** (Build 169): `LoginView`s Felder haben
-  jetzt `.textContentType(.username)` / `.textContentType(.password)` — ohne das
-  erkennt das OS (und damit Bitwardens AutoFill-Provider / die QuickType-Leiste)
-  sie nicht als Login-Felder. Domain-genaue Vorschläge
-  (`webcredentials:goldfish.<your-domain>`) bräuchten zusätzlich die
-  Associated-Domains-Entitlement + `apple-app-site-association` auf dem Server +
-  Team-Signierung → geht nicht mit den Ad-hoc-Testbuilds. Für die Authentik-Seite
-  im WKWebView hilft nur Bitwarden-Desktop mit globalem Autofill-Hotkey (⌘\) +
-  Bedienungshilfen-Freigabe.
-- **Signierung + Version in `project.yml` verankert** (2026-08-28):
-  `DEVELOPMENT_TEAM` (persönliches Team) + `CFBundleVersion` in
-  `info.properties` (`xcodegen generate` setzte die plist-Datei sonst auf „1"
-  zurück). `xcodebuild`-CLI kann mit der Free-Personal-Team-ID nicht
-  auto-signieren → echt signierte Builds über Xcode (Run/Archive) oder manuell
-  mit `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=<hash>`. Signierte 1.0-Kopie:
-  `~/Desktop/Goldfish_1.0.app` (Build 170).
-  **⚠ Die Personal-Team-ID ist NICHT stabil über Mac-Wechsel/Neuinstallationen
-  hinweg** (2026-09-02 auf neuem Mac verifiziert): war `F95969PBFU` auf dem
-  alten Mac, danach fälschlich `YP6683AT3R` vermutet (das ist die ID aus
-  alten, auf dem neuen Mac wiederhergestellten Provisioning-Profilen anderer
-  Apps/der Lernapp — aber NICHT die ID, für die Xcode auf DIESEM Mac ein
-  Zertifikat erzeugt hatte), am Ende korrekt war `Y83997R5WL` (die ID des
-  frisch in Xcode → Settings → Accounts erzeugten „Apple Development"-
-  Zertifikats, per `security find-identity -v -p codesigning` verifizierbar).
-  **Bei „No Account for Team"/„No signing certificate found" nach
-  Mac-Wechsel: NICHT von alten Provisioning-Profilen/anderen Projekten auf
-  die Team-ID schließen** — stattdessen einmal ⌘R in der Xcode-GUI
-  (erzeugt das Zertifikat), danach `security find-identity -v -p
-  codesigning` und die dort angezeigte Team-ID in `DEVELOPMENT_TEAM`
-  eintragen.
-  **`com.goldfish.ios` war zusätzlich noch beim alten Team reserviert**
-  (App-IDs sind teamgebunden, ein neues Team kann sie nicht übernehmen) →
-  für Geräte-Tests auf `com.goldfish.iosdev` geändert (nur lokale
-  Bundle-ID, keine Store-Relevanz).
-  **`xcodebuild` von der Kommandozeile kann bei einem Free-Personal-Team
-  grundsätzlich NICHT signieren/auf einem echten Gerät laufen** — auch mit
-  `-allowProvisioningUpdates` nicht (kein OAuth-Zugriff außerhalb der
-  Xcode-GUI). Für Runs auf einem echten iPhone/iPad IMMER über die
-  Xcode-GUI (⌘R) gehen, nicht per CLI versuchen.
-  **iOS-Simulator-„Duplicate of `<UUID>`"-Hänger (siehe weiter unten) durch
-  Mac-Neustart am 2026-09-02 behoben** — GoldfishiOS baut seither auch im
-  Simulator sauber (BUILD SUCCEEDED, iPhone 17 Pro, iOS 26.5).
-  **Abmelden-Button im App-Header entfernt** (2026-09-02, `RootView.swift`,
-  gilt für Mac+iOS gemeinsam) — war doppelt zum bestehenden „Abmelden" im
-  Einstellungen-Tab (`SettingsView.swift` Account-Section), Username-Anzeige
-  im Header bleibt.
-- **SSO-Kontowechsel** (Build 171): der eingebettete Authentik-WebView
-  (`OIDCLoginView`) hat einen persistenten `WKWebsiteDataStore` — beim erneuten
-  „Mit SSO anmelden" wurde stillschweigend derselbe Authentik-User wieder
-  angemeldet, ein Wechsel Admin ↔ normaler Benutzer war unmöglich. Neu:
-  zweiter Button **„Mit anderem Konto anmelden"** auf dem Login-Screen setzt
-  `OIDCLoginView(clearSessionFirst: true)` → `WKWebsiteDataStore.default()` wird
-  vor dem Laden geleert → Authentik zeigt seine Anmeldemaske. Flow: oben rechts
-  Abmelden → „Mit anderem Konto anmelden". SSO ist immer nur EIN aktives Konto
-  gleichzeitig (kein Parallel-Login), und Offline-Kontowechsel bleibt
-  passwort-only.
-- Sammlungen (z. B. James Bond) sortieren Filme jetzt chronologisch nach
-  Erscheinungsdatum, wie im Browser.
-- Gesehen-Status wurde nicht ans Server-Grid propagiert, obwohl `setWatched`
-  lief: Downloads-Tab-Kacheln rendern aus `DownloadRecord.cachedItem`, einem
-  beim Download eingefrorenen JSON-Snapshot, der nie nachgezogen wurde. Fix:
-  `Item.withWatched(_:)` + `DownloadManager.updateCachedWatched(itemId:
-  watched:)`, verdrahtet an jedem `setWatched`-Call-Site (PlayerView,
-  ItemCard, ItemDetailView).
-- **Tonspur-Auswahl bei Server-Transcode** (Build 176): Der Player hatte nur
-  einen Audiospur-Umschalter für lokale/Direct-Play-Quellen
-  (`AVMediaSelectionGroup`). Bei einer Transcode-Session enthält der
-  HLS-Stream nur die eine vom Server gewählte Spur — Auswahl läuft jetzt über
-  `PlaybackResponse.streams` (Server liefert alle Quell-Audiospuren) +
-  `&audio=<index>` an der Transcode-URL, `restartTranscodeSession` an der
-  aktuellen Position (Browser-Pendant: das Audio-Dropdown im Player-Dialog).
-  Zweites `waveform`-Menü in `PlayerControlsBar`, sichtbar bei >1 Spur.
+## Gelöste Bugs (Kurzfassung — volle Root-Cause-Analyse in DECISIONS.md „GoldfishApple")
+Chronologisch, Build 0100 (2026-08-19) bis Build 179:
+- **Fenster-Verschwinden-Bug**: verwaiste Coordinator-Referenzen + Hauptfenster rutschte in
+  einen eigenen Fullscreen-Space. Fix: `PlayerLaunchCoordinator` korrekt zurückgesetzt +
+  `window.collectionBehavior` explizit gesetzt.
+- **„Von Anfang" startete mitten im Video** (Transcode): identischer Root-Cause wie im Browser
+  (DECISIONS.md „„Von Anfang" startet mitten im Film") — `&fresh=1` + `_t=<timestamp>`
+  Cache-Bust an die Transcode-URL (`PlayerView.transcodeURLWithParams`).
+- Per-User-Isolation für lokale Bibliotheken/Downloads/Shuffle-Scope nachgezogen (gleiche
+  Fehlerklasse wie der frühere Android-Bug: fehlender User-Filter).
+- **Bibliotheks-Vorschaubilder offline weg** (Build 165): `hydratePreviewsFromCache()` lief nur
+  im Online-Erfolgsfall. Fix: läuft jetzt immer, unabhängig vom Netzwerk-Call; Poster pro
+  Bibliothek wird nur noch einmalig zufällig gezogen statt bei jedem Öffnen überschrieben.
+- **Zufallsmodus-Auto-Weiter** (Build 173): `PlayerView`/`LocalPlayerView` starten am Videoende
+  automatisch das nächste Zufallsvideo (`jumpRandom(by:1)`/`jump(by:1)`), gleicher Pfad wie ⏭.
+- **Gesehene Downloads löschen + Staffel-Gesehen + lokale Sternebewertung** (Build 174):
+  Downloads-Toolbar hat „Alle gesehenen löschen"; `ShowSeasonsView.SeasonCard` markiert eine
+  ganze Staffel auf einmal gesehen; lokale Items haben eine 0–3-Sternebewertung.
+- **Ton-/Untertitel-Dropdowns im Detail-Dialog + Untertitel-Overlay** (Build 179, aktuelle
+  Architektur): `ItemDetailView` hat zwei `Picker` (🔊 Tonspur = alle Audiostreams, 💬
+  Untertitel = nur `MediaStream.isDisplayableGeneratedSub`, Bitmap-Subs raus). Streams kommen
+  aus `client.playback(itemId:)` (nicht `fetchItem`). Auswahl → `preferredAudioIndex`/
+  `preferredSubtitle` in `PlayerLaunchRequest`/`PlayerView`. `PlayerView` rendert ein eigenes
+  WebVTT-Overlay; `currentTime` ist im Transcode-Modus bereits absolut (kein Cue-Shift wie im
+  Browser nötig).
+- **Offline→online: „Session abgelaufen" ohne Weg zurück** (Build 166): Session wurde nach
+  Reconnect nie neu abgeglichen, 401 wurde fälschlich als Connectivity-Fehler behandelt. Fix:
+  `GoldfishClient.isAuthError()`/`markSessionInvalid()` + Session-Re-Check bei jedem
+  Vordergrund-Wechsel + „Erneut versuchen"-Button.
+- **SSO-Login schlug still fehl** (Build 167, WKWebView-Cookie-Timing) + **SSO-Sheet war auf
+  macOS leer** (Build 168, `NSViewRepresentable` ohne explizite Größe) — zwei unabhängige Bugs
+  auf demselben Flow, Sheet-Bug kam zuerst. Fixe: Cookie-Poll bis ~2,5s + explizite Sheet-Größe
+  (`minWidth:720, minHeight:760`).
+- **Passwort-Manager-AutoFill** (Build 169): `.textContentType(.username/.password)` auf den
+  Login-Feldern nachgerüstet.
+- **Signierung/Team-ID + Version in `project.yml`** (2026-08-28, mit ⚠ Team-ID-Falle bei
+  Mac-Wechsel — siehe DECISIONS.md): `DEVELOPMENT_TEAM` + `CFBundleVersion` zentral in
+  `project.yml`. `xcodebuild`-CLI kann bei Free-Personal-Team grundsätzlich nicht signieren —
+  echte Geräte-Runs IMMER über Xcode-GUI (⌘R), nicht per CLI versuchen.
+- **SSO-Kontowechsel unmöglich** (Build 171): `WKWebsiteDataStore` war persistent. Fix: Button
+  „Mit anderem Konto anmelden" leert den DataStore vor dem Laden. SSO ist immer nur ein aktives
+  Konto gleichzeitig; Offline-Kontowechsel bleibt passwort-only.
+- Sammlungen sortieren Filme jetzt chronologisch nach Erscheinungsdatum, wie im Browser.
+- **Gesehen-Status propagierte nicht ans Downloads-Grid**: Downloads-Kacheln rendern aus einem
+  beim Download eingefrorenen JSON-Snapshot. Fix: `Item.withWatched(_:)` +
+  `DownloadManager.updateCachedWatched(itemId:watched:)` an jedem `setWatched`-Call-Site.
+- **Tonspur-Auswahl bei Server-Transcode** (Build 176, aktuelle Architektur): Auswahl läuft über
+  `PlaybackResponse.streams` + `&audio=<index>` an der Transcode-URL,
+  `restartTranscodeSession` an der aktuellen Position (Browser-Pendant: Audio-Dropdown im
+  Player-Dialog). Zweites `waveform`-Menü in `PlayerControlsBar`, sichtbar bei >1 Spur.
 
 ## Gesehen-Sync zwischen zwei Usern (seit 2026-08-19)
 - User-Anfrage: zwei eigene Accounts (z. B. Christian + Alex/Börnie) sollen
@@ -504,137 +378,57 @@ oben gelten weiterhin immer.
   `GoldfishiOS` konnte in dieser Session **nicht** per CLI verifiziert werden
   (siehe „⚠ iOS-Simulator-Runtime" unten) — steht noch aus.
 
-### ⚠ iOS-Simulator-Runtime ließ sich auf diesem Mac nicht sauber installieren
-
-- Dieser Mac hatte vor dieser Session **nur das iOS-SDK, aber keine
-  heruntergeladene Simulator-Runtime** (`xcrun simctl list runtimes` leer,
-  kein `iPhoneSimulator`-Image unter `/Library/Developer/CoreSimulator/`).
-  Dadurch schlug jeder `GoldfishiOS`-Build mit `No available simulator
-  runtimes for platform iphonesimulator` fehl — unabhängig vom App-Code.
-- `xcodebuild -downloadPlatform iOS` lädt zwar 8,5 GB runter und meldet am
-  Ende `Done.`, **persistiert das Runtime-Image aber nicht** — Ursache
-  vermutlich fehlende Root-Rechte für den finalen Cryptex-Mount unter
-  `/Library/Developer/CoreSimulator/` aus dem nicht-interaktiven
-  Terminal-Tool heraus (dieses Verzeichnis ist `root:wheel`, nicht
-  admin-group-writable; die GUI löst das über einen Autorisierungs-Dialog,
-  den es aus einem Bash-Tool heraus nicht gibt). Ein `killall
-  CoreSimulatorService` macht es NICHT besser — danach verschwindet sogar
-  der kurzzeitig sichtbare Eintrag wieder.
-- Im Xcode-GUI-Downloads-Fenster (⌘, → Components) zeigte der iOS-26.5-
-  Simulator-Download wiederholt **„Failed — Duplicate of <UUID>"** — auch
-  nach Klick auf ↺ (Retry) erneut derselbe Fehler. Ein tvOS-26.5-Download
-  im selben Fenster lief dagegen einwandfrei durch, was auf einen
-  **iOS-spezifischen hängengebliebenen Download-Session-Eintrag** in Xcodes
-  eigener (nicht im üblichen `~/Library/Caches/com.apple.dt.Xcode`
-  liegenden) Download-Verwaltung hindeutet, nicht auf einen App/Code-Fehler.
-  Lokale Cache-Verzeichnisse wurden geprüft und waren leer/nicht vorhanden —
-  der Konflikt sitzt serverseitig/in einem laufenden Prozess-Handle.
-  **Nächster Versuch: Mac-Neustart** (räumt hängende CoreSimulator-/
-  Downloadd-Prozesshandles zuverlässiger auf als einzelne `killall`-Befehle),
-  danach den iOS-26.5-Simulator nochmal über Xcode → Settings → Components
-  installieren und `GoldfishiOS` bauen.
+### ✅ iOS-Simulator-Runtime ließ sich zunächst nicht sauber installieren (behoben)
+War zeitweise blockiert: fehlende Simulator-Runtime + Xcode-GUI-Downloads-Fenster zeigte
+wiederholt „Failed — Duplicate of `<UUID>`" beim iOS-26.5-Download (`xcodebuild
+-downloadPlatform iOS` lud zwar herunter, persistierte das Image aber nicht — vermutlich
+fehlende Root-Rechte für den Cryptex-Mount aus dem nicht-interaktiven Terminal-Tool heraus).
+**Per Mac-Neustart am 2026-09-02 behoben** (räumt hängende CoreSimulator-/Downloadd-
+Prozesshandles auf, die einzelne `killall`-Befehle nicht lösten) — `GoldfishiOS` baut seither
+auch im Simulator sauber (iPhone 17 Pro, iOS 26.5). Volle Fehlerbeschreibung: Memory
+`feedback_ios_simulator_duplicate_bug`.
 
 ## Lokale Bibliotheken — Player/Formatanpassung/Puffer (seit 2026-08-24, Stand Build 0153)
 
-Große Session rund um externe Datenträger (USB-Platten, SD-Karten) für lokale
-Bibliotheken. Reihenfolge unten = Chronologie, spätere Einträge fixen teils
-Regressionen aus früheren.
+Externe Datenträger (USB-Platten, SD-Karten) als lokale Bibliotheken. Mehrere I/O-Contention-
+Bugs und ihre Fixes (Formatanpassung pausiert nicht während Wiedergabe, Cache-Cap nicht
+disk-space-aware, Eviction warf teure Re-Encodes raus, verwaiste ffmpeg-Prozesse, N parallele
+Thumbnail-Loops) sind ausgelagert in DECISIONS.md „Lokale Bibliotheken (GoldfishApple)" —
+**Diagnose-Reflex bei künftigen Ruckel-Reports:** `ps aux | grep ffmpeg` (Zombie-Check) +
+`lsof +D <externes-Volume>` während Wiedergabe.
 
-- **Resume-Dialog**: `LocalLibraryItemsView`-Kachel-Tap fragt jetzt wie bei
-  Server-Items "Von Anfang/Fortsetzen" (`LocalPlayerLaunchRequest.startFromBeginning`).
-- **Mauszeiger-Leak gefixt**: `NSCursor.hide()/unhide()` ist app-weit
-  refcounted, nicht fensterbezogen — bei `onDisappear`-Ausfall (bekannt
-  unzuverlässig beim Schließen über den nativen roten Knopf) blieb der
-  Cursor dauerhaft versteckt. Fix: `setHiddenUntilMouseMoves(true)` statt
-  manuellem Pairing (`PlayerView` + `LocalPlayerView`).
-- **Formatanpassung pausiert während aktiver Wiedergabe** (I/O-Contention auf
-  langsamen externen Platten): `LocalTranscodeService.beginPlayback()`/
-  `endPlayback()`/`waitWhilePlaybackActive()` (jetzt `public`) — gilt für
-  die Konvertierungs-Queue UND (seit Build 0152, zweiter unabhängiger Bug)
-  den Thumbnail-/Auflösungs-Hintergrund-Loop in `LocalLibraryManager`.
-  Safety-Net gegen denselben `onDisappear`-Ausfall:
-  `LocalPlayerView`s echter `NSWindow.willCloseNotification`-Observer ruft
-  `LocalTranscodeService.resetPlaybackActive()` (Hard-Reset, kein Decrement)
-  — sonst blockiert ein verpasster Teardown die Queue für den Rest der
-  Session.
-- **Formatanpassungs-Priorität**: nur Dateien, die einen ECHTEN Re-Encode
-  brauchen (AV1/VP9/…, `h264_videotoolbox`, Minuten), werden bedingungslos
-  vorab konvertiert; reine Remuxe (HEVC/H264/ProRes, `-c:v copy`, Sekunden)
-  nur wenn im Cache noch Platz ist. Bei mehreren parallel scannenden
-  Bibliotheken werden langsame Items per `insert(at: 0)` global vor alle
-  schnellen gestellt (reines Anhängen reichte nicht, siehe Build 0145).
-  `rescanAllLibraries()` scannt Bibliotheken parallel (`withTaskGroup`) —
-  eine hängende/nicht angeschlossene Bibliothek blockiert sonst alle
-  anderen.
-- **Cache-Cap ist disk-space-aware**: `maxCacheBytes` (80 GB nominell)
-  allein schützt NICHT vor "No space left on device", wenn die Platte aus
-  anderen Gründen voll ist — `enforceCacheSizeCap()` hält zusätzlich
-  `minFreeBytes` (15 GB) über `.volumeAvailableCapacityKey` frei (bewusst
-  NICHT `...ForImportantUsage` — die zählt verwerfbare Time-Machine-
-  Snapshots optimistisch mit, real 101 GB vs. 35 GB auf demselben Mac
-  gemessen). `performRemux` ruft das jetzt VORAB auf, bricht bei zu wenig
-  Platz sofort mit klarer Meldung ab statt nach Minuten mitten im ffmpeg-Lauf.
-- **Eviction schützt langsame Re-Encodes**: reine Alt-zuerst-Eviction warf
-  bei vollem Cache teure Re-Encodes zugunsten neuerer raus (Cache-Füllstand
-  81 GB real beobachtet). Fix: `performRemux` hält die Slow/Fast-
-  Klassifizierung persistent fest (`.slow-classification.json` im
-  Cache-Ordner) — überlebt Neustarts, funktioniert auch bei nicht
-  erreichbarem Datenträger. `enforceCacheSizeCap()` opfert erst alle
-  schnellen Einträge (älteste zuerst), erst danach langsame.
-- **Puffer-Regler**: `LocalPlaybackSettings.bufferSecondsKey`
-  (`UserDefaults`, global über alle Accounts, Default 60s) steuert
-  `AVPlayerItem.preferredForwardBufferDuration` in `LocalPlayerView`.
-  Regler in `SettingsView` (5–180s). **Wichtig für Erwartungshaltung:**
-  das ist kein "X Sekunden garantiert ruckelfrei"-Wert — nur ein Ziel, wie
-  weit vorausgelesen wird; bei einer Quelle, die dauerhaft langsamer liefert
-  als die Video-Bitrate braucht, verzögert ein großer Puffer das erste
-  Ruckeln nur, verhindert es nicht.
-- **Auflösung für lokale Items**: `LocalItem.width/height` (optional,
-  AVAssetTrack-Probing statt ffprobe, funktioniert auch auf iOS), gleiche
-  Bucket-Grenzen wie der Server (`ResolutionBucket`,
-  `internal/store/sqlite.go` ResBuckets). Kachel-Badge + Filter + Sortierung
-  in `LocalLibraryItemsView`. Wird nur beim SCANNEN ermittelt — Bestands-
-  bibliotheken brauchen einmal "Neu einlesen", bevor Daten da sind.
-- **Auflösungs-Sortierung auch für Server-Bibliotheken nachgezogen**:
-  `ItemSort.resolution` (Server unterstützte `sort=resolution` schon lange,
-  fehlte nur im Mac-Client) — kein Rescan nötig, Server-Items haben
-  Breite/Höhe schon seit ihrem ursprünglichen Scan.
-- **Gesamtgröße neben Datei-Anzahl**: `DisplaySettings.showTotalSizeKey`
-  (ein gemeinsamer Schalter für Server- UND lokale Bibliotheken), Toggle im
-  bestehenden "Filter"-Menü. Bei Server-Bibliotheken automatisch auf jeder
-  Unterordner-Tiefe korrekt, weil `items` ohnehin pro Ordner-Ebene neu
-  geladen wird.
-- **Downloads fortsetzbar nach Verbindungsabbruch**: `DownloadRecord.resumeData`
-  (`NSURLSessionDownloadTaskResumeData`, persistiert, übersteht App-Neustart)
-  — `startDownload` nutzt `session.downloadTask(withResumeData:)` statt
-  komplett neu, wenn vorhanden. Nicht bei jedem Abbruch garantiert (fragile
-  Foundation-API) — fällt sonst automatisch auf Neustart zurück.
-- **Download-Metadaten-Nachkorrektur**: falsch zugeordnete, bereits
-  heruntergeladene Items korrigieren sich beim nächsten Öffnen des
-  Downloads-Tabs automatisch (Titel/Poster/Jahr), sobald online — die
-  Videodatei selbst bleibt unangetastet (`DownloadManager.
-  refreshCachedMetadataIfChanged`).
-- **Zwei weitere I/O-Contention-Quellen (Build 0154):** (1) verwaiste
-  ffmpeg-Prozesse überleben einen App-Neustart NICHT automatisch mehr —
-  `LocalTranscodeService.activeProcesses`/`terminateAllActiveProcesses()`,
-  aufgerufen aus `AppDelegate.applicationWillTerminate`. (2) bei mehreren
-  lokalen Bibliotheken feuerte `scan()` pro Bibliothek einen eigenen
-  Thumbnail-/Auflösungs-Hintergrund-Task ab — jetzt EINE geteilte
-  Warteschlange (`LocalLibraryManager.thumbnailQueue`) über alle
-  Bibliotheken, garantiert höchstens 1 Hintergrund-Datei-Handle statt N.
-  **Diagnose-Reflex bei künftigen Ruckel-Reports:** `ps aux | grep ffmpeg`
-  (Start-Zeitstempel älter als die laufende App-Instanz? → Zombie) +
-  `lsof +D <externes-Volume>` während aktiver Wiedergabe (mehr als 1
-  Handle offen? → Contention-Quelle suchen).
-- **Löschen im lokalen Player + "Alle Downloads löschen"** (Build 0155):
-  `LocalPlayerView`/`LocalPlayerControlsBar` haben jetzt einen 🗑-Button
-  (Bestätigungsdialog, löscht die echte Datei) — vorher ging Löschen nur
-  per Rechtsklick auf die Kachel, nicht während der Wiedergabe.
-  `DownloadManager.deleteAllDownloads()` + Toolbar-Button in
-  `DownloadsView` (Bestätigungsdialog) — bricht laufende Downloads über
-  `tasks[itemId]?.cancel()` ab, NICHT über `cancelDownload()` (das würde
-  den Record vorzeitig löschen, bevor `deleteDownload()` die Datei noch
-  finden kann).
+Aktueller Stand (Architektur, bleibt hier):
+- **Resume-Dialog**: `LocalLibraryItemsView`-Kachel-Tap fragt wie bei Server-Items
+  "Von Anfang/Fortsetzen" (`LocalPlayerLaunchRequest.startFromBeginning`).
+- **Mauszeiger**: `setHiddenUntilMouseMoves(true)` statt manuellem `NSCursor.hide()/unhide()`-
+  Pairing (letzteres ist app-weit refcounted, nicht fensterbezogen, und leakte bei
+  `onDisappear`-Ausfall).
+- **Formatanpassungs-Priorität**: nur Dateien mit ECHTEM Re-Encode-Bedarf (AV1/VP9/…) werden
+  bedingungslos vorab konvertiert; reine Remuxe (HEVC/H264/ProRes, `-c:v copy`) nur wenn im
+  Cache noch Platz ist. `LocalTranscodeService.beginPlayback()`/`endPlayback()`/
+  `waitWhilePlaybackActive()` pausiert die Queue während aktiver Wiedergabe.
+- **Cache-Cap**: `maxCacheBytes` (80 GB nominell) + `minFreeBytes` (15 GB) über
+  `.volumeAvailableCapacityKey` (bewusst NICHT `...ForImportantUsage`). Slow/Fast-
+  Klassifizierung persistiert in `.slow-classification.json` — Eviction opfert erst schnelle
+  (billige) Einträge, dann langsame (teure Re-Encodes).
+- **Puffer-Regler**: `LocalPlaybackSettings.bufferSecondsKey` (global, Default 60s) steuert
+  `AVPlayerItem.preferredForwardBufferDuration`. Kein "X Sekunden garantiert ruckelfrei"-Wert —
+  nur ein Vorauslese-Ziel.
+- **Auflösung für lokale Items**: `LocalItem.width/height` (AVAssetTrack-Probing, funktioniert
+  auch auf iOS), gleiche Bucket-Grenzen wie der Server. Wird nur beim SCANNEN ermittelt —
+  Bestandsbibliotheken brauchen einmal "Neu einlesen".
+- **Auflösungs-Sortierung auch für Server-Bibliotheken nachgezogen**: `ItemSort.resolution`
+  (Server unterstützte `sort=resolution` schon lange, fehlte nur im Mac-Client).
+- **Gesamtgröße neben Datei-Anzahl**: `DisplaySettings.showTotalSizeKey` (gemeinsamer Schalter
+  für Server- UND lokale Bibliotheken), Toggle im "Filter"-Menü.
+- **Downloads fortsetzbar nach Verbindungsabbruch**: `DownloadRecord.resumeData` — nicht bei
+  jedem Abbruch garantiert (fragile Foundation-API), fällt sonst auf Neustart zurück.
+- **Download-Metadaten-Nachkorrektur**: falsch zugeordnete, bereits heruntergeladene Items
+  korrigieren sich beim nächsten Öffnen des Downloads-Tabs automatisch, sobald online.
+- **Löschen im lokalen Player + "Alle Downloads löschen"**: 🗑-Button in
+  `LocalPlayerView`/`LocalPlayerControlsBar` (Bestätigungsdialog); `DownloadManager
+  .deleteAllDownloads()` bricht laufende Downloads über `tasks[itemId]?.cancel()` ab, NICHT
+  über `cancelDownload()` (das würde den Record vorzeitig löschen).
 
 ---
 
@@ -1130,27 +924,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `GET /api/items?personId=<tmdbId>`.
 
 ### Sammlungen (TMDB-Collections)
-- **🔴 ACL-Fix 2026-09-02** (User-Report: Non-Admin "reviewer" sah Sammlungen
-  aus Bibliotheken, auf die er per ACL keinen Zugriff hatte): `ListCollections`/
-  `GetCollectionParts`/`ListItemsInCollection` liefen komplett OHNE ACL-Prüfung
-  — jeder eingeloggte User sah jede Sammlung inkl. voller Item-Objekte
-  (Datei-Pfad!) aus fremden Bibliotheken. Alle drei nehmen jetzt `isAdmin` und
-  filtern per `store.aclLibraryClause(col, userID, isAdmin)`-Helper (Admin
-  immer alles, Non-Admin nur `user_library_access`). Bei `GetCollectionParts`
-  sitzt die ACL-Klausel bewusst im `LEFT JOIN` auf `items`, nicht in der
-  WHERE-Klausel — ein unzugänglicher Part soll wie ein fehlender Part
-  aussehen (`owned:false`), nicht verraten, dass der Film eigentlich
-  vorhanden ist. Test: `internal/store/collections_acl_test.go`. Siehe
-  [[feedback_user_isolation_before_deploy]] — wieder ein Fall von "neues
-  Feature mit User-sichtbaren Daten hatte keine ACL-Prüfung".
-- **🔴 FSK-Fix 2026-09-02** (gleicher Tag, zweiter Fund beim Nachprüfen): die
-  Bibliotheks-ACL war jetzt korrekt, aber Sammlungen prüften die
-  FSK-Altersgrenze (`ItemFilter.MaxAgeRating`, sonst überall im Grid aktiv)
-  gar nicht — ein Kind-/eingeschränkter Account hätte einen FSK-18-Film über
-  den Sammlungs-Umweg trotzdem gesehen. Neuer gemeinsamer Helper
-  `Store.itemVisibilityClause` kombiniert Library-ACL UND FSK-Grenze für alle
-  drei Sammlungs-Queries. Test: `TestCollectionsAgeRating` in
-  `collections_acl_test.go`.
+- **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
+  `ListItemsInCollection` liefen vorher ohne Library-ACL- UND FSK-Prüfung (Non-Admin sah fremde
+  Sammlungen inkl. Datei-Pfaden; ein FSK-18-Film wäre über den Sammlungs-Umweg für
+  eingeschränkte Accounts sichtbar gewesen). Alle drei filtern jetzt per
+  `store.itemVisibilityClause`/`aclLibraryClause(col, userID, isAdmin)` (Admin immer alles,
+  Non-Admin nur `user_library_access` + `MaxAgeRating`). Bei `GetCollectionParts` sitzt die
+  Klausel bewusst im `LEFT JOIN`, damit ein unzugänglicher Part wie ein fehlender aussieht
+  (`owned:false`) statt zu verraten, dass der Film vorhanden ist. Volle Root-Cause-Analyse:
+  DECISIONS.md „Sammlungen liefen ohne ACL- und FSK-Prüfung". Tests:
+  `internal/store/collections_acl_test.go`. Siehe [[feedback_user_isolation_before_deploy]] —
+  wiederkehrendes Muster: neues Feature mit User-sichtbaren Daten ohne ACL-Prüfung.
 - **⚠ Generisches Hardening (`internal/store/hardening.go`, 2026-09-02):**
   optionale, rein per Env-Var (`GOLDFISH_FORCE_ADMIN_ONLY_LIBRARIES`,
   kommagetrennte Bibliotheks-NAMEN) konfigurierte Sperre — für die dort
@@ -2096,90 +1880,60 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   VAAPI/NVENC/Software, Software-Fallback bei HW-Fehlschlag). JEDER
   Audiostream wird einzeln gemappt + kopiert oder zu AAC transkodiert
   (inkl. Sprach-Metadata) — **nicht** nur der erste, sonst geht bei
-  Mehrsprachen-Rips eine Tonspur verloren (genau der Bug, der den früheren
-  client-seitigen Ansatz hatte, siehe unten). Cache unter
+  Mehrsprachen-Rips eine Tonspur verloren. Cache unter
   `/config/cache/downloads/{itemID}.mp4` + `.json`-Sidecar (Quelle
   mtime+size **+ `convVersion`**), damit ein zweiter Download nicht neu
-  konvertiert. **`convVersion` (Konstante in `prepare.go`, aktuell 2) bei
+  konvertiert. **`convVersion` (Konstante in `prepare.go`, aktuell 4) bei
   JEDER `buildArgs`-Änderung hochzählen** — sonst wird eine mit alter (ggf.
   kaputter) Logik erzeugte Kopie ewig weiter ausgeliefert, weil nur
-  Quelle-mtime+size verglichen wird (2026-08-30: E-AC-3-Fehlversuch blieb
-  trotz AAC-Fix im Cache → Kill Bill „zum wiederholten Male" schwarz).
-  **ffmpeg-Härtung (2026-08-28, „Kill Bill startet nicht"):** `-nostdin`;
-  `-analyzeduration/-probesize 200M` an ffprobe UND ffmpeg (spät startende
-  zweite Tonspur einer großen MKV wird sonst übersehen); `-err_detect
-  ignore_err -fflags +genpts`; `-max_muxing_queue_size 4096` (MKV→MP4 mit
-  Video-Copy + Audio-Transcode bricht sonst mit „Too many packets buffered"
-  ab). `runPrep` loggt jetzt Start / Codec+Tonspur-Anzahl / Fehler (2000
-  Zeichen ffmpeg-Ausgabe) / Erfolg als `[download] compat-prep …`.
-  **Tempo für große Rips (2026-08-28):** `+faststart` läuft IMMER (die 4-GB-
-  Schwelle war ein Fehler — moov am Dateiende macht die MP4 für AVFoundation
-  je nach Gerät unabspielbar, real bei Enola Holmes 6 GB passiert; der
-  zusätzliche Rewrite-Pass ist durch die „Wird vorbereitet … %"-Anzeige
-  abgedeckt). **Audio (Stand 2026-08-30, `convVersion = 4`):** JEDE Tonspur →
-  **AAC-LC Stereo (`-ac 2 -b:a 256k`)**, auch AAC-Quellen (Audio-Pass ist gegen
-  den Video-Pass vernachlässigbar). Chronik: E-AC-3 5.1 (`ec-3` in MP4 spielt
-  AVFoundation nicht → Kill Bill schwarz) → AAC 5.1 OHNE `-ac 2` (erzeugte bei
-  DTS-Quellen `channel_layout=unknown` → AVFoundation STUMM, Spur teils nicht
-  wählbar) → **AAC Stereo mit definiertem Layout**. Für den compat-Download
-  (Apple-App, meist Stereo-Ausgabe) schlägt eine verlässlich klingende
-  Stereo-Spur eine stumme 5.1-Spur. **Nicht wieder auf AC-3/E-AC-3 oder auf
-  5.1-ohne-Layout umstellen.**
-  `-movflags +negative_cts_offsets` (immer):
-  B-Frame-Delay als negative CTS statt `elst`-edit-list — ffmpegs edit list
-  brachte AVFoundation bei kopiertem h264 dazu, die Datei GAR NICHT
-  abzuspielen (VLC dagegen klaglos; 2026-08-28, Kill Bill). Verwaiste `.tmp.*.mp4` (Container-Restart mitten
-  im Lauf) werden vor einem neuen Lauf weggeräumt.
-  **Kill Bill final (2026-08-30):** die eigentliche Ursache war NICHT der
-  Server — der compat-Download kam als sauberes MP4 an (avc1 h264 8-Bit +
-  2× AAC 5.1, per ffprobe verifiziert). Die **Mac/iOS-App speicherte die
-  Datei aber als `.mkv`** (Dateiname aus `item.container`, nicht aus der
-  Server-Antwort) → AVFoundation verweigert allein wegen der Endung. Fix in
-  GoldfishApple Build 178 (`?compat=1` → immer `.mp4`). Die
-  Server-Änderungen unten (10-Bit-Reencode / convVersion / ETag) waren
-  trotzdem nötig, nur nicht der Auslöser für DIESEN Fall.
-  **Video-Pixelformat (2026-08-30, convVersion 3):** `-c:v copy` für h264 nur
-  noch bei **8-Bit 4:2:0** (`pix_fmt` ∈
-  yuv420p/yuvj420p/nv12/nv21). 10-Bit-H.264 / 4:2:2 / 4:4:4 kann VideoToolbox/
-  AVFoundation **nicht** dekodieren (VLCs Software-Decoder schon) → wird per
-  **libx264 → yuv420p** re-encodet (bewusst Software, nicht VAAPI — Intel-iGPU
-  kann solche h264-Profile oft nicht decoden). HEVC 10-Bit bleibt `copy`
-  (AVFoundation kann HDR-HEVC). `probeVideo` liefert dafür jetzt `pix_fmt`;
-  Entscheider ist `videoNeedsReencode(codec, pixFmt)` in `prepare.go`.
-  **`convVersion`-Konstante bei JEDER `buildArgs`-Änderung hochzählen** — der
-  Cache-Validator (`cachedCopyValid`) verwirft sonst kaputte Alt-Kopien nicht
-  (nur Quelle-mtime+size werden sonst verglichen).
-  **`GET /api/download/{id}/compat-status`** (2026-08-28) liefert
-  `{state,percent,message}` (`state` ∈ `ready|preparing|error|idle`) und stößt
-  die Formatanpassung an, falls nötig und noch nicht laufend/gecacht.
-  `prepJob` trackt `totalMS` (ffprobe-Dauer) + `doneMS` (fortlaufend aus
-  ffmpeg `-progress pipe:1` / `out_time_us`); `percent()` = 1–99 während des
-  Laufs, 100 bei Erfolg. Fertige Jobs bleiben 2 min in `prepReg.recent`, damit
-  der Status auch Erfolg/Fehler direkt danach noch melden kann. Die Apple-App
-  (`DownloadManager.prepareThenTransfer`, Build 172) pollt das alle 2 s und
-  zeigt „Wird vorbereitet … X %", bevor der eigentliche Byte-Download startet;
-  `state=error` → Download failed, alter Server ohne den Endpoint → direkt laden.
-  Opt-in per Query-Param, damit Browser/Android (die die Original-Datei wollen
-  bzw. selbst breiter dekodieren) unverändert bleiben — nur die Mac/iOS-App
+  Quelle-mtime+size verglichen wird.
+  **ffmpeg-Härtung:** `-nostdin`; `-analyzeduration/-probesize 200M` an
+  ffprobe UND ffmpeg (spät startende zweite Tonspur einer großen MKV wird
+  sonst übersehen); `-err_detect ignore_err -fflags +genpts`;
+  `-max_muxing_queue_size 4096` (MKV→MP4 mit Video-Copy + Audio-Transcode
+  bricht sonst mit „Too many packets buffered" ab). `runPrep` loggt Start /
+  Codec+Tonspur-Anzahl / Fehler (2000 Zeichen ffmpeg-Ausgabe) / Erfolg als
+  `[download] compat-prep …`.
+  **Tempo für große Rips:** `+faststart` läuft IMMER (moov am Dateiende macht
+  die MP4 für AVFoundation je nach Gerät unabspielbar) — der zusätzliche
+  Rewrite-Pass ist durch die „Wird vorbereitet … %"-Anzeige abgedeckt.
+  **Audio (aktuell, `convVersion = 4`):** JEDE Tonspur → **AAC-LC Stereo
+  (`-ac 2 -b:a 256k`)**, auch AAC-Quellen (Audio-Pass ist gegen den Video-Pass
+  vernachlässigbar) — für den compat-Download (Apple-App, meist
+  Stereo-Ausgabe) schlägt eine verlässlich klingende Stereo-Spur eine stumme
+  5.1-Spur. **Nicht wieder auf AC-3/E-AC-3 oder auf 5.1-ohne-Layout
+  umstellen** (Historie: DECISIONS.md „Kill Bill spielt nicht ab").
+  `-movflags +negative_cts_offsets` (immer): B-Frame-Delay als negative CTS
+  statt `elst`-edit-list (ffmpegs edit list verhinderte Wiedergabe bei
+  kopiertem h264 in AVFoundation komplett). Verwaiste `.tmp.*.mp4`
+  (Container-Restart mitten im Lauf) werden vor einem neuen Lauf weggeräumt.
+  **Video-Pixelformat (convVersion 3):** `-c:v copy` für h264 nur noch bei
+  **8-Bit 4:2:0** (`pix_fmt` ∈ yuv420p/yuvj420p/nv12/nv21). 10-Bit-H.264 /
+  4:2:2 / 4:4:4 kann VideoToolbox/AVFoundation **nicht** dekodieren → wird per
+  **libx264 → yuv420p** re-encodet (bewusst Software, nicht VAAPI). HEVC
+  10-Bit bleibt `copy` (AVFoundation kann HDR-HEVC). Entscheider:
+  `videoNeedsReencode(codec, pixFmt)` in `prepare.go`.
+  **`GET /api/download/{id}/compat-status`** liefert `{state,percent,message}`
+  (`state` ∈ `ready|preparing|error|idle`) und stößt die Formatanpassung an,
+  falls nötig und noch nicht laufend/gecacht. `prepJob` trackt `totalMS`
+  (ffprobe-Dauer) + `doneMS` (aus ffmpeg `-progress pipe:1`); `percent()` =
+  1–99 während des Laufs, 100 bei Erfolg, Jobs bleiben 2 min in
+  `prepReg.recent`. Die Apple-App (`DownloadManager.prepareThenTransfer`)
+  pollt das alle 2 s und zeigt „Wird vorbereitet … X %" vor dem eigentlichen
+  Byte-Download. Opt-in per Query-Param, damit Browser/Android (die die
+  Original-Datei wollen) unverändert bleiben — nur die Mac/iOS-App
   (`GoldfishClient.downloadFileURL`) fragt das an.
-  **99-%-Hänger-Fix (2026-08-27, gleicher Tag):** die erste Version lief die
-  ffmpeg-Konvertierung synchron am Request-Context (`r.Context()`) und servte
-  am Ende mit der ModTime der Cache-Datei als einzigem Validator. Folge: die
-  Apple-App lief bei großen Dateien in ihren 60-s-Read-Timeout
-  (`timeoutIntervalForRequest`), startete per `resumeData` neu → neuer Request
-  killte das erste ffmpeg und trat ein frisches los (in dieselbe `.tmp.mp4`);
-  beim Resume matchte zudem `If-Range` nicht mehr (Cache-ModTime hatte sich
-  geändert) → `ServeContent` lieferte 200 statt 206 → Download klebte bei
-  99 %. Fixe: (a) `internal/download` hat jetzt eine `prepRegistry`
-  (detachable single-flight pro `outPath`) — parallele/Retry-Requests teilen
-  EINEN Lauf, und der Lauf läuft mit `context.Background()` (+ 2-h-Cap) auch
-  weiter, wenn der Client abbricht, und wärmt so den Cache; nur das *Warten*
-  im Handler respektiert `r.Context()`. (b) unique `.tmp.<ns>.mp4` +
-  disk-space-Guard (`unix.Statfs`, Quelle + 2 GiB) vor ffmpeg. (c) Handler
-  koppelt `ETag` **und** Last-Modified an die QUELLDATEI (mtime+size), nicht
-  an die Cache-Kopie → `If-Range` ist über Resume-Versuche stabil.
-  (d) Apple-App: `URLSessionConfiguration.timeoutIntervalForRequest = 600`
-  in `DownloadManager` (Mac-Build 164).
+  **Robust gegen 99-%-Hänger bei Resume:** `internal/download` hat eine
+  `prepRegistry` (detachable single-flight pro `outPath`) — der Konvertierungs-
+  Lauf läuft mit `context.Background()` (+2h-Cap) auch weiter, wenn der Client
+  abbricht (nur das *Warten* im Handler respektiert `r.Context()`); unique
+  `.tmp.<ns>.mp4` + disk-space-Guard vor ffmpeg; `ETag`/`Last-Modified` an die
+  QUELLDATEI gekoppelt (nicht die Cache-Kopie), damit `If-Range` über
+  Resume-Versuche stabil bleibt. Apple-App:
+  `URLSessionConfiguration.timeoutIntervalForRequest = 600`. Volle
+  Root-Cause-Chronik (E-AC-3/AAC-5.1/`.mkv`-Dateiendungs-Bug/99-%-Hänger):
+  DECISIONS.md „Kill Bill spielt nicht ab" + „Compat-Download blieb bei 99 %
+  hängen".
   **Ersetzt die frühere client-seitige Formatanpassung für Downloads**
   (`LocalTranscodeService` in GoldfishApple) komplett — die App bekommt nie
   mehr eine kaputte Datei zum Nachbearbeiten. `LocalTranscodeService` läuft
