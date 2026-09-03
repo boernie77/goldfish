@@ -74,7 +74,7 @@ func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatch
 		return s.annotateDrilldown(libraryID, folders)
 	}
 	prefix := parent + "/"
-	q := `SELECT rel_path, id, has_thumb FROM items
+	q := `SELECT rel_path, id, has_thumb, added_at FROM items
 		 WHERE library_id = ? AND rel_path LIKE ? ESCAPE '\'`
 	if onlyUnmatched {
 		q += ` AND metadata_id IS NULL`
@@ -88,6 +88,7 @@ func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatch
 	type acc struct {
 		count   int
 		thumbID int64
+		addedAt string
 	}
 	byFolder := map[string]*acc{}
 	order := []string{}
@@ -95,7 +96,8 @@ func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatch
 		var rp string
 		var id int64
 		var hasThumb int
-		if err := rows.Scan(&rp, &id, &hasThumb); err != nil {
+		var addedAt sql.NullString
+		if err := rows.Scan(&rp, &id, &hasThumb, &addedAt); err != nil {
 			return nil, err
 		}
 		rest := rp[len(prefix):]
@@ -116,6 +118,11 @@ func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatch
 		if hasThumb == 1 && a.thumbID == 0 {
 			a.thumbID = id
 		}
+		// MAX(added_at) über alle Items dieses Unterordners — Strings sind hier
+		// bereits ISO-8601-artig sortierbar (SQLite DATETIME-Default-Format).
+		if addedAt.Valid && addedAt.String > a.addedAt {
+			a.addedAt = addedAt.String
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -130,6 +137,7 @@ func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatch
 			Name:        prefix + seg, // voller Pfad
 			ItemCount:   a.count,
 			ThumbItemID: a.thumbID,
+			AddedAt:     a.addedAt,
 		})
 	}
 	return s.annotateDrilldown(libraryID, out)

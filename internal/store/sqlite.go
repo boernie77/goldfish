@@ -1776,6 +1776,12 @@ type Folder struct {
 	MetadataID  int64           `json:"metadataId,omitempty"`
 	Metadata    *model.Metadata `json:"metadata,omitempty"`
 	Drilldown   bool            `json:"drilldown"` // true = Klick zeigt Subfolder statt flacher Liste
+	// AddedAt = MAX(items.added_at) aller Items in diesem Ordner (rekursiv wäre teurer,
+	// Top-Level-Items reichen als Näherung). Ermöglicht Clients, Show-/Ordner-Kacheln nach
+	// "Hinzugefügt" zu sortieren — der Browser sortiert Kacheln bisher immer nur alphabetisch
+	// (grid.js `folderCollator`), die Apple-Apps nutzen das Feld seit 2026-09-03 clientseitig
+	// für den Sort-Modus `.added` (ItemGridView.swift in GoldfishApple).
+	AddedAt string `json:"addedAt,omitempty"`
 }
 
 // AllFolderPaths liefert ALLE Ordnerpfade einer Bibliothek (jede Ebene, nicht
@@ -1831,14 +1837,15 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 	// vor dem GROUP BY zu Ambiguität beim "folder"-Alias in SQLite und alle Items landen
 	// im selben Bucket.
 	rows, err := s.db.Query(`
-		SELECT f.folder, f.cnt, f.thumb_id, fm.metadata_id
+		SELECT f.folder, f.cnt, f.thumb_id, fm.metadata_id, f.added_at
 		FROM (
 			SELECT
 				SUBSTR(rel_path, 1, INSTR(rel_path, '/')-1) AS folder,
 				library_id,
 				COUNT(*) AS cnt,
 				SUM(CASE WHEN metadata_id IS NULL THEN 1 ELSE 0 END) AS unmatched_cnt,
-				MIN(CASE WHEN has_thumb=1 THEN id ELSE NULL END) AS thumb_id
+				MIN(CASE WHEN has_thumb=1 THEN id ELSE NULL END) AS thumb_id,
+				MAX(added_at) AS added_at
 			FROM items
 			WHERE library_id = ? AND INSTR(rel_path, '/') > 0
 			GROUP BY folder
@@ -1856,8 +1863,12 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 	for rows.Next() {
 		var f Folder
 		var thumb, meta sql.NullInt64
-		if err := rows.Scan(&f.Name, &f.ItemCount, &thumb, &meta); err != nil {
+		var addedAt sql.NullString
+		if err := rows.Scan(&f.Name, &f.ItemCount, &thumb, &meta, &addedAt); err != nil {
 			return nil, err
+		}
+		if addedAt.Valid {
+			f.AddedAt = addedAt.String
 		}
 		if thumb.Valid {
 			f.ThumbItemID = thumb.Int64
