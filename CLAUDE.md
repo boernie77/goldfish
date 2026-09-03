@@ -196,15 +196,25 @@ oben gelten weiterhin immer.
 
 ---
 
-# 🍎 Mac/iOS-App (GoldfishApple, seit 2026-08-17)
+# 🍎 Mac/iOS/tvOS-App (GoldfishApple, seit 2026-08-17)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
-> Es gibt außer der Android-App auch eine **native Mac/iOS-App** unter
+> Es gibt außer der Android-App auch eine **native Mac/iOS/tvOS-App** unter
 > `/Users/christian/Projekte/GoldfishApple/` (SwiftUI, `GoldfishMac` + `GoldfishiOS`
+> + **`GoldfishTV`** (seit 2026-09-03, Apple TV, `com.goldfish.tvos`, tvOS 17+)
 > Targets via `xcodegen` aus `project.yml`, gemeinsames Swift-Package `GoldfishCore`).
 > **Seit 2026-08-19 eigenes Git-Repo:** `github.com/boernie77/goldfish-apple`
 > (privat). Analog dazu `github.com/boernie77/goldfish-android` — beide getrennt
 > vom Server-Repo (`goldfish`), nicht darin eingegliedert.
+>
+> **GoldfishTV-Details ausgelagert in Memory `project_apple_tvos_port` (lädt
+> nicht automatisch)** — u. a.: kein Downloads-Tab (User-Entscheidung, Apple TV
+> braucht keine Offline-Downloads), kein SSO/WebKit, `Menu`-in-Toolbar öffnet
+> auf tvOS zuverlässig NICHTS (→ immer `.sheet`/`.confirmationDialog` statt
+> `Menu` für neue tvOS-UI), und ein noch UNGELÖSTES Problem: der native
+> `NavigationLink`-Fokus-Kasten auf Poster-Kacheln lässt sich mit vier
+> verschiedenen Standard-Modifiern nicht abschalten — vor einem erneuten
+> Versuch das Memory lesen, nicht dieselben vier Ansätze wiederholen.
 
 ## Architektur-Kurzfassung
 - macOS: App Sandbox AUS (`GoldfishMac.entitlements` = `<dict/>`, nach jedem
