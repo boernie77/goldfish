@@ -1642,6 +1642,7 @@ async function checkAuth() {
   } catch {}
   wire();
   updateShuffleScopeIndicator();
+  initMiniPlayer();
   // Alphabet-Leiste automatisch nach jedem Grid-Render aktualisieren.
   const gridEl = $("#grid");
   if (gridEl && window.MutationObserver) {

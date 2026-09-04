@@ -479,12 +479,12 @@ Standard-Go-Projektlayout (`cmd/`, `internal/<paket>/`, `scripts/`, `.github/wor
 HTML/CSS. Die Lade-Reihenfolge in `index.html` ist relevant, weil spaetere
 Module Funktionen aus frueheren nutzen.
 
-Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, admin, playlists, scan, matching, whisper, introskip, ocrsub) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar.
+Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, admin, playlists, scan, matching, whisper, introskip, ocrsub, music) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar.
 
 
 **Lade-Reihenfolge in index.html:**
 ```
-helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → introskip → ocrsub → app
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → introskip → ocrsub → music → app
 ```
 
 Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (−82 %)**. Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed + im Browser getestet.
@@ -944,6 +944,68 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   einfach aus, kein Fehler-Toast.
 - Schließen des Trailer-Dialogs entfernt das `<iframe>` komplett aus dem DOM
   (nicht nur `src` leeren) — sonst spielt YouTube im Hintergrund weiter.
+
+### Musik-Bibliotheken (seit 2026-09-04)
+- Neuer Bibliothekstyp `kind=music` neben movies/tv/private (Admin-UI:
+  Bibliothek-anlegen-Dialog + Bibliotheks-Manager-Select).
+- **Metadaten-Priorität (User-Vorgabe, WICHTIG bei künftigen Änderungen):**
+  eingebettete Tags (ID3/FLAC/Vorbis, via ffprobe `format.tags` — bereits
+  vorher nur für `extractReleaseTime` genutzt) sind IMMER die primäre Quelle.
+  MusicBrainz+Cover-Art-Archive ist NUR Fallback, wenn Tags/Cover fehlen.
+- **Gruppierung ist bewusst hybrid:** Ordnerstruktur bleibt die normale
+  Browse-Navigation (Musik-Items sind ganz normale `items`-Zeilen, die
+  bestehende `/api/items?folder=`-Navigation funktioniert unverändert). Die
+  KANONISCHE Artist/Album-Identität für die Album-Kachel-Ansicht kommt separat
+  aus den Tag-Werten (`items.artist`/`items.album`), mit dem übergeordneten
+  Ordnernamen als Fallback, wenn beide Tags fehlen (Store:
+  `GroupMusicAlbums`, läuft am Ende jedes Musik-Library-Scans).
+- **Neue Tabelle `music_albums`** (NICHT die `metadata`-Tabelle
+  wiederverwendet — die ist auf TMDB-int-IDs zugeschnitten,
+  `UNIQUE(tmdb_type,tmdb_id,...)`, MusicBrainz-IDs sind UUIDs und passen da
+  nicht sauber rein). `items.artist/album/track_no/music_album_id` additiv.
+- **Scanner** (`internal/scanner/scanner.go`): neue Extensions
+  (mp3/flac/m4a/ogg/opus/wav), Tag-Extraktion in `probeItem` (Artist/Album/
+  Track/Titel-Fallback), Thumbnail-Generierung übersprungen (macht bei Audio
+  keinen Sinn), stattdessen `extractAlbumCovers` — EINMAL pro Album (nicht
+  pro Track!) das eingebettete Cover per `ffmpeg -an -vcodec copy` aus der
+  ersten Track-Datei ziehen. Cache-Konvention identisch zu Postern
+  (`Server.PosterDir`, Dateiname `album_<id>.jpg`).
+- **Enrichment-Fallback** (`internal/enrich/music_worker.go` +
+  `internal/musicbrainz/client.go`): bewusst ein KOMPLETT eigenständiger
+  Worker, NICHT in `enrich.Worker` (TMDB/OMDb) integriert — der hält konkrete
+  `*tmdb.Client`/`*omdb.Client`-Felder ohne Abstraktionsgrenze. MusicBrainz +
+  Cover Art Archive sind beide kostenlos, kein API-Key nötig, aber
+  MusicBrainz verlangt einen aussagekräftigen `User-Agent` + max. 1 req/s
+  (eigener Rate-Limiter, NICHT den TMDB-Limiter mitbenutzen). Läuft nur für
+  Alben, deren `cover_source` nach der Scanner-Extraktion noch leer ist.
+- **Playback** (`internal/playback/decider.go`+`ffmpeg.go`): eigener
+  Audio-Only-Zweig VOR den Video-Codec-Checks (kein `VideoCodec` gesetzt) —
+  mp3/aac/vorbis/opus spielt jeder Browser nativ (Direct Play), alles andere
+  (flac/wav/…) wird zu AAC/HLS transcodiert, dabei komplett ohne
+  Video-Filter/Hwaccel-Init.
+- **API**: `GET /api/libraries/{id}/albums`, `GET /api/albums/{id}`
+  (Album-Detail + Tracks sortiert nach `track_no`), `GET /api/poster/album/{id}`
+  (Cover, gleiches Handler-Muster wie `getPoster`). Der bestehende
+  `/api/items?libraryId=`-Endpoint liefert Tracks für die normale
+  Ordner-Browse-Ansicht bereits generisch mit.
+- **Frontend:** `.card--square` (quadratisches Cover, analog `.card--poster`)
+  für Musik-Kacheln. Musik-Library-Root zeigt Album-Kacheln
+  (`views.js renderAlbumTiles`/`renderAlbumTracks`, `state.currentAlbum`)
+  statt der normalen Ordner-Ansicht — Unterordner-Navigation bleibt trotzdem
+  unverändert nutzbar (Hybrid-Vorgabe).
+- **Persistenter Mini-Player** (`music.js`, neues Modul, letzte Position vor
+  `app.js` in der Lade-Reihenfolge): `#miniPlayer` sitzt als Geschwister von
+  `#playerDialog` AUSSERHALB von `#grid` im DOM — übersteht dadurch jeden
+  `loadItems()`/View-Wechsel unverändert (User-Vorgabe: "wie Spotify/YouTube
+  Music", nicht nur ein angepasster Modal-Dialog). Eigener, unsichtbarer
+  Video.js-Player (`musicState.vjs`, NICHT `state.vjs` — der gehört dem
+  normalen Video-Modal und wird bei `disposePlayer()` verworfen) für
+  HLS-Transcode-Support bei flac/wav, exakt wie der Hauptplayer. Klick auf
+  eine Musik-Kachel ruft `musicPlayAlbum()` auf statt `openDetail()` zu
+  öffnen — Queue kommt aus `state.playQueue` (in der Album-Ansicht korrekt
+  gefüllt; bei normaler Ordner-Browse-Navigation ohne Album-Ansicht fällt
+  die Queue auf den einzelnen angeklickten Track zurück, kein Auto-Weiter —
+  bekannte v1-Einschränkung, die Album-Ansicht ist der vorgesehene Weg).
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/

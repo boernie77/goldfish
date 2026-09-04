@@ -335,6 +335,28 @@
 <div id="trickplayStatus" class="scanbar trickbar hidden"></div>
 <div id="whisperStatus" class="scanbar whisperbar hidden"></div>
 
+<!-- Persistenter Mini-Player für Musik-Bibliotheken (seit 2026-09-04). Bewusst
+     GESCHWISTER von #playerDialog (nicht darin!) und außerhalb von #grid —
+     überlebt dadurch jeden loadItems()/View-Wechsel (siehe music.js). Das
+     eigentliche Media-Element ist ein Video.js-Player (für HLS-Transcode-
+     Support bei flac/wav via VHS, wie der normale Player), aber unsichtbar —
+     die sichtbare Leiste ist reines eigenes Markup. -->
+<div id="miniPlayer" class="mini-player hidden">
+  <video id="miniAudio" class="mini-audio-el" playsinline></video>
+  <img id="miniCover" class="mini-cover" alt="" src="/placeholder.svg">
+  <div class="mini-meta">
+    <div id="miniTitle" class="mini-title"></div>
+    <div id="miniArtist" class="mini-artist"></div>
+  </div>
+  <div class="mini-controls">
+    <button type="button" id="miniPrev" title="Vorheriger Titel" aria-label="Vorheriger Titel">⏮</button>
+    <button type="button" id="miniPlayPause" title="Abspielen/Pause" aria-label="Abspielen/Pause">▶</button>
+    <button type="button" id="miniNext" title="Nächster Titel" aria-label="Nächster Titel">⏭</button>
+  </div>
+  <input id="miniSeek" class="mini-seek" type="range" min="0" max="100" value="0">
+  <button type="button" id="miniClose" class="mini-close" title="Schließen" aria-label="Schließen">✕</button>
+</div>
+
 <!-- Player -->
 <dialog id="playerDialog" class="player-dialog">
   <div class="player-wrap">
@@ -1119,6 +1141,7 @@
 <script src="/whisper.js" defer></script>
 <script src="/introskip.js" defer></script>
 <script src="/ocrsub.js" defer></script>
+<script src="/music.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

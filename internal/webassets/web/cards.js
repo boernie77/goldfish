@@ -807,9 +807,19 @@ function renderCard(it, opts = {}) {
         return;
       }
     }
+    // Musik-Kacheln starten die Wiedergabe direkt im persistenten Mini-Player
+    // statt den (Video-shaped) Detail-Dialog zu öffnen (User-Anfrage
+    // 2026-09-04). Queue = die gerade gerenderte Track-Liste, damit ⏭/⏮ im
+    // Mini-Player durchs Album/die Suchergebnisse weiterschaltet.
+    if (isMusicLib && typeof musicPlayAlbum === "function") {
+      const queue = (state.playQueue && state.playQueue.length) ? state.playQueue : [it];
+      const idx = opts.queueIdx !== undefined ? opts.queueIdx : queue.indexOf(it);
+      musicPlayAlbum(queue, idx >= 0 ? idx : 0);
+      return;
+    }
     openDetail(it);
   });
-  el.addEventListener("keydown", (e) => { if (e.key === "Enter") openDetail(it); });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.click(); });
   return el;
 }
 
