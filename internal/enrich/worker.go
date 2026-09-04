@@ -305,7 +305,10 @@ func (w *Worker) enrichItems(ctx context.Context) error {
 		if err != nil || lib == nil {
 			continue
 		}
-		if lib.Kind == model.KindPrivate {
+		// Musik-Bibliotheken haben ihren eigenen Enrichment-Pfad (MusicBrainz/
+		// Cover Art Archive, siehe internal/enrich/music_worker.go) — der
+		// TMDB-Worker darf sie nie anfassen, genau wie Privat-Libs.
+		if lib.Kind == model.KindPrivate || lib.Kind == model.KindMusic {
 			continue
 		}
 		if err := w.matchItem(ctx, lib, it); err != nil {

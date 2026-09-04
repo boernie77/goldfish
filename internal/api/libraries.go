@@ -62,11 +62,11 @@ func (s *Server) createLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	kind := model.LibraryKind(body.Kind)
 	switch kind {
-	case model.KindMovies, model.KindTV, model.KindPrivate:
+	case model.KindMovies, model.KindTV, model.KindPrivate, model.KindMusic:
 	case "":
 		kind = model.KindPrivate
 	default:
-		writeError(w, 400, "ungültiger kind (movies|tv|private)")
+		writeError(w, 400, "ungültiger kind (movies|tv|private|music)")
 		return
 	}
 	info, err := os.Stat(body.Path)
@@ -180,7 +180,7 @@ func (s *Server) updateLibraryKind(w http.ResponseWriter, r *http.Request) {
 	}
 	kind := model.LibraryKind(body.Kind)
 	switch kind {
-	case model.KindMovies, model.KindTV, model.KindPrivate:
+	case model.KindMovies, model.KindTV, model.KindPrivate, model.KindMusic:
 	default:
 		writeError(w, 400, "ungültiger kind")
 		return
