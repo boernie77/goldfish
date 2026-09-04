@@ -818,7 +818,12 @@ async function loadItemsBody() {
   // last_played_at IS NOT NULL) und filtert `folder` rekursiv via LIKE.
   const FLAT_SORTS = new Set(["played", "added", "duration"]);
   const flatSort = $("#sortSelect").value;
-  if (FLAT_SORTS.has(flatSort) && state.currentLibrary) {
+  // Musik-Bibliotheken haben ihren EIGENEN Flat-Sort-Pfad weiter unten
+  // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —
+  // dieser generische Zweig würde "Zuletzt abgespielt" IMMER als Kachel-
+  // Grid rendern, unabhängig vom Listen-Toggle (User-Bericht 2026-09-04).
+  const flatSortLib = state.libraries.find(l => l.id == state.currentLibrary);
+  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && flatSortLib?.kind !== "music") {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
@@ -911,7 +916,12 @@ async function loadItemsBody() {
     // nutzt den ganz normalen /api/items-Endpoint (der liefert artist/album/
     // trackNo/lastPlayedAt für Musik-Items bereits generisch mit). Eine
     // Suche filtert hier ganz normal die flache Track-Liste.
-    if (state.musicAllTracks) {
+    // "Zuletzt abgespielt"/"Hinzugefügt"/"Laufzeit" ergeben in der Album-
+    // Gruppierung keinen Sinn (die sortiert immer nach Künstler/Album) —
+    // aktiviert deshalb automatisch dieselbe flache Ansicht wie "Alle Titel"
+    // (User-Bericht 2026-09-04: diese Sorts zeigten vorher ein falsches
+    // Kachel-Grid, das die Listenansicht ignorierte).
+    if (state.musicAllTracks || FLAT_SORTS.has(flatSort)) {
       let tracks;
       try {
         const p = new URLSearchParams({
