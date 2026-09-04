@@ -59,6 +59,14 @@ async function loadItems() {
 
 async function loadItemsBody() {
   const grid = $("#grid");
+  // Reset hier zentral statt in jeder einzelnen render*-Funktion: "Alle
+  // Titel" (renderAllTracksList) setzte die Klasse, entfernte sie aber
+  // nirgends beim Verlassen der Musik-Bibliothek — #grid blieb dadurch in
+  // Filme/Serien/Privat-Libraries auf display:block hängen, eine einzelne
+  // Kachel füllte die komplette Breite (User-Bericht 2026-09-04,
+  // Screenshot: riesiges Einzel-Poster statt Kachel-Grid). Die
+  // Musik-Listen-Renderer setzen sie bei Bedarf selbst wieder.
+  grid.classList.remove("track-list-grid");
   // Default: keine Folder im Render-Snapshot. Der Standard-Library-Pfad
   // setzt das später auf die echte Folder-Liste; alle anderen Pfade
   // (Favoriten/Duplikate/Suspicious/Interlaced/Person/Collections/Playlists)
