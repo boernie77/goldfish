@@ -709,7 +709,7 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
         <span class="track-row-artist">${escapeHTML(a.artist || "")}</span>
         <span class="track-row-count">${a.trackCount || 0} Titel</span>
       `;
-      row.addEventListener("click", () => { state.currentAlbum = a.id; loadItems(); });
+      row.addEventListener("click", () => openMusicAlbum(a.id));
       row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
       list.appendChild(row);
     }
@@ -735,15 +735,25 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
         <div class="card-meta"><span>${escapeHTML(a.artist || "")}</span></div>
       </div>
     `;
-    el.addEventListener("click", () => {
-      state.currentAlbum = a.id;
-      loadItems();
-    });
+    el.addEventListener("click", () => openMusicAlbum(a.id));
     el.addEventListener("keydown", e => { if (e.key === "Enter") el.click(); });
     frag.appendChild(el);
   }
   grid.appendChild(frag);
   state.lastRenderedItems = [];
+}
+
+// openMusicAlbum: öffnet ein Album aus der Übersicht (Kachel- oder
+// Listenansicht, auch aus gefilterten Suchtreffern). Leert dabei das
+// Suchfeld — sonst würde ein noch aktiver Künstler-/Album-Suchbegriff (der
+// NICHT zwangsläufig in den Track-TITELN vorkommt) beim Öffnen des Albums
+// fälschlich als "keine Titel gefunden"-Filter weiterwirken (User-Bericht
+// 2026-09-04: Album zeigte "Keine Titel in diesem Album", obwohl die Kachel
+// zuvor die korrekte Trackzahl anzeigte).
+function openMusicAlbum(albumId) {
+  const si = $("#searchInput"); if (si) si.value = "";
+  state.currentAlbum = albumId;
+  loadItems();
 }
 
 function renderAlbumTracks(grid, data, listView) {
@@ -759,7 +769,7 @@ function renderAlbumTracks(grid, data, listView) {
   header.innerHTML = `
     <div class="detail-poster" style="background-image:url('${cover}')"></div>
     <div class="detail-body">
-      <button type="button" class="link-btn" id="albumBackBtn">← Alle Alben</button>
+      <button type="button" class="link-btn" id="albumBackBtn" title="Zurück zur Album-Übersicht">←</button>
       <h2>${escapeHTML(album.album || "")}</h2>
       <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}</div>
     </div>
