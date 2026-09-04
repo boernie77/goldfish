@@ -174,7 +174,12 @@ type Item struct {
 	// LastPlayedAt: user_item_state.last_played_at (pro User). Nur in
 	// ListItems befüllt (für die "Alle Titel"-Listenansicht der Musik-
 	// Bibliotheken); andere Item-Ladepfade lassen es bewusst leer.
-	LastPlayedAt time.Time `json:"lastPlayedAt,omitempty"`
+	// WICHTIG: Pointer, nicht time.Time — encoding/json behandelt eine
+	// time.Time-Nullzeit NICHT als "leer" (omitempty greift nur bei Pointern/
+	// Slices/Maps/primitiven Nullwerten), ein nie abgespieltes Item hätte
+	// sonst "0001-01-01T00:00:00Z" im JSON gehabt (Frontend zeigte das als
+	// "01.01.1" an — User-Bericht 2026-09-04).
+	LastPlayedAt *time.Time `json:"lastPlayedAt,omitempty"`
 }
 
 // MusicAlbum: eine (Artist,Album)-Gruppe innerhalb einer Musik-Bibliothek.

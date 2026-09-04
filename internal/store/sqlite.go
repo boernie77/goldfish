@@ -1656,7 +1656,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			it.FavoritedAt = favoritedAt.Time
 		}
 		if lastPlayedAt.Valid {
-			it.LastPlayedAt = lastPlayedAt.Time
+			t := lastPlayedAt.Time
+			it.LastPlayedAt = &t
 		}
 		it.ReleasedAt = parseDBTime(released.String)
 		if it.ReleasedAt.IsZero() {
