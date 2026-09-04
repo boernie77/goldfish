@@ -94,6 +94,48 @@ func (s *Server) getMetadataTrailer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, trailer)
 }
 
+// getMetadataTrailerStream extrahiert eine direkt abspielbare Stream-URL für
+// den Trailer (via yt-dlp, internal/ytdlp) — für die nativen Apple-Apps
+// (Mac/iOS/tvOS), die den Trailer per AVPlayer statt per WebView/iframe
+// abspielen (tvOS hat gar kein WebKit, siehe CLAUDE.md "Trailer"). Der
+// Browser braucht diesen Endpoint NICHT (der nutzt weiterhin das iframe-Embed
+// direkt im Client).
+func (s *Server) getMetadataTrailerStream(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	meta, err := s.Store.GetMetadata(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if meta == nil || meta.TMDBType != "movie" || meta.TMDBID <= 0 {
+		writeError(w, 404, "Kein Trailer verfügbar")
+		return
+	}
+	if s.Enrich == nil || !s.Enrich.Client().Enabled() {
+		writeError(w, 404, "TMDB nicht konfiguriert")
+		return
+	}
+	trailer, err := s.Enrich.Client().GetMovieTrailer(r.Context(), meta.TMDBID)
+	if err != nil || trailer == nil {
+		writeError(w, 404, "Kein Trailer gefunden")
+		return
+	}
+	if s.YTDLP == nil {
+		writeError(w, 503, "Trailer-Stream-Extraktion nicht verfügbar")
+		return
+	}
+	url, err := s.YTDLP.StreamURL(r.Context(), trailer.Key)
+	if err != nil {
+		writeError(w, 502, "Trailer konnte nicht extrahiert werden: "+err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]string{"url": url})
+}
+
 // getPerson liefert Bio-Daten + volle Filmografie einer Person. Bio + Credits
 // kommen live von TMDB (gecacht); der lokale `people`-Eintrag dient als
 // Name/Foto-Fallback, falls TMDB deaktiviert ist oder scheitert.

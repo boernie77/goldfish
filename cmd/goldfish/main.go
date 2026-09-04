@@ -27,6 +27,7 @@ import (
 	"github.com/boernie77/goldfish/internal/trickplay"
 	"github.com/boernie77/goldfish/internal/webassets"
 	"github.com/boernie77/goldfish/internal/whisper"
+	"github.com/boernie77/goldfish/internal/ytdlp"
 )
 
 func main() {
@@ -159,6 +160,7 @@ func main() {
 		PosterDir: filepath.Join(configDir, "posters"),
 		WebFS:     webassets.FS(),
 		OIDC:      api.NewOIDCRuntime(oidcCfg),
+		YTDLP:     ytdlp.New(),
 	}
 	srv.ApplyTranslationBackend()
 	srv.BackfillAllWatchLinksOnStartup()

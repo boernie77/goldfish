@@ -82,6 +82,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --break-system-packages: Debian bookworm ist PEP-668-„externally managed".
 RUN pip3 install --no-cache-dir --break-system-packages pgsrip
 
+# yt-dlp: extrahiert die direkte Stream-URL eines YouTube-Trailers für
+# GET /api/metadata/{id}/trailer-stream (internal/ytdlp, siehe CLAUDE.md
+# "Trailer") — eigene Extraktion ist seit YouTubes 2024er Anti-Bot-Härtung
+# (Proof-of-Origin-/JS-Challenge-Token) praktisch nicht mehr selbst
+# reimplementierbar, yt-dlp wird dagegen sehr aktiv gepflegt.
+RUN pip3 install --no-cache-dir --break-system-packages yt-dlp
+
 # nvidia-smi wird NICHT im Image installiert — es wird vom Host via
 # nvidia-container-runtime gemountet, sobald NVIDIA_DRIVER_CAPABILITIES
 # "utility" enthält. So bleibt das Image NVIDIA-vendor-frei.

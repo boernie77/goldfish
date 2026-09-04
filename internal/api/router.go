@@ -17,6 +17,7 @@ import (
 	"github.com/boernie77/goldfish/internal/store"
 	"github.com/boernie77/goldfish/internal/trickplay"
 	"github.com/boernie77/goldfish/internal/whisper"
+	"github.com/boernie77/goldfish/internal/ytdlp"
 )
 
 type Server struct {
@@ -33,7 +34,8 @@ type Server struct {
 	ConfigDir string // z.B. /config — Basis für alle persistenten Daten
 	PosterDir string // z.B. /config/posters — Cache für TMDB-Poster + Custom-Uploads
 	WebFS     fs.FS
-	OIDC      *OIDCRuntime // optional, nil/disabled wenn OIDC_*-Env nicht gesetzt
+	OIDC      *OIDCRuntime     // optional, nil/disabled wenn OIDC_*-Env nicht gesetzt
+	YTDLP     *ytdlp.Extractor // Trailer-Stream-Extraktion für die nativen Apps (kein WebKit auf tvOS), siehe internal/ytdlp
 	bgCtx     context.Context
 }
 
@@ -214,6 +216,7 @@ func (s *Server) Router() http.Handler {
 		// Cast/Schauspieler
 		r.Get("/metadata/{id}/cast", s.getMetadataCast)
 		r.Get("/metadata/{id}/trailer", s.getMetadataTrailer)
+		r.Get("/metadata/{id}/trailer-stream", s.getMetadataTrailerStream)
 		r.Get("/person/{tmdbId}", s.getPerson)
 		r.Get("/person/{tmdbId}/profile", s.getPersonProfile)
 
@@ -325,7 +328,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.0.51"
+const appVersion = "1.0.52"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

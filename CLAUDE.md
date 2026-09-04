@@ -957,6 +957,24 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   einfach aus, kein Fehler-Toast.
 - Schließen des Trailer-Dialogs entfernt das `<iframe>` komplett aus dem DOM
   (nicht nur `src` leeren) — sonst spielt YouTube im Hintergrund weiter.
+- **`GET /api/metadata/{id}/trailer-stream` (seit 2026-09-04, für die nativen
+  Apple-Apps):** liefert `{url: "<direkte googlevideo-URL>"}` statt der reinen
+  YouTube-Video-ID — der Browser braucht das NICHT (nutzt weiterhin das
+  iframe-Embed direkt im Client), aber tvOS hat gar kein WebKit und kann
+  daher kein `<iframe>` rendern. `internal/ytdlp.Extractor` shellt zu `yt-dlp`
+  raus (`-f "b[ext=mp4]/b" -g`, Docker-Image installiert es via `pip3
+  --break-system-packages`, gleiches Muster wie `pgsrip`) und extrahiert eine
+  direkt per HTTP abspielbare Stream-URL, die die Apps per `AVPlayer` laden.
+  4h-In-Memory-Cache pro YouTube-Key (googlevideo-URLs sind ohnehin nur
+  wenige Stunden gültig), 3 Versuche mit 5s-Pause bei HTTP 403 (googlevideo
+  403t laut Erfahrung aus `~/Projekte/Tatort_Fetcher` gelegentlich transient,
+  besonders bei mehreren gleichzeitigen Downloads — kein harter Dauer-Block).
+  **Eigene Cipher-/PO-Token-Extraktion ist NICHT reimplementierbar** (seit
+  YouTubes 2024er Anti-Bot-Härtung bräuchte das einen zusätzlichen
+  JS-Challenge-Solver) — `yt-dlp` wird dagegen sehr aktiv dagegen gepflegt,
+  ist aber selbst NICHT unfehlbar: bei fehlschlagender Extraktion liefert der
+  Endpoint 502, die App fällt dann idealerweise auf "Trailer extern öffnen"
+  zurück statt hart zu scheitern.
 
 ### Musik-Bibliotheken (seit 2026-09-04)
 - Neuer Bibliothekstyp `kind=music` neben movies/tv/private (Admin-UI:
