@@ -21,18 +21,23 @@ import (
 // Legt für jede (artist,album)-Kombination der Library eine music_albums-
 // Zeile an (falls noch nicht vorhanden) und verknüpft alle passenden Items.
 func (s *Store) GroupMusicAlbums(libraryID int64) error {
+	// MAX(genre) statt DISTINCT auf (artist,album,genre) — einzelne Tracks
+	// eines Albums können leicht abweichende/leere Genre-Tags haben, die
+	// Gruppierung bleibt strikt auf (artist,album) begrenzt.
 	rows, err := s.db.Query(
-		`SELECT DISTINCT artist, album FROM items WHERE library_id = ? AND (artist != '' OR album != '')`,
+		`SELECT artist, album, MAX(genre) FROM items
+		 WHERE library_id = ? AND (artist != '' OR album != '')
+		 GROUP BY artist, album`,
 		libraryID,
 	)
 	if err != nil {
 		return err
 	}
-	type pair struct{ artist, album string }
+	type pair struct{ artist, album, genre string }
 	var pairs []pair
 	for rows.Next() {
 		var p pair
-		if err := rows.Scan(&p.artist, &p.album); err != nil {
+		if err := rows.Scan(&p.artist, &p.album, &p.genre); err != nil {
 			_ = rows.Close()
 			return err
 		}
@@ -45,9 +50,10 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 
 	for _, p := range pairs {
 		if _, err := s.db.Exec(
-			`INSERT INTO music_albums(library_id, artist, album) VALUES(?, ?, ?)
-			 ON CONFLICT(library_id, artist, album) DO NOTHING`,
-			libraryID, p.artist, p.album,
+			`INSERT INTO music_albums(library_id, artist, album, genre) VALUES(?, ?, ?, ?)
+			 ON CONFLICT(library_id, artist, album) DO UPDATE SET
+			   genre = CASE WHEN music_albums.genre = '' AND excluded.genre != '' THEN excluded.genre ELSE music_albums.genre END`,
+			libraryID, p.artist, p.album, p.genre,
 		); err != nil {
 			return err
 		}

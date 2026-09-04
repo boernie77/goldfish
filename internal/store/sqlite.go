@@ -608,6 +608,14 @@ func (s *Store) migrate() error {
 	if err := addCol("items", "music_album_id", "INTEGER REFERENCES music_albums(id) ON DELETE SET NULL"); err != nil {
 		return err
 	}
+	// Genre-Tag pro Track — Zwischenlager für GroupMusicAlbums (aggregiert
+	// nach music_albums.genre), war in der ursprünglichen Musik-Feature-Runde
+	// geplant, aber nie verdrahtet (Scanner las nur artist/album/track/title,
+	// music_albums.genre blieb dadurch für ALLE Alben leer). User-Anfrage
+	// 2026-09-04: "Kann man dazu in den Infos noch das Genre hinzufügen?".
+	if err := addCol("items", "genre", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
 	// Playlists strikt nach Video/Musik getrennt (User-Wunsch 2026-09-04:
 	// "gemeinsame Playlists gefällt mir eigentlich nicht"). DEFAULT 'video'
 	// gilt auch rückwirkend für ALLE bestehenden Zeilen (SQLite wendet den
@@ -899,8 +907,8 @@ func (s *Store) DeleteLibrary(id int64) error {
 
 func (s *Store) UpsertItem(it *model.Item) error {
 	_, err := s.db.Exec(`
-		INSERT INTO items(library_id, path, rel_path, title, container, video_codec, audio_codec, width, height, duration_sec, size_bytes, bitrate_kbps, thumb_path, has_thumb, mod_time, released_at, artist, album, track_no)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO items(library_id, path, rel_path, title, container, video_codec, audio_codec, width, height, duration_sec, size_bytes, bitrate_kbps, thumb_path, has_thumb, mod_time, released_at, artist, album, track_no, genre)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(path) DO UPDATE SET
 			library_id=excluded.library_id,
 			rel_path=excluded.rel_path,
@@ -919,11 +927,12 @@ func (s *Store) UpsertItem(it *model.Item) error {
 			released_at=excluded.released_at,
 			artist=excluded.artist,
 			album=excluded.album,
-			track_no=excluded.track_no
+			track_no=excluded.track_no,
+			genre=excluded.genre
 	`,
 		it.LibraryID, it.Path, it.RelPath, it.Title, it.Container, it.VideoCodec, it.AudioCodec,
 		it.Width, it.Height, it.DurationSec, it.SizeBytes, it.BitrateKbps, it.ThumbPath, boolToInt(it.HasThumb), it.ModTime, it.ReleasedAt,
-		it.Artist, it.Album, it.TrackNo,
+		it.Artist, it.Album, it.TrackNo, it.Genre,
 	)
 	return err
 }

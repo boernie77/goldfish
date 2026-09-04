@@ -570,6 +570,7 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 	if lib.Kind == model.KindMusic {
 		it.Artist = lookupTag(p.Format.Tags, "artist", "album_artist")
 		it.Album = lookupTag(p.Format.Tags, "album")
+		it.Genre = lookupTag(p.Format.Tags, "genre")
 		if track := lookupTag(p.Format.Tags, "track"); track != "" {
 			if idx := strings.Index(track, "/"); idx > 0 {
 				track = track[:idx]
