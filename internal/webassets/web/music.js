@@ -34,6 +34,25 @@ function musicCurrentTrack() {
   return musicState.queue[musicState.idx] || null;
 }
 
+// musicDirectMimeType: echter MIME-Type für Direct-Play-Audiodateien, nach
+// Container (siehe scanner.probeItem/model.Item.Container). NICHT
+// "video/mp4" wie beim Hauptplayer — das ist dort korrekt (echte mp4-Video-
+// Dateien), für Musik-Direct-Play aber schlicht falsch.
+function musicDirectMimeType(container) {
+  const map = {
+    mp3: "audio/mpeg",
+    m4a: "audio/mp4",
+    m4b: "audio/mp4",
+    mp4: "audio/mp4",
+    aac: "audio/aac",
+    ogg: "audio/ogg",
+    opus: "audio/ogg",
+    wav: "audio/wav",
+    flac: "audio/flac",
+  };
+  return map[(container || "").toLowerCase()] || "audio/mpeg";
+}
+
 // musicPlayAlbum: startet Wiedergabe einer Track-Liste ab startIdx. Wird von
 // cards.js beim Klick auf eine Musik-Kachel aufgerufen (statt openDetail()).
 function musicPlayAlbum(tracks, startIdx) {
@@ -78,7 +97,16 @@ async function musicPlayCurrent() {
     return;
   }
   if (seq !== musicState.playSeq) return; // stale — ein neuerer Track wurde inzwischen angefordert
-  const srcType = info.mode === "transcode" ? "application/vnd.apple.mpegurl" : "video/mp4";
+  // 🔴 Fund 2026-09-04 (User-Screenshot: "The media could not be loaded …
+  // because the format is not supported"): Direct-Play-Tracks wurden IMMER
+  // mit type="video/mp4" an Video.js übergeben — kopiert vom Hauptplayer
+  // (player.js), der ausschließlich echte mp4/mov-Videos direkt abspielt.
+  // Musik-Direct-Play ist aber mp3/aac/ogg/opus, NIE ein mp4-Video-Container
+  // — der falsche MIME-Type-Hint ließ den Browser die Wiedergabe teils
+  // sofort ablehnen, teils (je nach Tech-Fallback-Reihenfolge) erst nach
+  // mehreren Sekunden Retry doch noch starten (erklärt vermutlich auch die
+  // beobachtete 10-15s-Verzögerung).
+  const srcType = info.mode === "transcode" ? "application/vnd.apple.mpegurl" : musicDirectMimeType(t.container);
   const vjs = musicEnsureVjs();
   // vjs.ready(): bei einer FRISCH erzeugten Video.js-Instanz ist die Tech
   // (Html5) direkt nach dem Konstruktor-Aufruf noch nicht initialisiert —
