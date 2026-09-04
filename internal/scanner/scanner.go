@@ -539,6 +539,18 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 	for _, s := range p.Streams {
 		switch s.CodecType {
 		case "video":
+			// 🔴 Bug 2026-09-04: MP3/FLAC/M4A-Dateien mit eingebettetem Cover
+			// (ID3-APIC o.ä.) haben in ffprobe einen ZUSÄTZLICHEN "video"-Stream
+			// für das Bild (disposition.attached_pic=1, meist codec mjpeg/png,
+			// 1 Frame). Ohne diesen Ausschluss setzte JEDE Musikdatei mit
+			// Cover VideoCodec — playback.Decide() sah dadurch fälschlich ein
+			// "Video" statt reines Audio und erzwang einen unnötigen (und für
+			// ein Einzelbild sinnlosen) HLS-Transcode: lange Startverzögerung
+			// + kaputte Wiedergabe ("Failed to set MediaSource duration",
+			// User-Bericht 2026-09-04 "lange Verzögerungen" + Player-Fehler).
+			if s.Disposition["attached_pic"] == 1 {
+				continue
+			}
 			if it.VideoCodec == "" {
 				it.VideoCodec = s.CodecName
 				it.Width = s.Width

@@ -392,6 +392,20 @@ func (s *Store) migrate() error {
 			UNIQUE(library_id, artist, album)
 		)`,
 		`CREATE INDEX IF NOT EXISTS music_albums_lib_idx ON music_albums(library_id)`,
+		// Album-Favoriten sind per-User (wie Track-Favoriten in user_item_state)
+		// — Alben sind aber keine items-Zeile, sondern eine eigene virtuelle
+		// Gruppierung (siehe music_albums-Kommentar oben), daher eine eigene
+		// Junction-Tabelle statt user_item_state mitzunutzen. User-Anfrage
+		// 2026-09-04: "Favoriten will ich für Alben als auch für einzelne Songs
+		// erstellen können" — Songs nutzen bereits die normale
+		// item-favorite-Funktion (user_item_state.favorite), das hier ist NUR
+		// die Album-Ebene.
+		`CREATE TABLE IF NOT EXISTS user_music_album_favorites (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			album_id INTEGER NOT NULL REFERENCES music_albums(id) ON DELETE CASCADE,
+			favorited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (user_id, album_id)
+		)`,
 	}
 	for _, q := range baseStmts {
 		if _, err := s.db.Exec(q); err != nil {

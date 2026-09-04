@@ -211,6 +211,30 @@ func (s *Store) PendingMusicAlbums(limit int) ([]model.MusicAlbum, error) {
 	return out, rows.Err()
 }
 
+// FixMusicCoverArtVideoCodec räumt items auf, die VOR dem Scanner-Fix vom
+// 2026-09-04 gescannt wurden: ffprobe listet ein eingebettetes Cover in
+// MP3/FLAC/M4A-Dateien (ID3-APIC o.ä.) als eigenen "video"-Stream
+// (disposition.attached_pic=1), der Scanner setzte daraufhin fälschlich
+// VideoCodec/Width/Height — playback.Decide() hielt die Datei dadurch für
+// ein Video und erzwang einen unnötigen HLS-Transcode (lange Verzögerung +
+// kaputte Wiedergabe, User-Bericht 2026-09-04). Ein erneuter ffprobe-Call
+// pro Datei wäre für den Backfill zu teuer — stattdessen ein gezielter
+// Codec-Namens-Heuristik-Filter: echte Musik-Videocodecs (h264 etc.) kommen
+// in dieser Bibliothek praktisch nie vor, Bild-Codecs (mjpeg/png/bmp/gif)
+// eindeutig NIE als echtes Video.
+func (s *Store) FixMusicCoverArtVideoCodec() (int, error) {
+	res, err := s.db.Exec(`
+		UPDATE items SET video_codec = '', width = 0, height = 0
+		WHERE library_id IN (SELECT id FROM libraries WHERE kind = 'music')
+		  AND video_codec IN ('mjpeg', 'png', 'bmp', 'gif', 'tiff', 'ppm', 'webp')
+	`)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // SetMusicAlbumCover markiert ein Album als versorgt (source = "embedded" |
 // "coverart_archive"), unabhängig davon ob tatsächlich ein Cover gefunden
 // wurde — verhindert Endlos-Retries im Worker (analog metadata.cast_fetched_at).

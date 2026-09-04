@@ -49,6 +49,7 @@ func main() {
 	backfillIntroSkipOutliers(db)
 	backfillIntroSkipDisableAllExceptChuckS2(db)
 	backfillOrphanedLibraryPaths(db)
+	backfillMusicCoverArtVideoCodec(db)
 
 	// Generisches Hardening (siehe internal/store/hardening.go): optionale,
 	// rein per Env-Var konfigurierte Liste von Bibliotheks-NAMEN, die für
@@ -228,6 +229,27 @@ func backfillEpisodeRanges(db *store.Store) {
 		log.Printf("[backfill] %d Doppelfolgen-Items mit episode_end befüllt (von %d Kandidaten)", updated, len(rows))
 	} else {
 		log.Printf("[backfill] %d Episoden-Kandidaten geprüft, keine Doppelfolgen erkannt", len(rows))
+	}
+}
+
+// backfillMusicCoverArtVideoCodec läuft einmal beim Container-Start (Fix
+// 2026-09-04): bereits gescannte Musik-Items können fälschlich VideoCodec
+// vom eingebetteten Cover-Bild-Stream gesetzt haben (siehe Kommentar bei
+// Scanner.probeItem + Store.FixMusicCoverArtVideoCodec) — playback.Decide()
+// erzwang dadurch einen unnötigen Transcode statt Direct Play.
+func backfillMusicCoverArtVideoCodec(db *store.Store) {
+	done, _ := db.GetSetting("music_cover_art_videocodec_fix_v1", "")
+	if done == "1" {
+		return
+	}
+	fixed, err := db.FixMusicCoverArtVideoCodec()
+	if err != nil {
+		log.Printf("[backfill] music-cover-art-videocodec: %v", err)
+		return
+	}
+	_ = db.SetSetting("music_cover_art_videocodec_fix_v1", "1")
+	if fixed > 0 {
+		log.Printf("[backfill] %d Musik-Item(s) mit fälschlich gesetztem VideoCodec (Cover-Art-Stream) korrigiert", fixed)
 	}
 }
 

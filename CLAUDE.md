@@ -1090,6 +1090,27 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   R. `.m4b`) wurden dadurch vom Scanner GAR NICHT erst eingelesen (User-
   Bericht 2026-09-04: "finde sie über die Suche nicht" — sie waren nie in
   der DB gelandet, kein reines Such-Problem).
+- **🔴 Wurzel des "lange Verzögerung + Wiedergabefehler"-Bugs (behoben
+  2026-09-04):** MP3/FLAC/M4A-Dateien mit eingebettetem Cover (ID3-APIC o.ä.)
+  liefern in ffprobe einen ZUSÄTZLICHEN "video"-Stream für das Bild
+  (`disposition.attached_pic=1`, meist Codec mjpeg/png, 1 Frame). Der Scanner
+  setzte diesen fälschlich als `items.video_codec` — `playback.Decide()` hielt
+  die Datei dadurch für ein VIDEO statt reines Audio und erzwang einen
+  unnötigen, für ein Einzelbild sinnlosen HLS-Transcode: lange Startverzögerung
+  + kaputte Wiedergabe ("Failed to set MediaSource duration" in der Konsole).
+  Live im Browser reproduziert (DevTools Network zeigte `/api/transcode/…`
+  statt `/api/stream/…` für eine ganz normale MP3). Fix: `Scanner.probeItem`
+  überspringt Streams mit `attached_pic=1` jetzt beim Setzen von
+  VideoCodec/Width/Height. Einmaliger Backfill (`music_cover_art_videocodec_fix_v1`)
+  räumt bereits falsch gescannte Musik-Items per Codec-Namens-Heuristik auf
+  (kein erneuter ffprobe-Call nötig — mjpeg/png/bmp/gif/tiff/ppm/webp kommen
+  in Musik-Bibliotheken nie als echtes Video vor).
+- Nebenbei auch behoben: der Mini-Player übergab Direct-Play-Tracks fest mit
+  `type="video/mp4"` an Video.js (aus dem Hauptplayer kopiert, dort korrekt
+  für echte mp4-Videos) — jetzt `musicDirectMimeType(container)` (mp3→
+  audio/mpeg, m4a/m4b→audio/mp4, ogg/opus→audio/ogg, wav→audio/wav). War ein
+  echter, aber sekundärer Bug — die Cover-Art-Transcode-Fehlklassifikation
+  oben war die eigentliche Hauptursache.
 - **Suche findet jetzt auch Künstler + Album** (`ListItems`-Suchklausel um
   `OR i.artist LIKE ? OR i.album LIKE ?` erweitert) — vorher wurde nur
   `i.title`/`m.title` durchsucht, eine Suche nach dem Interpreten-/Autoren-
