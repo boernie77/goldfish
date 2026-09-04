@@ -1173,6 +1173,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Bulk-Auswahl (☑) hatte in der Listenansicht kein sichtbares
   Checkbox-Element (`.track-row-select`, analog `.card-select`, gemeinsamer
   `data-item-id`-Selektor in `toggleSelection`/`selectAllVisible`).
+- **🔴 Genre war für ALLE Alben leer (gefixt 2026-09-05, LIVE 1.0.67):**
+  `music_albums.genre` existierte im Schema, aber der Scanner las das
+  Genre-Tag nie aus (nur artist/album/track/title). Fix: neue Spalte
+  `items.genre` (Zwischenlager), Scanner liest sie jetzt mit,
+  `GroupMusicAlbums` aggregiert `MAX(genre)` pro (artist,album)-Gruppe und
+  schreibt sie auch NACHTRÄGLICH nach (vorher nur `ON CONFLICT DO NOTHING`
+  beim ersten Anlegen). Album-Header zeigt das Genre jetzt neben Künstler/
+  Jahr. **Bereits gescannte Dateien brauchen einen vollständigen Rescan**
+  (force=true) der Musik-Bibliothek, damit ffprobe das Tag nachliefert —
+  ein inkrementeller Scan probet unveränderte Dateien nicht erneut.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
@@ -1709,15 +1719,30 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      übergreifend.
   2. **Person-Filter** (`state.personFilter.tmdbId`) → `personId=<tmdb>`.
      Pool = alle Videos mit diesem Schauspieler, library-übergreifend.
-  3. **Manuelle Ordner-Auswahl** (`state.shuffleFolders`, seit 2026-08-09) →
+  3. **Geöffnetes Musik-Album** (`state.currentAlbum`, seit 2026-09-05) →
+     `albumId=<id>` (`ItemFilter.MusicAlbumID`, `AND i.music_album_id = ?`).
+     Bleibt strikt auf die Tracks dieses Albums beschränkt.
+  4. **Manuelle Ordner-Auswahl** (`state.shuffleFolders`, seit 2026-08-09) →
      mehrere `folderSel=<libId>:<relPath>`. Siehe „Ordner-Scoping" unten.
-  4. **Library** (`state.currentLibrary`) → `libraryId` + ggf. `folder`.
+  5. **Library** (`state.currentLibrary`) → `libraryId` + ggf. `folder`.
 - Zusätzlich greifen IMMER: `search`, `watched`, `favorite`, `match`,
-  Auflösungs-Buckets.
-- `openPlayer(item, {fromShuffle: true})` erhält den Shuffle-State beim Item-Wechsel.
+  Auflösungs-Buckets. **Hörbücher (`.m4b`) sind grundsätzlich ausgeschlossen**
+  (`ItemFilter.ExcludeAudiobooks`, `AND i.container != 'm4b'`, unconditional
+  in `randomItem`-Handler gesetzt, seit 2026-09-05 — User-Wunsch: "Bei Zufall
+  Play dürfen Hörbücher nicht berücksichtigt werden").
+- `openShuffleItem(item)` (playlists.js, seit 2026-09-04) prüft die
+  Bibliotheks-Art des gezogenen Items: Musik → `musicPlayShuffleTrack()`
+  (Mini-Player), sonst → `openPlayer(item, {fromShuffle:true})`.
+  **🔴 War kurzzeitig live kaputt (Commit `9723b9b` fixt `a96624f`):** der
+  else-Zweig rief sich versehentlich selbst rekursiv auf (Tippfehler bei
+  einem `sed`-Bulk-Replace) — jeder Zufalls-Klick auf eine NICHT-Musik-
+  Bibliothek endete in "Maximum call stack size exceeded" statt den Player
+  zu öffnen. **Lektion: nach einem `sed`/Skript-Bulk-Replace IMMER die
+  Funktionsdefinition selbst mit angrep-en**, nicht nur die Call-Sites —
+  ein zu breiter Suchstring kann die eigene Implementierung mittreffen.
 - Backend: `ItemFilter.PlaylistID` (EXISTS in `playlist_items`) ist neben
-  `PersonTMDB` der zweite optionale Pool-Selektor. Beide werden von
-  `/api/items/random` aus dem Query gelesen.
+  `PersonTMDB`/`MusicAlbumID` ein weiterer optionaler Pool-Selektor. Alle
+  werden von `/api/items/random` aus dem Query gelesen.
 
 #### Ordner-Scoping für Shuffle (seit 2026-08-09)
 - **🎯-Button** neben „🎲 Zufall" öffnet `#shuffleScopeDialog`: Ordner-Baum

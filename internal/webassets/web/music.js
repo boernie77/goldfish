@@ -95,6 +95,8 @@ async function musicPlayCurrent() {
   $("#miniTitle").textContent = t.title || "";
   $("#miniArtist").textContent = t.artist || "";
   $("#miniCover").src = t.musicAlbumId ? `/api/poster/album/${t.musicAlbumId}` : "/placeholder.svg";
+  $("#miniSeek").value = "0";
+  $("#miniTime").textContent = `0:00 / ${t.durationSec ? fmtDuration(t.durationSec) : "--:--"}`;
   // Im Zufallsmodus (state.shuffleMode) besteht die "Queue" hier immer nur
   // aus dem einen aktuell gezogenen Titel — Zurück/Weiter richten sich dann
   // nach der Zufalls-History (state.shuffleHistory/-Idx), nicht nach
@@ -188,12 +190,21 @@ function musicEnsureVjs() {
     const err = vjs.error();
     showToast(`Wiedergabefehler: ${(err && err.message) || "unbekannt"}`, { kind: "error" });
   });
+  // Zeitanzeige "M:SS / M:SS" — fehlte bisher komplett (kein Element im Markup,
+  // User-Bericht 2026-09-05: "Der Player zeigt keine Zeit an. Weder Titellänge
+  // noch die Position"). vjs.duration() ist bei HLS-Transcode anfangs oft noch
+  // NaN/Infinity (wachsende EVENT-Playlist, siehe Hauptplayer-Pendant
+  // forcePlayerDuration) — Fallback auf die vom Server bekannte durationSec
+  // des aktuellen Tracks, bis vjs selbst eine reale Zahl liefert.
   vjs.on("timeupdate", () => {
     const seek = $("#miniSeek");
-    const dur = vjs.duration();
-    if (seek && dur && isFinite(dur)) {
-      seek.value = String((vjs.currentTime() / dur) * 100);
-    }
+    const t = musicCurrentTrack();
+    const vd = vjs.duration();
+    const dur = (isFinite(vd) && vd > 0) ? vd : ((t && t.durationSec) || 0);
+    const cur = vjs.currentTime() || 0;
+    if (seek && dur) seek.value = String((cur / dur) * 100);
+    const timeEl = $("#miniTime");
+    if (timeEl) timeEl.textContent = `${fmtDuration(cur)} / ${dur ? fmtDuration(dur) : "--:--"}`;
   });
   musicState.vjs = vjs;
   return vjs;

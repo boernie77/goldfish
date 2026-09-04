@@ -1535,6 +1535,13 @@ body.has-mini-player { padding-bottom: 68px; }
   flex: 2 1 160px;
   min-width: 80px;
 }
+.mini-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 .mini-close {
   flex-shrink: 0;
   background: none;
