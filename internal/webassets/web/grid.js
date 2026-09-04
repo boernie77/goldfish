@@ -902,7 +902,11 @@ async function loadItemsBody() {
     if (state.musicAllTracks) {
       let tracks;
       try {
-        const p = new URLSearchParams({ libraryId: state.currentLibrary, sort: "title" });
+        const p = new URLSearchParams({
+          libraryId: state.currentLibrary,
+          sort: currentSortMode(),
+          dir: effectiveSortDir(),
+        });
         if (musicSearchQ) p.set("search", musicSearchQ);
         tracks = await api(`/api/items?${p}`);
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }

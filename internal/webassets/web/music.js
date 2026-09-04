@@ -45,6 +45,13 @@ async function musicPlayCurrent() {
   const t = musicCurrentTrack();
   if (!t) return;
   const seq = ++musicState.playSeq;
+  // "Zuletzt abgespielt"-Timestamp setzen, sobald der Titel STARTET — exakt
+  // dasselbe Verhalten wie beim Video-Player (player.js openPlayer), NICHT
+  // erst bei vollständigem Durchhören. Fehlte hier komplett (User-Bericht
+  // 2026-09-04: "kein Zuletzt abgespielt eingetragen, zumindest nicht wenn
+  // ein Song nur teilweise gespielt wird") — music.js hatte diesen Aufruf
+  // schlicht nie gehabt.
+  api(`/api/items/${t.id}/played`, { method: "POST" }).catch(() => {});
   const bar = $("#miniPlayer");
   bar.classList.remove("hidden");
   $("#miniTitle").textContent = t.title || "";

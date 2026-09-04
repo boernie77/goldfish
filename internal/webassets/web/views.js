@@ -758,7 +758,13 @@ function openMusicAlbum(albumId) {
 
 function renderAlbumTracks(grid, data, listView) {
   grid.innerHTML = "";
-  grid.classList.remove("track-list-grid");
+  // War fest auf "remove" gesetzt — dadurch blieb #grid im normalen
+  // CSS-Grid-Layout (Kachel-Spaltenbreite), jede .track-row landete als
+  // EIN Grid-Item in einer schmalen Spalte statt über die volle Breite zu
+  // laufen (User-Bericht 2026-09-04: Listenansicht zeigte nur "Au..." statt
+  // des vollen Titels — reine Folge der zu schmalen Spalte, nicht der
+  // Textkürzung selbst).
+  grid.classList.toggle("track-list-grid", !!listView);
   document.body.classList.remove("has-alpha-sidebar");
   const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
   const album = data.album || {};
