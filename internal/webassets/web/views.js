@@ -1353,7 +1353,12 @@ function renderBreadcrumb(opts) {
     const toolbar = document.createElement("div");
     toolbar.className = "toolbar";
     bc.appendChild(toolbar);
-    if (lib) renderTrickplayToolbar(toolbar, lib.id, "");
+    // Trickplay (Hover-Vorschau) ist ein Video-Konzept — Musik-Items haben
+    // keinen Video-Stream, ein aktivierter Trickplay-Job für eine
+    // Musik-Bibliothek liefe endlos (jeder Titel scheitert, aber der Worker
+    // versucht es bei jedem Lauf erneut). User-Bericht 2026-09-04: "Das
+    // startet jedes mal".
+    if (lib && lib.kind !== "music") renderTrickplayToolbar(toolbar, lib.id, "");
     return;
   }
 
@@ -1449,7 +1454,7 @@ function renderBreadcrumb(opts) {
     toolbar.appendChild(btn);
   }
 
-  if (lib) renderTrickplayToolbar(toolbar, lib.id, state.currentFolder);
+  if (lib && lib.kind !== "music") renderTrickplayToolbar(toolbar, lib.id, state.currentFolder);
 }
 
 async function renderTrickplayToolbar(toolbar, libId, folder) {

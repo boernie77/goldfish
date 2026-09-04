@@ -2280,6 +2280,7 @@ func (s *Store) PendingTrickplayItems(limit int) ([]model.Item, error) {
 			JOIN trickplay_folders tf
 			  ON tf.library_id = i.library_id
 			  AND (tf.folder = '' OR i.rel_path LIKE (tf.folder || '/%') ESCAPE '\')
+			JOIN libraries l ON l.id = i.library_id AND l.kind != 'music'
 			WHERE COALESCE(i.trickplay_status,'') = ''
 			  AND i.duration_sec > 0
 		)
