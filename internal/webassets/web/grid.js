@@ -770,12 +770,23 @@ async function loadItemsBody() {
     return;
   }
 
+  // Musik-Bibliotheken haben ihren EIGENEN Flat-Pfad weiter unten (Album-
+  // Übersicht/"Alle Titel"), der die Listenansicht respektiert — einmal
+  // zentral nachschlagen, von den Favoriten- UND FLAT_SORTS-Weichen unten
+  // genutzt (gleicher Bug wie bei "Zuletzt abgespielt": User-Bericht
+  // 2026-09-04 "diese dürfen natürlich nicht in der Filmfavoriten-Liste mit
+  // erscheinen" — Scope ist zwar bereits korrekt auf state.currentLibrary
+  // begrenzt, aber ohne diese Weiche ignorierte die Ansicht den
+  // Listen-Toggle genau wie beim Sortier-Bug).
+  const musicFlatLib = state.libraries.find(l => l.id == state.currentLibrary);
+  const isMusicFlatLib = musicFlatLib?.kind === "music";
+
   // Favoriten-Modus (via Sort-Dropdown): flache Ansicht ohne Ordner-Struktur.
   // SCOPE: nur nach unten flach — im Library-Root die ganze Library, in einem
   // Unterordner NUR dessen Favoriten (rekursiv inkl. Unterordner), nicht
   // library-weit (gleiche Konvention wie die Flat-Sorts / der folder-gescopte
   // Scan; User-Wunsch 2026-08-30). Library-Wechsel wirkt weiterhin.
-  if (currentFavoriteMode() === "yes" && state.currentLibrary) {
+  if (currentFavoriteMode() === "yes" && state.currentLibrary && !isMusicFlatLib) {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
@@ -822,8 +833,7 @@ async function loadItemsBody() {
   // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —
   // dieser generische Zweig würde "Zuletzt abgespielt" IMMER als Kachel-
   // Grid rendern, unabhängig vom Listen-Toggle (User-Bericht 2026-09-04).
-  const flatSortLib = state.libraries.find(l => l.id == state.currentLibrary);
-  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && flatSortLib?.kind !== "music") {
+  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && !isMusicFlatLib) {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
@@ -916,12 +926,15 @@ async function loadItemsBody() {
     // nutzt den ganz normalen /api/items-Endpoint (der liefert artist/album/
     // trackNo/lastPlayedAt für Musik-Items bereits generisch mit). Eine
     // Suche filtert hier ganz normal die flache Track-Liste.
-    // "Zuletzt abgespielt"/"Hinzugefügt"/"Laufzeit" ergeben in der Album-
-    // Gruppierung keinen Sinn (die sortiert immer nach Künstler/Album) —
-    // aktiviert deshalb automatisch dieselbe flache Ansicht wie "Alle Titel"
-    // (User-Bericht 2026-09-04: diese Sorts zeigten vorher ein falsches
-    // Kachel-Grid, das die Listenansicht ignorierte).
-    if (state.musicAllTracks || FLAT_SORTS.has(flatSort)) {
+    // "Zuletzt abgespielt"/"Hinzugefügt"/"Laufzeit"/"Nur Favoriten" ergeben in
+    // der Album-Gruppierung keinen Sinn (die sortiert immer nach Künstler/
+    // Album) — aktivieren deshalb automatisch dieselbe flache Ansicht wie
+    // "Alle Titel" (User-Bericht 2026-09-04: diese Modi zeigten vorher ein
+    // falsches Kachel-Grid, das die Listenansicht ignorierte; Favoriten sind
+    // dabei bereits durch libraryId auf DIESE Musik-Bibliothek beschränkt,
+    // erscheinen also nie zusammen mit Film-Favoriten).
+    const musicFavActive = currentFavoriteMode() === "yes";
+    if (state.musicAllTracks || FLAT_SORTS.has(flatSort) || musicFavActive) {
       let tracks;
       try {
         const p = new URLSearchParams({
@@ -929,6 +942,7 @@ async function loadItemsBody() {
           sort: currentSortMode(),
           dir: effectiveSortDir(),
         });
+        if (musicFavActive) p.set("favorite", "yes");
         if (musicSearchQ) p.set("search", musicSearchQ);
         tracks = await api(`/api/items?${p}`);
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }

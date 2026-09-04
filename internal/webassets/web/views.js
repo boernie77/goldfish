@@ -708,8 +708,13 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
         <span class="track-row-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</span>
         <span class="track-row-artist">${escapeHTML(a.artist || "")}</span>
         <span class="track-row-count">${a.trackCount || 0} Titel</span>
+        <button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>
       `;
-      row.addEventListener("click", () => openMusicAlbum(a.id));
+      row.addEventListener("click", (ev) => {
+        const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
+        if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+        openMusicAlbum(a.id);
+      });
       row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
       list.appendChild(row);
     }
@@ -728,6 +733,7 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     el.innerHTML = `
       <div class="thumb">
         <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${cover}">
+        <button type="button" class="fav-toggle ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav aria-label="${a.favorite ? "Favorit" : "Kein Favorit"}">${a.favorite ? "♥" : "♡"}</button>
         <span class="folder-count">${a.trackCount || 0} Titel</span>
       </div>
       <div class="card-body">
@@ -735,12 +741,39 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
         <div class="card-meta"><span>${escapeHTML(a.artist || "")}</span></div>
       </div>
     `;
-    el.addEventListener("click", () => openMusicAlbum(a.id));
+    el.addEventListener("click", (ev) => {
+      const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
+      if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+      openMusicAlbum(a.id);
+    });
     el.addEventListener("keydown", e => { if (e.key === "Enter") el.click(); });
     frag.appendChild(el);
   }
   grid.appendChild(frag);
   state.lastRenderedItems = [];
+}
+
+// toggleAlbumFavorite: Album-Favorit ist eine EIGENE Server-Ressource
+// (user_music_album_favorites), nicht dasselbe wie ein Track-Favorit —
+// User-Anfrage 2026-09-04: "Favoriten will ich für Alben als auch für
+// einzelne Songs erstellen können".
+async function toggleAlbumFavorite(album, btn) {
+  const newState = !album.favorite;
+  btn.disabled = true;
+  try {
+    await api(`/api/albums/${album.id}/favorite`, {
+      method: "PUT",
+      body: JSON.stringify({ favorite: newState }),
+    });
+    album.favorite = newState;
+    btn.classList.toggle("is-on", newState);
+    btn.textContent = newState ? "♥" : "♡";
+    btn.title = newState ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen";
+  } catch (e) {
+    appAlert(e.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // openMusicAlbum: öffnet ein Album aus der Übersicht (Kachel- oder
@@ -770,13 +803,21 @@ function renderAlbumTracks(grid, data, listView) {
   const album = data.album || {};
   const tracks = data.tracks || [];
   const header = document.createElement("section");
-  header.className = "show-header detail-wrap"; // gleiche Optik wie der Serien-Header (Poster + Titel)
+  // "album-header-sticky" NUR in der Listenansicht (User-Wunsch 2026-09-04:
+  // "hätte ich gerne den Header mit Album und Künstler fix") — bei langen
+  // Tracklisten soll man beim Scrollen weiterhin sehen, in welchem Album man
+  // ist. Eigene Modifier-Klasse statt die geteilte .show-header direkt
+  // anzufassen, damit die TV-Staffel-Ansicht (nutzt dieselbe Basis-Klasse)
+  // unverändert bleibt.
+  header.className = "show-header detail-wrap" + (listView ? " album-header-sticky" : "");
   const cover = album.coverSource ? `/api/poster/album/${album.id}` : "/placeholder.svg";
   header.innerHTML = `
     <div class="detail-poster" style="background-image:url('${cover}')"></div>
     <div class="detail-body">
       <button type="button" class="link-btn" id="albumBackBtn" title="Zurück zur Album-Übersicht">←</button>
-      <h2>${escapeHTML(album.album || "")}</h2>
+      <h2>${escapeHTML(album.album || "")}
+        <button type="button" class="fav-toggle-inline ${album.favorite ? "is-on" : ""}" id="albumFavBtn" title="${album.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}">${album.favorite ? "♥" : "♡"}</button>
+      </h2>
       <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}</div>
     </div>
   `;
@@ -785,6 +826,7 @@ function renderAlbumTracks(grid, data, listView) {
     state.currentAlbum = null;
     loadItems();
   });
+  header.querySelector("#albumFavBtn").addEventListener("click", (ev) => toggleAlbumFavorite(album, ev.currentTarget));
   if (!tracks.length) {
     const e = document.createElement("div");
     e.className = "empty";
@@ -831,9 +873,13 @@ function renderAllTracksList(grid, tracks) {
     <span class="track-row-artist">Künstler</span>
     <span class="track-row-album">Album</span>
     <span class="track-row-played">Zuletzt gehört</span>
+    <span></span>
   `;
   list.appendChild(head);
-  tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["cover", "title", "artist", "album", "lastPlayed"])));
+  // "fav": Favoriten-Herz auch in der flachen Liste — war hier bisher die
+  // einzige Musik-Ansicht ohne Möglichkeit, einen einzelnen Titel zu
+  // favorisieren (User-Anfrage 2026-09-04).
+  tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["cover", "title", "artist", "album", "lastPlayed", "fav"])));
   grid.appendChild(list);
 }
 
@@ -878,7 +924,21 @@ function renderMusicTrackRow(it, queue, idx, columns) {
     }
   }
   row.innerHTML = html;
+  if (state.selectionMode) row.classList.add("selected-row-mode");
+  row.classList.toggle("selected", state.selection.has(it.id));
   row.addEventListener("click", (ev) => {
+    // Bulk-Auswahl (☑ Auswählen) fehlte in der Listenansicht komplett —
+    // ohne sie gab es keinen Weg, mehrere Musik-Titel auf einmal zu einer
+    // Playlist hinzuzufügen (User-Anfrage 2026-09-04: "wie kann ich nur für
+    // Musik Playlisten anlegen?" — Playlists sind bereits generisch, es
+    // fehlte nur ein Weg, Titel dafür auszuwählen). Gleiches Verhalten wie
+    // cards.js: im Auswahl-Modus togglet jeder Klick die Selektion statt
+    // abzuspielen.
+    if (state.selectionMode) {
+      toggleSelection(it);
+      row.classList.toggle("selected", state.selection.has(it.id));
+      return;
+    }
     const favTog = ev.target && ev.target.closest("[data-toggle-fav]");
     if (favTog) {
       ev.stopPropagation();

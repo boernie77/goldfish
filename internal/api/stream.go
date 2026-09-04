@@ -213,6 +213,26 @@ func mimeForExt(ext string) string {
 		return "video/x-msvideo"
 	case ".wmv":
 		return "video/x-ms-wmv"
+	// 🔴 Bug 2026-09-04: fehlte komplett — Musik-Direct-Play (mimeForExt kannte
+	// nur Video-Extensions) lief dadurch mit Content-Type
+	// "application/octet-stream" vom Server. Browser lehnen es ab, ein
+	// <video>/<audio>-Element mit diesem MIME-Type überhaupt zu decodieren
+	// (kein MIME-Sniffing für Medienelemente) — das Element blieb dauerhaft
+	// bei readyState=0 hängen, live per DevTools verifiziert (fetch selbst
+	// war mit ~80ms sofort da, das Element startete trotzdem nie). Erklärt
+	// vermutlich den kompletten "lange Verzögerung"-Bug abschließend.
+	case ".mp3":
+		return "audio/mpeg"
+	case ".m4a", ".m4b":
+		return "audio/mp4"
+	case ".aac":
+		return "audio/aac"
+	case ".ogg", ".opus":
+		return "audio/ogg"
+	case ".wav":
+		return "audio/wav"
+	case ".flac":
+		return "audio/flac"
 	}
 	return "application/octet-stream"
 }

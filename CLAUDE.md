@@ -1105,6 +1105,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   räumt bereits falsch gescannte Musik-Items per Codec-Namens-Heuristik auf
   (kein erneuter ffprobe-Call nötig — mjpeg/png/bmp/gif/tiff/ppm/webp kommen
   in Musik-Bibliotheken nie als echtes Video vor).
+- **🔴 Zweiter, tatsächlich ausschlaggebender Teil desselben Bugs:** selbst
+  nach dem Cover-Art-Fix blieb die Wiedergabe hängen (`readyState=0` für
+  immer, per `javascript_tool`/DevTools direkt am `<video>`-Element
+  verifiziert, obwohl der zugrunde liegende `fetch()` auf `/api/stream/{id}`
+  in ~80ms fertig war). Ursache: `mimeForExt()` (`internal/api/stream.go`,
+  `streamDirect`-Handler) kannte NUR Video-Extensions (mp4/mov/mkv/webm/avi/
+  wmv) — jede Musikdatei bekam den Fallback `application/octet-stream` als
+  `Content-Type`. Browser lehnen es ab, ein `<video>`/`<audio>`-Element mit
+  diesem MIME-Type zu decodieren (kein MIME-Sniffing für Medienelemente),
+  das Element bleibt für immer bei `readyState=0` — kein Fehler-Event, kein
+  Timeout, einfach dauerhaft "lädt". Fix: `mimeForExt` um
+  mp3→audio/mpeg, m4a/m4b→audio/mp4, aac→audio/aac, ogg/opus→audio/ogg,
+  wav→audio/wav, flac→audio/flac ergänzt.
 - Nebenbei auch behoben: der Mini-Player übergab Direct-Play-Tracks fest mit
   `type="video/mp4"` an Video.js (aus dem Hauptplayer kopiert, dort korrekt
   für echte mp4-Videos) — jetzt `musicDirectMimeType(container)` (mp3→

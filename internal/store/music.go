@@ -71,13 +71,16 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 // ListMusicAlbums liefert alle Alben einer Bibliothek inkl. Track-Anzahl,
 // sortiert nach Artist dann Album (COLLATE NATSORT, siehe CLAUDE.md
 // "NATSORT-Collation" — NICHT auf "NATURAL" umbenennen, reserviertes Wort).
-func (s *Store) ListMusicAlbums(libraryID int64) ([]model.MusicAlbum, error) {
+// `userID` <= 0 lässt Favorite auf false (z.B. interne Aufrufer ohne
+// User-Kontext) — analog dem watched/favorite-Muster bei ListItems.
+func (s *Store) ListMusicAlbums(libraryID, userID int64) ([]model.MusicAlbum, error) {
 	rows, err := s.db.Query(`
 		SELECT a.id, a.library_id, a.artist, a.album, a.year, a.genre, a.cover_source,
-		       (SELECT COUNT(*) FROM items i WHERE i.music_album_id = a.id) AS track_count
+		       (SELECT COUNT(*) FROM items i WHERE i.music_album_id = a.id) AS track_count,
+		       EXISTS(SELECT 1 FROM user_music_album_favorites f WHERE f.album_id = a.id AND f.user_id = ?)
 		FROM music_albums a
 		WHERE a.library_id = ?
-		ORDER BY a.artist COLLATE NATSORT, a.album COLLATE NATSORT`, libraryID)
+		ORDER BY a.artist COLLATE NATSORT, a.album COLLATE NATSORT`, userID, libraryID)
 	if err != nil {
 		return nil, err
 	}
@@ -85,28 +88,53 @@ func (s *Store) ListMusicAlbums(libraryID int64) ([]model.MusicAlbum, error) {
 	var out []model.MusicAlbum
 	for rows.Next() {
 		var a model.MusicAlbum
-		if err := rows.Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource, &a.TrackCount); err != nil {
+		var fav int
+		if err := rows.Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource, &a.TrackCount, &fav); err != nil {
 			return nil, err
 		}
+		a.Favorite = fav == 1
 		out = append(out, a)
 	}
 	return out, rows.Err()
 }
 
 // GetMusicAlbum liefert ein einzelnes Album, nil wenn nicht gefunden.
-func (s *Store) GetMusicAlbum(id int64) (*model.MusicAlbum, error) {
+func (s *Store) GetMusicAlbum(id, userID int64) (*model.MusicAlbum, error) {
 	var a model.MusicAlbum
+	var fav int
 	err := s.db.QueryRow(`
-		SELECT id, library_id, artist, album, year, genre, cover_source
-		FROM music_albums WHERE id = ?`, id,
-	).Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource)
+		SELECT id, library_id, artist, album, year, genre, cover_source,
+		       EXISTS(SELECT 1 FROM user_music_album_favorites f WHERE f.album_id = music_albums.id AND f.user_id = ?)
+		FROM music_albums WHERE id = ?`, userID, id,
+	).Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource, &fav)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	a.Favorite = fav == 1
 	return &a, nil
+}
+
+// SetMusicAlbumFavorite setzt/entfernt den Album-Favoriten-Status für einen
+// User (user_music_album_favorites) — Pendant zu SetFavorite für einzelne
+// Titel (user_item_state.favorite). User-Anfrage 2026-09-04: "Favoriten
+// will ich für Alben als auch für einzelne Songs erstellen können".
+func (s *Store) SetMusicAlbumFavorite(userID, albumID int64, favorite bool) error {
+	if favorite {
+		_, err := s.db.Exec(
+			`INSERT INTO user_music_album_favorites(user_id, album_id) VALUES(?, ?)
+			 ON CONFLICT(user_id, album_id) DO NOTHING`,
+			userID, albumID,
+		)
+		return err
+	}
+	_, err := s.db.Exec(
+		`DELETE FROM user_music_album_favorites WHERE user_id = ? AND album_id = ?`,
+		userID, albumID,
+	)
+	return err
 }
 
 // ListMusicAlbumTracks liefert alle Tracks eines Albums, sortiert nach

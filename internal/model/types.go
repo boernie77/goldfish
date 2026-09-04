@@ -196,6 +196,10 @@ type MusicAlbum struct {
 	MBReleaseID    string    `json:"-"`
 	CoverFetchedAt time.Time `json:"-"`
 	TrackCount     int       `json:"trackCount,omitempty"` // per COUNT(*) beim Listing gesetzt
+	// Favorite: per-User (user_music_album_favorites), analog
+	// user_item_state.favorite für einzelne Titel. Nur gesetzt, wenn die
+	// Store-Funktion mit einer UserID aufgerufen wurde.
+	Favorite bool `json:"favorite,omitempty"`
 }
 
 // Person: TMDB-Schauspieler (dedupliziert über tmdb_id).

@@ -899,6 +899,7 @@ button.primary:hover { background: var(--accent-hover); }
   cursor: pointer;
 }
 .track-row:hover { background: var(--panel-3, #23232e); }
+.track-row.selected { outline: 2px solid #3b82f6; outline-offset: -2px; background: rgba(59,130,246,0.15); }
 .track-row--head {
   cursor: default;
   background: transparent;
@@ -913,14 +914,14 @@ button.primary:hover { background: var(--accent-hover); }
 .track-row:not(.track-row--head):not(.track-row--album):has(.track-row-duration) {
   grid-template-columns: 32px 1fr 60px 32px;
 }
-/* "Alle Titel"-Liste (Cover+Titel+Artist+Album+Zuletzt gehört) */
+/* "Alle Titel"-Liste (Cover+Titel+Artist+Album+Zuletzt gehört+Fav) */
 .track-row:has(.track-row-played) {
-  grid-template-columns: 40px 2fr 1fr 1fr 140px;
+  grid-template-columns: 40px 2fr 1fr 1fr 140px 32px;
 }
-.track-row--head:has(.track-row-played) { grid-template-columns: 40px 2fr 1fr 1fr 140px; }
-/* Alben-Übersicht als Liste (Cover+Album+Artist+Trackzahl) */
+.track-row--head:has(.track-row-played) { grid-template-columns: 40px 2fr 1fr 1fr 140px 32px; }
+/* Alben-Übersicht als Liste (Cover+Album+Artist+Trackzahl+Fav) */
 .track-row--album {
-  grid-template-columns: 40px 2fr 1fr 80px;
+  grid-template-columns: 40px 2fr 1fr 80px 32px;
 }
 .track-row-cover {
   width: 36px;
@@ -2175,8 +2176,37 @@ body.selection-mode .card { cursor: pointer; }
 }
 .show-header .detail-body { flex: 1; min-width: 0; }
 .show-header h2 { margin: 0 0 8px; font-size: 22px; }
+.fav-toggle-inline {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(255,255,255,0.5);
+  vertical-align: middle;
+  margin-left: 8px;
+}
+.fav-toggle-inline.is-on { color: #ef4444; }
 .show-header .sub { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 .show-header .overview { margin: 8px 0 16px; line-height: 1.5; color: var(--text); font-size: 14px; }
+/* Album-Header in der Musik-Listenansicht bleibt beim Scrollen sichtbar
+   (User-Wunsch 2026-09-04) — eigene Modifier-Klasse, siehe views.js
+   renderAlbumTracks. Kleineres Poster + reduziertes Padding, damit der
+   fixierte Bereich nicht zu viel permanenten Platz frisst. */
+.show-header.album-header-sticky {
+  position: sticky;
+  top: calc(var(--topbar-h, 60px) + var(--lib-nav-h, 0px));
+  z-index: 15;
+  background: var(--bg);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.show-header.album-header-sticky .detail-poster {
+  flex: 0 0 64px;
+  min-height: 64px;
+}
+.show-header.album-header-sticky h2 { font-size: 18px; margin-bottom: 4px; }
+.show-header.album-header-sticky .sub { margin-bottom: 0; }
 
 /* Startseite */
 .home-view {
