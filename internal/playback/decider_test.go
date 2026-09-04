@@ -48,6 +48,14 @@ func TestDecide_Matrix(t *testing.T) {
 		{"mp4/h264/eac3", "mp4", "h264", "eac3", ModeTranscode},
 		{"mp4/h264/dts", "mp4", "h264", "dts", ModeTranscode},
 		{"mp4/vp9/opus", "mp4", "vp9", "opus", ModeTranscode},
+
+		// Audio-Only (Musik-Bibliotheken, kein Video-Stream)
+		{"Audio mp3 direct", "mp3", "", "mp3", ModeDirectPlay},
+		{"Audio aac direct", "m4a", "", "aac", ModeDirectPlay},
+		{"Audio vorbis direct", "ogg", "", "vorbis", ModeDirectPlay},
+		{"Audio opus direct", "opus", "", "opus", ModeDirectPlay},
+		{"Audio flac transcode", "flac", "", "flac", ModeTranscode},
+		{"Audio wav transcode", "wav", "", "pcm_s16le", ModeTranscode},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

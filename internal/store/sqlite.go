@@ -372,6 +372,26 @@ func (s *Store) migrate() error {
 			detail TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE INDEX IF NOT EXISTS activity_log_at_idx ON activity_log(at DESC)`,
+		// Musik-Bibliotheken (kind=music): eine Zeile pro (Artist,Album)-Gruppe.
+		// Kanonische Identität kommt aus Tag-Werten der zugehörigen Items, NICHT
+		// aus der metadata-Tabelle — die ist auf TMDB-int-IDs zugeschnitten
+		// (UNIQUE(tmdb_type,tmdb_id,...)), MusicBrainz-IDs sind UUIDs und passen
+		// da nicht sauber rein. Cover-Datei selbst liegt wie bei Postern im
+		// Flat-Cache-Verzeichnis (posterFilename-Konvention, eigener Präfix).
+		`CREATE TABLE IF NOT EXISTS music_albums (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			artist TEXT NOT NULL,
+			album TEXT NOT NULL,
+			year INTEGER NOT NULL DEFAULT 0,
+			genre TEXT NOT NULL DEFAULT '',
+			cover_source TEXT NOT NULL DEFAULT '',
+			mb_release_id TEXT NOT NULL DEFAULT '',
+			cover_fetched_at DATETIME,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(library_id, artist, album)
+		)`,
+		`CREATE INDEX IF NOT EXISTS music_albums_lib_idx ON music_albums(library_id)`,
 	}
 	for _, q := range baseStmts {
 		if _, err := s.db.Exec(q); err != nil {
@@ -560,6 +580,20 @@ func (s *Store) migrate() error {
 	if err := addCol("user_item_state", "rating", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Musik-Felder (nur kind=music, aus eingebetteten Tags via scanner.probeItem
+	// gelesen). track_no 0 = keine Track-Nummer im Tag gefunden.
+	if err := addCol("items", "artist", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := addCol("items", "album", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := addCol("items", "track_no", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addCol("items", "music_album_id", "INTEGER REFERENCES music_albums(id) ON DELETE SET NULL"); err != nil {
+		return err
+	}
 	// Indizes erst nach ALTER
 	idxStmts := []string{
 		`CREATE INDEX IF NOT EXISTS items_released_idx ON items(released_at)`,
@@ -577,6 +611,7 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS metadata_collection_idx ON metadata(collection_id)`,
 		`CREATE INDEX IF NOT EXISTS user_watch_links_a_idx ON user_watch_links(user_a_id, status)`,
 		`CREATE INDEX IF NOT EXISTS user_watch_links_b_idx ON user_watch_links(user_b_id, status)`,
+		`CREATE INDEX IF NOT EXISTS items_music_album_idx ON items(music_album_id)`,
 	}
 	// Backfill: Für jede existierende Library wird ihr "path" in library_paths gespiegelt
 	// (falls noch nicht vorhanden). So funktionieren bestehende Bibliotheken out-of-the-box.
@@ -841,8 +876,8 @@ func (s *Store) DeleteLibrary(id int64) error {
 
 func (s *Store) UpsertItem(it *model.Item) error {
 	_, err := s.db.Exec(`
-		INSERT INTO items(library_id, path, rel_path, title, container, video_codec, audio_codec, width, height, duration_sec, size_bytes, bitrate_kbps, thumb_path, has_thumb, mod_time, released_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO items(library_id, path, rel_path, title, container, video_codec, audio_codec, width, height, duration_sec, size_bytes, bitrate_kbps, thumb_path, has_thumb, mod_time, released_at, artist, album, track_no)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(path) DO UPDATE SET
 			library_id=excluded.library_id,
 			rel_path=excluded.rel_path,
@@ -858,10 +893,14 @@ func (s *Store) UpsertItem(it *model.Item) error {
 			thumb_path=excluded.thumb_path,
 			has_thumb=excluded.has_thumb,
 			mod_time=excluded.mod_time,
-			released_at=excluded.released_at
+			released_at=excluded.released_at,
+			artist=excluded.artist,
+			album=excluded.album,
+			track_no=excluded.track_no
 	`,
 		it.LibraryID, it.Path, it.RelPath, it.Title, it.Container, it.VideoCodec, it.AudioCodec,
 		it.Width, it.Height, it.DurationSec, it.SizeBytes, it.BitrateKbps, it.ThumbPath, boolToInt(it.HasThumb), it.ModTime, it.ReleasedAt,
+		it.Artist, it.Album, it.TrackNo,
 	)
 	return err
 }
@@ -1204,7 +1243,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       COALESCE(i.trickplay_status, ''),
 	       COALESCE(i.episode_end, 0),
 	       COALESCE(i.variant_split, 0),
-	       COALESCE(us.rating, 0)
+	       COALESCE(us.rating, 0),
+	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0)
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -1582,7 +1622,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		var watchedAt, favoritedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating); err != nil {
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating,
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -1948,7 +1989,8 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		       COALESCE(i.episode_end, 0),
 		       COALESCE(i.variant_split, 0),
 		       i.intro_start_sec, i.intro_end_sec,
-		       COALESCE(us.rating, 0)
+		       COALESCE(us.rating, 0),
+		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0)
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.id = ?`, userID, id).
@@ -1956,7 +1998,8 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&confirmed,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit,
-			&introStart, &introEnd, &it.Rating)
+			&introStart, &introEnd, &it.Rating,
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID)
 	it.MetadataConfirmed = confirmed == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

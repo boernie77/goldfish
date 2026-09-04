@@ -7,12 +7,16 @@ import "time"
 //	movies  → jedes Video wird als Film gematcht
 //	tv      → jeder Ordner wird als Serie gematcht, Dateien als Episoden (SxxExx)
 //	private → keine TMDB-Anreicherung (Privatvideos)
+//	music   → Audio-Dateien, Metadaten aus eingebetteten Tags (ID3/FLAC/Vorbis)
+//	          + optionalem MusicBrainz/Cover-Art-Archive-Fallback, KEINE TMDB-
+//	          Anreicherung (siehe internal/enrich/music_worker.go)
 type LibraryKind string
 
 const (
 	KindMovies  LibraryKind = "movies"
 	KindTV      LibraryKind = "tv"
 	KindPrivate LibraryKind = "private"
+	KindMusic   LibraryKind = "music"
 )
 
 // ItemStream beschreibt einen einzelnen Stream (Video/Audio/Subtitle) innerhalb eines Items.
@@ -161,6 +165,28 @@ type Item struct {
 	// rel_path(s) gleichnamiger, ähnlich großer Dateien in einem ANDEREN
 	// Ordner derselben Library (Kandidaten für "eine der beiden Kopien löschen").
 	DupeOtherPaths []string `json:"dupeOtherPaths,omitempty"`
+	// Musik-Felder (nur kind=music, aus eingebetteten Tags gelesen, siehe
+	// scanner.probeItem). TrackNo 0 = keine Track-Nummer im Tag gefunden.
+	Artist       string `json:"artist,omitempty"`
+	Album        string `json:"album,omitempty"`
+	TrackNo      int    `json:"trackNo,omitempty"`
+	MusicAlbumID int64  `json:"musicAlbumId,omitempty"`
+}
+
+// MusicAlbum: eine (Artist,Album)-Gruppe innerhalb einer Musik-Bibliothek.
+// Kanonische Identität kommt aus den Tag-Werten der zugehörigen Items (Fallback:
+// übergeordneter Ordnername, wenn Tags fehlen — siehe scanner.GroupMusicAlbums).
+type MusicAlbum struct {
+	ID             int64     `json:"id"`
+	LibraryID      int64     `json:"libraryId"`
+	Artist         string    `json:"artist"`
+	Album          string    `json:"album"`
+	Year           int       `json:"year,omitempty"`
+	Genre          string    `json:"genre,omitempty"`
+	CoverSource    string    `json:"coverSource,omitempty"` // "" | "embedded" | "coverart_archive"
+	MBReleaseID    string    `json:"-"`
+	CoverFetchedAt time.Time `json:"-"`
+	TrackCount     int       `json:"trackCount,omitempty"` // per COUNT(*) beim Listing gesetzt
 }
 
 // Person: TMDB-Schauspieler (dedupliziert über tmdb_id).

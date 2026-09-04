@@ -233,7 +233,13 @@ func (m *Manager) LookupSession(itemID int64, profile Profile, audioIdx int, sta
 // audioIdx = -1 → default (erster Audio-Stream). Sonst ffprobe-Stream-Index.
 // deinterlace = true → backend-spezifischer Deinterlace-Filter wird in die
 // Filter-Chain eingebaut (für interlaced Content wie alte TV-Captures).
-func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool) (*Session, error) {
+// audioOnly: true für Musik-Items ohne Video-Stream (kind=music) — buildArgs
+// überspringt dann komplett den Video-Filter/Hwaccel-Zweig. Ändert NICHT die
+// Session-ID-Zusammensetzung unten (die bleibt wie gehabt aus itemID/profile/
+// audioIdx/startSec/deinterlace), da audioOnly für ein gegebenes Item immer
+// gleich ist — StopSession/SessionAge/ConsumeFresh/LookupSession brauchen
+// den Parameter deshalb nicht.
+func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	dei := 0
@@ -252,7 +258,7 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	_ = cleanDir(dir)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	args := m.buildArgs(inputPath, dir, profile, audioIdx, startSec, deinterlace)
+	args := m.buildArgs(inputPath, dir, profile, audioIdx, startSec, deinterlace, audioOnly)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	cmd.Stderr = io.Discard
 	cmd.Stdout = io.Discard
@@ -285,11 +291,37 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	return s, nil
 }
 
-func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace bool) []string {
+func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool) []string {
 	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
 
 	if startSec > 0 {
 		args = append(args, "-ss", strconv.FormatFloat(startSec, 'f', 3, 64))
+	}
+
+	// Musik (kind=music, kein Video-Stream): eigener, komplett unabhängiger
+	// Zweig VOR der Video-Filter/Hwaccel-Verzweigung unten — kein -vf, kein
+	// Hwaccel-Device-Init, direkt Audio-only-HLS. Gleiche HLS-Mux-Konvention
+	// wie der Video-Pfad (Segment-Dauer/Playlist-Type), nur ohne alles
+	// Video-Spezifische.
+	if audioOnly {
+		args = append(args, "-i", input, "-map", "0:a:0")
+		audioKbps := p.AudioKbps
+		if audioKbps <= 0 {
+			audioKbps = 192
+		}
+		args = append(args,
+			"-c:a", "aac",
+			"-b:a", fmt.Sprintf("%dk", audioKbps),
+			"-f", "hls",
+			"-hls_time", "4",
+			"-hls_list_size", "0",
+			"-hls_flags", "independent_segments",
+			"-hls_playlist_type", "event",
+			"-hls_segment_type", "mpegts",
+			"-hls_segment_filename", filepath.Join(outDir, "seg%05d.ts"),
+			filepath.Join(outDir, "index.m3u8"),
+		)
+		return args
 	}
 
 	// Video-Filter: Skalierung (CPU) + VAAPI-Upload. Software-scaling ist billig

@@ -61,11 +61,33 @@ var supportedExt = map[string]bool{
 	".mov": true,
 	".avi": true,
 	".wmv": true,
+	// Musik-Bibliotheken (kind=music, seit 2026-09-04)
+	".mp3":  true,
+	".flac": true,
+	".m4a":  true,
+	".ogg":  true,
+	".opus": true,
+	".wav":  true,
+}
+
+// musicExt: Teilmenge von supportedExt, die als Audio-Bibliothek behandelt
+// wird (Tag-Extraktion statt Video-Thumbnail, siehe probeItem/makeThumbnail-
+// Aufrufer in run()).
+var musicExt = map[string]bool{
+	".mp3":  true,
+	".flac": true,
+	".m4a":  true,
+	".ogg":  true,
+	".opus": true,
+	".wav":  true,
 }
 
 type Scanner struct {
 	store    *store.Store
 	thumbDir string
+	// albumArtDir: Cache-Verzeichnis für Musik-Cover, gleiche Konvention wie
+	// der Poster-Cache (siehe SetAlbumArtDir). Leer = Cover-Extraktion no-opt.
+	albumArtDir string
 
 	mu          sync.Mutex
 	status      model.ScanStatus
@@ -84,6 +106,16 @@ type Scanner struct {
 func New(s *store.Store, thumbDir string) *Scanner {
 	_ = os.MkdirAll(thumbDir, 0o755)
 	return &Scanner{store: s, thumbDir: thumbDir}
+}
+
+// SetAlbumArtDir setzt das Cache-Verzeichnis für aus Musikdateien extrahierte
+// Cover (embedded APIC/PICTURE-Block). Wird in main.go auf denselben Ordner
+// wie der Poster-Cache gesetzt (gleiche Flat-Dir-Konvention, eigener
+// Dateiname-Präfix "album_").
+func (sc *Scanner) SetAlbumArtDir(dir string) {
+	sc.mu.Lock()
+	sc.albumArtDir = dir
+	sc.mu.Unlock()
 }
 
 // OnComplete registriert einen Callback, der nach jedem Scan-Ende aufgerufen wird.
@@ -268,7 +300,12 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 			continue
 		}
 
-		sc.makeThumbnail(ctx, item)
+		// Musik-Dateien haben kein Video-Frame zum Thumbnail-Ziehen — Cover
+		// kommt stattdessen einmalig pro Album nach der Album-Gruppierung
+		// unten (extractAlbumCovers), nicht pro Track.
+		if lib.Kind != model.KindMusic {
+			sc.makeThumbnail(ctx, item)
+		}
 		if err := sc.store.UpsertItem(item); err != nil {
 			log.Printf("[scan] upsert %s: %v", ref.path, err)
 		}
@@ -333,7 +370,60 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 	sc.mu.Unlock()
 	log.Printf("[scan] lib=%d folder=%q fertig: %d Dateien aus %d Quellen, %d entfernt",
 		lib.ID, folder, len(files), len(paths), removed)
+
+	// Musik: Artist/Album-Gruppierung + Cover-Extraktion aus der Audiodatei
+	// selbst (MusicBrainz/Cover-Art-Archive-Fallback läuft separat im
+	// MusicWorker, getriggert über sc.OnComplete in main.go).
+	if lib.Kind == model.KindMusic {
+		if err := sc.store.GroupMusicAlbums(lib.ID); err != nil {
+			log.Printf("[scan] music album grouping lib=%d: %v", lib.ID, err)
+		} else {
+			sc.extractAlbumCovers(ctx, lib.ID)
+		}
+	}
 	return nil
+}
+
+// extractAlbumCovers zieht für jedes Album ohne Cover EINMAL das eingebettete
+// Bild (ID3-APIC bzw. FLAC/Vorbis METADATA_BLOCK_PICTURE) aus der ersten
+// Track-Datei — nicht pro Track, das Cover gehört zum Album. Fehlschlag (kein
+// eingebettetes Bild vorhanden) ist der Normalfall bei vielen Dateien und
+// fällt durch zum MusicWorker-Fallback (MusicBrainz+Cover Art Archive).
+func (sc *Scanner) extractAlbumCovers(ctx context.Context, libraryID int64) {
+	if sc.albumArtDir == "" {
+		return
+	}
+	albums, err := sc.store.PendingAlbumsForCoverExtraction(libraryID)
+	if err != nil {
+		log.Printf("[scan] pending album covers lib=%d: %v", libraryID, err)
+		return
+	}
+	for _, album := range albums {
+		path, err := sc.store.FirstTrackPathForAlbum(album.ID)
+		if err != nil || path == "" {
+			continue
+		}
+		out := filepath.Join(sc.albumArtDir, fmt.Sprintf("album_%d.jpg", album.ID))
+		cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		cmd := exec.CommandContext(cctx, "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+			"-i", path, "-an", "-vcodec", "copy", out)
+		runErr := cmd.Run()
+		cancel()
+		if runErr != nil {
+			// Kein eingebettetes Cover (häufigster Fall) oder ffmpeg-Fehler —
+			// fällt durch zum MusicWorker-Fallback, cover_source bleibt ''.
+			_ = os.Remove(out)
+			continue
+		}
+		info, statErr := os.Stat(out)
+		if statErr != nil || info.Size() == 0 {
+			_ = os.Remove(out)
+			continue
+		}
+		if err := sc.store.SetMusicAlbumCover(album.ID, "embedded", ""); err != nil {
+			log.Printf("[scan] set album cover lib=%d album=%d: %v", libraryID, album.ID, err)
+		}
+	}
 }
 
 // topLevelFolder extrahiert das erste rel_path-Segment. Files direkt im
@@ -455,7 +545,43 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 		}
 	}
 	it.Streams = streamsFromProbe(p)
+	// Musik-Tags (ID3/FLAC/Vorbis, bereits in p.Format.Tags vorhanden — bisher
+	// nur für extractReleaseTime genutzt). Titel-Tag wird bevorzugt vor der
+	// Dateiname-Ableitung oben, da Musikdateien fast immer einen sinnvollen
+	// eingebetteten Titel haben.
+	if lib.Kind == model.KindMusic {
+		it.Artist = lookupTag(p.Format.Tags, "artist", "album_artist")
+		it.Album = lookupTag(p.Format.Tags, "album")
+		if track := lookupTag(p.Format.Tags, "track"); track != "" {
+			if idx := strings.Index(track, "/"); idx > 0 {
+				track = track[:idx]
+			}
+			if n, err := strconv.Atoi(strings.TrimSpace(track)); err == nil {
+				it.TrackNo = n
+			}
+		}
+		if title := lookupTag(p.Format.Tags, "title"); title != "" {
+			it.Title = title
+		}
+	}
 	return it, nil
+}
+
+// lookupTag sucht case-insensitiv nach dem ersten passenden Tag-Wert (Matroska/
+// Vorbis-Tags sind oft GROSSBUCHSTABEN, MP4/ID3 meist lower_snake_case).
+func lookupTag(tags map[string]string, keys ...string) string {
+	for k, v := range tags {
+		if v == "" {
+			continue
+		}
+		lk := strings.ToLower(k)
+		for _, want := range keys {
+			if lk == want {
+				return v
+			}
+		}
+	}
+	return ""
 }
 
 // extractReleaseTime sucht in ffprobe-Tags nach einem plausiblen Aufnahme-/Erstelldatum.

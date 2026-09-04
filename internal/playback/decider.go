@@ -62,6 +62,18 @@ func Decide(it *model.Item) Decision {
 		return Decision{Mode: ModeTranscode, Reason: "Interlaced — Deinterlace-Filter angewendet"}
 	}
 
+	// Audio-Only (Musik-Bibliotheken, kein Video-Stream): eigener Zweig VOR den
+	// Video-Checks unten, sonst fällt jede Audio-Datei mangels VideoCodec durch
+	// in den generischen Video-Transcode-Reason-String. mp3/aac/vorbis/opus
+	// spielt jeder Browser nativ; flac/wav/alac (patchiere native Unterstützung,
+	// v1-Vereinfachung) werden zu AAC transcodiert.
+	if vc == "" && ac != "" {
+		if ac == "mp3" || ac == "aac" || ac == "vorbis" || ac == "opus" {
+			return Decision{Mode: ModeDirectPlay, Reason: "Audio direct-play (" + ac + ")"}
+		}
+		return Decision{Mode: ModeTranscode, Reason: "Audio-Transcode (" + ac + " → aac)"}
+	}
+
 	isDirectContainer := container == "mp4" || container == "mov" ||
 		strings.Contains(container, "mp4") || strings.Contains(container, "mov")
 	isDirectVideo := vc == "h264" || vc == "avc" || vc == "avc1"

@@ -281,7 +281,7 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 			s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
 		}
 	}
-	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace)
+	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "")
 	if err != nil {
 		writeError(w, 500, "ffmpeg start: "+err.Error())
 		return
@@ -451,7 +451,7 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 		it.Streams = streams
 	}
 	deinterlace := resolveDeinterlace(r.URL.Query().Get("deinterlace"), playback.IsInterlaced(it))
-	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace)
+	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "")
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

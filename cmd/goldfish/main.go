@@ -64,6 +64,9 @@ func main() {
 	hw.ApplySelection(hwMode)
 	pb := playback.NewManager(filepath.Join(configDir, "cache"), hw)
 	sc := scanner.New(db, filepath.Join(configDir, "thumbs"))
+	// Album-Cover teilen sich den Poster-Cache-Ordner (gleiche Flat-Dir-
+	// Konvention, eigener Dateiname-Präfix "album_", siehe extractAlbumCovers).
+	sc.SetAlbumArtDir(filepath.Join(configDir, "posters"))
 
 	// TMDB + OMDb Enrichment-Worker (Keys aus Settings, können leer sein)
 	tmdbKey, _ := db.GetSetting("tmdb_api_key", "")
