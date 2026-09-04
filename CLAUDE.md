@@ -268,8 +268,21 @@ Chronologisch, Build 0100 (2026-08-19) bis Build 179:
   Login-Feldern nachgerüstet.
 - **Signierung/Team-ID + Version in `project.yml`** (2026-08-28, mit ⚠ Team-ID-Falle bei
   Mac-Wechsel — siehe DECISIONS.md): `DEVELOPMENT_TEAM` + `CFBundleVersion` zentral in
-  `project.yml`. `xcodebuild`-CLI kann bei Free-Personal-Team grundsätzlich nicht signieren —
-  echte Geräte-Runs IMMER über Xcode-GUI (⌘R), nicht per CLI versuchen.
+  `project.yml`.
+  **✅ Überholt seit 2026-09-04: Mit dem jetzt aktiven bezahlten Account
+  (Team `SYQL3PUXA9`, siehe `feedback_apple_versioning.md`) signiert
+  `xcodebuild ... -allowProvisioningUpdates` auch auf echte, per Xcode
+  gepaarte Geräte per CLI** — verifiziert für sowohl `GoldfishiOS` (echtes
+  iPhone) als auch `GoldfishTV` (echter Apple TV):
+  `xcodebuild -scheme <Target> -destination 'id=<devicectl-UDID>'
+  -allowProvisioningUpdates build`, danach `xcrun devicectl device install
+  app --device <UDID> <Pfad>.app` + `xcrun devicectl device process launch
+  --device <UDID> <bundle-id>`. Geräte-UDIDs via `xcrun devicectl list
+  devices`. Die alte „Free-Personal-Team kann nicht signieren"-Einschränkung
+  galt nur für den damaligen kostenlosen Account — bei einem künftigen
+  Account-/Team-Wechsel zurück auf kostenlos gilt sie wieder, dann zuerst
+  hier + `feedback_apple_versioning.md` nachsehen, ob der Account noch
+  bezahlt ist, bevor man CLI-Signierung erneut versucht.
 - **SSO-Kontowechsel unmöglich** (Build 171): `WKWebsiteDataStore` war persistent. Fix: Button
   „Mit anderem Konto anmelden" leert den DataStore vor dem Laden. SSO ist immer nur ein aktives
   Konto gleichzeitig; Offline-Kontowechsel bleibt passwort-only.
