@@ -1229,6 +1229,12 @@ type ItemFilter struct {
 	MetadataID      int64    // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
 	PersonTMDB      int64    // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
 	PlaylistID      int64    // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
+	MusicAlbumID    int64    // 0 = aus; sonst nur Tracks dieses Albums (fuer Shuffle/Zufall innerhalb eines geoeffneten Albums)
+	// ExcludeAudiobooks: Hörbücher (.m4b) aus dem Zufalls-Pool ausschließen
+	// (User-Wunsch 2026-09-04: "Bei Zufall Play dürfen Hörbücher nicht
+	// berücksichtigt werden") — Extension ist ein zuverlässigeres Signal als
+	// Genre-Tags (die bei Hörbüchern oft fehlen/uneinheitlich sind).
+	ExcludeAudiobooks bool
 	MinHeight       int      // 0 = aus; sonst nur Items mit height >= MinHeight
 	MaxHeight       int      // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
 	ResBuckets      []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
@@ -1508,6 +1514,13 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			WHERE pi.item_id = i.id AND pi.playlist_id = ?
 		)`
 		args = append(args, f.PlaylistID)
+	}
+	if f.MusicAlbumID > 0 {
+		q += ` AND i.music_album_id = ?`
+		args = append(args, f.MusicAlbumID)
+	}
+	if f.ExcludeAudiobooks {
+		q += ` AND i.container != 'm4b'`
 	}
 	if f.MaxAgeRating > 0 {
 		// FSK-Filter: Items mit numerisch höherer age_rating als das User-

@@ -235,6 +235,11 @@ function randomParams() {
   } else if (state.personFilter && state.personFilter.tmdbId) {
     // Person-Filter: alle Videos mit diesem Schauspieler, library-uebergreifend.
     params.set("personId", state.personFilter.tmdbId);
+  } else if (state.currentAlbum) {
+    // Innerhalb eines geöffneten Musik-Albums: Zufall bleibt auf DIESES
+    // Album beschränkt (User-Wunsch 2026-09-04: "wenn man ... in einem
+    // Album drin ist, dann soll Zufall Play auch nur dafür gelten").
+    params.set("albumId", state.currentAlbum);
   } else if (state.shuffleFolders && state.shuffleFolders.length) {
     // Manuelle Ordner-Auswahl (shuffleScopeDialog): library-uebergreifend
     // kombinierbar, hat Vorrang vor dem aktuell geoeffneten Bibliotheks-/
@@ -269,7 +274,7 @@ function openShuffleItem(item) {
   if (lib && lib.kind === "music") {
     musicPlayShuffleTrack(item);
   } else {
-    openShuffleItem(item);
+    openPlayer(item, { fromShuffle: true });
   }
 }
 

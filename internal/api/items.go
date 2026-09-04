@@ -460,6 +460,9 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 		Favorite:     q.Get("favorite"),
 		RatingFilter: q.Get("rating"),
 		MatchState:   q.Get("match"),
+		// Zufallswiedergabe soll Hörbücher nie ziehen (User-Wunsch 2026-09-04) —
+		// unconditional, nicht an einen Query-Param gebunden.
+		ExcludeAudiobooks: true,
 	}
 	if me != nil {
 		f.UserID = me.ID
@@ -509,6 +512,9 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := q.Get("playlistId"); v != "" {
 		f.PlaylistID, _ = strconv.ParseInt(v, 10, 64)
+	}
+	if v := q.Get("albumId"); v != "" {
+		f.MusicAlbumID, _ = strconv.ParseInt(v, 10, 64)
 	}
 	if v := q.Get("minHeight"); v != "" {
 		n, _ := strconv.Atoi(v)

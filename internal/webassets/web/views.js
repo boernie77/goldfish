@@ -818,7 +818,7 @@ function renderAlbumTracks(grid, data, listView) {
       <h2>${escapeHTML(album.album || "")}
         <button type="button" class="fav-toggle-inline ${album.favorite ? "is-on" : ""}" id="albumFavBtn" title="${album.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}">${album.favorite ? "♥" : "♡"}</button>
       </h2>
-      <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}</div>
+      <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}${album.genre ? `<span>${escapeHTML(album.genre)}</span>` : ""}</div>
     </div>
   `;
   grid.appendChild(header);
