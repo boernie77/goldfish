@@ -1002,10 +1002,70 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   normalen Video-Modal und wird bei `disposePlayer()` verworfen) für
   HLS-Transcode-Support bei flac/wav, exakt wie der Hauptplayer. Klick auf
   eine Musik-Kachel ruft `musicPlayAlbum()` auf statt `openDetail()` zu
-  öffnen — Queue kommt aus `state.playQueue` (in der Album-Ansicht korrekt
-  gefüllt; bei normaler Ordner-Browse-Navigation ohne Album-Ansicht fällt
-  die Queue auf den einzelnen angeklickten Track zurück, kein Auto-Weiter —
-  bekannte v1-Einschränkung, die Album-Ansicht ist der vorgesehene Weg).
+  öffnen — Queue kommt aus `state.playQueue`, das seit dem Fix unten in JEDEM
+  Render-Pfad (Album-Ansicht, normale Ordner-Navigation, Suche) auf die
+  gerade angezeigte Liste gesetzt wird, nicht nur in der Album-Ansicht.
+- **🔴 Suchtreffer spielten den vorherigen Track (Bug, gefixt 2026-09-04):**
+  `state.playQueue` wurde nur von `renderAlbumTracks`/`renderAllTracksList`
+  gesetzt — der generische Rendering-Pfad in `grid.js` (normale Ordner-
+  Navigation UND Suche) ließ es unangetastet. Ein Klick auf einen Suchtreffer
+  fiel in `cards.js`s Fallback (`queue = state.playQueue.length ? … : [it]`)
+  dadurch auf die ALTE Queue vom zuletzt geöffneten Album zurück, `indexOf(it)`
+  fand den Suchtreffer darin nicht (→ `-1` → Index 0) — es spielte der erste
+  Track der alten Queue statt des angeklickten Titels. Fix: `grid.js` setzt
+  `state.playQueue = searching ? items : merged` bei jedem generischen Render.
+- **🔴 Mini-Player spielte oft gar nicht / stark verzögert (Bug, gefixt
+  2026-09-04):** zwei Ursachen in `music.js`. (1) Ein Doppelklick auf eine
+  Kachel feuert zwei "click"-Events → zwei überlappende
+  `musicPlayCurrent()`-Aufrufe, deren `await api(/api/playback/…)`-Antworten
+  in beliebiger Reihenfolge zurückkamen und sich gegenseitig mit
+  `vjs.src()`/`vjs.play()` überschrieben (Video.js bricht den laufenden
+  Ladevorgang dabei mit einem lautlos verschluckten `AbortError` ab). Fix:
+  `musicState.playSeq`-Sequenz-Token, nur der jeweils NEUESTE Aufruf darf noch
+  `src()`/`play()` ausführen (gleiches Muster wie `state.loadSeq` in
+  `grid.js`). (2) `vjs.src()`/`vjs.play()` direkt nach `musicEnsureVjs()`
+  auf einer FRISCH erzeugten Video.js-Instanz lief teils ins Leere, weil die
+  Tech (Html5) noch nicht initialisiert war — jetzt in `vjs.ready(() => {…})`
+  gewrappt (feuert sofort, wenn der Player schon bereit ist, sonst verzögert).
+- **Auflösungs-Badge unterdrückt** (`cards.js`, `isMusicLib` → `res = ""`) —
+  ein Video-Konzept, für Audio-Dateien bedeutungslos/irreführend (zeigte z. B.
+  "360p" auf Musik-Kacheln).
+- **Bibliotheks-Zähler zeigt "N Titel" statt "N Videos"** für `kind=music`
+  (`views.js loadCount`, neben dem Bibliotheksnamen im Breadcrumb).
+- **`.m4b` als Hörbuch-Extension ergänzt** (`scanner.go` `supportedExt` +
+  `musicExt`) — fehlte komplett, Hörbücher (z. B. David-Baldacci-Serien, i. d.
+  R. `.m4b`) wurden dadurch vom Scanner GAR NICHT erst eingelesen (User-
+  Bericht 2026-09-04: "finde sie über die Suche nicht" — sie waren nie in
+  der DB gelandet, kein reines Such-Problem).
+- **Suche findet jetzt auch Künstler + Album** (`ListItems`-Suchklausel um
+  `OR i.artist LIKE ? OR i.album LIKE ?` erweitert) — vorher wurde nur
+  `i.title`/`m.title` durchsucht, eine Suche nach dem Interpreten-/Autoren-
+  Namen (z. B. "Baldacci") lief für Musik/Hörbücher komplett ins Leere.
+- **Sortierung nach Künstler/Album** (`ListItems`-Sort-Switch, neue Fälle
+  `"artist"`/`"album"`, COLLATE NATSORT + `track_no` als Sekundärschlüssel).
+- **Sort-/Filter-Felder sind jetzt bibliothekstyp-spezifisch** (`grid.js`,
+  User-Vorgabe 2026-09-04: "sollen nur dafür spezifische Felder zeigen"):
+  jede `<option>` im Sort-Dropdown trägt `data-kinds="movies,tv,private,music"`
+  — passt die aktuelle Library-`kind` nicht, wird die Option per `opt.hidden`
+  ausgeblendet (ohne aktive Library, z. B. Home/Sammlungen, bleibt alles
+  sichtbar). Musik blendet zusätzlich Auflösungs-/Gesehen-/Bewertungs-Filter
+  komplett aus (`#resolutionFilterLabel`/`#watchedFilterLabel`/
+  `#ratingFilterLabel`, per `.hidden`-Klasse) — alle drei sind Video-Konzepte
+  bzw. (Gesehen) für Musik bewusst nicht geführt.
+- **Listenansicht** (`#musicListViewBtn`, global per `localStorage`
+  `musicListView` persistiert wie `flatView`): schaltet Album-Übersicht UND
+  Album-Detail von Kacheln auf kompakte Zeilen um (`views.js`
+  `renderAlbumTiles`/`renderAlbumTracks` bekommen ein `listView`-Flag,
+  gemeinsamer Zeilen-Renderer `renderMusicTrackRow(item, queue, idx, columns)`
+  mit konfigurierbaren Spalten). `#grid.track-list-grid` schaltet das sonst
+  als CSS-Grid layoutete `#grid` für den Listenfall auf Block-Layout um.
+- **"🎵 Alle Titel"-Ansicht** (`#musicAllTracksBtn`, NUR Listendarstellung,
+  kein Kachel-Äquivalent): flache Liste ALLER Tracks der Bibliothek
+  (Künstler/Album/Titel/Zuletzt-gehört-Spalten, `renderAllTracksList` in
+  `views.js`) über den ganz normalen `/api/items?libraryId=`-Endpoint — dafür
+  musste `model.Item` um `LastPlayedAt` (aus `user_item_state.last_played_at`,
+  bisher nur serverseitig für den `sort=played`-Filter genutzt, nie ins JSON
+  exponiert) erweitert werden, `ListItems`-SELECT+Scan entsprechend ergänzt.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/

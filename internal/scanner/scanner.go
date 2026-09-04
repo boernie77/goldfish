@@ -68,6 +68,11 @@ var supportedExt = map[string]bool{
 	".ogg":  true,
 	".opus": true,
 	".wav":  true,
+	// .m4b: Standard-Hörbuch-Container (MPEG-4 Audio, oft mit Kapitel-Chapters).
+	// Ohne diese Extension wurden Hörbücher (z.B. David-Baldacci-Serien) vom
+	// Scanner komplett übersprungen — User-Bericht 2026-09-04: "findet sie
+	// über die Suche nicht" (sie waren gar nicht erst in der DB gelandet).
+	".m4b": true,
 }
 
 // musicExt: Teilmenge von supportedExt, die als Audio-Bibliothek behandelt
@@ -80,6 +85,7 @@ var musicExt = map[string]bool{
 	".ogg":  true,
 	".opus": true,
 	".wav":  true,
+	".m4b":  true,
 }
 
 type Scanner struct {

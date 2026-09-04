@@ -47,6 +47,8 @@ const state = {
   moveContext: null,           // {mode:"single",item} oder {mode:"bulk",ids,libId} während #moveDialog offen ist
   shuffleFolders: [],          // [{libraryId,libraryName,folder,label}] — Ordner-Scoping für Zufallswiedergabe (leer = aktueller Kontext)
   currentAlbum: null,          // Album-ID wenn ein Musik-Album geöffnet ist (Track-Liste statt Album-Kacheln)
+  musicListView: false,        // Listenansicht statt Kacheln (Album-Übersicht + Album-Detail), global, localStorage
+  musicAllTracks: false,       // "Alle Titel"-Ansicht (flach über die ganze Musik-Bibliothek, mit letzter Wiedergabe)
 };
 
 // captureNavSnapshot: merkt sich die aktuelle Nav-Position (Library, Folder,
@@ -953,6 +955,7 @@ function goLibraryView(libId) {
   state.currentFolderDrilldown = null;
   state.currentSeason = null;
   state.currentAlbum = null;
+  state.musicAllTracks = false;
   state.collectionsView = false;
   state.currentCollection = null;
   state.playlistsView = false;
@@ -1175,6 +1178,18 @@ function wire() {
     state.seasonView = next;
     state.currentSeason = null;
     $("#seasonViewBtn").classList.toggle("active", state.seasonView);
+    loadItems();
+  });
+  $("#musicListViewBtn").addEventListener("click", () => {
+    state.musicListView = !state.musicListView;
+    $("#musicListViewBtn").classList.toggle("active", state.musicListView);
+    try { localStorage.setItem("musicListView", state.musicListView ? "1" : "0"); } catch {}
+    loadItems();
+  });
+  $("#musicAllTracksBtn").addEventListener("click", () => {
+    state.musicAllTracks = !state.musicAllTracks;
+    state.currentAlbum = null; // "Alle Titel" und ein offenes Album schließen sich aus
+    $("#musicAllTracksBtn").classList.toggle("active", state.musicAllTracks);
     loadItems();
   });
   $("#selectModeBtn").addEventListener("click", () => setSelectionMode(!state.selectionMode));
@@ -1636,6 +1651,7 @@ async function checkAuth() {
     $("#bulkDownload").classList.add("hidden");
   }
   try { state.flatView = localStorage.getItem("flatView") === "1"; } catch {}
+  try { state.musicListView = localStorage.getItem("musicListView") === "1"; } catch {}
   try {
     const raw = localStorage.getItem("shuffleFolders");
     if (raw) state.shuffleFolders = JSON.parse(raw) || [];
@@ -1672,6 +1688,7 @@ async function checkAuth() {
     window.addEventListener("resize", syncNav);
   }
   $("#flatViewBtn").classList.toggle("active", state.flatView);
+  $("#musicListViewBtn").classList.toggle("active", state.musicListView);
   await Promise.all([loadHealth(), loadSettings(), loadLibraries()]);
   // Beim ersten Laden: Startseite zeigen. loadLibraries() setzt implizit
   // die erste Library als aktuell — wir überschreiben, damit der User die

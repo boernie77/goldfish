@@ -94,6 +94,46 @@ async function loadItemsBody() {
     }
   }
 
+  // Musik-Toggle-Buttons: nur im Library-Root sichtbar (Listenansicht +
+  // "Alle Titel" beziehen sich beide auf die Album-Übersicht bzw. die ganze
+  // Bibliothek, nicht auf einen einzelnen Unterordner der normalen
+  // Ordner-Navigation).
+  {
+    const lib0 = state.libraries.find(l => l.id == state.currentLibrary);
+    const musicEligible = lib0 && lib0.kind === "music" && state.currentFolder === null;
+    $("#musicListViewBtn").classList.toggle("hidden", !musicEligible);
+    $("#musicAllTracksBtn").classList.toggle("hidden", !musicEligible);
+    $("#musicAllTracksBtn").classList.toggle("active", musicEligible && !!state.musicAllTracks);
+    if (!musicEligible) state.musicAllTracks = false;
+  }
+
+  // Sort-/Filter-Felder auf die Bibliothek zuschneiden: Musik-Bibliotheken
+  // brauchen weder Auflösungs- noch Gesehen-/Bewertungs-Filter (Video-
+  // spezifisch, "Gesehen" wird für Musik bewusst nicht geführt, siehe
+  // Musik-Feature-Doku "Watched wird für Musik in v1 bewusst NICHT belegt"),
+  // dafür Künstler/Album als zusätzliche Sortier-Optionen. Jede <option>
+  // trägt data-kinds="movies,tv,private,music" — ohne aktive Library
+  // (Home/Sammlungen/Playlists) bleibt alles sichtbar (User-Bericht
+  // 2026-09-04: "Suche nach Künstler klappt gar nicht" + "Felder sollen nur
+  // die für Musik relevanten zeigen").
+  {
+    const lib0 = state.libraries.find(l => l.id == state.currentLibrary);
+    const kind = lib0 ? lib0.kind : null;
+    const sortSelect = $("#sortSelect");
+    let selectedStillVisible = false;
+    for (const opt of sortSelect.options) {
+      const kindsAttr = opt.dataset.kinds;
+      const allowed = !kindsAttr || !kind || kindsAttr.split(",").includes(kind);
+      opt.hidden = !allowed;
+      if (allowed && opt.value === sortSelect.value) selectedStillVisible = true;
+    }
+    if (!selectedStillVisible) sortSelect.value = "title";
+    const isMusicKind = kind === "music";
+    $("#resolutionFilterLabel").classList.toggle("hidden", isMusicKind);
+    $("#watchedFilterLabel").classList.toggle("hidden", isMusicKind);
+    $("#ratingFilterLabel").classList.toggle("hidden", isMusicKind);
+  }
+
   // Trickplay-Fehler-View (aus dem Trickplay-Manager-Dialog ausgelöst):
   // flache Library-übergreifende Liste aller Items mit trickplay_status=failed.
   // ✕ im Breadcrumb öffnet den Trickplay-Manager-Dialog wieder.
@@ -852,13 +892,26 @@ async function loadItemsBody() {
   // bleibt für Musik-Libs unverändert nutzbar (Ordnerstruktur bleibt
   // Navigation, kanonische Album-Identität kommt separat aus den Tags).
   if (lib && lib.kind === "music" && state.currentFolder === null && !$("#searchInput").value.trim()) {
+    // "Alle Titel": flache Liste ALLER Tracks der Bibliothek (Artist/Album/
+    // Titel/letzte Wiedergabe), unabhängig von der Album-Gruppierung —
+    // nutzt den ganz normalen /api/items-Endpoint (der liefert artist/album/
+    // trackNo/lastPlayedAt für Musik-Items bereits generisch mit).
+    if (state.musicAllTracks) {
+      let tracks;
+      try { tracks = await api(`/api/items?libraryId=${state.currentLibrary}&sort=title`); }
+      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      renderBreadcrumb({});
+      renderAllTracksList(grid, tracks);
+      return;
+    }
     if (state.currentAlbum != null) {
       let data;
       try { data = await api(`/api/albums/${state.currentAlbum}`); }
       catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
       renderBreadcrumb({});
-      renderAlbumTracks(grid, data);
+      renderAlbumTracks(grid, data, state.musicListView);
       return;
     }
     let albums;
@@ -866,7 +919,7 @@ async function loadItemsBody() {
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
     renderBreadcrumb({});
-    renderAlbumTiles(grid, albums);
+    renderAlbumTiles(grid, albums, state.musicListView);
     return;
   }
 
@@ -997,6 +1050,15 @@ async function loadItemsBody() {
   }
   state.lastRenderedItems = merged;
   state.lastRenderedFolders = folders || [];
+  // playQueue: von musicPlayAlbum genutzt, wenn eine Musik-Kachel OHNE
+  // expliziten queueIdx angeklickt wird (Fallback-Pfad in cards.js). Ohne
+  // diese Zuweisung blieb hier die Queue vom zuletzt geöffneten Album stehen
+  // — ein Klick auf einen Suchtreffer (dieser generische Pfad rendert Suche
+  // UND normale Ordner-/Bibliotheksansichten) spielte dadurch fälschlich
+  // Track 0 der ALTEN Queue statt des angeklickten Titels (User-Bericht
+  // 2026-09-04). `searching` nutzt die rohen `items` (appendSearchResultCards
+  // rendert daraus, nicht `merged`), alle anderen Zweige `merged`.
+  state.playQueue = searching ? items : merged;
 
   // DocumentFragment: alle Kacheln im Speicher aufbauen und in einem einzigen
   // Reflow in den DOM hängen (statt einzeln appendChild → Layout-Trashing).

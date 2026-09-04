@@ -683,7 +683,7 @@ async function renderSeasonEpisodes(grid, data, seasonNum) {
 // Navigation bleibt für Unterordner unverändert nutzbar (siehe grid.js: der
 // Musik-Zweig greift nur bei state.currentFolder === null).
 
-function renderAlbumTiles(grid, albums) {
+function renderAlbumTiles(grid, albums, listView) {
   grid.innerHTML = "";
   document.body.classList.remove("has-alpha-sidebar");
   const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
@@ -691,6 +691,31 @@ function renderAlbumTiles(grid, albums) {
     grid.innerHTML = `<div class="empty">Keine Alben gefunden. Klicke „⟳ Scan" um die Bibliothek einzulesen.</div>`;
     return;
   }
+  if (listView) {
+    grid.classList.add("track-list-grid");
+    const list = document.createElement("div");
+    list.className = "track-list";
+    for (const a of albums) {
+      const cover = a.coverSource ? `/api/poster/album/${a.id}` : "/placeholder.svg";
+      const row = document.createElement("div");
+      row.className = "track-row track-row--album";
+      row.tabIndex = 0;
+      row.setAttribute("role", "button");
+      row.innerHTML = `
+        <img class="track-row-cover" loading="lazy" decoding="async" alt="" src="${cover}">
+        <span class="track-row-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</span>
+        <span class="track-row-artist">${escapeHTML(a.artist || "")}</span>
+        <span class="track-row-count">${a.trackCount || 0} Titel</span>
+      `;
+      row.addEventListener("click", () => { state.currentAlbum = a.id; loadItems(); });
+      row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
+      list.appendChild(row);
+    }
+    grid.appendChild(list);
+    state.lastRenderedItems = [];
+    return;
+  }
+  grid.classList.remove("track-list-grid");
   const frag = document.createDocumentFragment();
   for (const a of albums) {
     const el = document.createElement("article");
@@ -719,8 +744,9 @@ function renderAlbumTiles(grid, albums) {
   state.lastRenderedItems = [];
 }
 
-function renderAlbumTracks(grid, data) {
+function renderAlbumTracks(grid, data, listView) {
   grid.innerHTML = "";
+  grid.classList.remove("track-list-grid");
   document.body.classList.remove("has-alpha-sidebar");
   const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
   const album = data.album || {};
@@ -748,11 +774,103 @@ function renderAlbumTracks(grid, data) {
     grid.appendChild(e);
     return;
   }
+  state.playQueue = tracks;
+  state.lastRenderedItems = tracks;
+  if (listView) {
+    const list = document.createElement("div");
+    list.className = "track-list";
+    tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["track", "title", "duration", "fav"])));
+    grid.appendChild(list);
+    return;
+  }
   const frag = document.createDocumentFragment();
   tracks.forEach((it, idx) => frag.appendChild(renderCard(it, { queueIdx: idx })));
   grid.appendChild(frag);
+}
+
+// renderAllTracksList: flache Liste ALLER Titel einer Musik-Bibliothek
+// (Künstler/Album/Titel/letzte Wiedergabe) — bewusst NUR als Liste, keine
+// Kachel-Variante (User-Wunsch 2026-09-04: eine Übersicht, um z. B. per
+// letzter Wiedergabe zu sortieren; als Kacheln wäre das unübersichtlich).
+function renderAllTracksList(grid, tracks) {
+  grid.innerHTML = "";
+  grid.classList.add("track-list-grid");
+  document.body.classList.remove("has-alpha-sidebar");
+  const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
+  if (!tracks.length) {
+    grid.innerHTML = `<div class="empty">Keine Titel in dieser Bibliothek.</div>`;
+    return;
+  }
   state.playQueue = tracks;
   state.lastRenderedItems = tracks;
+  const list = document.createElement("div");
+  list.className = "track-list track-list--all";
+  const head = document.createElement("div");
+  head.className = "track-row track-row--head";
+  head.innerHTML = `
+    <span class="track-row-cover"></span>
+    <span class="track-row-title">Titel</span>
+    <span class="track-row-artist">Künstler</span>
+    <span class="track-row-album">Album</span>
+    <span class="track-row-played">Zuletzt gehört</span>
+  `;
+  list.appendChild(head);
+  tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["cover", "title", "artist", "album", "lastPlayed"])));
+  grid.appendChild(list);
+}
+
+// renderMusicTrackRow: gemeinsamer Zeilen-Renderer für alle Musik-
+// Listenansichten (Album-Detail-Liste + "Alle Titel"). `columns` steuert,
+// welche Felder gezeigt werden — Album-Kontext braucht keine Artist/Album-
+// Spalte (redundant mit dem Header), die "Alle Titel"-Übersicht schon.
+function renderMusicTrackRow(it, queue, idx, columns) {
+  const row = document.createElement("div");
+  row.className = "track-row";
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  let html = "";
+  for (const col of columns) {
+    switch (col) {
+      case "cover": {
+        const cover = it.musicAlbumId ? `/api/poster/album/${it.musicAlbumId}` : "/placeholder.svg";
+        html += `<img class="track-row-cover" loading="lazy" decoding="async" alt="" src="${cover}">`;
+        break;
+      }
+      case "track":
+        html += `<span class="track-row-num">${it.trackNo || "—"}</span>`;
+        break;
+      case "title":
+        html += `<span class="track-row-title" title="${escapeHTML(it.title || "")}">${escapeHTML(it.title || "")}</span>`;
+        break;
+      case "artist":
+        html += `<span class="track-row-artist">${escapeHTML(it.artist || "")}</span>`;
+        break;
+      case "album":
+        html += `<span class="track-row-album">${escapeHTML(it.album || "")}</span>`;
+        break;
+      case "duration":
+        html += `<span class="track-row-duration">${fmtDuration(it.durationSec)}</span>`;
+        break;
+      case "lastPlayed":
+        html += `<span class="track-row-played">${it.lastPlayedAt ? fmtDate(it.lastPlayedAt) : "—"}</span>`;
+        break;
+      case "fav":
+        html += `<button type="button" class="fav-toggle track-row-fav ${it.favorite ? "is-on" : ""}" title="${it.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}" data-toggle-fav aria-label="${it.favorite ? "Favorit" : "Kein Favorit"}">${it.favorite ? "♥" : "♡"}</button>`;
+        break;
+    }
+  }
+  row.innerHTML = html;
+  row.addEventListener("click", (ev) => {
+    const favTog = ev.target && ev.target.closest("[data-toggle-fav]");
+    if (favTog) {
+      ev.stopPropagation();
+      toggleFavoriteOnCard(it, favTog);
+      return;
+    }
+    if (typeof musicPlayAlbum === "function") musicPlayAlbum(queue, idx);
+  });
+  row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
+  return row;
 }
 
 // renderRangeContinuationCard zeigt einen Folgeplatz einer Doppelfolgen-Datei
@@ -825,12 +943,16 @@ async function loadCount(el, libId, folder) {
     const n = data.totalItems;
     const lib = state.libraries.find(l => l.id == libId);
     const isTV = lib && lib.kind === "tv";
+    const isMusic = lib && lib.kind === "music";
     // Im TV-Library-Root: „N Folgen · M Serien". In Subfoldern (oder Movies/
-    // Privat) bleibt das alte „N Videos"-Label.
+    // Privat) bleibt das alte „N Videos"-Label. Musik-Bibliotheken zeigen
+    // „N Titel" statt „Videos" (Tracks sind keine Videos).
     if (isTV && !folder && typeof data.folderCount === "number") {
       const showWord = data.folderCount === 1 ? "Serie" : "Serien";
       const epWord = n === 1 ? "Folge" : "Folgen";
       el.textContent = `(${n.toLocaleString("de-DE")} ${epWord} · ${data.folderCount.toLocaleString("de-DE")} ${showWord})`;
+    } else if (isMusic) {
+      el.textContent = `(${n.toLocaleString("de-DE")} Titel)`;
     } else {
       el.textContent = `(${n.toLocaleString("de-DE")} Video${n === 1 ? "" : "s"})`;
     }

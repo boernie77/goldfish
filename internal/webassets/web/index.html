@@ -59,33 +59,35 @@
     <label class="field-label">Sortierung
       <span class="sort-wrap">
         <select id="sortSelect">
-          <option value="title">Name</option>
-          <option value="released">Veröffentlicht</option>
-          <option value="added">Hinzugefügt</option>
-          <option value="duration">Laufzeit</option>
-          <option value="resolution">Auflösung</option>
-          <option value="rating">★ Bewertung</option>
-          <option value="played">Zuletzt abgespielt</option>
-          <option value="shuffle">🎲 Zufällig</option>
-          <option value="duplicates">Duplikate</option>
-          <option value="multiversion">🔀 Mehrere Versionen</option>
-          <option value="simnames">≈ Ähnliche Dateinamen</option>
-          <option value="favorites">♡ Nur Favoriten</option>
-          <option value="unmatched">Ohne TMDB-Zuordnung</option>
-          <option value="suspicious">⚠ Verdächtige Zuordnungen</option>
-          <option value="interlaced">🪤 Nur Interlaced</option>
+          <option value="title" data-kinds="movies,tv,private,music">Name</option>
+          <option value="artist" data-kinds="music">Künstler</option>
+          <option value="album" data-kinds="music">Album</option>
+          <option value="released" data-kinds="movies,tv,private">Veröffentlicht</option>
+          <option value="added" data-kinds="movies,tv,private,music">Hinzugefügt</option>
+          <option value="duration" data-kinds="movies,tv,private,music">Laufzeit</option>
+          <option value="resolution" data-kinds="movies,tv,private">Auflösung</option>
+          <option value="rating" data-kinds="movies,tv,private">★ Bewertung</option>
+          <option value="played" data-kinds="movies,tv,private,music">Zuletzt abgespielt</option>
+          <option value="shuffle" data-kinds="movies,tv,private,music">🎲 Zufällig</option>
+          <option value="duplicates" data-kinds="movies,tv,private">Duplikate</option>
+          <option value="multiversion" data-kinds="movies,tv,private">🔀 Mehrere Versionen</option>
+          <option value="simnames" data-kinds="movies,tv,private">≈ Ähnliche Dateinamen</option>
+          <option value="favorites" data-kinds="movies,tv,private,music">♡ Nur Favoriten</option>
+          <option value="unmatched" data-kinds="movies,tv,private">Ohne TMDB-Zuordnung</option>
+          <option value="suspicious" data-kinds="movies,tv,private">⚠ Verdächtige Zuordnungen</option>
+          <option value="interlaced" data-kinds="movies,tv,private">🪤 Nur Interlaced</option>
         </select>
         <button id="sortDirBtn" class="sort-dir" type="button" title="Richtung umkehren">⬇</button>
       </span>
     </label>
-    <label class="field-label">Gesehen
+    <label class="field-label" id="watchedFilterLabel">Gesehen
       <select id="watchedFilter">
         <option value="">Alle</option>
         <option value="no">Nur ungesehen</option>
         <option value="yes">Nur gesehen</option>
       </select>
     </label>
-    <label class="field-label">Bewertung
+    <label class="field-label" id="ratingFilterLabel">Bewertung
       <select id="ratingFilter">
         <option value="">Alle</option>
         <option value="unrated">Ohne Bewertung</option>
@@ -94,7 +96,7 @@
         <option value="exact3">★★★</option>
       </select>
     </label>
-    <label class="field-label">Auflösung
+    <label class="field-label" id="resolutionFilterLabel">Auflösung
       <span class="res-dropdown">
         <button type="button" id="resDropdownBtn" aria-haspopup="true" aria-expanded="false">Alle ▾</button>
         <div id="resDropdown" class="res-panel hidden" role="menu">
@@ -111,6 +113,8 @@
     </label>
     <button id="flatViewBtn" title="Flache Ansicht ohne Ordner" class="toggle-btn">📂 Flach</button>
     <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
+    <button id="musicListViewBtn" title="Listenansicht statt Album-Kacheln" class="toggle-btn hidden">☰ Liste</button>
+    <button id="musicAllTracksBtn" title="Alle Titel dieser Bibliothek in einer Liste" class="toggle-btn hidden">🎵 Alle Titel</button>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
     <button id="alphaToggleBtn" title="Buchstabenleiste für diesen Ordner ausblenden" class="toggle-btn active">🔤 A-Z</button>
     <span class="btn-group">

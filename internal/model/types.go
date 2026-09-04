@@ -171,6 +171,10 @@ type Item struct {
 	Album        string `json:"album,omitempty"`
 	TrackNo      int    `json:"trackNo,omitempty"`
 	MusicAlbumID int64  `json:"musicAlbumId,omitempty"`
+	// LastPlayedAt: user_item_state.last_played_at (pro User). Nur in
+	// ListItems befüllt (für die "Alle Titel"-Listenansicht der Musik-
+	// Bibliotheken); andere Item-Ladepfade lassen es bewusst leer.
+	LastPlayedAt time.Time `json:"lastPlayedAt,omitempty"`
 }
 
 // MusicAlbum: eine (Artist,Album)-Gruppe innerhalb einer Musik-Bibliothek.

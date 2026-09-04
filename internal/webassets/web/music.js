@@ -18,6 +18,15 @@ const musicState = {
   queue: [],
   idx: -1,
   vjs: null,
+  // playSeq: Sequenz-Token gegen überlappende Play-Anfragen (Doppelklick auf
+  // eine Kachel feuert ZWEI "click"-Events, jedes startet einen eigenen
+  // musicPlayCurrent()-Aufruf; ohne Guard konnte die zuerst gestartete, aber
+  // später auflösende Anfrage die zweite überschreiben — Video.js bricht den
+  // laufenden play()/src()-Vorgang dann mit einem stillschweigend verschluckten
+  // AbortError ab, das Ergebnis war "spielt oft gar nicht bzw. sehr verzögert"
+  // (User-Bericht 2026-09-04). Nur der jeweils NEUESTE Aufruf darf noch
+  // src()/play() ausführen.
+  playSeq: 0,
 };
 
 function musicCurrentTrack() {
@@ -35,6 +44,7 @@ function musicPlayAlbum(tracks, startIdx) {
 async function musicPlayCurrent() {
   const t = musicCurrentTrack();
   if (!t) return;
+  const seq = ++musicState.playSeq;
   const bar = $("#miniPlayer");
   bar.classList.remove("hidden");
   $("#miniTitle").textContent = t.title || "";
@@ -47,14 +57,27 @@ async function musicPlayCurrent() {
   try {
     info = await api(`/api/playback/${t.id}`);
   } catch (e) {
+    if (seq !== musicState.playSeq) return; // inzwischen durch neueren Klick überholt
     showToast(`Wiedergabe fehlgeschlagen: ${e.message}`, { kind: "error" });
     return;
   }
+  if (seq !== musicState.playSeq) return; // stale — ein neuerer Track wurde inzwischen angefordert
   const srcType = info.mode === "transcode" ? "application/vnd.apple.mpegurl" : "video/mp4";
   const vjs = musicEnsureVjs();
-  vjs.src({ src: info.url, type: srcType });
-  const pp = vjs.play();
-  if (pp && typeof pp.catch === "function") pp.catch(() => {});
+  // vjs.ready(): bei einer FRISCH erzeugten Video.js-Instanz ist die Tech
+  // (Html5) direkt nach dem Konstruktor-Aufruf noch nicht initialisiert —
+  // ein sofortiges src()/play() konnte dadurch beim allerersten Titel nach
+  // dem Laden der Seite lautlos ins Leere laufen. ready() feuert sofort,
+  // wenn der Player schon bereit ist (Normalfall bei Track-Wechseln),
+  // sonst erst sobald die Tech steht.
+  vjs.ready(() => {
+    if (seq !== musicState.playSeq) return; // inzwischen überholt
+    vjs.src({ src: info.url, type: srcType });
+    const pp = vjs.play();
+    if (pp && typeof pp.catch === "function") {
+      pp.catch(err => console.warn("[music] Wiedergabe blockiert/abgebrochen:", err));
+    }
+  });
 }
 
 // musicEnsureVjs: erzeugt den unsichtbaren Video.js-Player einmalig (lazy,

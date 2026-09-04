@@ -672,7 +672,9 @@ function renderCard(it, opts = {}) {
   } else if (it.trickplayStatus === "failed") {
     tp = `<span class="tp-badge tp-failed" title="Trickplay fehlgeschlagen">!</span>`;
   }
-  const res = resLabel(it);
+  // Auflösung ist bei Musik-Titeln bedeutungslos (kein Video-Stream) — Badge
+  // unterdrücken, statt ein irreführendes "360p" o.ä. anzuzeigen.
+  const res = isMusicLib ? "" : resLabel(it);
   // ×N-Badge: bevorzugt aus dem clientseitigen _variants-Array (wenn der Merge
   // schon im aktuellen Grid passiert ist), sonst aus dem serverseitigen
   // variantCount (zeigt Geschwister-Files in anderen Libraries an, die im

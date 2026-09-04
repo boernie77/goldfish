@@ -874,6 +874,80 @@ button.primary:hover { background: var(--accent-hover); }
 .card.card--square {
   contain-intrinsic-size: 200px 280px;
 }
+
+/* Musik-Listenansicht (seit 2026-09-04): Alben-Übersicht, Album-Tracks und
+   "Alle Titel" können wahlweise als Liste statt Kachel-Grid gerendert werden
+   (#musicListViewBtn-Toggle bzw. immer bei "Alle Titel"). #grid ist normal
+   ein CSS-Grid — .track-list-grid schaltet es für den Listen-Fall auf Block,
+   damit die volle Breite für Zeilen statt Kachelspalten zur Verfügung steht. */
+#grid.track-list-grid {
+  display: block;
+}
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.track-row {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--panel-2, #1a1a22);
+  cursor: pointer;
+}
+.track-row:hover { background: var(--panel-3, #23232e); }
+.track-row--head {
+  cursor: default;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted, #888);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding-bottom: 2px;
+}
+.track-row--head:hover { background: transparent; }
+/* Spalten-Layouts je nach Kontext — Album-Detail-Liste (Track#+Titel+Dauer+Fav) */
+.track-row:not(.track-row--head):not(.track-row--album):has(.track-row-duration) {
+  grid-template-columns: 32px 1fr 60px 32px;
+}
+/* "Alle Titel"-Liste (Cover+Titel+Artist+Album+Zuletzt gehört) */
+.track-row:has(.track-row-played) {
+  grid-template-columns: 40px 2fr 1fr 1fr 140px;
+}
+.track-row--head:has(.track-row-played) { grid-template-columns: 40px 2fr 1fr 1fr 140px; }
+/* Alben-Übersicht als Liste (Cover+Album+Artist+Trackzahl) */
+.track-row--album {
+  grid-template-columns: 40px 2fr 1fr 80px;
+}
+.track-row-cover {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+}
+.track-row-num { color: var(--muted, #888); text-align: right; font-variant-numeric: tabular-nums; }
+.track-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-row-artist, .track-row-album, .track-row-played, .track-row-count {
+  color: var(--muted, #888);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-row-duration { color: var(--muted, #888); font-size: 13px; font-variant-numeric: tabular-nums; }
+.track-row-fav.fav-toggle {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  opacity: .5;
+}
+.track-row-fav.fav-toggle.is-on { opacity: 1; color: #ef4444; }
+
 .card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0,0,0,0.4);

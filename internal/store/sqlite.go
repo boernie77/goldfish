@@ -1244,7 +1244,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       COALESCE(i.episode_end, 0),
 	       COALESCE(i.variant_split, 0),
 	       COALESCE(us.rating, 0),
-	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0)
+	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+	       us.last_played_at
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -1312,6 +1313,8 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			q += ` AND (
 				i.title LIKE ?
 				OR COALESCE(m.title, '') LIKE ?
+				OR i.artist LIKE ?
+				OR i.album LIKE ?
 				OR EXISTS (
 					SELECT 1 FROM metadata_cast mc
 					JOIN people p ON p.id = mc.person_id
@@ -1320,10 +1323,10 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
 				)
 			)`
-			args = append(args, pattern, pattern, pattern)
+			args = append(args, pattern, pattern, pattern, pattern, pattern)
 		} else {
-			q += ` AND (i.title LIKE ? OR COALESCE(m.title, '') LIKE ?)`
-			args = append(args, pattern, pattern)
+			q += ` AND (i.title LIKE ? OR COALESCE(m.title, '') LIKE ? OR i.artist LIKE ? OR i.album LIKE ?)`
+			args = append(args, pattern, pattern, pattern, pattern)
 		}
 	}
 	if !f.DateFrom.IsZero() {
@@ -1596,6 +1599,22 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// Zufällige Reihenfolge. Mit LIMIT 20, damit ORDER BY RANDOM() nicht bei
 		// großen Bibliotheken alle Zeilen sortieren muss.
 		q += ` ORDER BY RANDOM() LIMIT 20`
+	case "artist":
+		// Nur für Musik-Bibliotheken relevant (Sort-Dropdown zeigt diese Option
+		// nur bei kind=music, siehe grid.js). Album+Track-Nr als Sekundär-/
+		// Tertiär-Schlüssel, damit ein Künstler mit mehreren Alben nicht
+		// durcheinandergewürfelt wird.
+		if desc {
+			q += ` ORDER BY i.artist COLLATE NATSORT DESC, i.album COLLATE NATSORT DESC, i.track_no DESC`
+		} else {
+			q += ` ORDER BY i.artist COLLATE NATSORT, i.album COLLATE NATSORT, i.track_no`
+		}
+	case "album":
+		if desc {
+			q += ` ORDER BY i.album COLLATE NATSORT DESC, i.track_no DESC`
+		} else {
+			q += ` ORDER BY i.album COLLATE NATSORT, i.track_no`
+		}
 	default:
 		// Wenn TMDB-Metadata existiert, nach dem angezeigten Titel sortieren,
 		// sonst nach items.title. Sonst kommen Dateinamen mit Release-Präfix
@@ -1619,11 +1638,11 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		var it model.Item
 		var hasThumb, watched, favorite, variantSplit int
 		var released sql.NullString
-		var watchedAt, favoritedAt sql.NullTime
+		var watchedAt, favoritedAt, lastPlayedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID); err != nil {
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &lastPlayedAt); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -1635,6 +1654,9 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		}
 		if favoritedAt.Valid {
 			it.FavoritedAt = favoritedAt.Time
+		}
+		if lastPlayedAt.Valid {
+			it.LastPlayedAt = lastPlayedAt.Time
 		}
 		it.ReleasedAt = parseDBTime(released.String)
 		if it.ReleasedAt.IsZero() {
