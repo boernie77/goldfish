@@ -2328,16 +2328,21 @@ Splits, aber falls man weitere Aufteilung braucht):
     macht git clone + .env + docker compose up in einem Rutsch (commit
     `24a1db1`). Auto-erkennt render-GID, fragt NVIDIA + OIDC ab, schreibt
     docker-compose.override.yml für Port + NVIDIA. Fallback auf read-Prompts
-    wenn whiptail fehlt. **End-to-End-Test auf fremdem Linux steht noch aus.**
+    wenn whiptail fehlt. **✅ End-to-End getestet (2026-09-04)** auf frischer
+    Ubuntu-24.04-VM — dabei einen echten Bug im Read-Fallback gefunden+gefixt
+    (Commit `8a737e7`: Dialog-Text landete via stdout-Leak in den erfassten
+    Eingabewerten). Details: Memory `project_installer_e2e_test.md`.
+  * **✅ Datenschutz-Check (2026-09-04)**: `datenschutz.html` mit Christians
+    echtem Namen/E-Mail als "Verantwortlicher" entfernt (Commit `a87b8f4`) —
+    weder das Repo noch die selbst gehostete Software brauchen ein Impressum
+    des Autors; jeder Self-Hoster betreibt seine eigene private Instanz.
+  * **✅ Git-Historie geprüft (2026-09-04)**: `git log --all -S` über die
+    komplette Historie nach Email/IP/Domain durchsucht — keine Funde außer
+    dem jetzt entfernten datenschutz.html. Kein `git filter-repo`/Rewrite nötig.
   Offene Schritte vor public-Schalten:
-  1. install.sh auf frischem Linux testen (siehe Memory
-     `project_installer_e2e_test.md`)
-  2. Final-Check über git-Historie auf evtl. übersehene Secrets (vor dem
-     2026-05-08-Sanitization-Commit `f46eebf` waren Email + IP in CLAUDE.md
-     drin — falls History-Cleanup gewünscht: `git filter-repo` + force-push)
-  3. Optional: Modulpfad anonymisieren (`go mod edit -module …`)
-  4. In Repo-Settings auf „Public" stellen
-  5. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
+  1. Optional: Modulpfad anonymisieren (`go mod edit -module …`)
+  2. In Repo-Settings auf „Public" stellen
+  3. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
 
 ## Entwicklungsworkflow
 
