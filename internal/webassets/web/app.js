@@ -1388,6 +1388,20 @@ function wire() {
     $("#detailDialog").close();
     if (state.currentItem) openPlayer(state.currentItem);
   });
+  // Trailer (User-Anfrage 2026-09-04): oeffentlicher YouTube-Trailer, eingebettet
+  // per iframe. Beim Schliessen wird das iframe komplett entfernt statt nur die
+  // src zu leeren — nur so stoppt YouTube die Wiedergabe zuverlaessig im Hintergrund.
+  $("#detailTrailer").addEventListener("click", () => {
+    const btn = $("#detailTrailer");
+    const key = btn.dataset.trailerKey;
+    if (!key) return;
+    $("#trailerTitle").textContent = btn.dataset.trailerName || "Trailer";
+    $("#trailerFrameWrap").innerHTML = `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(key)}?autoplay=1" title="${escapeHTML(btn.dataset.trailerName || "Trailer")}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+    $("#trailerDialog").showModal();
+  });
+  $("#trailerDialog").addEventListener("close", () => {
+    $("#trailerFrameWrap").innerHTML = "";
+  });
   $("#detailMatch").addEventListener("click", () => {
     if (state.currentItem) {
       $("#detailDialog").close();

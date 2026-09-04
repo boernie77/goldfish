@@ -64,6 +64,36 @@ func (s *Server) getMetadataCast(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, uniq)
 }
 
+// getMetadataTrailer liefert den bevorzugten öffentlichen YouTube-Trailer eines
+// Films (Jellyfin-artige Trailer-Funktion, User-Anfrage 2026-09-04). Nur für
+// echte Filme (tmdb_type=movie) — Serien/Episoden/Privat-Videos haben keinen.
+func (s *Server) getMetadataTrailer(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	meta, err := s.Store.GetMetadata(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if meta == nil || meta.TMDBType != "movie" || meta.TMDBID <= 0 {
+		writeError(w, 404, "Kein Trailer verfügbar")
+		return
+	}
+	if s.Enrich == nil || !s.Enrich.Client().Enabled() {
+		writeError(w, 404, "TMDB nicht konfiguriert")
+		return
+	}
+	trailer, err := s.Enrich.Client().GetMovieTrailer(r.Context(), meta.TMDBID)
+	if err != nil || trailer == nil {
+		writeError(w, 404, "Kein Trailer gefunden")
+		return
+	}
+	writeJSON(w, 200, trailer)
+}
+
 // getPerson liefert Bio-Daten + volle Filmografie einer Person. Bio + Credits
 // kommen live von TMDB (gecacht); der lokale `people`-Eintrag dient als
 // Name/Foto-Fallback, falls TMDB deaktiviert ist oder scheitert.

@@ -371,6 +371,81 @@ func (c *Client) GetMovie(ctx context.Context, id int64) (*Movie, error) {
 	return &m, nil
 }
 
+// Video ist ein einzelner TMDB-"videos"-Eintrag (Trailer/Teaser/Clip, meist YouTube).
+type Video struct {
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Site        string `json:"site"`
+	Type        string `json:"type"`
+	Official    bool   `json:"official"`
+	Language    string `json:"iso_639_1"`
+	PublishedAt string `json:"published_at"`
+}
+
+type videosResponse struct {
+	Results []Video `json:"results"`
+}
+
+// GetMovieTrailer liefert den bevorzugten öffentlichen YouTube-Trailer eines Films
+// (Jellyfin-artige Trailer-Funktion, User-Anfrage 2026-09-04). Bevorzugt IMMER
+// `c.language` (aktuell fest "de-DE", siehe `New()") — NICHT hartkodiert "de" —
+// damit eine künftige umschaltbare Server-Sprache (User-Ankündigung: "ich plane,
+// zukünftig die Sprache von Goldfish umstellen zu können") automatisch auch die
+// Trailer-Sprache mitzieht, ohne dass dieser Code angefasst werden muss. Fällt auf
+// Englisch zurück, dann auf irgendeine verfügbare Sprache. `include_video_language`
+// (nicht nur `language`) sorgt dafür, dass TMDB überhaupt mehrsprachige Kandidaten
+// zurückgibt, aus denen hier ausgewählt wird (analog `include_image_language` bei
+// `fetchPosters`).
+func (c *Client) GetMovieTrailer(ctx context.Context, id int64) (*Video, error) {
+	key := fmt.Sprintf("movietrailer:%d:%s", id, c.language)
+	if v, ok := c.cacheGet(key); ok {
+		return v.(*Video), nil
+	}
+	primaryLang := strings.SplitN(c.language, "-", 2)[0]
+	var r videosResponse
+	params := url.Values{}
+	params.Set("include_video_language", primaryLang+",en,null")
+	if err := c.get(ctx, fmt.Sprintf("/movie/%d/videos", id), params, &r); err != nil {
+		return nil, err
+	}
+	best := bestTrailer(r.Results, primaryLang)
+	c.cachePut(key, best)
+	return best, nil
+}
+
+// bestTrailer wählt aus allen Video-Kandidaten den am besten passenden YouTube-
+// Trailer/Teaser aus: bevorzugte Sprache > Englisch > alles andere, dabei offizielle
+// Einträge und "Trailer" (statt "Teaser") vor Alternativen.
+func bestTrailer(videos []Video, preferredLang string) *Video {
+	var best *Video
+	bestScore := -1
+	for i := range videos {
+		v := videos[i]
+		if v.Site != "YouTube" || (v.Type != "Trailer" && v.Type != "Teaser") {
+			continue
+		}
+		score := 0
+		switch v.Language {
+		case preferredLang:
+			score += 100
+		case "en":
+			score += 50
+		}
+		if v.Official {
+			score += 20
+		}
+		if v.Type == "Trailer" {
+			score += 10
+		}
+		if score > bestScore {
+			bestScore = score
+			best = &v
+		}
+	}
+	return best
+}
+
 // PosterImage: ein einzelnes Poster aus TMDB-Images.
 type PosterImage struct {
 	FilePath    string  `json:"filePath"`

@@ -2782,6 +2782,24 @@ button.danger:hover { background: #991b1b; }
 }
 .dropdown button:hover { background: var(--card-2); }
 
+.trailer-modal { min-width: 640px; max-width: 900px; }
+.trailer-modal .trailer-frame-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-top: 12px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.trailer-modal .trailer-frame-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 .detail-modal { min-width: 900px; max-width: 1200px; padding: 0; }
 /* Icon-Aktionsleiste (▶ ♡ ✓ ⬇ … ✕) klebt unten — sitzt strukturell nicht
    als :last-child (der Whisper-Popover kommt danach), deshalb eigene Regel

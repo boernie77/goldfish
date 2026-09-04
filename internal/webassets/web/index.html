@@ -501,6 +501,7 @@
   <div id="detailContent"></div>
   <div class="row icon-row">
     <button type="button" id="detailPlay" class="icon-btn primary" title="Abspielen" aria-label="Abspielen">▶</button>
+    <button type="button" id="detailTrailer" class="icon-btn hidden" title="Trailer ansehen" aria-label="Trailer">🎬</button>
     <button type="button" id="detailFavorite" class="icon-btn" title="Favorit" aria-label="Favorit">♡</button>
     <button type="button" id="detailWatched" class="icon-btn" title="Als gesehen markieren" aria-label="Gesehen">✓</button>
     <button type="button" id="detailDownload" class="icon-btn" title="Download" aria-label="Download">⬇</button>
@@ -527,6 +528,13 @@
       <button type="button" class="sub-gen-lang-btn" data-lang="it">🇮🇹 Italienisch</button>
     </div>
   </div>
+</dialog>
+
+<!-- Trailer (öffentlich auf YouTube, Jellyfin-artige Trailer-Funktion, nur Filme) -->
+<dialog id="trailerDialog" class="modal trailer-modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2 id="trailerTitle">Trailer</h2>
+  <div id="trailerFrameWrap" class="trailer-frame-wrap"></div>
 </dialog>
 
 <!-- Manuelles Match -->

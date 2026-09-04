@@ -208,12 +208,13 @@ oben gelten weiterhin immer.
 > vom Server-Repo (`goldfish`), nicht darin eingegliedert.
 >
 > **GoldfishTV-Details ausgelagert in Memory `project_apple_tvos_port` (lädt
-> nicht automatisch)** — u. a.: kein Downloads-Tab (User-Entscheidung, Apple TV
-> braucht keine Offline-Downloads), kein SSO/WebKit, `Menu`-in-Toolbar öffnet
-> auf tvOS zuverlässig NICHTS (→ immer `.sheet`/`.confirmationDialog` statt
-> `Menu` für neue tvOS-UI), und ein noch UNGELÖSTES Problem: der native
-> `NavigationLink`-Fokus-Kasten auf Poster-Kacheln lässt sich mit vier
-> verschiedenen Standard-Modifiern nicht abschalten — vor einem erneuten
+> nicht automatisch)** — u. a.: Downloads-Tab seit 2026-09-04 wieder aktiv
+> (ursprüngliche "kein Bedarf"-Entscheidung vom User zurückgenommen), kein
+> SSO/WebKit, `Menu`-in-Toolbar öffnet auf tvOS zuverlässig NICHTS (→ immer
+> `.sheet`/`.confirmationDialog` statt `Menu` für neue tvOS-UI), und ein
+> Workaround (kein echter Fix) für den nativen `NavigationLink`-Fokus-Kasten
+> auf Poster-Kacheln (überlappte den Titeltext, jetzt per Abstand entschärft,
+> der Rahmen selbst ist weiterhin nicht abschaltbar) — vor einem erneuten
 > Versuch das Memory lesen, nicht dieselben vier Ansätze wiederholen.
 
 ## Architektur-Kurzfassung
@@ -922,6 +923,27 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Videos quer über alle Libraries, in denen die Person im Cast listet.
 - Endpoints: `GET /api/metadata/{id}/cast`, `GET /api/person/{tmdbId}/profile`,
   `GET /api/items?personId=<tmdbId>`.
+
+### Trailer (Jellyfin-artig, seit 2026-09-04)
+- Nur für echte Filme (`tmdb_type=movie`) im Detail-Dialog: 🎬-Button neben
+  „Abspielen", öffnet einen öffentlich auf YouTube liegenden Trailer als
+  eingebettetes iframe (`trailerDialog`). Kein eigener Video-Host/Download —
+  reiner Embed, exakt wie Jellyfins Trailer-Funktion.
+- `GET /api/metadata/{id}/trailer` → `tmdb.Client.GetMovieTrailer` holt
+  `/movie/{tmdbId}/videos` (mit `include_video_language=<lang>,en,null`) und
+  wählt den besten YouTube-Trailer/Teaser aus: bevorzugte Sprache > Englisch >
+  alles andere, dabei offizielle Einträge und „Trailer" vor „Teaser".
+  **Bevorzugte Sprache ist immer `c.language`** (aktuell fest `de-DE`, s.
+  `tmdb.New()`) — **niemals hartkodiert „de"**, damit eine künftig
+  umschaltbare Server-Sprache (User-Ankündigung 2026-09-04: geplant,
+  mindestens Deutsch/Englisch) automatisch auch die Trailer-Sprache mitzieht,
+  ohne diesen Code anzufassen. Cache: 15-min-TTL-Cache des TMDB-Clients
+  (Key `movietrailer:<id>:<lang>`), inkl. „kein Trailer gefunden" (nil).
+- 404 (kein Trailer, TMDB deaktiviert, falscher `tmdb_type`) ist der
+  Normalfall bei den meisten Filmen — Frontend blendet den Button dann
+  einfach aus, kein Fehler-Toast.
+- Schließen des Trailer-Dialogs entfernt das `<iframe>` komplett aus dem DOM
+  (nicht nur `src` leeren) — sonst spielt YouTube im Hintergrund weiter.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/

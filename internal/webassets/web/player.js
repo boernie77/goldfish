@@ -419,6 +419,11 @@ async function openDetail(item) {
   if (window.scrollY !== savedScrollY) window.scrollTo(0, savedScrollY);
   // Cast lazy nachladen (kein Blockieren des Dialog-Öffnens)
   if (item.metadataId > 0) loadDetailCast(item.metadataId);
+  // Trailer (User-Anfrage 2026-09-04, Jellyfin-artige Trailer-Funktion): nur bei
+  // echten Filmen sinnvoll — der Server lehnt bei anderem tmdb_type ohnehin mit
+  // 404 ab, die Lib-Kind-Prüfung hier spart nur den unnötigen Request.
+  $("#detailTrailer").classList.add("hidden");
+  if (item.metadataId > 0 && itemLib && itemLib.kind === "movies") loadDetailTrailer(item.metadataId);
 }
 
 async function loadDetailCast(metadataId) {
@@ -454,6 +459,24 @@ async function loadDetailCast(metadataId) {
   } catch (e) {
     console.warn("cast load:", e);
     el.classList.add("hidden");
+  }
+}
+
+// Trailer-Button (User-Anfrage 2026-09-04): lazy nachgeladen wie der Cast, damit
+// das Dialog-Öffnen nicht auf einen zusätzlichen TMDB-Roundtrip wartet. Ein 404
+// (kein Trailer gefunden, TMDB deaktiviert, o.ä.) ist erwartbar und kein Fehler —
+// der Button bleibt dann einfach versteckt.
+async function loadDetailTrailer(metadataId) {
+  const btn = $("#detailTrailer");
+  if (!btn) return;
+  try {
+    const trailer = await api(`/api/metadata/${metadataId}/trailer`);
+    if (!trailer || !trailer.key) return;
+    btn.dataset.trailerKey = trailer.key;
+    btn.dataset.trailerName = trailer.name || "";
+    btn.classList.remove("hidden");
+  } catch (e) {
+    // Kein Trailer verfügbar — kein Fehler-Log nötig (häufigster Fall).
   }
 }
 
