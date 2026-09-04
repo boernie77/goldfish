@@ -87,7 +87,7 @@ ui_msg() {
   elif [[ "$DIALOG" == "dialog" ]]; then
     dialog --title "$1" --msgbox "$2" 14 70; clear
   else
-    echo ""; echo "═══ $1 ═══"; echo "$2"; echo ""; read -rp "Weiter mit Enter… " _
+    echo "" >&2; echo "═══ $1 ═══" >&2; echo "$2" >&2; echo "" >&2; read -rp "Weiter mit Enter… " _
   fi
 }
 
@@ -99,7 +99,7 @@ ui_input() {
   elif [[ "$DIALOG" == "dialog" ]]; then
     dialog --title "$title" --inputbox "$body" 14 70 "$default" 2>&1 1>&3 3>&-; clear
   else
-    echo ""; echo "═══ $title ═══"; echo "$body"
+    echo "" >&2; echo "═══ $title ═══" >&2; echo "$body" >&2
     read -rp "[$default] > " val
     echo "${val:-$default}"
   fi
@@ -113,8 +113,8 @@ ui_password() {
   elif [[ "$DIALOG" == "dialog" ]]; then
     dialog --title "$title" --passwordbox "$body" 14 70 2>&1 1>&3 3>&-; clear
   else
-    echo ""; echo "═══ $title ═══"; echo "$body"
-    read -rsp "> " val; echo
+    echo "" >&2; echo "═══ $title ═══" >&2; echo "$body" >&2
+    read -rsp "> " val; echo >&2
     echo "$val"
   fi
 }
@@ -126,7 +126,7 @@ ui_yesno() {
   elif [[ "$DIALOG" == "dialog" ]]; then
     dialog --title "$1" --yesno "$2" 12 70; local rc=$?; clear; return $rc
   else
-    echo ""; echo "═══ $1 ═══"; echo "$2"
+    echo "" >&2; echo "═══ $1 ═══" >&2; echo "$2" >&2
     read -rp "[j/N] > " val
     [[ "${val,,}" == "j" || "${val,,}" == "y" ]]
   fi
