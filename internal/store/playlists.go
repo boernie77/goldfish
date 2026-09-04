@@ -19,7 +19,11 @@ import (
 // Legacy-Playlists (user_id IS NULL, aus der Zeit vor Playlists-pro-User)
 // sind zusätzlich für Admins sichtbar — das ist keine fremde Nutzerdaten,
 // sondern verwaistes Altsystem-Datum ohne Besitzer.
-func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool) ([]model.Playlist, error) {
+// kind: "" = keine Einschränkung (Playlists-Übersichtsseite zeigt weiterhin
+// alles), "video"/"music" = nur Playlists dieser Art (Add-to-Playlist-Dialog
+// seit 2026-09-04 — verhindert, dass Musiktitel in eine Video-Playlist
+// wandern oder umgekehrt, siehe Kind-Doku in model.Playlist).
+func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool, kind string) ([]model.Playlist, error) {
 	// Sub-Query liefert das erste Item (nach position) dieser Playlist, das ein
 	// TMDB-Poster ODER ein eigenes Thumbnail hat — als Cover für die Kachel.
 	posterCols := `
@@ -43,14 +47,15 @@ func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool) ([]model.Playli
 		adminFlag = 1
 	}
 	q := `
-		SELECT p.id, p.name, p.created_at, COUNT(pi.item_id) AS cnt,
+		SELECT p.id, p.name, p.created_at, COUNT(pi.item_id) AS cnt, p.kind,
 		       ` + posterCols + `
 		FROM playlists p
 		LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
-		WHERE p.user_id = ? OR (p.user_id IS NULL AND ? = 1)
-		GROUP BY p.id, p.name, p.created_at
+		WHERE (p.user_id = ? OR (p.user_id IS NULL AND ? = 1))
+		  AND (? = '' OR p.kind = ?)
+		GROUP BY p.id, p.name, p.created_at, p.kind
 		ORDER BY p.name COLLATE NOCASE`
-	rows, err := s.db.Query(q, userID, adminFlag)
+	rows, err := s.db.Query(q, userID, adminFlag, kind, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +64,7 @@ func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool) ([]model.Playli
 	for rows.Next() {
 		var p model.Playlist
 		var posterItem, posterMeta sql.NullInt64
-		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.ItemCount, &posterItem, &posterMeta); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.ItemCount, &p.Kind, &posterItem, &posterMeta); err != nil {
 			return nil, err
 		}
 		if posterItem.Valid {
@@ -76,20 +81,27 @@ func (s *Store) ListPlaylistsForUser(userID int64, isAdmin bool) ([]model.Playli
 func (s *Store) GetPlaylist(id int64) (*model.Playlist, error) {
 	var p model.Playlist
 	err := s.db.QueryRow(`
-		SELECT p.id, p.name, p.created_at, COUNT(pi.item_id)
+		SELECT p.id, p.name, p.created_at, COUNT(pi.item_id), p.kind
 		FROM playlists p
 		LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
 		WHERE p.id = ?
-		GROUP BY p.id, p.name, p.created_at
-	`, id).Scan(&p.ID, &p.Name, &p.CreatedAt, &p.ItemCount)
+		GROUP BY p.id, p.name, p.created_at, p.kind
+	`, id).Scan(&p.ID, &p.Name, &p.CreatedAt, &p.ItemCount, &p.Kind)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return &p, err
 }
 
-func (s *Store) CreatePlaylist(userID int64, name string) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO playlists(name, user_id) VALUES(?, ?)`, name, userID)
+// kind: "video" oder "music" (siehe model.Playlist.Kind). Der Aufrufer
+// (api/playlists.go) entscheidet anhand des Kontexts, in dem der User die
+// Playlist anlegt — leer wird hier NICHT akzeptiert, sonst könnte eine neue
+// Playlist unbeabsichtigt für beide Add-Dialoge unsichtbar bleiben.
+func (s *Store) CreatePlaylist(userID int64, name, kind string) (int64, error) {
+	if kind == "" {
+		kind = "video"
+	}
+	res, err := s.db.Exec(`INSERT INTO playlists(name, user_id, kind) VALUES(?, ?, ?)`, name, userID, kind)
 	if err != nil {
 		return 0, err
 	}

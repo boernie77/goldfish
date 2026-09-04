@@ -138,16 +138,25 @@ func (s *Store) SetMusicAlbumFavorite(userID, albumID int64, favorite bool) erro
 }
 
 // ListMusicAlbumTracks liefert alle Tracks eines Albums, sortiert nach
-// track_no (Fallback Titel bei fehlender Nummer).
-func (s *Store) ListMusicAlbumTracks(albumID int64) ([]model.Item, error) {
+// track_no (Fallback Titel bei fehlender Nummer). userID steuert den
+// per-User-Favoriten/Zuletzt-gehört-Join — fehlte ursprünglich komplett
+// (Bug, gefixt 2026-09-04): ein in der Album-Kachelansicht favorisierter
+// Track zeigte den Herz-Button danach zwar sofort aktiv (optimistisches
+// DOM-Update in toggleFavoriteOnCard), aber ein erneuter Album-Fetch (z. B.
+// nach Sortierungswechsel) lieferte `favorite` NIE mit — das Herz sprang
+// wieder auf "nicht favorisiert" zurück, obwohl der DB-Wert korrekt gesetzt
+// war.
+func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error) {
 	rows, err := s.db.Query(`
 		SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
 		       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb,
 		       i.mod_time, i.released_at, i.added_at, COALESCE(i.metadata_id, 0),
-		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0)
+		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+		       COALESCE(us.favorite, 0), us.last_played_at
 		FROM items i
+		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.music_album_id = ?
-		ORDER BY i.track_no, i.title COLLATE NATSORT`, albumID)
+		ORDER BY i.track_no, i.title COLLATE NATSORT`, userID, albumID)
 	if err != nil {
 		return nil, err
 	}
@@ -155,15 +164,22 @@ func (s *Store) ListMusicAlbumTracks(albumID int64) ([]model.Item, error) {
 	var out []model.Item
 	for rows.Next() {
 		var it model.Item
-		var hasThumb int
+		var hasThumb, favorite int
 		var released sql.NullString
+		var lastPlayedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb,
 			&it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID); err != nil {
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID,
+			&favorite, &lastPlayedAt); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
+		it.Favorite = favorite == 1
+		if lastPlayedAt.Valid {
+			v := lastPlayedAt.Time
+			it.LastPlayedAt = &v
+		}
 		it.ReleasedAt = parseDBTime(released.String)
 		if it.ReleasedAt.IsZero() {
 			it.ReleasedAt = it.ModTime

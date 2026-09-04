@@ -889,6 +889,7 @@ button.primary:hover { background: var(--accent-hover); }
   gap: 2px;
 }
 .track-row {
+  position: relative;
   display: grid;
   grid-template-columns: 40px 1fr;
   align-items: center;
@@ -898,6 +899,28 @@ button.primary:hover { background: var(--accent-hover); }
   background: var(--panel-2, #1a1a22);
   cursor: pointer;
 }
+/* Auswahl-Modus-Checkbox, analog .card-select — absolut positioniert (kein
+   eigener Grid-Slot nötig, .track-row braucht dafür position:relative oben).
+   Nur sichtbar während body.selection-mode (siehe app.js setSelectionMode). */
+.track-row-select {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  color: #fff;
+  font-size: 13px;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+body.selection-mode .track-row-select { display: flex; }
+.track-row.selected .track-row-select { background: #3b82f6; border-color: #3b82f6; }
 .track-row:hover { background: var(--panel-3, #23232e); }
 .track-row.selected { outline: 2px solid #3b82f6; outline-offset: -2px; background: rgba(59,130,246,0.15); }
 .track-row--head {
@@ -931,18 +954,45 @@ button.primary:hover { background: var(--accent-hover); }
   background: #000;
 }
 .track-row-num { color: var(--muted, #888); text-align: right; font-variant-numeric: tabular-nums; }
-.track-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* min-width:0 ist hier PFLICHT, nicht nur Kosmetik: Grid-Kinder haben per
+   Spec ein implizites min-width:auto (= Breite des unumgebrochenen Inhalts
+   dank white-space:nowrap) — bei einem langen Titel sprengte die 1fr-Spalte
+   dadurch die tatsächliche Zeilenbreite, schob Dauer/Herz-Spalte unsichtbar
+   nach rechts aus dem Row-Hintergrund heraus und brachte den nachfolgenden
+   Grid-Auto-Flow durcheinander (User-Bericht 2026-09-04, Screenshot: Favoriten-
+   Herz "hing" freischwebend zwischen zwei Zeilen). Erst mit min-width:0 greift
+   der bereits vorhandene ellipsis-Trunc bei JEDER Titel-Länge. */
+.track-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .track-row-artist, .track-row-album, .track-row-played, .track-row-count {
   color: var(--muted, #888);
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .track-row-duration { color: var(--muted, #888); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* .fav-toggle ist eigentlich für die absolut positionierten Kachel-Overlay-
+   Buttons gedacht (.card .thumb .fav-toggle, s.u.) — die schmalere
+   .track-row-fav.fav-toggle-Regel oben überschrieb bisher nur wenige
+   Eigenschaften, der Rest (position:absolute, bottom/left, Kreis-Optik,
+   z-index) fiel unverändert durch. Ergebnis: das Herz "hing" losgelöst vom
+   eigenen Zeilenfluss irgendwo im nächsten positionierten Vorfahren, alle
+   Zeilen übereinander (User-Bericht 2026-09-04, Screenshots: ein einzelnes
+   Herz "hängt sinnlos" zwischen zwei Zeilen bzw. sitzt auf dem Cover-Bild
+   einer völlig anderen Zeile). Explizit auf normalen Inline-Button-Fluss
+   zurücksetzen. */
 .track-row-fav.fav-toggle {
+  position: static;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  z-index: auto;
   background: none;
   border: none;
+  color: inherit;
   font-size: 16px;
   cursor: pointer;
   opacity: .5;

@@ -892,7 +892,15 @@ function renderMusicTrackRow(it, queue, idx, columns) {
   row.className = "track-row";
   row.tabIndex = 0;
   row.setAttribute("role", "button");
-  let html = "";
+  row.dataset.itemId = it.id;
+  // Checkbox-Overlay analog .card-select (immer im DOM, per CSS nur bei
+  // body.selection-mode sichtbar) — ohne sichtbares Element gab es in der
+  // Listenansicht keinerlei Hinweis, dass/wie Titel auswählbar sind
+  // (User-Bericht 2026-09-04: "Auswählen in der Listenansicht finde ich
+  // auch nicht"). toggleSelection()/selectAllVisible() (app.js) aktualisieren
+  // dieses Element bereits generisch über denselben data-item-id-Selektor
+  // wie .card-select.
+  let html = `<span class="track-row-select" data-select>${state.selection.has(it.id) ? "✓" : ""}</span>`;
   for (const col of columns) {
     switch (col) {
       case "cover": {

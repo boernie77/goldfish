@@ -934,7 +934,17 @@ async function loadItemsBody() {
     // dabei bereits durch libraryId auf DIESE Musik-Bibliothek beschränkt,
     // erscheinen also nie zusammen mit Film-Favoriten).
     const musicFavActive = currentFavoriteMode() === "yes";
-    if (state.musicAllTracks || FLAT_SORTS.has(flatSort) || musicFavActive) {
+    // "Nur Favoriten" bezieht sich in der normalen Album-Übersicht auf
+    // favorisierte ALBEN (eigener Favorit, siehe toggleAlbumFavorite/
+    // user_music_album_favorites) — NICHT auf einzelne favorisierte Tracks.
+    // Vorher landete jede Auswahl von "Nur Favoriten" ausnahmslos in der
+    // flachen Track-Liste (favorite=yes auf Item-Ebene), wodurch ein
+    // favorisiertes ALBUM dort nie auftauchte (User-Bericht 2026-09-04:
+    // "Favoriten klappt bei Alben nicht. Wird zwar angezeigt, aber der
+    // Filter findet das Album trotzdem nicht"). Nur wenn der User zusätzlich
+    // explizit "Alle Titel" aktiviert hat, ist die flache Track-Filterung
+    // gemeint (dort favorisiert man einzelne Songs, siehe "fav"-Spalte).
+    if (state.musicAllTracks || FLAT_SORTS.has(flatSort)) {
       let tracks;
       try {
         const p = new URLSearchParams({
@@ -949,6 +959,25 @@ async function loadItemsBody() {
       if (stale()) return;
       renderBreadcrumb(musicSearchQ ? { searchCount: tracks.length } : {});
       renderAllTracksList(grid, tracks);
+      return;
+    }
+    if (musicFavActive) {
+      let favAlbums;
+      try {
+        favAlbums = await api(`/api/libraries/${state.currentLibrary}/albums`);
+      } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      favAlbums = favAlbums.filter(a => a.favorite);
+      if (musicSearchQ) {
+        const q = musicSearchQ.toLowerCase();
+        favAlbums = favAlbums.filter(a => (a.album || "").toLowerCase().includes(q) || (a.artist || "").toLowerCase().includes(q));
+      }
+      renderBreadcrumb({ favoriteView: true });
+      if (!favAlbums.length) {
+        grid.innerHTML = `<div class="empty">Keine favorisierten Alben in dieser Bibliothek.</div>`;
+        return;
+      }
+      renderAlbumTiles(grid, favAlbums, state.musicListView);
       return;
     }
     if (state.currentAlbum != null) {

@@ -608,6 +608,15 @@ func (s *Store) migrate() error {
 	if err := addCol("items", "music_album_id", "INTEGER REFERENCES music_albums(id) ON DELETE SET NULL"); err != nil {
 		return err
 	}
+	// Playlists strikt nach Video/Musik getrennt (User-Wunsch 2026-09-04:
+	// "gemeinsame Playlists gefällt mir eigentlich nicht"). DEFAULT 'video'
+	// gilt auch rückwirkend für ALLE bestehenden Zeilen (SQLite wendet den
+	// ALTER-TABLE-Default sofort auf existierende Rows an) — zutreffende
+	// Annahme, da die Musik-Bibliothek erst seit wenigen Tagen existiert und
+	// alle bisherigen Playlists Videos enthalten.
+	if err := addCol("playlists", "kind", "TEXT NOT NULL DEFAULT 'video'"); err != nil {
+		return err
+	}
 	// Indizes erst nach ALTER
 	idxStmts := []string{
 		`CREATE INDEX IF NOT EXISTS items_released_idx ON items(released_at)`,

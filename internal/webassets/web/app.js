@@ -490,9 +490,9 @@ function setSelectionMode(on) {
   if (!on) {
     state.selection.clear();
     updateBulkBar();
-    // Kartenstyling zurücksetzen
-    document.querySelectorAll(".card.selected").forEach(c => c.classList.remove("selected"));
-    document.querySelectorAll(".card-select").forEach(c => c.textContent = "");
+    // Kartenstyling zurücksetzen (Kacheln UND Musik-Listenzeilen)
+    document.querySelectorAll(".card.selected, .track-row.selected").forEach(c => c.classList.remove("selected"));
+    document.querySelectorAll(".card-select, .track-row-select").forEach(c => c.textContent = "");
   } else {
     updateBulkBar();
   }
@@ -504,11 +504,16 @@ function toggleSelection(item) {
   } else {
     state.selection.add(item.id);
   }
-  const card = document.querySelector(`.card[data-item-id="${item.id}"]`);
-  if (card) {
+  // Sowohl Kacheln (.card) als auch Musik-Listenzeilen (.track-row) tragen
+  // data-item-id — gemeinsamer Selektor, damit Bulk-Auswahl in BEIDEN
+  // Ansichten dieselbe Checkbox-Optik bekommt (fehlte für .track-row bisher
+  // komplett, User-Bericht 2026-09-04: "Auswählen in der Listenansicht finde
+  // ich auch nicht").
+  const el = document.querySelector(`.card[data-item-id="${item.id}"], .track-row[data-item-id="${item.id}"]`);
+  if (el) {
     const on = state.selection.has(item.id);
-    card.classList.toggle("selected", on);
-    const box = card.querySelector(".card-select");
+    el.classList.toggle("selected", on);
+    const box = el.querySelector(".card-select, .track-row-select");
     if (box) box.textContent = on ? "✓" : "";
   }
   updateBulkBar();
@@ -526,12 +531,13 @@ function selectAllVisible() {
   for (const it of state.lastRenderedItems || []) {
     if (it && it.id) state.selection.add(it.id);
   }
-  // Alle Kacheln visuell markieren
-  document.querySelectorAll(".card").forEach(c => {
+  // Alle Kacheln UND Musik-Listenzeilen visuell markieren (siehe
+  // toggleSelection: gleicher gemeinsamer data-item-id-Selektor).
+  document.querySelectorAll(".card, .track-row").forEach(c => {
     const id = Number(c.dataset.itemId);
     if (id && state.selection.has(id)) {
       c.classList.add("selected");
-      const b = c.querySelector(".card-select");
+      const b = c.querySelector(".card-select, .track-row-select");
       if (b) b.textContent = "✓";
     }
   });

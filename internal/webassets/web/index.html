@@ -426,6 +426,12 @@
   <h3>Neue Playlist</h3>
   <form id="playlistForm" class="form">
     <label>Name <input name="name" required /></label>
+    <label id="playlistKindLabel" class="hidden">Art
+      <select name="kind">
+        <option value="video">🎬 Video</option>
+        <option value="music">🎵 Musik</option>
+      </select>
+    </label>
     <div class="row">
       <button type="submit" class="primary">Anlegen</button>
       <button type="button" data-close>Schließen</button>

@@ -64,6 +64,11 @@ type Playlist struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 	ItemCount int       `json:"itemCount"`
+	// Kind: "video" | "music" — getrennt seit 2026-09-04 (User-Wunsch: keine
+	// gemischten Video-/Musik-Playlists mehr). Wird bei der Erstellung fix
+	// gesetzt, nicht aus den enthaltenen Items abgeleitet (eine Playlist kann
+	// leer sein). Bestehende Playlists sind per Migration auf "video" gesetzt.
+	Kind string `json:"kind"`
 	// PosterItemID: erstes Item in der Playlist mit TMDB-Poster (oder Thumbnail);
 	// dient als Kachel-Vorschau.
 	PosterItemID     int64 `json:"posterItemId,omitempty"`

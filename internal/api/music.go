@@ -56,7 +56,7 @@ func (s *Server) getAlbum(w http.ResponseWriter, r *http.Request) {
 	if !s.requireLibAccess(w, r, album.LibraryID) {
 		return
 	}
-	tracks, err := s.Store.ListMusicAlbumTracks(id)
+	tracks, err := s.Store.ListMusicAlbumTracks(id, userID)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

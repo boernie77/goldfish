@@ -20,11 +20,11 @@ func TestPlaylistUserIsolation(t *testing.T) {
 	christianID, _ := s.CreateUser("Christian", "pw123456", false)
 	boernieID, _ := s.CreateUser("Boernie", "pw123456", true) // Admin!
 
-	christianPl, err := s.CreatePlaylist(christianID, "Christians Playlist")
+	christianPl, err := s.CreatePlaylist(christianID, "Christians Playlist", "video")
 	if err != nil {
 		t.Fatal(err)
 	}
-	boerniePl, err := s.CreatePlaylist(boernieID, "Boernies Playlist")
+	boerniePl, err := s.CreatePlaylist(boernieID, "Boernies Playlist", "video")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestPlaylistUserIsolation(t *testing.T) {
 	// 1) Listing: jeder sieht NUR seine eigene(n) Playlist(s), Admin
 	// eingeschlossen — trotz isAdmin=true darf Boernie Christians Playlist
 	// nicht in seiner Liste sehen.
-	christianList, err := s.ListPlaylistsForUser(christianID, false)
+	christianList, err := s.ListPlaylistsForUser(christianID, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestPlaylistUserIsolation(t *testing.T) {
 		t.Fatalf("Christian sollte nur seine eigene Playlist sehen, bekam: %+v", christianList)
 	}
 
-	boernieList, err := s.ListPlaylistsForUser(boernieID, true)
+	boernieList, err := s.ListPlaylistsForUser(boernieID, true, "")
 	if err != nil {
 		t.Fatal(err)
 	}

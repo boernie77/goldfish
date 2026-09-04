@@ -14,7 +14,8 @@ func (s *Server) listPlaylists(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "nicht angemeldet")
 		return
 	}
-	pls, err := s.Store.ListPlaylistsForUser(me.ID, me.IsAdmin)
+	kind := r.URL.Query().Get("kind")
+	pls, err := s.Store.ListPlaylistsForUser(me.ID, me.IsAdmin, kind)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -33,6 +34,7 @@ func (s *Server) createPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Name string `json:"name"`
+		Kind string `json:"kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiges JSON")
@@ -43,7 +45,11 @@ func (s *Server) createPlaylist(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, err.Error())
 		return
 	}
-	id, err := s.Store.CreatePlaylist(me.ID, name)
+	kind := body.Kind
+	if kind != "music" {
+		kind = "video"
+	}
+	id, err := s.Store.CreatePlaylist(me.ID, name, kind)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

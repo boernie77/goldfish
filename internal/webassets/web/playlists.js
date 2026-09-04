@@ -17,6 +17,12 @@
 
 async function openPlaylistsManager() {
   await loadLibraries(); // refresh
+  // Kind-Auswahl beim Neuanlegen nur zeigen, wenn überhaupt eine Musik-
+  // Bibliothek existiert — sonst wäre die Auswahl für praktisch jeden
+  // Nutzer bedeutungslose Zusatz-UI (siehe playlists.kind-Trennung,
+  // User-Wunsch 2026-09-04).
+  const hasMusicLib = state.libraries.some(l => l.kind === "music");
+  $("#playlistKindLabel").classList.toggle("hidden", !hasMusicLib);
   const ul = $("#playlistsList");
   ul.innerHTML = "";
   if (!state.playlists.length) {
@@ -27,7 +33,9 @@ async function openPlaylistsManager() {
     li.className = "lib-row";
     const head = document.createElement("div");
     head.className = "lib-row-head";
-    head.innerHTML = `<div><strong>${escapeHTML(p.name)}</strong> <small style="color:#9ca3af">${p.itemCount} Video${p.itemCount===1?"":"s"}</small></div>`;
+    const kindIcon = p.kind === "music" ? "🎵" : "🎬";
+    const unit = p.kind === "music" ? "Titel" : `Video${p.itemCount===1?"":"s"}`;
+    head.innerHTML = `<div>${kindIcon} <strong>${escapeHTML(p.name)}</strong> <small style="color:#9ca3af">${p.itemCount} ${unit}</small></div>`;
     const actions = document.createElement("div");
     actions.style.display = "flex"; actions.style.gap = "6px";
     const open = document.createElement("button");
@@ -77,7 +85,7 @@ async function handleNewPlaylist(e) {
   const form = e.target;
   const data = Object.fromEntries(new FormData(form));
   try {
-    await api("/api/playlists", { method: "POST", body: JSON.stringify({ name: data.name }) });
+    await api("/api/playlists", { method: "POST", body: JSON.stringify({ name: data.name, kind: data.kind || "video" }) });
     form.reset();
     openPlaylistsManager();
   } catch (err) { appAlert(err.message); }
@@ -91,28 +99,47 @@ async function handleNewPlaylist(e) {
 //   [state.currentItem.id] zurück. Mit Array → Bulk-Modus: Klick auf eine
 //   Playlist hängt alle IDs an, Quick-Create erstellt neue Playlist und hängt
 //   alle IDs rein.
+// playlistKindForItem: "music" wenn das Item aus einer Musik-Bibliothek
+// stammt, sonst "video" — bestimmt, welche Playlists im Add-Dialog
+// angeboten werden (siehe openAddToPlaylist).
+function playlistKindForItem(item) {
+  if (!item) return "video";
+  const lib = state.libraries.find(l => l.id == item.libraryId);
+  return (lib && lib.kind === "music") ? "music" : "video";
+}
+
 async function openAddToPlaylist(opts = {}) {
   const itemIDs = Array.isArray(opts.itemIDs) && opts.itemIDs.length
     ? opts.itemIDs.slice()
     : (state.currentItem ? [state.currentItem.id] : []);
   if (!itemIDs.length) return;
-  state.playlistAddContext = { itemIDs, isBulk: itemIDs.length > 1 };
+  const isBulk = itemIDs.length > 1;
+  // Referenz-Item nur zur Kind-Bestimmung — bei Bulk-Auswahl kommt es aus der
+  // zuletzt gerenderten Liste (state.lastRenderedItems), sonst state.currentItem.
+  const refItem = isBulk
+    ? (state.lastRenderedItems || []).find(it => it.id === itemIDs[0])
+    : state.currentItem;
+  // Playlists getrennt nach Video/Musik (User-Wunsch 2026-09-04: "gemeinsame
+  // Playlists gefällt mir eigentlich nicht") — der Dialog zeigt und legt ab
+  // hier nur noch Playlists der zum Item passenden Art an.
+  const kind = playlistKindForItem(refItem);
+  state.playlistAddContext = { itemIDs, isBulk, kind };
 
-  const isBulk = state.playlistAddContext.isBulk;
   // Im Bulk-Modus zeigen wir keine ✓-Markierung (wäre uneinheitlich, wenn
   // manche der Items in der Playlist sind und andere nicht).
-  const allPL = await api("/api/playlists");
+  const allPL = await api(`/api/playlists?kind=${kind}`);
   const currentIDs = isBulk ? [] : await api(`/api/items/${itemIDs[0]}/playlists`);
   const idSet = new Set(currentIDs);
   const ul = $("#addToPlaylistList");
   ul.innerHTML = "";
+  const kindLabel = kind === "music" ? "Musik-Playlist" : "Playlist";
   if (!allPL.length) {
-    ul.innerHTML = `<li><em style="color:#6b7280">Noch keine Playlist angelegt — nutze das Formular unten.</em></li>`;
+    ul.innerHTML = `<li><em style="color:#6b7280">Noch keine ${kindLabel} angelegt — nutze das Formular unten.</em></li>`;
   }
   const h2 = $("#addToPlaylistDialog h2");
   if (h2) h2.textContent = isBulk
-    ? `${itemIDs.length} Videos zu Playlist hinzufügen`
-    : "Zu Playlist hinzufügen";
+    ? `${itemIDs.length} ${kind === "music" ? "Titel" : "Videos"} zu ${kindLabel} hinzufügen`
+    : `Zu ${kindLabel} hinzufügen`;
   for (const p of allPL) {
     const li = document.createElement("li");
     const inSet = !isBulk && idSet.has(p.id);
@@ -176,8 +203,9 @@ async function handleQuickCreatePlaylist(e) {
   if (!itemIDs.length) return;
   const form = e.target;
   const data = Object.fromEntries(new FormData(form));
+  const kind = (ctx && ctx.kind) || "video";
   try {
-    const pl = await api("/api/playlists", { method: "POST", body: JSON.stringify({ name: data.name }) });
+    const pl = await api("/api/playlists", { method: "POST", body: JSON.stringify({ name: data.name, kind }) });
     if (itemIDs.length > 1) {
       await addItemsToPlaylistBulk(pl, itemIDs);
     } else {
@@ -185,7 +213,7 @@ async function handleQuickCreatePlaylist(e) {
         method: "POST",
         body: JSON.stringify({ itemId: itemIDs[0] }),
       });
-      showToast(`Neue Playlist „${pl.name}" mit Video erstellt`, { kind: "success" });
+      showToast(`Neue Playlist „${pl.name}" mit ${kind === "music" ? "Titel" : "Video"} erstellt`, { kind: "success" });
     }
     form.reset();
     $("#addToPlaylistDialog").close();

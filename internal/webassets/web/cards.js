@@ -30,16 +30,17 @@ function renderPlaylistCard(p) {
   } else if (p.posterItemId) {
     thumbInner = `<img class="thumb-img" loading="lazy" decoding="async" alt="" src="/api/thumb/${p.posterItemId}">`;
   } else {
-    thumbInner = `<div class="playlist-thumb-icon">📋</div>`;
+    thumbInner = `<div class="playlist-thumb-icon">${p.kind === "music" ? "🎵" : "📋"}</div>`;
   }
+  const unit = p.kind === "music" ? "Titel" : `Video${p.itemCount === 1 ? "" : "s"}`;
   el.innerHTML = `
     <div class="thumb">
       ${thumbInner}
-      <span class="folder-count">${p.itemCount} Video${p.itemCount === 1 ? "" : "s"}</span>
+      <span class="folder-count">${p.itemCount} ${unit}</span>
     </div>
     <div class="card-body">
-      <div class="card-title" title="${escapeHTML(p.name)}">📋 ${escapeHTML(p.name)}</div>
-      <div class="card-meta"><span>Playlist</span></div>
+      <div class="card-title" title="${escapeHTML(p.name)}">${p.kind === "music" ? "🎵" : "📋"} ${escapeHTML(p.name)}</div>
+      <div class="card-meta"><span>${p.kind === "music" ? "Musik-Playlist" : "Playlist"}</span></div>
     </div>
   `;
   const open = () => {
