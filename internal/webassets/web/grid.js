@@ -845,6 +845,31 @@ async function loadItemsBody() {
     }
     return;
   }
+
+  // Musik-Bibliotheken (seit 2026-09-04): Album-Kacheln im Library-Root,
+  // Track-Liste beim Öffnen eines Albums (state.currentAlbum). Greift NUR
+  // im Root und ohne aktive Suche — normale Ordner-Navigation (Unterordner)
+  // bleibt für Musik-Libs unverändert nutzbar (Ordnerstruktur bleibt
+  // Navigation, kanonische Album-Identität kommt separat aus den Tags).
+  if (lib && lib.kind === "music" && state.currentFolder === null && !$("#searchInput").value.trim()) {
+    if (state.currentAlbum != null) {
+      let data;
+      try { data = await api(`/api/albums/${state.currentAlbum}`); }
+      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      renderBreadcrumb({});
+      renderAlbumTracks(grid, data);
+      return;
+    }
+    let albums;
+    try { albums = await api(`/api/libraries/${state.currentLibrary}/albums`); }
+    catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+    renderBreadcrumb({});
+    renderAlbumTiles(grid, albums);
+    return;
+  }
+
   const searchQ = $("#searchInput").value.trim();
   const params = new URLSearchParams({
     libraryId: state.currentLibrary,

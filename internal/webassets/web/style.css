@@ -869,6 +869,11 @@ button.primary:hover { background: var(--accent-hover); }
 .card.card--poster {
   contain-intrinsic-size: 200px 380px;
 }
+/* Musik-Bibliotheken (seit 2026-09-04): quadratisches Album-Cover statt
+   2:3-Poster oder 16:9-Thumbnail, gleiches Muster wie card--poster oben. */
+.card.card--square {
+  contain-intrinsic-size: 200px 280px;
+}
 .card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0,0,0,0.4);
@@ -890,6 +895,9 @@ button.primary:hover { background: var(--accent-hover); }
 /* Bei Movies/TV-Libs sind die Bilder TMDB-Poster (2:3) — Kachelformat entsprechend */
 .card.card--poster .thumb {
   aspect-ratio: 2 / 3;
+}
+.card.card--square .thumb {
+  aspect-ratio: 1 / 1;
 }
 .thumb .badge {
   position: absolute;

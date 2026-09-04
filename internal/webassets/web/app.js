@@ -46,6 +46,7 @@ const state = {
   alphaFilter: null,           // null oder "A".."Z"|"#" — Anfangsbuchstaben-Filter via Sidebar-Klick
   moveContext: null,           // {mode:"single",item} oder {mode:"bulk",ids,libId} während #moveDialog offen ist
   shuffleFolders: [],          // [{libraryId,libraryName,folder,label}] — Ordner-Scoping für Zufallswiedergabe (leer = aktueller Kontext)
+  currentAlbum: null,          // Album-ID wenn ein Musik-Album geöffnet ist (Track-Liste statt Album-Kacheln)
 };
 
 // captureNavSnapshot: merkt sich die aktuelle Nav-Position (Library, Folder,
@@ -951,6 +952,7 @@ function goLibraryView(libId) {
   state.currentFolder = null;
   state.currentFolderDrilldown = null;
   state.currentSeason = null;
+  state.currentAlbum = null;
   state.collectionsView = false;
   state.currentCollection = null;
   state.playlistsView = false;
@@ -972,6 +974,7 @@ function libIcon(lib) {
   if (lib.kind === "movies") return "🎬";
   if (lib.kind === "tv") return "📺";
   if (lib.kind === "private") return "🎥";
+  if (lib.kind === "music") return "🎵";
   return "📁";
 }
 
@@ -1052,7 +1055,8 @@ function navKey() {
   if (state.currentLibrary) {
     const f = state.currentFolder || "";
     const s = state.currentSeason != null ? ":s" + state.currentSeason : "";
-    return "lib:" + state.currentLibrary + ":" + f + s;
+    const al = state.currentAlbum != null ? ":al" + state.currentAlbum : "";
+    return "lib:" + state.currentLibrary + ":" + f + s + al;
   }
   return "root";
 }

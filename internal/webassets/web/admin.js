@@ -237,7 +237,7 @@ async function openUserAcl(u) {
     cb.checked = granted.has(l.id);
     lbl.appendChild(cb);
     const span = document.createElement("span");
-    const kindLabel = l.kind === "movies" ? "Filme" : l.kind === "tv" ? "Serien" : "Privat";
+    const kindLabel = l.kind === "movies" ? "Filme" : l.kind === "tv" ? "Serien" : l.kind === "music" ? "Musik" : "Privat";
     span.innerHTML = `<strong>${escapeHTML(l.name)}</strong> <small style="color:var(--text-dim)">(${kindLabel})</small>`;
     lbl.appendChild(span);
     list.appendChild(lbl);
@@ -287,7 +287,7 @@ async function openManage() {
     const li = document.createElement("li");
     li.classList.add("lib-row");
     li.dataset.libId = String(l.id);
-    const kindLabel = l.kind === "movies" ? "Filme" : l.kind === "tv" ? "Serien" : "Privat";
+    const kindLabel = l.kind === "movies" ? "Filme" : l.kind === "tv" ? "Serien" : l.kind === "music" ? "Musik" : "Privat";
 
     // Zwei-Zeilen-Layout fuer die schmale 520px-Dialog-Breite:
     //   Zeile 1: Name + Kind-Select + Loeschen-Icon  (gross/lesbar)
@@ -308,7 +308,7 @@ async function openManage() {
     const kindSel = document.createElement("select");
     kindSel.className = "lib-kind-select";
     kindSel.title = "Bibliothekstyp";
-    for (const [k, lbl] of [["movies", "Filme"], ["tv", "Serien"], ["private", "Privat"]]) {
+    for (const [k, lbl] of [["movies", "Filme"], ["tv", "Serien"], ["music", "Musik"], ["private", "Privat"]]) {
       const o = document.createElement("option");
       o.value = k; o.textContent = lbl;
       if (k === l.kind) o.selected = true;

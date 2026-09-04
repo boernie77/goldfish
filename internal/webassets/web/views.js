@@ -677,6 +677,84 @@ async function renderSeasonEpisodes(grid, data, seasonNum) {
   state.lastRenderedItems = flatOwned;
 }
 
+// --- Musik-Bibliotheken (seit 2026-09-04) ---
+// Album-Kacheln im Library-Root, Track-Liste beim Öffnen eines Albums.
+// Analog zur Staffel-Ansicht oben, aber ohne Toggle — die normale Ordner-
+// Navigation bleibt für Unterordner unverändert nutzbar (siehe grid.js: der
+// Musik-Zweig greift nur bei state.currentFolder === null).
+
+function renderAlbumTiles(grid, albums) {
+  grid.innerHTML = "";
+  document.body.classList.remove("has-alpha-sidebar");
+  const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
+  if (!albums.length) {
+    grid.innerHTML = `<div class="empty">Keine Alben gefunden. Klicke „⟳ Scan" um die Bibliothek einzulesen.</div>`;
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const a of albums) {
+    const el = document.createElement("article");
+    el.className = "card folder card--square";
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    const cover = a.coverSource ? `/api/poster/album/${a.id}` : "/placeholder.svg";
+    el.innerHTML = `
+      <div class="thumb">
+        <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${cover}">
+        <span class="folder-count">${a.trackCount || 0} Titel</span>
+      </div>
+      <div class="card-body">
+        <div class="card-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</div>
+        <div class="card-meta"><span>${escapeHTML(a.artist || "")}</span></div>
+      </div>
+    `;
+    el.addEventListener("click", () => {
+      state.currentAlbum = a.id;
+      loadItems();
+    });
+    el.addEventListener("keydown", e => { if (e.key === "Enter") el.click(); });
+    frag.appendChild(el);
+  }
+  grid.appendChild(frag);
+  state.lastRenderedItems = [];
+}
+
+function renderAlbumTracks(grid, data) {
+  grid.innerHTML = "";
+  document.body.classList.remove("has-alpha-sidebar");
+  const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
+  const album = data.album || {};
+  const tracks = data.tracks || [];
+  const header = document.createElement("section");
+  header.className = "show-header detail-wrap"; // gleiche Optik wie der Serien-Header (Poster + Titel)
+  const cover = album.coverSource ? `/api/poster/album/${album.id}` : "/placeholder.svg";
+  header.innerHTML = `
+    <div class="detail-poster" style="background-image:url('${cover}')"></div>
+    <div class="detail-body">
+      <button type="button" class="link-btn" id="albumBackBtn">← Alle Alben</button>
+      <h2>${escapeHTML(album.album || "")}</h2>
+      <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}</div>
+    </div>
+  `;
+  grid.appendChild(header);
+  header.querySelector("#albumBackBtn").addEventListener("click", () => {
+    state.currentAlbum = null;
+    loadItems();
+  });
+  if (!tracks.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "Keine Titel in diesem Album.";
+    grid.appendChild(e);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  tracks.forEach((it, idx) => frag.appendChild(renderCard(it, { queueIdx: idx })));
+  grid.appendChild(frag);
+  state.playQueue = tracks;
+  state.lastRenderedItems = tracks;
+}
+
 // renderRangeContinuationCard zeigt einen Folgeplatz einer Doppelfolgen-Datei
 // (z.B. S07E24, wenn die Datei S07E23E24.mkv heißt). Klick öffnet dasselbe
 // Item wie der primäre Slot.

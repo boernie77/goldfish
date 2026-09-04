@@ -568,7 +568,10 @@ function renderCard(it, opts = {}) {
   // Poster-Format (2:3) für Movies/TV-Libraries, Video-Thumbnail-Format (16:9) für Privat
   const itLib = state.libraries.find(l => l.id == it.libraryId);
   const isPosterLib = itLib && (itLib.kind === "movies" || itLib.kind === "tv");
-  el.className = "card" + (it.watched ? " watched" : "") + (isPosterLib ? " card--poster" : "");
+  // Musik-Bibliotheken (seit 2026-09-04): quadratisches Album-Cover statt
+  // 2:3-Poster oder 16:9-Thumbnail, siehe .card--square in style.css.
+  const isMusicLib = itLib && itLib.kind === "music";
+  el.className = "card" + (it.watched ? " watched" : "") + (isPosterLib ? " card--poster" : "") + (isMusicLib ? " card--square" : "");
   el.tabIndex = 0;
   el.setAttribute("role", "button");
 
@@ -612,7 +615,13 @@ function renderCard(it, opts = {}) {
     }
   }
 
-  if (it.metadata && it.metadata.posterPath) {
+  if (isMusicLib && it.musicAlbumId) {
+    // Album-Cover statt Video-Thumbnail — Musik-Items haben nie ein eigenes
+    // Thumbnail (Scanner überspringt makeThumbnail für kind=music), das
+    // Cover gehört zum Album (siehe scanner.extractAlbumCovers).
+    imgUrl = `/api/poster/album/${it.musicAlbumId}`;
+    if (it.artist) subtitle = it.artist;
+  } else if (it.metadata && it.metadata.posterPath) {
     // Cache-Busting via ?v=<posterPath>: die Poster-URL hängt nur an der metadataId, die
     // sich bei einem Re-Match NICHT ändert — obwohl die Datei dahinter (anderer TMDB-
     // posterPath) eine andere ist. Ohne den Query-Param kann der Browser (oder ein
@@ -708,6 +717,7 @@ function renderCard(it, opts = {}) {
       <div class="card-meta">
         ${episodeCode ? `<span class="episode-code">${episodeCode}</span>` : ""}
         ${episodeName ? `<span class="episode-name">${escapeHTML(episodeName)}</span>` :
+          isMusicLib ? (it.trackNo ? `<span>Track ${it.trackNo}</span>` : "") :
           (subtitle ? `<span>${subtitle}</span>` : `<span>${it.width || "?"}×${it.height || "?"}</span>`)}
         <span>${fmtSize(it.sizeBytes)}</span>
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
