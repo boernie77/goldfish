@@ -1412,6 +1412,16 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
 }
 .mini-player.hidden { display: none; }
+/* Deutliches visuelles Signal während des Ladens (User-Bericht 2026-09-04:
+   "Ich weiß immer nicht, ob er was abspielen wird") — Cover pulsiert leicht,
+   bis vjs "playing" tatsächlich feuert (siehe music.js setMiniLoading). */
+.mini-player.is-loading .mini-cover {
+  animation: mini-cover-pulse 1.1s ease-in-out infinite;
+}
+@keyframes mini-cover-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
 .mini-audio-el {
   position: absolute;
   width: 1px; height: 1px;

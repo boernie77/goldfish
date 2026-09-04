@@ -27,6 +27,7 @@ const musicState = {
   // (User-Bericht 2026-09-04). Nur der jeweils NEUESTE Aufruf darf noch
   // src()/play() ausführen.
   playSeq: 0,
+  loading: false,
 };
 
 function musicCurrentTrack() {
@@ -47,10 +48,7 @@ async function musicPlayCurrent() {
   const seq = ++musicState.playSeq;
   // "Zuletzt abgespielt"-Timestamp setzen, sobald der Titel STARTET — exakt
   // dasselbe Verhalten wie beim Video-Player (player.js openPlayer), NICHT
-  // erst bei vollständigem Durchhören. Fehlte hier komplett (User-Bericht
-  // 2026-09-04: "kein Zuletzt abgespielt eingetragen, zumindest nicht wenn
-  // ein Song nur teilweise gespielt wird") — music.js hatte diesen Aufruf
-  // schlicht nie gehabt.
+  // erst bei vollständigem Durchhören.
   api(`/api/items/${t.id}/played`, { method: "POST" }).catch(() => {});
   const bar = $("#miniPlayer");
   bar.classList.remove("hidden");
@@ -59,12 +57,23 @@ async function musicPlayCurrent() {
   $("#miniCover").src = t.musicAlbumId ? `/api/poster/album/${t.musicAlbumId}` : "/placeholder.svg";
   $("#miniPrev").disabled = musicState.idx <= 0;
   $("#miniNext").disabled = musicState.idx >= musicState.queue.length - 1;
+  // Sofortiges Feedback statt eines stillen, unklaren Wartens (User-Bericht
+  // 2026-09-04: "Ich weiß immer nicht, ob er was abspielen wird. Der hat
+  // teilweise lange Verzögerungen.") — der Play/Pause-Button zeigt ab hier
+  // ein Ladesymbol, bis der Stream WIRKLICH läuft (vjs "playing"-Event,
+  // siehe musicEnsureVjs) oder ein Fehler auftritt. `data-loading` statt nur
+  // einer CSS-Klasse, damit updateMiniPlayPauseIcon weiß, dass es die
+  // Play/Pause-Anzeige NICHT überschreiben soll, solange geladen wird.
+  musicState.loading = true;
+  setMiniLoading(true);
 
   let info;
   try {
     info = await api(`/api/playback/${t.id}`);
   } catch (e) {
     if (seq !== musicState.playSeq) return; // inzwischen durch neueren Klick überholt
+    musicState.loading = false;
+    setMiniLoading(false);
     showToast(`Wiedergabe fehlgeschlagen: ${e.message}`, { kind: "error" });
     return;
   }
@@ -82,7 +91,13 @@ async function musicPlayCurrent() {
     vjs.src({ src: info.url, type: srcType });
     const pp = vjs.play();
     if (pp && typeof pp.catch === "function") {
-      pp.catch(err => console.warn("[music] Wiedergabe blockiert/abgebrochen:", err));
+      pp.catch(err => {
+        if (seq !== musicState.playSeq) return;
+        console.warn("[music] Wiedergabe blockiert/abgebrochen:", err);
+        musicState.loading = false;
+        setMiniLoading(false);
+        showToast("Wiedergabe konnte nicht gestartet werden", { kind: "error" });
+      });
     }
   });
 }
@@ -102,8 +117,19 @@ function musicEnsureVjs() {
     liveui: false, // wie im Hauptplayer: unsere HLS-Transcodes sind technisch "live" (kein ENDLIST)
   });
   vjs.on("ended", musicNext);
-  vjs.on("play", updateMiniPlayPauseIcon);
+  // "playing" statt "play": "play" feuert schon beim BLOSSEN Anfordern der
+  // Wiedergabe (kann bei langsamem Netz/Transcode-Start Sekunden vor dem
+  // ersten hörbaren Ton liegen), "playing" erst wenn tatsächlich Audio läuft
+  // — das eigentliche Signal, um das Ladesymbol zu beenden.
+  vjs.on("playing", () => { musicState.loading = false; setMiniLoading(false); });
+  vjs.on("waiting", () => setMiniLoading(true));
   vjs.on("pause", updateMiniPlayPauseIcon);
+  vjs.on("error", () => {
+    musicState.loading = false;
+    setMiniLoading(false);
+    const err = vjs.error();
+    showToast(`Wiedergabefehler: ${(err && err.message) || "unbekannt"}`, { kind: "error" });
+  });
   vjs.on("timeupdate", () => {
     const seek = $("#miniSeek");
     const dur = vjs.duration();
@@ -141,9 +167,23 @@ function musicTogglePlay() {
 }
 
 function updateMiniPlayPauseIcon() {
+  if (musicState.loading) return; // Ladesymbol hat Vorrang, siehe setMiniLoading
   const btn = $("#miniPlayPause");
   if (!btn || !musicState.vjs) return;
   btn.textContent = musicState.vjs.paused() ? "▶" : "⏸";
+}
+
+// setMiniLoading: zeigt/versteckt das Ladesymbol auf dem Play/Pause-Button
+// und sperrt ⏮/⏭/Play während des Ladens — verhindert sowohl das "weiß
+// nicht ob er spielt"-Gefühl (klares Signal: da tut sich was) als auch
+// Doppelklicks, die früher die playSeq-Race auslösten.
+function setMiniLoading(loading) {
+  const btn = $("#miniPlayPause");
+  if (btn) {
+    btn.textContent = loading ? "⏳" : (musicState.vjs && !musicState.vjs.paused() ? "⏸" : "▶");
+    btn.disabled = loading;
+  }
+  $("#miniPlayer").classList.toggle("is-loading", loading);
 }
 
 function musicCloseBar() {
