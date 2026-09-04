@@ -132,6 +132,10 @@ async function loadItemsBody() {
     $("#resolutionFilterLabel").classList.toggle("hidden", isMusicKind);
     $("#watchedFilterLabel").classList.toggle("hidden", isMusicKind);
     $("#ratingFilterLabel").classList.toggle("hidden", isMusicKind);
+    // Suchfeld-Beschriftung an die Bibliothek anpassen (User-Wunsch
+    // 2026-09-04): "Titel oder Schauspieler" passt für Musik nicht (kein
+    // Cast), dort sucht man nach Künstler/Album.
+    $("#searchInput").placeholder = isMusicKind ? "Künstler oder Album…" : "Titel oder Schauspieler…";
   }
 
   // Trickplay-Fehler-View (aus dem Trickplay-Manager-Dialog ausgelöst):
