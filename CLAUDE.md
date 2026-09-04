@@ -957,24 +957,46 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   einfach aus, kein Fehler-Toast.
 - Schließen des Trailer-Dialogs entfernt das `<iframe>` komplett aus dem DOM
   (nicht nur `src` leeren) — sonst spielt YouTube im Hintergrund weiter.
-- **`GET /api/metadata/{id}/trailer-stream` (seit 2026-09-04, für die nativen
-  Apple-Apps):** liefert `{url: "<direkte googlevideo-URL>"}` statt der reinen
-  YouTube-Video-ID — der Browser braucht das NICHT (nutzt weiterhin das
-  iframe-Embed direkt im Client), aber tvOS hat gar kein WebKit und kann
-  daher kein `<iframe>` rendern. `internal/ytdlp.Extractor` shellt zu `yt-dlp`
-  raus (`-f "b[ext=mp4]/b" -g`, Docker-Image installiert es via `pip3
-  --break-system-packages`, gleiches Muster wie `pgsrip`) und extrahiert eine
-  direkt per HTTP abspielbare Stream-URL, die die Apps per `AVPlayer` laden.
-  4h-In-Memory-Cache pro YouTube-Key (googlevideo-URLs sind ohnehin nur
-  wenige Stunden gültig), 3 Versuche mit 5s-Pause bei HTTP 403 (googlevideo
-  403t laut Erfahrung aus `~/Projekte/Tatort_Fetcher` gelegentlich transient,
+- **`GET /api/metadata/{id}/trailer-stream` + `GET /api/trailer-file/{key}`
+  (seit 2026-09-04, für die nativen Apple-Apps):** der Browser braucht das
+  NICHT (nutzt weiterhin das iframe-Embed direkt im Client), aber tvOS hat
+  gar kein WebKit und kann daher kein `<iframe>` rendern — die Apps spielen
+  stattdessen per `AVPlayer` ab, der eine EINZELNE Datei-URL braucht.
+  **Wichtig: reine URL-Extraktion (`yt-dlp -g`) reicht NICHT** — YouTube
+  liefert inzwischen für die meisten Videos KEIN kombiniertes Video+Audio-
+  Format mehr, nur getrennte "video only"/"audio only"-Streams (verifiziert
+  2026-09-04 direkt im Container: `--list-formats` zeigte keinerlei
+  gemuxtes Format). `internal/ytdlp.Extractor` lädt daher mit
+  `-f "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/…" --merge-output-format mp4`
+  herunter und lässt yt-dlp intern per `ffmpeg` (bereits im Image) zu EINER
+  MP4 muxen, gecached unter `ConfigDir/cache/trailers/<youtubeKey>.mp4`
+  (kein Ablaufdatum wie bei den signierten googlevideo-URLs, beliebig oft
+  wiederverwendbar). `/trailer-stream` stößt den Download an (blockierend,
+  aber Trailer sind kurz — ein paar Sekunden bei guter Bandbreite) und
+  liefert `{url: "/api/trailer-file/<key>"}` (relativ, App löst es gegen
+  `client.baseURL` auf); `/trailer-file/{key}` liefert die fertige Datei per
+  `http.ServeContent` (Range-fähig, wichtig für AVPlayer-Seeking) und lädt
+  bei Bedarf selbst nach, falls der Cache-Eintrag fehlt.
+  Docker-Image installiert `yt-dlp` via `pip3 --break-system-packages`
+  (gleiches Muster wie `pgsrip`). 3 Versuche mit 5s-Pause bei HTTP 403
+  (laut `~/Projekte/Tatort_Fetcher`-Erfahrung gelegentlich transient,
   besonders bei mehreren gleichzeitigen Downloads — kein harter Dauer-Block).
   **Eigene Cipher-/PO-Token-Extraktion ist NICHT reimplementierbar** (seit
   YouTubes 2024er Anti-Bot-Härtung bräuchte das einen zusätzlichen
   JS-Challenge-Solver) — `yt-dlp` wird dagegen sehr aktiv dagegen gepflegt,
-  ist aber selbst NICHT unfehlbar: bei fehlschlagender Extraktion liefert der
-  Endpoint 502, die App fällt dann idealerweise auf "Trailer extern öffnen"
-  zurück statt hart zu scheitern.
+  ist aber selbst NICHT unfehlbar: bei fehlschlagendem Download liefert der
+  Endpoint 502, die App fällt dann auf "Trailer extern öffnen" zurück statt
+  hart zu scheitern.
+  **Ein eigener Live-Test von `yt-dlp -g` (reine URL, kein Mux) aus einer
+  Cloud-Sandbox heraus schlug mit HTTP 403 fehl** — das führte zunächst zur
+  falschen Annahme, YouTube verlange inzwischen zwingend einen PO-Token-
+  Sidecar. Tatsächliche Ursache: die Sandbox-IP wird von YouTube aggressiver
+  gefiltert als die Heimnetz-IP des echten Servers, UND das fehlende Muxen
+  war das eigentliche Kernproblem (siehe oben). **Bei ähnlichen Fragen: aus
+  dieser Sandbox heraus getestetes yt-dlp/YouTube-Verhalten ist NICHT
+  repräsentativ für das Verhalten vom echten Server aus** — im Zweifel
+  direkt im laufenden Container testen (`docker exec videoplayer …`, SSH
+  root@192.168.2.140:2202, siehe `infra_unraid.md`-Memory).
 
 ### Musik-Bibliotheken (seit 2026-09-04)
 - Neuer Bibliothekstyp `kind=music` neben movies/tv/private (Admin-UI:

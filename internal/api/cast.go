@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/boernie77/goldfish/internal/model"
@@ -94,12 +95,19 @@ func (s *Server) getMetadataTrailer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, trailer)
 }
 
-// getMetadataTrailerStream extrahiert eine direkt abspielbare Stream-URL für
-// den Trailer (via yt-dlp, internal/ytdlp) — für die nativen Apple-Apps
-// (Mac/iOS/tvOS), die den Trailer per AVPlayer statt per WebView/iframe
-// abspielen (tvOS hat gar kein WebKit, siehe CLAUDE.md "Trailer"). Der
-// Browser braucht diesen Endpoint NICHT (der nutzt weiterhin das iframe-Embed
-// direkt im Client).
+// getMetadataTrailerStream stößt den (bei Bedarf blockierenden) yt-dlp-
+// Download+Mux des Trailers an (internal/ytdlp) und liefert eine relative
+// URL zum fertig gecachten File — für die nativen Apple-Apps (Mac/iOS/tvOS),
+// die den Trailer per AVPlayer statt per WebView/iframe abspielen (tvOS hat
+// gar kein WebKit, siehe CLAUDE.md "Trailer"). Der Browser braucht diesen
+// Endpoint NICHT (nutzt weiterhin das iframe-Embed direkt im Client).
+//
+// **Warum eine fertige Datei statt der reinen googlevideo-URL:** YouTube
+// liefert inzwischen meist KEIN kombiniertes Video+Audio-Format mehr — die
+// reine URL-Extraktion (`-g`) kann getrennte Streams nicht für AVPlayer
+// zusammenführen. `internal/ytdlp.Extractor` lädt daher herunter und muxt
+// per ffmpeg zu einer einzelnen MP4, `/api/trailer-file/{key}` liefert sie
+// danach wie eine normale lokale Datei aus (Range-Requests).
 func (s *Server) getMetadataTrailerStream(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")
 	if err != nil {
@@ -125,15 +133,45 @@ func (s *Server) getMetadataTrailerStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if s.YTDLP == nil {
-		writeError(w, 503, "Trailer-Stream-Extraktion nicht verfügbar")
+		writeError(w, 503, "Trailer-Stream nicht verfügbar")
 		return
 	}
-	url, err := s.YTDLP.StreamURL(r.Context(), trailer.Key)
+	if _, err := s.YTDLP.FilePath(r.Context(), trailer.Key); err != nil {
+		writeError(w, 502, "Trailer konnte nicht geladen werden: "+err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]string{"url": "/api/trailer-file/" + trailer.Key})
+}
+
+// getTrailerFile liefert eine per yt-dlp gecachte Trailer-Datei aus
+// (Range-Request-fähig via http.ServeContent, wichtig für AVPlayer-Seeking).
+// Löst bei Bedarf selbst nochmal einen Download aus (FilePath cached intern
+// via os.Stat) — macht den Endpoint auch robust, falls er je direkt ohne den
+// vorgeschalteten /trailer-stream-Call aufgerufen wird.
+func (s *Server) getTrailerFile(w http.ResponseWriter, r *http.Request) {
+	if s.YTDLP == nil {
+		writeError(w, 503, "Trailer-Stream nicht verfügbar")
+		return
+	}
+	key := chi.URLParam(r, "key")
+	path, err := s.YTDLP.FilePath(r.Context(), key)
 	if err != nil {
-		writeError(w, 502, "Trailer konnte nicht extrahiert werden: "+err.Error())
+		writeError(w, 502, "Trailer konnte nicht geladen werden: "+err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]string{"url": url})
+	f, err := os.Open(path)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp4")
+	http.ServeContent(w, r, filepath.Base(path), info.ModTime(), f)
 }
 
 // getPerson liefert Bio-Daten + volle Filmografie einer Person. Bio + Credits

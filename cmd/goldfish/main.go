@@ -160,7 +160,7 @@ func main() {
 		PosterDir: filepath.Join(configDir, "posters"),
 		WebFS:     webassets.FS(),
 		OIDC:      api.NewOIDCRuntime(oidcCfg),
-		YTDLP:     ytdlp.New(),
+		YTDLP:     ytdlp.New(filepath.Join(configDir, "cache", "trailers")),
 	}
 	srv.ApplyTranslationBackend()
 	srv.BackfillAllWatchLinksOnStartup()
