@@ -887,21 +887,27 @@ async function loadItemsBody() {
   }
 
   // Musik-Bibliotheken (seit 2026-09-04): Album-Kacheln im Library-Root,
-  // Track-Liste beim Öffnen eines Albums (state.currentAlbum). Greift NUR
-  // im Root und ohne aktive Suche — normale Ordner-Navigation (Unterordner)
-  // bleibt für Musik-Libs unverändert nutzbar (Ordnerstruktur bleibt
-  // Navigation, kanonische Album-Identität kommt separat aus den Tags).
-  if (lib && lib.kind === "music" && state.currentFolder === null && !$("#searchInput").value.trim()) {
+  // Track-Liste beim Öffnen eines Albums (state.currentAlbum). Greift NUR im
+  // Root — normale Ordner-Navigation (Unterordner) bleibt für Musik-Libs
+  // unverändert nutzbar (Ordnerstruktur bleibt Navigation, kanonische Album-
+  // Identität kommt separat aus den Tags).
+  if (lib && lib.kind === "music" && state.currentFolder === null) {
+    const musicSearchQ = $("#searchInput").value.trim();
+    $("#searchClear").classList.toggle("hidden", musicSearchQ === "");
     // "Alle Titel": flache Liste ALLER Tracks der Bibliothek (Artist/Album/
     // Titel/letzte Wiedergabe), unabhängig von der Album-Gruppierung —
     // nutzt den ganz normalen /api/items-Endpoint (der liefert artist/album/
-    // trackNo/lastPlayedAt für Musik-Items bereits generisch mit).
+    // trackNo/lastPlayedAt für Musik-Items bereits generisch mit). Eine
+    // Suche filtert hier ganz normal die flache Track-Liste.
     if (state.musicAllTracks) {
       let tracks;
-      try { tracks = await api(`/api/items?libraryId=${state.currentLibrary}&sort=title`); }
-      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      try {
+        const p = new URLSearchParams({ libraryId: state.currentLibrary, sort: "title" });
+        if (musicSearchQ) p.set("search", musicSearchQ);
+        tracks = await api(`/api/items?${p}`);
+      } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
-      renderBreadcrumb({});
+      renderBreadcrumb(musicSearchQ ? { searchCount: tracks.length } : {});
       renderAllTracksList(grid, tracks);
       return;
     }
@@ -910,14 +916,38 @@ async function loadItemsBody() {
       try { data = await api(`/api/albums/${state.currentAlbum}`); }
       catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
+      // Suche INNERHALB eines geöffneten Albums filtert die Tracklist nach
+      // Titel — client-seitig, das Album selbst ist bereits geladen.
+      if (musicSearchQ) {
+        const q = musicSearchQ.toLowerCase();
+        data = { ...data, tracks: (data.tracks || []).filter(t => (t.title || "").toLowerCase().includes(q)) };
+      }
       renderBreadcrumb({});
       renderAlbumTracks(grid, data, state.musicListView);
       return;
     }
+    // Album-Übersicht (Library-Root): eine aktive Suche soll — analog zur
+    // Serien-Bündelung im normalen Grid — ganze ALBEN als Treffer zeigen,
+    // nicht einzelne Titel-Kacheln (User-Wunsch 2026-09-04: "so wie auch bei
+    // den Serien"). Dafür erst die matchenden Tracks holen (der Such-Endpoint
+    // durchsucht bereits Titel+Artist+Album), daraus die betroffenen Album-
+    // IDs sammeln und die volle Albumliste darauf filtern — so bleiben Cover/
+    // Trackzahl/Artist korrekt (nicht aus den gefilterten Tracks abgeleitet).
     let albums;
     try { albums = await api(`/api/libraries/${state.currentLibrary}/albums`); }
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
+    if (musicSearchQ) {
+      let matches;
+      try { matches = await api(`/api/items?libraryId=${state.currentLibrary}&search=${encodeURIComponent(musicSearchQ)}`); }
+      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      const matchedAlbumIds = new Set(matches.filter(it => it.musicAlbumId).map(it => it.musicAlbumId));
+      albums = albums.filter(a => matchedAlbumIds.has(a.id));
+      renderBreadcrumb({ searchCount: albums.length });
+      renderAlbumTiles(grid, albums, state.musicListView, true);
+      return;
+    }
     renderBreadcrumb({});
     renderAlbumTiles(grid, albums, state.musicListView);
     return;

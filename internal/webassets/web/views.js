@@ -683,12 +683,14 @@ async function renderSeasonEpisodes(grid, data, seasonNum) {
 // Navigation bleibt für Unterordner unverändert nutzbar (siehe grid.js: der
 // Musik-Zweig greift nur bei state.currentFolder === null).
 
-function renderAlbumTiles(grid, albums, listView) {
+function renderAlbumTiles(grid, albums, listView, searchActive) {
   grid.innerHTML = "";
   document.body.classList.remove("has-alpha-sidebar");
   const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
   if (!albums.length) {
-    grid.innerHTML = `<div class="empty">Keine Alben gefunden. Klicke „⟳ Scan" um die Bibliothek einzulesen.</div>`;
+    grid.innerHTML = searchActive
+      ? `<div class="empty">Keine Alben mit Treffern.</div>`
+      : `<div class="empty">Keine Alben gefunden. Klicke „⟳ Scan" um die Bibliothek einzulesen.</div>`;
     return;
   }
   if (listView) {
