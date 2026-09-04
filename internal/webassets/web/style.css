@@ -1413,6 +1413,12 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
 }
 .mini-player.hidden { display: none; }
+/* Sichtbarer Mini-Player verdeckte die letzte Kachel-Reihe/Bulk-Bar (User-
+   Bericht 2026-09-04: "Der Player verdeckt teilweise die Kacheln") — Body
+   bekommt Bodenabstand in der Höhe der Leiste, solange sie sichtbar ist
+   (gleiche Konvention wie --topbar-h/--lib-nav-h oben, nur fix statt
+   ResizeObserver-gemessen, da die Leiste eine konstante Höhe hat). */
+body.has-mini-player { padding-bottom: 68px; }
 /* Deutliches visuelles Signal während des Ladens (User-Bericht 2026-09-04:
    "Ich weiß immer nicht, ob er was abspielen wird") — Cover pulsiert leicht,
    bis vjs "playing" tatsächlich feuert (siehe music.js setMiniLoading). */

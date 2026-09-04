@@ -228,6 +228,23 @@ function randomParams() {
   return params;
 }
 
+// openShuffleItem: gemeinsamer Sprungpunkt für playRandom/shuffleNext/
+// shufflePrev — routet ein gezogenes Zufalls-Item an den richtigen Player.
+// Vorher rief die Zufallswiedergabe ausnahmslos openPlayer() (das große
+// Video-Fenster) auf, auch für Titel aus einer Musik-Bibliothek (User-Bericht
+// 2026-09-04: "Zufalls Play öffnet das große Playerfenster, statt den
+// Musikplayer"). musicPlayShuffleTrack() (music.js) lässt state.shuffleMode
+// dabei bewusst unangetastet, damit ⏮/⏭ am Mini-Player weiterhin durch die
+// Zufalls-History navigieren (siehe dortige musicNext/musicPrev).
+function openShuffleItem(item) {
+  const lib = state.libraries.find(l => l.id == item.libraryId);
+  if (lib && lib.kind === "music") {
+    musicPlayShuffleTrack(item);
+  } else {
+    openShuffleItem(item);
+  }
+}
+
 async function playRandom() {
   // Mindestens einer der Kontexte muss aktiv sein: Library, Playlist,
   // Person-Filter oder eine manuelle Ordner-Auswahl. Sonst gibt es nichts,
@@ -243,7 +260,7 @@ async function playRandom() {
     state.shuffleMode = true;
     state.shuffleHistory = [item];
     state.shuffleIdx = 0;
-    openPlayer(item, { fromShuffle: true });
+    openShuffleItem(item);
   } catch (e) {
     appAlert("Kein zufälliges Video gefunden: " + e.message);
   }
@@ -254,7 +271,7 @@ async function shuffleNext() {
   // Wenn wir in der History zurückgesprungen sind, vorwärts innerhalb der History
   if (state.shuffleIdx < state.shuffleHistory.length - 1) {
     state.shuffleIdx++;
-    openPlayer(state.shuffleHistory[state.shuffleIdx], { fromShuffle: true });
+    openShuffleItem(state.shuffleHistory[state.shuffleIdx]);
     return;
   }
   // Sonst: neues Zufalls-Item holen und anhängen
@@ -262,7 +279,7 @@ async function shuffleNext() {
     const item = await api(`/api/items/random?${randomParams()}`);
     state.shuffleHistory.push(item);
     state.shuffleIdx = state.shuffleHistory.length - 1;
-    openPlayer(item, { fromShuffle: true });
+    openShuffleItem(item);
   } catch (e) {
     appAlert("Kein weiteres Zufallsvideo: " + e.message);
   }
@@ -271,7 +288,7 @@ async function shuffleNext() {
 function shufflePrev() {
   if (!state.shuffleMode || state.shuffleIdx <= 0) return;
   state.shuffleIdx--;
-  openPlayer(state.shuffleHistory[state.shuffleIdx], { fromShuffle: true });
+  openShuffleItem(state.shuffleHistory[state.shuffleIdx]);
 }
 
 // --- Zufallswiedergabe: Ordner-Auswahl (shuffleScopeDialog) ---

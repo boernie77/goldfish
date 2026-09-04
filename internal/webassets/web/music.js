@@ -56,8 +56,28 @@ function musicDirectMimeType(container) {
 // musicPlayAlbum: startet Wiedergabe einer Track-Liste ab startIdx. Wird von
 // cards.js beim Klick auf eine Musik-Kachel aufgerufen (statt openDetail()).
 function musicPlayAlbum(tracks, startIdx) {
+  // Explizite Album-/Titel-Auswahl beendet einen laufenden Zufallsmodus
+  // (gleiche Konvention wie player.js openPlayer() ohne opts.fromShuffle) —
+  // sonst würde ⏮/⏭ danach still auf Zufalls-Navigation umschalten.
+  state.shuffleMode = false;
+  state.shuffleHistory = [];
+  state.shuffleIdx = -1;
   musicState.queue = Array.isArray(tracks) ? tracks : [];
   musicState.idx = startIdx || 0;
+  musicPlayCurrent();
+}
+
+// musicPlayShuffleTrack: von playRandom/shuffleNext/shufflePrev (playlists.js)
+// aufgerufen, wenn das gezogene Zufalls-Item aus einer Musik-Bibliothek
+// stammt (User-Bericht 2026-09-04: "Zufalls-Play öffnet das große
+// Playerfenster statt den Musikplayer" — bisher rief playRandom
+// ausnahmslos openPlayer() auf). Im Unterschied zu musicPlayAlbum wird
+// state.shuffleMode dabei NICHT zurückgesetzt — playlists.js hat es gerade
+// erst gesetzt, das ⏮/⏭ am Mini-Player soll während des Zufallsmodus
+// weiterhin shufflePrev()/shuffleNext() ansteuern (siehe musicNext/musicPrev).
+function musicPlayShuffleTrack(item) {
+  musicState.queue = [item];
+  musicState.idx = 0;
   musicPlayCurrent();
 }
 
@@ -71,11 +91,21 @@ async function musicPlayCurrent() {
   api(`/api/items/${t.id}/played`, { method: "POST" }).catch(() => {});
   const bar = $("#miniPlayer");
   bar.classList.remove("hidden");
+  document.body.classList.add("has-mini-player");
   $("#miniTitle").textContent = t.title || "";
   $("#miniArtist").textContent = t.artist || "";
   $("#miniCover").src = t.musicAlbumId ? `/api/poster/album/${t.musicAlbumId}` : "/placeholder.svg";
-  $("#miniPrev").disabled = musicState.idx <= 0;
-  $("#miniNext").disabled = musicState.idx >= musicState.queue.length - 1;
+  // Im Zufallsmodus (state.shuffleMode) besteht die "Queue" hier immer nur
+  // aus dem einen aktuell gezogenen Titel — Zurück/Weiter richten sich dann
+  // nach der Zufalls-History (state.shuffleHistory/-Idx), nicht nach
+  // musicState.queue.length (siehe musicNext/musicPrev).
+  if (state.shuffleMode) {
+    $("#miniPrev").disabled = state.shuffleIdx <= 0;
+    $("#miniNext").disabled = false;
+  } else {
+    $("#miniPrev").disabled = musicState.idx <= 0;
+    $("#miniNext").disabled = musicState.idx >= musicState.queue.length - 1;
+  }
   // Sofortiges Feedback statt eines stillen, unklaren Wartens (User-Bericht
   // 2026-09-04: "Ich weiß immer nicht, ob er was abspielen wird. Der hat
   // teilweise lange Verzögerungen.") — der Play/Pause-Button zeigt ab hier
@@ -170,6 +200,11 @@ function musicEnsureVjs() {
 }
 
 function musicNext() {
+  // Zufallsmodus: ⏭ am Mini-Player soll dasselbe tun wie der ⏭-Button des
+  // großen Players im Zufallsmodus — nächstes Zufalls-Item ziehen (oder in
+  // der bereits besuchten History vorwärtsblättern), nicht die (hier nur
+  // 1 Element lange) musicState.queue durchgehen.
+  if (state.shuffleMode) { shuffleNext(); return; }
   if (musicState.idx + 1 < musicState.queue.length) {
     musicState.idx++;
     musicPlayCurrent();
@@ -177,6 +212,7 @@ function musicNext() {
 }
 
 function musicPrev() {
+  if (state.shuffleMode) { shufflePrev(); return; }
   if (musicState.idx > 0) {
     musicState.idx--;
     musicPlayCurrent();
@@ -220,7 +256,11 @@ function musicCloseBar() {
   }
   musicState.queue = [];
   musicState.idx = -1;
+  state.shuffleMode = false;
+  state.shuffleHistory = [];
+  state.shuffleIdx = -1;
   $("#miniPlayer").classList.add("hidden");
+  document.body.classList.remove("has-mini-player");
 }
 
 // initMiniPlayer: einmalig aus boot() (app.js) aufgerufen.
