@@ -997,7 +997,18 @@ body.selection-mode .track-row-select { display: flex; }
   cursor: pointer;
   opacity: .5;
 }
-.track-row-fav.fav-toggle.is-on { opacity: 1; color: #ef4444; }
+/* .fav-toggle.is-on (generic, für die Kachel-Overlays) setzt zusätzlich
+   background/border-color für den "aktiv"-Zustand — dieselbe Vererbungsfalle
+   wie oben, nur erst beim Favorisieren sichtbar (roter Rechteck-Block statt
+   rotem Herz-Glyph, User-Bericht 2026-09-04, Screenshot: "Herz jetzt nicht
+   mehr normal rot, sondern plötzlich so viereckig"). Auch hier explizit
+   zurücksetzen, nicht nur Farbe/Opacity ergänzen. */
+.track-row-fav.fav-toggle.is-on {
+  opacity: 1;
+  color: #ef4444;
+  background: none;
+  border-color: transparent;
+}
 
 .card:hover {
   transform: translateY(-2px);

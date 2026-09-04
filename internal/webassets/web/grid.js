@@ -113,6 +113,16 @@ async function loadItemsBody() {
     $("#musicAllTracksBtn").classList.toggle("hidden", !musicEligible);
     $("#musicAllTracksBtn").classList.toggle("active", musicEligible && !!state.musicAllTracks);
     if (!musicEligible) state.musicAllTracks = false;
+    // "☑ Auswählen" in der Album-ÜBERSICHT ausblenden: dort sind es Alben,
+    // keine einzelnen Songs — Bulk-Auswahl/Playlist-Hinzufügen ergibt dort
+    // keinen Sinn (playlist_items sind pro Track). Bleibt sichtbar in "Alle
+    // Titel" (state.musicAllTracks) und innerhalb eines geöffneten Albums
+    // (state.currentAlbum), wo renderMusicTrackRow echte Tracks rendert
+    // (User-Bericht 2026-09-04: "Playlist fehlt immer noch" — er stand in
+    // der Album-Übersicht, wo es das absichtlich nicht gibt).
+    const albumRootOnly = musicEligible && !state.musicAllTracks && state.currentAlbum == null;
+    $("#selectModeBtn").classList.toggle("hidden", albumRootOnly);
+    if (albumRootOnly && state.selectionMode) setSelectionMode(false);
   }
 
   // Sort-/Filter-Felder auf die Bibliothek zuschneiden: Musik-Bibliotheken

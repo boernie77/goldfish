@@ -1153,6 +1153,26 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   musste `model.Item` um `LastPlayedAt` (aus `user_item_state.last_played_at`,
   bisher nur serverseitig für den `sort=played`-Filter genutzt, nie ins JSON
   exponiert) erweitert werden, `ListItems`-SELECT+Scan entsprechend ergänzt.
+- **🔴 Weitere UI-Bugs gefixt (2026-09-04, LIVE 1.0.64):**
+  `Store.ListMusicAlbumTracks` lud `favorite`/`last_played_at` nie (kein
+  `user_item_state`-JOIN) — ein in der Album-Ansicht favorisierter Track
+  sprang beim nächsten Album-Fetch (z.B. Sortierungswechsel) wieder auf
+  "nicht favorisiert" zurück, obwohl die DB korrekt war. "Nur Favoriten"
+  zeigte in der normalen Album-Übersicht immer die flache Track-Liste
+  (Item-Favorit) statt favorisierter ALBEN (`user_music_album_favorites`) —
+  Album-Favoriten waren über den Filter nie auffindbar; jetzt zeigt „Nur
+  Favoriten" im Album-Root gefilterte Album-Kacheln, nur bei explizit
+  aktiviertem „Alle Titel" weiterhin gefilterte Tracks.
+  `.track-row-fav.fav-toggle` erbte ungewollt `position:absolute` von der
+  generischen Kachel-Overlay-Klasse `.fav-toggle` (Herz "hing" losgelöst im
+  nächsten positionierten Vorfahren) — jetzt explizit auf normalen
+  Inline-Fluss zurückgesetzt. Fehlendes `min-width:0` auf
+  `.track-row-title`/`-artist`/`-album`/`-played` ließ lange Titel die
+  1fr-Spalte über die Zeilenbreite hinaus sprengen (Grid-Kinder haben
+  implizit `min-width:auto` = Inhaltsbreite bei `white-space:nowrap`).
+  Bulk-Auswahl (☑) hatte in der Listenansicht kein sichtbares
+  Checkbox-Element (`.track-row-select`, analog `.card-select`, gemeinsamer
+  `data-item-id`-Selektor in `toggleSelection`/`selectAllVisible`).
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
@@ -1729,6 +1749,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 ### Playlists (per User)
 - Jede Playlist gehört genau einem User; Items werden in `playlist_items` mit
   `position`-Reihenfolge gehalten.
+- **Strikt nach Video/Musik getrennt** (`playlists.kind`, seit 2026-09-04,
+  User-Wunsch: "gemeinsame Playlists gefällt mir eigentlich nicht"). Neue
+  Spalte `TEXT NOT NULL DEFAULT 'video'` — Migration setzt sie rückwirkend
+  auf `'video'` für ALLE bestehenden Zeilen (SQLite wendet den ALTER-Default
+  auch auf Bestandsdaten an, zutreffende Annahme da die Musik-Bibliothek erst
+  seit wenigen Tagen existiert). `Store.CreatePlaylist(userID, name, kind)`
+  verlangt `kind` explizit; `ListPlaylistsForUser(userID, isAdmin, kind)`
+  filtert optional danach (`kind=""` = keine Einschränkung, von der
+  Playlists-Root-Seite genutzt, die weiterhin ALLES zeigt). Der
+  „Zu Playlist hinzufügen"-Dialog (`playlists.js openAddToPlaylist`)
+  bestimmt `kind` aus der Bibliotheks-Art des Items
+  (`playlistKindForItem`) und fragt/erstellt nur noch passende Playlists —
+  ein Musiktitel kann so nicht mehr in eine Video-Playlist wandern und
+  umgekehrt. Playlist-Manager-Dialog hat eine Art-Auswahl beim Neuanlegen
+  (nur sichtbar wenn eine Musik-Bibliothek existiert), Playlist-Kacheln/
+  -Liste zeigen ein 🎵/🎬-Icon.
 - **Strikt user-isoliert, KEINE Admin-Ausnahme** (seit 2026-09-02 gefixt,
   Commit `3b2455b` — vorher echter Cross-User-Datenleck: Admin sah alle
   Playlists jedes Users). Anders als Library-ACL (wo „Admin sieht alles ohne
