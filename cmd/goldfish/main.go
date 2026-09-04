@@ -16,6 +16,7 @@ import (
 	"github.com/boernie77/goldfish/internal/api"
 	"github.com/boernie77/goldfish/internal/enrich"
 	"github.com/boernie77/goldfish/internal/introskip"
+	"github.com/boernie77/goldfish/internal/musicbrainz"
 	"github.com/boernie77/goldfish/internal/nameparser"
 	"github.com/boernie77/goldfish/internal/ocrsub"
 	"github.com/boernie77/goldfish/internal/omdb"
@@ -79,6 +80,13 @@ func main() {
 	defer workerCancel()
 	go enricher.Run(workerCtx)
 
+	// Musik-Enrichment (MusicBrainz + Cover Art Archive, NUR Fallback wenn der
+	// Scanner kein eingebettetes Cover extrahieren konnte — siehe
+	// scanner.extractAlbumCovers). Kein API-Key nötig, beide Dienste sind offen.
+	mbClient := musicbrainz.New("Goldfish-MediaServer/1.0 (self-hosted; https://github.com/boernie77/goldfish)")
+	musicWorker := enrich.NewMusicWorker(db, mbClient, filepath.Join(configDir, "posters"))
+	go musicWorker.Run(workerCtx)
+
 	// Trickplay-Worker (Sprite-Sheet + VTT für Hover-Preview)
 	trickplayWorker := trickplay.New(db, filepath.Join(configDir, "trickplay"))
 	if hw.VAAPIAvailable {
@@ -121,6 +129,7 @@ func main() {
 		trickplayWorker.Trigger()
 		introSkipWorker.EnqueueStaleFolders()
 		ocrSubWorker.EnqueueNewItems()
+		musicWorker.Trigger()
 	})
 
 	oidcCfg := api.OIDCConfig{
