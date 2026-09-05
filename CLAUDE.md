@@ -2731,6 +2731,21 @@ Splits, aber falls man weitere Aufteilung braucht):
   2. In Repo-Settings auf „Public" stellen
   3. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
 
+- [ ] **Manuelles "Ordner zusammenführen" für Serien (à la Jellyfin)**
+  — User-Wunsch 2026-09-05, explizit als nachzurüsten markiert ("will ich
+  noch nachrüsten"). Hintergrund: der Auto-Merge der Serien-Kacheln (siehe
+  „Serienübersicht — Auto-Merge doppelter Serien-Ordner" oben) löst nur den
+  Anzeige-Fall (zwei Ordner, gleiche TMDB-Show, einer davon quasi leer).
+  Bei einer unsauberen Bibliothek mit ECHTEM Episoden-Inhalt in beiden
+  Ordnern bräuchte es eine Funktion, mit der man gezielt auswählt, welche
+  Ordner zu welcher Serie zusammengehören, und die Dateien dann tatsächlich
+  physisch zusammenführt (Verschieben in einen Zielordner) — analog zu
+  Jellyfins manuellem Merge. Ausgangspunkt: bestehende Move/`rename_history`-
+  Infrastruktur (`internal/api/admin_rename.go`, `POST /api/items/move`)
+  ließe sich dafür wiederverwenden, statt komplett neu zu bauen. Noch nicht
+  begonnen — nur der Bedarf ist festgehalten. Details/Kontext:
+  Memory `project_feature_show_folder_merge.md`.
+
 ## Entwicklungsworkflow
 
 - **Keine lokale Go-Toolchain erforderlich** — Docker-Build via Portainer-API übernimmt
