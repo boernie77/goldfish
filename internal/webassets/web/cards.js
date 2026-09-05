@@ -519,12 +519,19 @@ function renderFolderCard(f) {
   const adminGear = state.me && state.me.isAdmin
     ? `<button class="folder-gear" title="Unterordner als Ebene anzeigen">⚙</button>`
     : "";
+  // Zeigt an, wenn diese Kachel mehrere physische Ordner zusammenfasst, die auf
+  // dieselbe TMDB-Show gematcht sind (Store.mergeFoldersBySameShow) — z. B. ein
+  // verwaister Ordner mit nur NFO/Poster neben dem echten Serienordner.
+  const mergedIcon = Array.isArray(f.mergedFolders) && f.mergedFolders.length
+    ? `<span class="folder-merged" title="Zusammengeführt mit: ${escapeHTML(f.mergedFolders.join(", "))}">🔗</span>`
+    : "";
 
   el.innerHTML = `
     <div class="thumb">
       ${imgTag}
       ${rating}
       ${drilldownIcon}
+      ${mergedIcon}
       ${adminGear}
       <span class="folder-count">${f.itemCount} Video${f.itemCount === 1 ? "" : "s"}</span>
     </div>

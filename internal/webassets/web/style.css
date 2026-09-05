@@ -784,6 +784,17 @@ button.primary:hover { background: var(--accent-hover); }
 }
 .card.folder .folder-gear:hover { background: var(--accent); }
 
+.card.folder .folder-merged {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+}
 .card.folder .drilldown-indicator {
   position: absolute;
   bottom: 6px;

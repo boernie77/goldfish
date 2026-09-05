@@ -1234,22 +1234,22 @@ type ItemFilter struct {
 	// Ergänzung zu DupesOnly für Bibliotheken ohne TMDB-Metadata (kind=private) —
 	// dort ist metadata_id meist NULL, sodass DupesOnly nie greift. Erkennt
 	// z.B. versehentlich zweimal heruntergeladene identische Videodateien.
-	FileDupesOnly   bool
-	MetadataID      int64    // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
-	PersonTMDB      int64    // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
-	PlaylistID      int64    // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
-	MusicAlbumID    int64    // 0 = aus; sonst nur Tracks dieses Albums (fuer Shuffle/Zufall innerhalb eines geoeffneten Albums)
+	FileDupesOnly bool
+	MetadataID    int64 // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
+	PersonTMDB    int64 // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
+	PlaylistID    int64 // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
+	MusicAlbumID  int64 // 0 = aus; sonst nur Tracks dieses Albums (fuer Shuffle/Zufall innerhalb eines geoeffneten Albums)
 	// ExcludeAudiobooks: Hörbücher (.m4b) aus dem Zufalls-Pool ausschließen
 	// (User-Wunsch 2026-09-04: "Bei Zufall Play dürfen Hörbücher nicht
 	// berücksichtigt werden") — Extension ist ein zuverlässigeres Signal als
 	// Genre-Tags (die bei Hörbüchern oft fehlen/uneinheitlich sind).
 	ExcludeAudiobooks bool
-	MinHeight       int      // 0 = aus; sonst nur Items mit height >= MinHeight
-	MaxHeight       int      // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
-	ResBuckets      []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
-	Interlaced      bool     // true = nur Items, deren Video-Stream field_order ∉ {progressive, unknown, ""}
-	TrickplayStatus string   // "" | "failed" | "pending" | "done" — Filter im Trickplay-Manager
-	UserID          int64    // 0 = ungesetzt (Worker-Kontext); sonst pro-User-Zustand laden
+	MinHeight         int      // 0 = aus; sonst nur Items mit height >= MinHeight
+	MaxHeight         int      // 0 = aus; sonst nur Items mit height <= MaxHeight (exakter Bucket über Min+Max)
+	ResBuckets        []string // Multi-Select-Auflösungs-Filter: 4k/2k/1080p/720p/576p/540p/480p/360p; mehrere → OR
+	Interlaced        bool     // true = nur Items, deren Video-Stream field_order ∉ {progressive, unknown, ""}
+	TrickplayStatus   string   // "" | "failed" | "pending" | "done" — Filter im Trickplay-Manager
+	UserID            int64    // 0 = ungesetzt (Worker-Kontext); sonst pro-User-Zustand laden
 	// IsAdmin: true = keine user_library_access-Einschränkung (Admins sehen alle Bibliotheken).
 	// Nur relevant wenn UserID > 0 — vom Aufrufer aus dem eingeloggten User zu setzen.
 	IsAdmin bool
@@ -1891,6 +1891,12 @@ type Folder struct {
 	// (grid.js `folderCollator`), die Apple-Apps nutzen das Feld seit 2026-09-03 clientseitig
 	// für den Sort-Modus `.added` (ItemGridView.swift in GoldfishApple).
 	AddedAt string `json:"addedAt,omitempty"`
+	// MergedFolders: weitere physische Ordner, die auf dieselbe TMDB-Show gematcht sind
+	// und deshalb hier zu EINER Kachel zusammengefasst wurden (siehe mergeFoldersBySameShow).
+	// Rein informativ fürs Frontend (Tooltip o.ä.) — Klick auf die Kachel navigiert weiterhin
+	// nur zu `Name` (dem Ordner mit den meisten Items), die hier gelisteten Ordner bleiben
+	// über die normale Ordner-Navigation trotzdem erreichbar.
+	MergedFolders []string `json:"mergedFolders,omitempty"`
 }
 
 // AllFolderPaths liefert ALLE Ordnerpfade einer Bibliothek (jede Ebene, nicht
@@ -2005,7 +2011,69 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 			}
 		}
 	}
-	return out, nil
+	return mergeFoldersBySameShow(out), nil
+}
+
+// mergeFoldersBySameShow fasst mehrere physische Ordner, die auf dieselbe TMDB-Show
+// gematcht sind (z. B. ein verwaister "Bosch"-Ordner nur mit NFO/Poster neben dem
+// echten "Bosch (2014)"-Ordner), zu EINER Kachel zusammen — User-Anfrage 2026-09-05:
+// "warum ist dann in der Serienübersicht 2x die Serie Bosch drinnen". Rein
+// anzeigeseitig (Kachel-Ebene), rührt keine Dateien/DB-Zeilen an. Repräsentant ist
+// der Ordner mit den meisten Items (bei Gleichstand der zuerst gefundene, `out` ist
+// bereits NATSORT-sortiert) — Klick auf die Kachel navigiert weiterhin nur zu diesem
+// EINEN Ordner. Löst NICHT den allgemeineren Fall zweier Ordner mit jeweils echtem,
+// unterschiedlichem Episoden-Inhalt (dafür bräuchte es echtes Multi-Folder-Browsing
+// in SeriesOwnedEpisodes/ListItems — bewusst nicht Teil dieser Änderung).
+func mergeFoldersBySameShow(folders []Folder) []Folder {
+	byMeta := map[int64][]int{}
+	for i, f := range folders {
+		if f.MetadataID > 0 {
+			byMeta[f.MetadataID] = append(byMeta[f.MetadataID], i)
+		}
+	}
+	winner := map[int64]int{}
+	skip := map[int]bool{}
+	for metaID, idxs := range byMeta {
+		if len(idxs) < 2 {
+			continue
+		}
+		best := idxs[0]
+		for _, i := range idxs[1:] {
+			if folders[i].ItemCount > folders[best].ItemCount {
+				best = i
+			}
+		}
+		winner[metaID] = best
+		for _, i := range idxs {
+			if i != best {
+				skip[i] = true
+			}
+		}
+	}
+	if len(skip) == 0 {
+		return folders
+	}
+	out := make([]Folder, 0, len(folders))
+	for i, f := range folders {
+		if skip[i] {
+			continue
+		}
+		if idxs := byMeta[f.MetadataID]; len(idxs) > 1 && winner[f.MetadataID] == i {
+			total := 0
+			for _, j := range idxs {
+				total += folders[j].ItemCount
+				if j != i {
+					f.MergedFolders = append(f.MergedFolders, folders[j].Name)
+				}
+				if folders[j].AddedAt > f.AddedAt {
+					f.AddedAt = folders[j].AddedAt
+				}
+			}
+			f.ItemCount = total
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // DistinctYears liefert alle Jahre (released_at / mod_time) als sortierte Liste, absteigend.

@@ -1504,6 +1504,52 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   mit mindestens zwei 'E' im Pfad und schreibt erkannte Ranges zurück.
   Setting-Flag verhindert Re-Run nach Restart.
 
+### Serienübersicht — Auto-Merge doppelter Serien-Ordner (seit 2026-09-05)
+- **User-Frage 2026-09-05:** „warum ist in der Serienübersicht 2x Bosch drin,
+  wenn Filme/Folgen doch auch gemergt werden?" — Ursache: die Serien-Kacheln
+  auf TV-Library-Root-Ebene werden von `Store.topLevelFolders`
+  (`internal/store/sqlite.go`) **rein nach dem literalen obersten
+  Ordnernamen-String** gruppiert (`SUBSTR(rel_path,...) GROUP BY folder`) —
+  komplett unabhängig von der TMDB-Zuordnung, die erst danach per
+  `folder_metadata`-JOIN nur fürs Anzeigen drangehängt wird. Zwei Ordner mit
+  unterschiedlichem Namen (z. B. ein verwaister `Bosch`-Ordner mit nur
+  NFO/Poster neben dem echten `Bosch (2014)`) landen deshalb NIE automatisch
+  in einer Kachel, selbst wenn beide korrekt auf dieselbe Show matchen — das
+  ist ein anderer Mechanismus als das `metadata_id`-basierte Datei-/
+  Episoden-Merge (`_variants`/`groupVariants`), das ohnehin nur INNERHALB
+  eines bereits geöffneten Ordners läuft, nie auf der Serienübersicht selbst.
+- **Fix — rein anzeigeseitig, rührt keine Dateien/DB-Zeilen an:**
+  `mergeFoldersBySameShow` (`internal/store/sqlite.go`, aufgerufen am Ende
+  von `topLevelFolders`) fasst mehrere Ordner mit identischer
+  `folder_metadata.metadata_id` zu EINER Kachel zusammen. Repräsentant =
+  der Ordner mit den meisten Items (Klick navigiert weiterhin nur zu diesem
+  EINEN physischen Ordner); `ItemCount` wird über alle gemergten Ordner
+  aufsummiert, `MergedFolders []string` listet die übrigen Ordnernamen
+  (rein informativ). Frontend: kleines 🔗-Icon oben links auf der Kachel
+  (`cards.js renderFolderCard`, `.folder-merged` in style.css, Tooltip zeigt
+  die zusammengeführten Ordnernamen). Test: `internal/store/folders_merge_test.go`.
+- **Löst NICHT den allgemeineren Fall**, dass zwei Ordner mit jeweils
+  ECHTEM, unterschiedlichem Episoden-Inhalt zur selben Show gehören (z. B.
+  wenn jemand die Staffeln einer Serie versehentlich auf zwei verschieden
+  benannte Ordner verteilt hat) — dafür bräuchte es echtes Multi-Folder-
+  Browsing quer durch `SeriesOwnedEpisodes`/`ListItems` (beide strikt
+  `folder string`-basiert, keine Listen), was eine deutlich größere,
+  bewusst zurückgestellte Änderung wäre.
+- **Bekannte Grenze bei unsauberen Bibliotheken:** die Serien-Zuordnung
+  selbst ist ordnergebunden, nicht dateibasiert — `matchItem`
+  (`internal/enrich/worker.go`) bestimmt die Show ausschließlich über
+  `GetFolderMetadataID(lib.ID, folder)`, der Dateiname liefert nur
+  Staffel/Episode-Nummer, nie die Show-Identität. Ist ein Ordner einmal auf
+  eine Show gematcht, wird das **bedingungslos** auf jede Datei im Ordner
+  angewendet, ohne Gegenprüfung des einzelnen Dateinamens. Ein Ordner mit
+  wild gemischten Folgen verschiedener Serien würde also ALLE davon
+  fälschlich der einen erkannten Show zuschlagen — kein Bug dieser Änderung,
+  sondern eine bestehende Design-Grenze, die dem User bei dieser Gelegenheit
+  erklärt wurde. Ein manuelles „zwei Ordner zusammenführen"-Feature (Dateien
+  physisch verschieben, à la Jellyfin) wäre die eigentliche Lösung dafür —
+  aktuell NICHT gebaut, siehe Move/`rename_history`-Infrastruktur weiter
+  unten als möglicher Ausgangspunkt, falls das mal gebraucht wird.
+
 ### Staffel-Ansicht für Serien
 - **Auflösungsfilter weicht auf die normale flache Ordner-Liste zurück**
   (seit 2026-09-02, `grid.js`, gleiches Muster wie der bestehende „Ohne
