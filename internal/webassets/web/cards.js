@@ -586,6 +586,12 @@ function renderCard(it, opts = {}) {
   // Poster bevorzugen, sonst Video-Thumbnail, sonst Placeholder
   let imgUrl;
   let title = it.title;
+  // rawTitle: die unveränderte Server-Vorgabe (Dateiname ohne Endung, siehe
+  // scanner.go) — dient unten als Erkennung, ob `title` NIRGENDS überschrieben
+  // wurde (kein TMDB-Match, kein SxxExx-geparster Show-Name, kein Custom-
+  // Match). Nur dann macht die zweite Zeile (card-filename) noch Sinn als
+  // "zusätzliche" Info; sonst würde sie denselben Text ein zweites Mal zeigen.
+  const rawTitle = it.title;
   let subtitle = "";
   let episodeCode = ""; // separat, damit wir fett+groß stylen können
   let episodeName = ""; // TMDB-Episodentitel (kommt als 2. Zeile)
@@ -649,7 +655,6 @@ function renderCard(it, opts = {}) {
   // card-filename-Zeile (CSS macht ihn dort etwas dicker). Per-Lib via
   // Library-Manager-Checkbox abschaltbar (channelLabelOnTop=false).
   const channelTop = itLib && itLib.kind === "private" && itLib.channelLabelOnTop !== false;
-  const isPrivateLib = itLib && itLib.kind === "private";
   if (channelTop && !isEpisode) {
     const rel = (it.relPath || "").split("/").filter(Boolean);
     if (rel.length > 1) {
@@ -707,6 +712,18 @@ function renderCard(it, opts = {}) {
   const selected = state.selection.has(it.id);
   if (selected) el.classList.add("selected");
   el.dataset.itemId = String(it.id);
+  // card-filename (unten in card-body): bei channelTop (Privat, YouTube-
+  // Style) immer der Titel (Ordnername steht schon oben). SONST: wenn
+  // title NIRGENDS überschrieben wurde (title === rawTitle — kein TMDB-
+  // Match, kein SxxExx-geparster Show-Name, kein Custom-Match), würde
+  // cardFileName(it) exakt denselben Text wie oben nochmal zeigen
+  // (User-Report 2026-09-05, ursprünglich nur für Privat-Libs gefixt, dann
+  // exakt dasselbe Muster bei unmatched TV-Items wie Tatort reported —
+  // jetzt generisch über title===rawTitle statt nur itLib.kind==="private").
+  // Dann stattdessen den Ordnerpfad zeigen, wenn vorhanden. Bei ECHT
+  // unterschiedlichem title (TMDB-Titel, Show-Name aus SxxExx-Parsing,
+  // Custom-Match) bleibt cardFileName(it) unten stehen — der Dateiname ist
+  // dort die zusätzliche Info.
   el.innerHTML = `
     <div class="card-select" data-select>${selected ? "✓" : ""}</div>
     <div class="thumb">
@@ -734,7 +751,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
-      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (isPrivateLib && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>
+      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (title === rawTitle && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
       ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch: ${(() => {
         const ownDir = (() => { const r = it.relPath || it.path || ""; const i = r.lastIndexOf("/"); return i > 0 ? r.slice(0, i) : ""; })();

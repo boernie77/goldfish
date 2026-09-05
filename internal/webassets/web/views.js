@@ -1253,6 +1253,8 @@ function renderBreadcrumb(opts) {
       played:   "🕘 Zuletzt abgespielt",
       added:    "🆕 Zuletzt hinzugefügt",
       duration: "⏱ Nach Laufzeit",
+      released: "📅 Nach Veröffentlichung",
+      filename: "🔤 Nach Dateiname",
     };
     const label = labels[opts.flatSortView] || "Sortiert";
     const lib = state.libraries.find(l => l.id == state.currentLibrary);

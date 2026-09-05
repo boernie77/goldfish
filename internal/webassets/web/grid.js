@@ -831,19 +831,27 @@ async function loadItemsBody() {
     return;
   }
 
-  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt", "Laufzeit"
-  // und "Veröffentlicht". Alle vier ignorieren die Ordner-STRUKTUR (keine
-  // Folder-Kacheln) und zeigen eine flache Liste. SCOPE: nur nach unten flach
-  // — im Library-Root die ganze Library, in einem Unterordner NUR dessen
-  // Inhalt (rekursiv), nicht library-weit hochziehen. Server sortiert (bei
-  // played zusätzlich Filter auf last_played_at IS NOT NULL) und filtert
-  // `folder` rekursiv via LIKE. "released" seit 2026-09-05 ergänzt
-  // (User-Wunsch: bei Serien ohne TMDB-Staffelstruktur, z.B. Tatort mit
-  // Kommissar-Unterordnern statt TMDB-Staffeln, soll "Veröffentlicht" alle
-  // Folgen auf der aktuellen Ordnerebene inkl. Unterordnern chronologisch
-  // zeigen — Backend unterstützte sort=released rekursiv bereits, nur hier
-  // im Set fehlte der Eintrag).
-  const FLAT_SORTS = new Set(["played", "added", "duration", "released"]);
+  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt", "Laufzeit",
+  // "Veröffentlicht" und "Dateiname". Alle ignorieren die Ordner-STRUKTUR
+  // (keine Folder-Kacheln) und zeigen eine flache Liste. SCOPE: nur nach
+  // unten flach — im Library-Root die ganze Library, in einem Unterordner
+  // NUR dessen Inhalt (rekursiv), nicht library-weit hochziehen. Server
+  // sortiert (bei played zusätzlich Filter auf last_played_at IS NOT NULL)
+  // und filtert `folder` rekursiv via LIKE. "released" seit 2026-09-05
+  // ergänzt (User-Wunsch: bei Serien ohne TMDB-Staffelstruktur, z.B. Tatort
+  // mit Kommissar-Unterordnern statt TMDB-Staffeln, soll "Veröffentlicht"
+  // alle Folgen auf der aktuellen Ordnerebene inkl. Unterordnern
+  // chronologisch zeigen). "filename" (Dateiname) ebenfalls seit 2026-09-05
+  // NEU als eigener Sort-Key ergänzt — BEWUSST NICHT einfach "title" (Name)
+  // in dieses Set aufgenommen: "title" ist der App-weite Default-Sort und
+  // würde dann JEDE Ordner-Kachel-Ansicht (Library-Root, Drilldown-Ordner)
+  // permanent flach schalten. "filename" ist ein eigener, explizit vom User
+  // gewählter Sort-Key (Backend sortiert dabei IMMER nach i.title/Dateiname,
+  // nie nach einem eventuellen TMDB-Titel), der genau dieses Flatten sicher
+  // nur bei aktiver Auswahl auslöst — nützlich für Serien wie Tatort, deren
+  // Dateinamen Jahr+Episodennummer tragen, aber nicht durchgängig pro Folge
+  // TMDB-gematcht sind.
+  const FLAT_SORTS = new Set(["played", "added", "duration", "released", "filename"]);
   const flatSort = $("#sortSelect").value;
   // Musik-Bibliotheken haben ihren EIGENEN Flat-Sort-Pfad weiter unten
   // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —

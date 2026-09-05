@@ -669,7 +669,7 @@ const PSEUDO_FILTER_MODES = new Set([
 // zu speichern. Im Root/Drilldown-Fall würde die gespeicherte flache Sortierung
 // die Ordner-Kacheln beim Wiederbetreten dauerhaft verstecken — das war der
 // ursprüngliche Grund, warum diese Sorts früher nie gespeichert wurden.
-const FLAT_LIBRARY_SORTS = new Set(["played", "added", "duration", "released"]);
+const FLAT_LIBRARY_SORTS = new Set(["played", "added", "duration", "released", "filename"]);
 
 function currentContextShowsFolderTiles() {
   return state.currentFolder === null || !!state.currentFolderDrilldown;
@@ -735,7 +735,7 @@ function restoreSortForContext() {
 function effectiveSortDir() {
   if (state.sortDir === "asc" || state.sortDir === "desc") return state.sortDir;
   const s = $("#sortSelect").value;
-  return s === "title" || s === "episode" ? "asc" : "desc";
+  return s === "title" || s === "episode" || s === "filename" ? "asc" : "desc";
 }
 
 function updateSortDirIcon() {

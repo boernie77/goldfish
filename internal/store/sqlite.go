@@ -1660,6 +1660,22 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		} else {
 			q += ` ORDER BY i.album COLLATE NATSORT, i.track_no`
 		}
+	case "filename":
+		// Sortiert IMMER nach dem physischen Dateinamen (i.title), nie nach
+		// einem eventuellen TMDB-Titel (m.title) — anders als der Default-Fall
+		// unten. User-Anfrage 2026-09-05: Serien wie "Tatort", deren Dateinamen
+		// Jahr+Episodennummer tragen (z.B. "Tatort - 1094 - ..."), aber deren
+		// einzelne Folgen oft NICHT TMDB-episode-gematcht sind, sollen sich
+		// zuverlässig chronologisch nach genau diesem Namensschema sortieren
+		// lassen — unabhängig davon, ob einzelne Dateien in derselben Liste
+		// zufällig doch einen TMDB-Titel bekommen haben (das würde bei
+		// "title"/Default sonst die Reihenfolge durchbrechen). NATSORT sortiert
+		// die eingebettete Nummer numerisch, nicht lexikografisch.
+		if desc {
+			q += ` ORDER BY i.title COLLATE NATSORT DESC`
+		} else {
+			q += ` ORDER BY i.title COLLATE NATSORT`
+		}
 	default:
 		// Wenn TMDB-Metadata existiert, nach dem angezeigten Titel sortieren,
 		// sonst nach items.title. Sonst kommen Dateinamen mit Release-Präfix

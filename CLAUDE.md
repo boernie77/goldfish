@@ -1330,6 +1330,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (älteste zuerst) — in `restoreSortForContext()` anhand `lib.kind === "private"`
   gesetzt. Manuell geänderter Sort wird weiterhin pro Lib+Ordner in
   `localStorage` unter `sort:lib:<libID>:<folder>` persistiert.
+- **Zweite Kachel-Zeile (`.card-filename`) zeigt nie denselben Text doppelt**
+  (seit 2026-09-05, `cards.js renderCard`): die Bedingung ist NICHT (mehr)
+  `itLib.kind === "private"`, sondern generisch `title === rawTitle` —
+  `rawTitle` ist die unveränderte Server-Vorgabe (Dateiname ohne Endung).
+  Immer wenn `title` NIRGENDS überschrieben wurde (kein TMDB-Match, kein
+  SxxExx-geparster Show-Name bei unmatched TV-Items, kein Custom-Match) und
+  ein Ordnerpfad existiert, zeigt die zweite Zeile den **Ordnerpfad** statt
+  den Dateinamen ein zweites Mal. Ursprünglich nur für Privat-Libs gefixt
+  (Commit `a3d9f44`), dann exakt dasselbe Muster bei unmatched TV-Episoden
+  gemeldet (z. B. Tatort-Folgen ohne SxxExx im Dateinamen) — daher generisch
+  gemacht statt library-kind-spezifisch. Root-Level-Dateien ohne Unterordner
+  bleiben eine bekannte Restlücke (kein Ordnerpfad zum Anzeigen vorhanden).
 - Breadcrumb-Navigation: Root zeigt Ordner-Kacheln + Root-Items,
   Klick auf Ordner zeigt alle Dateien **flach** (rekursiv, keine weitere Tiefe).
 - **Drilldown-Toggle:** Pro Ordner kann per Hover-⚙-Icon (Admin-only) eingestellt werden,
@@ -1955,13 +1967,41 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   rekursiv, sonst library-weit (`folder`-Param an `/api/items`, Server
   kombiniert `favorite=yes` + `folder` bereits per AND).
 - **Flache library-weite Sort-Modi** „Zuletzt abgespielt" (`played`), „Zuletzt
-  hinzugefügt" (`added`) und „Laufzeit" (`duration`) zeigen die Top-N Videos der
-  GANZEN Library, ignorieren die Ordner-/Staffel-Struktur (keine Folders). Ein
-  gemeinsamer Branch in `grid.js` (`FLAT_SORTS`) holt sie flach, Breadcrumb via
-  `renderBreadcrumb({flatSortView:<mode>})`. Server-seitig filtert ListItems bei
-  `Sort=="played"` zusätzlich `AND us.last_played_at IS NOT NULL`. (App-Pendant:
-  `isFlatSortMode()` in LibraryViewModel.)
-  **Persistenz (seit 2026-07-11):** Diese 3 Sorts werden pro Library/Folder
+  hinzugefügt" (`added`), „Laufzeit" (`duration`), „Veröffentlicht" (`released`,
+  seit 2026-09-05) und „Dateiname" (`filename`, seit 2026-09-05) zeigen die
+  Top-N Videos der GANZEN Library, ignorieren die Ordner-/Staffel-Struktur
+  (keine Folders). Ein gemeinsamer Branch in `grid.js` (`FLAT_SORTS`) holt sie
+  flach, Breadcrumb via `renderBreadcrumb({flatSortView:<mode>})`. Server-seitig
+  filtert ListItems bei `Sort=="played"` zusätzlich `AND us.last_played_at IS
+  NOT NULL`. (App-Pendant: `isFlatSortMode()` in LibraryViewModel.)
+  **„Dateiname" (`filename`) ist bewusst ein EIGENER Sort-Key, nicht einfach
+  `title` (Name) mit ins `FLAT_SORTS`-Set aufgenommen:** `title` ist der
+  App-weite Default-Sort — hätte er dieselbe Zwangs-Flach-Behandlung wie die
+  anderen FLAT_SORTS, würde JEDE Ordner-Kachel-Ansicht (Library-Root,
+  Drilldown-Ordner) permanent flach geschaltet, sobald irgendwo Default-Sort
+  aktiv ist. `filename` sortiert IMMER nach dem physischen Dateinamen
+  (`i.title COLLATE NATSORT`), NIE nach einem eventuellen TMDB-Titel (anders
+  als `title`, das `m.title` bevorzugt) — User-Anfrage 2026-09-05: Serien wie
+  Tatort, deren Dateinamen Jahr+Episodennummer tragen, deren einzelne Folgen
+  aber oft nicht individuell TMDB-episode-gematcht sind, sollen sich
+  zuverlässig nach genau diesem Namensschema sortieren lassen, unabhängig
+  davon ob einzelne Dateien in derselben Liste zufällig doch einen TMDB-Titel
+  haben (das würde bei `title` sonst die Reihenfolge durchbrechen). Generisch
+  nutzbar für jede Bibliothek mit chronologisch/nummeriert benannten Dateien,
+  nicht Tatort-spezifisch. `effectiveSortDir()` (app.js) behandelt `filename`
+  wie `title`/`episode`: Default aufsteigend.
+  **„Veröffentlicht" (`released`) — Datumsquelle, wichtig bei unmatched
+  Items:** Fallback-Kette `m.release_date → m.year → i.released_at →
+  i.mod_time` (siehe „Playback"/Sort-Switch in `internal/store/sqlite.go`).
+  Für Episoden OHNE TMDB-Match kommt `i.released_at` ausschließlich aus
+  ffprobe-Tags (`creation_time`, yt-dlp `DATE`-Tag) — der Scanner extrahiert
+  **kein Datum aus dem Dateinamen selbst**. Fehlen diese Tags, sortiert
+  `released` nach `mod_time` (Datei-Kopierdatum auf der Platte), NICHT nach
+  echtem Sendedatum — bei Tatort-Rips ohne eingebettete Tags ist das der
+  Datei-Downloaddatum, keine Chronologie der Ausstrahlung. In diesem Fall ist
+  `filename` (sofern der Dateiname das Jahr/die Episodennummer trägt) die
+  zuverlässigere Sortierung.
+  **Persistenz (seit 2026-07-11):** Diese Sorts werden pro Library/Folder
   gespeichert (`FLAT_LIBRARY_SORTS` in app.js), aber NUR in einem Kontext, der
   ohnehin nie Unterordner-Kacheln zeigt — `currentContextShowsFolderTiles()`
   prüft `state.currentFolder === null` (Library-Root) oder
