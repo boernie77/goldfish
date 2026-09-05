@@ -1679,6 +1679,26 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   einen eigenen Endpoint für Einzel-Items erreichbar). Button sichtbar wenn
   `item.metadataId` gesetzt ist (nichts zu entfernen sonst), mit
   `appConfirm`-Bestätigung davor.
+- **🚫 Zuordnung entfernen für ganze Serien-Ordner** (Staffel-Ansicht-Header,
+  seit 2026-09-05, admin-only, neben „↻ TMDB neu laden"/„⚠ Episoden neu
+  zuordnen"): dieselbe Lücke wie oben, nur auf Ordner-Ebene — „Serie
+  zuordnen…" konnte bis dahin nur ERSETZEN, nie auf „keine Zuordnung"
+  zurücksetzen (User-Fall: „Terra X" war fälschlich auf die TMDB-Show
+  „Terra Xpress" gematcht — Wortüberlappung „Terra" reichte dem
+  Auto-Matcher, „⚠ Verdächtige Zuordnungen" übersieht das ebenfalls, weil
+  dort Token-Overlap > 0 zählt). `DELETE /api/libraries/{id}/folders/metadata`
+  (`unmatchFolderMetadata` in `internal/api/tmdb.go`) setzt
+  `folder_metadata.metadata_id` auf NULL (`Store.SetFolderMetadata(...,  0)`)
+  und unmatched alle Episoden-Items des Ordners (`UnmatchAllEpisodesInFolder`,
+  dieselbe Funktion, die auch „⚠ Episoden neu zuordnen" nutzt). **Löst
+  BEWUSST KEIN Re-Match aus** (anders als `setFolderMetadata` beim Setzen
+  einer neuen Zuordnung) — sonst würde der Auto-Matcher beim nächsten Lauf
+  denselben Ordnernamen erneut gegen TMDB suchen und mit hoher
+  Wahrscheinlichkeit wieder beim selben Fehltreffer landen. Der Ordner
+  bleibt unmatched, bis ein Admin ihn manuell korrekt zuordnet. Direkt nach
+  dem Entfernen zeigt `loadItems()` automatisch die normale Ordneransicht
+  (greift der Staffel-Ansicht-Fallback bei leeren Seasons, siehe
+  „Serienübersicht — Auto-Merge doppelter Serien-Ordner" oben).
 
 ### NFO-Sidecars (Plex/Jellyfin-Kompatibilität)
 - Kodi-kompatibles XML-Format in `<Dateiname>.nfo` neben der Videodatei,

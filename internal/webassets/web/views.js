@@ -499,6 +499,7 @@ function renderShowHeader(show, counts) {
       <div class="show-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" data-refresh-tmdb title="Lädt Show- und Staffel-Daten frisch von TMDB (Cache umgehen)">↻ TMDB neu laden</button>
         <button type="button" data-reenrich-episodes title="Setzt ALLE Episoden-Zuordnungen dieses Ordners zurück und matcht neu (hilft bei Off-by-One-Fehlern)" style="background:#b45309;">⚠ Episoden neu zuordnen</button>
+        <button type="button" data-unmatch-folder title="Entfernt die Serien-Zuordnung komplett (kein automatisches Neu-Matchen — sonst würde ein Fehltreffer wie 'Terra Xpress' sofort wiederkehren). Danach normale Ordneransicht statt Staffel-Ansicht." style="background:#7f1d1d;">🚫 Zuordnung entfernen</button>
       </div>
       ${castHtml}
     </div>
@@ -573,6 +574,41 @@ function renderShowHeader(show, counts) {
         appAlert("Re-Match fehlgeschlagen: " + err.message);
         reenrichBtn.disabled = false;
         reenrichBtn.textContent = "⚠ Episoden neu zuordnen";
+      }
+    });
+  }
+  // "🚫 Zuordnung entfernen": setzt folder_metadata auf NULL + unmatched alle
+  // Episoden dieses Ordners — Pendant zum Film/Episoden-"🚫 Zuordnung
+  // entfernen" (setItemMetadata mit 0), das es für ganze Serien-Ordner bisher
+  // nicht gab (User-Anfrage 2026-09-05, Terra-X-Fall: Ordner war fälschlich
+  // auf "Terra Xpress" gematcht, "Serie zuordnen…" kann nur ERSETZEN, nie auf
+  // "keine" zurück). Löst bewusst KEIN Re-Match aus — danach zeigt loadItems()
+  // automatisch die normale Ordneransicht (Staffel-Ansicht-Fallback bei leeren
+  // Seasons, siehe grid.js).
+  const unmatchFolderBtn = el.querySelector("[data-unmatch-folder]");
+  if (unmatchFolderBtn) {
+    unmatchFolderBtn.addEventListener("click", async () => {
+      const ok = await appConfirm(
+        `Serien-Zuordnung für „${show.title || state.currentFolder}" komplett entfernen?\n\n` +
+        "Alle Episoden dieses Ordners werden ebenfalls unmatched. Es wird NICHT automatisch neu " +
+        "gematcht — der Ordner bleibt zugeordnungslos, bis du ihn manuell über „Serie zuordnen…" +
+        "\" neu zuordnest.",
+        { danger: true, okLabel: "Ja, entfernen" }
+      );
+      if (!ok) return;
+      unmatchFolderBtn.disabled = true;
+      unmatchFolderBtn.textContent = "Entferne…";
+      try {
+        await api(`/api/libraries/${state.currentLibrary}/folders/metadata`, {
+          method: "DELETE",
+          body: JSON.stringify({ folder: state.currentFolder }),
+        });
+        showToast("Serien-Zuordnung entfernt", { kind: "success" });
+        loadItems();
+      } catch (err) {
+        appAlert("Entfernen fehlgeschlagen: " + err.message);
+        unmatchFolderBtn.disabled = false;
+        unmatchFolderBtn.textContent = "🚫 Zuordnung entfernen";
       }
     });
   }

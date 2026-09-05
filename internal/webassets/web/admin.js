@@ -1001,6 +1001,7 @@ const ACTIVITY_LOG_LABELS = {
   item_delete: "Datei gelöscht", item_rename: "Datei umbenannt", item_rename_bulk: "Bulk-Umbenennung",
   item_move: "Datei verschoben", item_move_bulk: "Bulk-Verschiebung",
   metadata_confirm: "Zuordnung bestätigt/gelöst", metadata_manual_match: "Manuelle Zuordnung",
+  metadata_unmatch: "Zuordnung entfernt",
   scan_run: "Scan gestartet",
   trickplay_retry_failed: "Trickplay: Fehler erneut versucht", trickplay_delete_all: "Trickplay: alles gelöscht",
   ocr_run_all: "OCR: alle erzeugen", ocr_retry_failed: "OCR: Fehler erneut versucht",

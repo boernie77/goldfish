@@ -461,6 +461,52 @@ func (s *Server) setFolderMetadata(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// unmatchFolderMetadata entfernt die Serien-Zuordnung eines Ordners komplett
+// (setzt folder_metadata.metadata_id auf NULL) — das Pendant zum "🚫
+// Zuordnung entfernen"-Button bei einzelnen Filmen/Episoden (SetItemMetadata
+// mit 0), das es für ganze Serien-Ordner bisher NICHT gab. User-Anfrage
+// 2026-09-05 (Terra-X-Fall: Ordner war fälschlich auf "Terra Xpress"
+// gematcht, "Serie zuordnen…" kann nur ERSETZEN, nie auf "keine" zurück).
+// Body: {"folder":"Terra X"}
+//
+// Löst BEWUSST NICHT automatisch neu — anders als setFolderMetadata ruft
+// dieser Handler NICHT EnrichFolderNow() auf. Würde er das tun, würde der
+// Auto-Matcher beim nächsten Lauf denselben (falschen) Ordnernamen erneut
+// gegen TMDB suchen und mit ziemlicher Sicherheit wieder beim selben
+// Fehltreffer landen — der Ordner soll stattdessen unmatched bleiben, bis
+// ein Admin ihn manuell über "Serie zuordnen…" korrekt zuordnet oder ihn
+// dauerhaft ohne TMDB-Anreicherung lässt.
+func (s *Server) unmatchFolderMetadata(w http.ResponseWriter, r *http.Request) {
+	libID, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	if !s.requireLibAccess(w, r, libID) {
+		return
+	}
+	var body struct {
+		Folder string `json:"folder"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Folder == "" {
+		writeError(w, 400, "folder nötig")
+		return
+	}
+	if err := s.Store.SetFolderMetadata(libID, body.Folder, 0); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	n, err := s.Store.UnmatchAllEpisodesInFolder(libID, body.Folder)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_unmatch", fmt.Sprintf("Ordner %q: Serien-Zuordnung entfernt (%d Episoden zurückgesetzt)", body.Folder, n))
+	}
+	writeJSON(w, 200, map[string]any{"unmatched": n})
+}
+
 // validAgeRating enthält die erlaubten FSK-Werte. Leerer String = nicht gesetzt.
 var validAgeRating = map[string]bool{"": true, "0": true, "6": true, "12": true, "16": true, "18": true}
 
