@@ -1109,6 +1109,10 @@ async function loadSettings() {
     const asTasks = await api("/api/settings/autoscan");
     if (typeof updateAutoScanMenuSub === "function") updateAutoScanMenuSub(asTasks);
   } catch {}
+  try {
+    const abCfg = await api("/api/admin/auto-backup/settings");
+    if (typeof updateAutoBackupMenuSub === "function") updateAutoBackupMenuSub(abCfg);
+  } catch {}
 }
 
 function wire() {
@@ -1315,6 +1319,7 @@ function wire() {
       case "refreshallmeta": runRefreshAllMetadata(); break;
       case "renames": openRenamesManager(); break;
       case "autoscan": openAutoScan(); break;
+      case "autobackup": openAutoBackup(); break;
       case "statistik": openStatistikDialog(); break;
       case "activitylog": openActivityLogDialog(); break;
       case "backup": $("#backupDialog").showModal(); break;

@@ -33,6 +33,7 @@ function renderUserMenu() {
   // Admin-Menüeinträge nur für Admins sichtbar
   $("#settingsMenuUsers").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuAutoScan").classList.toggle("hidden", !state.me.isAdmin);
+  { const el = $("#settingsMenuAutoBackup"); if (el) el.classList.toggle("hidden", !state.me.isAdmin); }
   $("#settingsMenuTrickplay").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuWhisper").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuIntroSkip").classList.toggle("hidden", !state.me.isAdmin);
@@ -1006,6 +1007,8 @@ const ACTIVITY_LOG_LABELS = {
   ocr_folder_toggle: "OCR: Ordner umgeschaltet", ocr_enabled_toggle: "OCR: global umgeschaltet",
   introskip_folder_toggle: "Intro-Erkennung: Serie umgeschaltet",
   backup_download: "Backup heruntergeladen", backup_restore: "Backup wiederhergestellt",
+  backup_auto: "Automatisches Backup", backup_delete: "Backup gelöscht",
+  auto_backup_settings: "Automatisches Backup: Einstellungen geändert",
 };
 
 async function openActivityLogDialog() {
@@ -1355,5 +1358,153 @@ function updateAutoScanMenuSub(tasks) {
   if (!el) return;
   const active = Array.isArray(tasks) ? tasks.filter(t => t.enabled).length : 0;
   el.textContent = active > 0 ? `✓ ${active} aktive Aufgabe${active === 1 ? "" : "n"}` : "Zeitgesteuerte Bibliotheks-Scans";
+}
+
+// --- Automatisches Backup (eine Aufgabe, Zeitplan + Retention) ---
+// Wiederverwendet dasselbe Zeitplan-Format wie Auto-Scan
+// (daily:HH:MM | every:Nh | weekly:DOW:HH:MM), aber nur EIN Schedule statt
+// eines Arrays — für "die ganze DB sichern" reicht ein Zeitplan.
+
+let autoBackupCfg = { enabled: false, schedule: "daily:4:30", retention: 7 };
+
+async function openAutoBackup() {
+  const dlg = $("#autoBackupDialog");
+  try {
+    autoBackupCfg = await api("/api/admin/auto-backup/settings");
+  } catch { /* Default bleibt */ }
+  $("#autoBackupEnabled").checked = !!autoBackupCfg.enabled;
+  $("#autoBackupRetention").value = autoBackupCfg.retention || 7;
+  autoBackupRenderSchedule();
+  await autoBackupRefreshList();
+  if (!dlg.dataset.wired) {
+    dlg.dataset.wired = "1";
+    $("#autoBackupSaveBtn").addEventListener("click", saveAutoBackup);
+    $("#autoBackupEnabled").addEventListener("change", (e) => { autoBackupCfg.enabled = e.target.checked; });
+  }
+  dlg.showModal();
+}
+
+// autoBackupRenderSchedule baut dieselbe Art Zeitplan-Picker wie
+// autoScanModeSelect, aber gegen das einzelne autoBackupCfg-Objekt statt
+// gegen ein Array-Element.
+function autoBackupRenderSchedule() {
+  const row = $("#autoBackupScheduleRow");
+  row.innerHTML = "";
+
+  const modeSel = document.createElement("select");
+  modeSel.style.cssText = "padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.85em";
+  [["daily","Täglich"],["every","Alle X Stunden"],["weekly","Wöchentlich"]].forEach(([v,l]) => {
+    const o = document.createElement("option"); o.value = v; o.textContent = l; modeSel.appendChild(o);
+  });
+  const parts = (autoBackupCfg.schedule || "daily:4:30").split(":");
+  modeSel.value = parts[0] || "daily";
+
+  const timeRow = document.createElement("div");
+  timeRow.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+
+  const rebuild = (mode) => {
+    timeRow.innerHTML = "";
+    if (mode === "daily") {
+      const p = autoBackupCfg.schedule.startsWith("daily:") ? autoBackupCfg.schedule.split(":") : ["daily","4","30"];
+      const inp = document.createElement("input"); inp.type = "time";
+      inp.value = `${(p[1]||"4").padStart(2,"0")}:${(p[2]||"30").padStart(2,"0")}`;
+      inp.style.cssText = "padding:4px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.85em";
+      inp.addEventListener("change", () => {
+        const t = inp.value.split(":");
+        autoBackupCfg.schedule = `daily:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+      });
+      timeRow.appendChild(inp);
+    } else if (mode === "every") {
+      const hSel = document.createElement("select");
+      hSel.style.cssText = modeSel.style.cssText;
+      [[1,"1 Stunde"],[2,"2 Stunden"],[3,"3 Stunden"],[4,"4 Stunden"],[6,"6 Stunden"],[8,"8 Stunden"],[12,"12 Stunden"]].forEach(([v,l]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = l; hSel.appendChild(o);
+      });
+      const cur = autoBackupCfg.schedule.startsWith("every:") ? parseInt(autoBackupCfg.schedule.split(":")[1]) : 6;
+      hSel.value = cur;
+      hSel.addEventListener("change", () => { autoBackupCfg.schedule = `every:${hSel.value}h`; });
+      timeRow.appendChild(hSel);
+    } else if (mode === "weekly") {
+      const dowSel = document.createElement("select");
+      dowSel.style.cssText = modeSel.style.cssText;
+      [["mon","Mo"],["tue","Di"],["wed","Mi"],["thu","Do"],["fri","Fr"],["sat","Sa"],["sun","So"]].forEach(([v,l]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = l; dowSel.appendChild(o);
+      });
+      const wp = autoBackupCfg.schedule.startsWith("weekly:") ? autoBackupCfg.schedule.split(":") : ["weekly","sun","4","30"];
+      dowSel.value = wp[1] || "sun";
+      const inp = document.createElement("input"); inp.type = "time";
+      inp.value = `${(wp[2]||"4").padStart(2,"0")}:${(wp[3]||"30").padStart(2,"0")}`;
+      inp.style.cssText = modeSel.style.cssText.replace("select","input");
+      const sync = () => {
+        const t = inp.value.split(":");
+        autoBackupCfg.schedule = `weekly:${dowSel.value}:${parseInt(t[0],10)}:${parseInt(t[1],10)}`;
+      };
+      dowSel.addEventListener("change", sync); inp.addEventListener("change", sync);
+      timeRow.append(dowSel, inp);
+    }
+  };
+
+  modeSel.addEventListener("change", () => { rebuild(modeSel.value); });
+  rebuild(modeSel.value);
+  row.append(modeSel, timeRow);
+}
+
+async function saveAutoBackup() {
+  autoBackupCfg.retention = parseInt($("#autoBackupRetention").value, 10) || 7;
+  autoBackupCfg.enabled = $("#autoBackupEnabled").checked;
+  try {
+    autoBackupCfg = await api("/api/admin/auto-backup/settings", { method: "PUT", body: JSON.stringify(autoBackupCfg) });
+    updateAutoBackupMenuSub(autoBackupCfg);
+    showToast("Automatisches Backup gespeichert ✓", { kind: "success" });
+  } catch (e) {
+    appAlert("Fehler beim Speichern: " + e.message);
+  }
+}
+
+async function autoBackupRefreshList() {
+  const box = $("#autoBackupList");
+  box.innerHTML = "Lädt…";
+  let files = [];
+  try { files = await api("/api/admin/auto-backup/list"); } catch { files = []; }
+  if (!files.length) {
+    box.innerHTML = `<div class="hint">Noch keine automatischen Sicherungen vorhanden.</div>`;
+    return;
+  }
+  box.innerHTML = "";
+  for (const f of files) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:8px;font-size:.85em;padding:4px 0;border-bottom:1px solid var(--border)";
+    const dt = new Date(f.modTime);
+    row.innerHTML = `
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHTML(f.name)}">${dt.toLocaleString("de-DE")}</span>
+      <span style="color:var(--muted)">${fmtSize(f.sizeBytes)}</span>
+    `;
+    const dl = document.createElement("button");
+    dl.textContent = "⬇";
+    dl.title = "Herunterladen";
+    dl.style.cssText = "padding:2px 8px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer";
+    dl.addEventListener("click", () => { window.location.href = `/api/admin/auto-backup/download/${encodeURIComponent(f.name)}`; });
+    const del = document.createElement("button");
+    del.textContent = "🗑";
+    del.title = "Löschen";
+    del.style.cssText = dl.style.cssText;
+    del.addEventListener("click", async () => {
+      if (!(await appConfirm(`Automatisches Backup "${f.name}" wirklich löschen?`, { danger: true }))) return;
+      try {
+        await api(`/api/admin/auto-backup/${encodeURIComponent(f.name)}`, { method: "DELETE" });
+        await autoBackupRefreshList();
+      } catch (e) { appAlert("Löschen fehlgeschlagen: " + e.message); }
+    });
+    row.append(dl, del);
+    box.appendChild(row);
+  }
+}
+
+function updateAutoBackupMenuSub(cfg) {
+  const el = $("#autoBackupMenuSub");
+  if (!el) return;
+  el.textContent = cfg && cfg.enabled
+    ? `✓ ${autoScanScheduleLabel(cfg.schedule)}`
+    : "Zeitgesteuerte Datenbank-Sicherung";
 }
 

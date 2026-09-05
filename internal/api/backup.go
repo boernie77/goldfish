@@ -1,12 +1,16 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/boernie77/goldfish/internal/store"
 )
@@ -98,4 +102,102 @@ func (s *Server) uploadRestore(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(300 * time.Millisecond)
 		os.Exit(0)
 	}()
+}
+
+// --- Automatisches Backup (Zeitplan + Retention, siehe autobackup.go) ---
+
+// getAutoBackupSettings: GET /api/admin/auto-backup/settings
+func (s *Server) getAutoBackupSettings(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, loadAutoBackupSettings(s.Store))
+}
+
+// putAutoBackupSettings: PUT /api/admin/auto-backup/settings
+func (s *Server) putAutoBackupSettings(w http.ResponseWriter, r *http.Request) {
+	var cfg AutoBackupSettings
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		writeError(w, 400, "ungültiger Body: "+err.Error())
+		return
+	}
+	if cfg.Enabled && !validSchedule(cfg.Schedule) {
+		writeError(w, 400, "ungültiges Schedule-Format (daily:HH:MM | every:Nh | weekly:DOW:HH:MM)")
+		return
+	}
+	if err := saveAutoBackupSettings(s.Store, cfg); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	saved := loadAutoBackupSettings(s.Store)
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "auto_backup_settings",
+			fmt.Sprintf("aktiv: %v, Zeitplan: %s, Aufbewahrung: %d", saved.Enabled, saved.Schedule, saved.Retention))
+	}
+	writeJSON(w, 200, saved)
+}
+
+// autoBackupFileInfo — eine Zeile in der Liste im Backup-Dialog.
+type autoBackupFileInfo struct {
+	Name    string `json:"name"`
+	SizeB   int64  `json:"sizeBytes"`
+	ModTime string `json:"modTime"`
+}
+
+// listAutoBackups: GET /api/admin/auto-backup/list — neueste zuerst.
+func (s *Server) listAutoBackups(w http.ResponseWriter, _ *http.Request) {
+	entries, err := os.ReadDir(s.autoBackupDir())
+	if err != nil {
+		writeJSON(w, 200, []autoBackupFileInfo{}) // Ordner existiert ggf. noch nicht — kein Fehler
+		return
+	}
+	out := make([]autoBackupFileInfo, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !isValidAutoBackupFilename(e.Name()) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		out = append(out, autoBackupFileInfo{Name: e.Name(), SizeB: info.Size(), ModTime: info.ModTime().Format(time.RFC3339)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name > out[j].Name })
+	writeJSON(w, 200, out)
+}
+
+// downloadAutoBackupFile: GET /api/admin/auto-backup/download/{name}
+func (s *Server) downloadAutoBackupFile(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !isValidAutoBackupFilename(name) {
+		writeError(w, 400, "ungültiger Dateiname")
+		return
+	}
+	path := filepath.Join(s.autoBackupDir(), name)
+	if _, err := os.Stat(path); err != nil {
+		writeError(w, 404, "Backup nicht gefunden")
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	w.Header().Set("Content-Type", "application/octet-stream")
+	http.ServeFile(w, r, path)
+
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_download", "automatisches Backup heruntergeladen: "+name)
+	}
+}
+
+// deleteAutoBackupFile: DELETE /api/admin/auto-backup/{name}
+func (s *Server) deleteAutoBackupFile(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !isValidAutoBackupFilename(name) {
+		writeError(w, 400, "ungültiger Dateiname")
+		return
+	}
+	path := filepath.Join(s.autoBackupDir(), name)
+	if err := os.Remove(path); err != nil {
+		writeError(w, 404, "Backup nicht gefunden oder konnte nicht gelöscht werden")
+		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_delete", "automatisches Backup gelöscht: "+name)
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }

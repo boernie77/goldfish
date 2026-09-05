@@ -219,6 +219,13 @@
         <span class="drawer-item-sub" id="autoScanMenuSub">Zeitgesteuerte Bibliotheks-Scans</span>
       </span>
     </button>
+    <button class="drawer-item" data-action="autobackup" id="settingsMenuAutoBackup">
+      <span class="drawer-icon">🗄</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Automatisches Backup</span>
+        <span class="drawer-item-sub" id="autoBackupMenuSub">Zeitgesteuerte Datenbank-Sicherung</span>
+      </span>
+    </button>
   </div>
 
   <div class="drawer-section drawer-admin">
@@ -1134,6 +1141,27 @@
     <button id="autoScanSaveBtn" class="btn-primary">Speichern</button>
     <button onclick="this.closest('dialog').close()">Abbrechen</button>
   </div>
+</dialog>
+
+<dialog id="autoBackupDialog" class="modal" style="max-width:560px">
+  <h3>🗄 Automatisches Backup</h3>
+  <p style="margin:0 0 12px;color:var(--muted)">Sichert die komplette Datenbank zeitgesteuert (gleicher Inhalt wie der manuelle Download im „💾 Backup"-Dialog). Ältere Sicherungen werden automatisch entfernt, sobald mehr als die eingestellte Anzahl vorhanden ist.</p>
+  <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <input type="checkbox" id="autoBackupEnabled" />
+    Aktiv
+  </label>
+  <div id="autoBackupScheduleRow" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px"></div>
+  <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    Aufbewahren:
+    <input type="number" id="autoBackupRetention" min="1" max="60" style="width:64px;padding:4px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text)" />
+    Sicherungen
+  </label>
+  <div class="modal-actions" style="margin-bottom:10px">
+    <button id="autoBackupSaveBtn" class="btn-primary">Speichern</button>
+    <button onclick="this.closest('dialog').close()">Schließen</button>
+  </div>
+  <h4 style="margin:14px 0 6px;font-size:13px;color:var(--muted)">Vorhandene automatische Sicherungen</h4>
+  <div id="autoBackupList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"></div>
 </dialog>
 
 <script src="/helpers.js" defer></script>

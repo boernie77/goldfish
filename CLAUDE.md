@@ -2336,6 +2336,55 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   `internal/store/backup_test.go` (Backup→Validate→Restore-Rundlauf inkl.
   Ablehnung einer kaputten Datei).
 
+### Automatisches Backup (seit 2026-09-05, LIVE 1.0.70)
+
+- Zeitgesteuerte Ergänzung zum manuellen Backup-Download oben — nutzt
+  dieselbe `Store.BackupToFile` (VACUUM INTO). **Bewusst EIN einzelner
+  Zeitplan, kein Array wie bei Auto-Scan** — für "die ganze DB sichern" gibt
+  es keinen Anwendungsfall für mehrere parallele Zeitpläne.
+- Zeitplan-Format **identisch zu Auto-Scan** (`daily:HH:MM` | `every:Nh` |
+  `weekly:DOW:HH:MM`), `matchSchedule()` aus `autoscan.go` wird 1:1
+  wiederverwendet (`internal/api/autobackup.go`, gleiches Package).
+- Settings-Keys: `auto_backup_enabled`, `auto_backup_schedule`,
+  `auto_backup_retention` (Default 7, Range 1–60).
+- `Server.RunAutoBackup(ctx)` — Ticker alle 60 s, analog `RunAutoScan` aber
+  mit einem einzelnen `lastFired time.Time` statt einer Map. Gestartet in
+  `cmd/goldfish/main.go` neben `RunAutoScan`.
+- Erzeugte Dateien: `<ConfigDir>/backups/auto-<YYYY-MM-DD_HHMMSS>.db` —
+  **derselbe Ordner**, den `Store.RestoreFromFile` für die
+  pre-restore-Sicherheitskopie nutzt (beide Dateiarten liegen nebeneinander,
+  unterscheidbar am Präfix `auto-` vs. `pre-restore-`). Nach jedem Lauf
+  räumt `pruneAutoBackups` überzählige (älter als die letzten `retention`)
+  automatisch weg — der `YYYY-MM-DD_HHMMSS`-Zeitstempel im Dateinamen
+  sortiert lexikografisch korrekt chronologisch, kein zusätzliches `Stat`
+  für die Reihenfolge nötig.
+- **Endpoints (alle admin-only):**
+  ```
+  GET/PUT /api/admin/auto-backup/settings          {enabled, schedule, retention}
+  GET     /api/admin/auto-backup/list              [{name, sizeBytes, modTime}]
+  GET     /api/admin/auto-backup/download/{name}
+  DELETE  /api/admin/auto-backup/{name}
+  ```
+  `isValidAutoBackupFilename` schützt Download/Delete gegen Directory-
+  Traversal — akzeptiert nur exakt das `auto-*.db`-Namensmuster ohne
+  Pfadanteile.
+- **Protokolliert** (`activity_log`, category `job`, EIN Eintrag pro Lauf):
+  `backup_auto` mit Dateiname+Größe (userID/username leer = System-Event,
+  siehe `LogActivity`-Konvention). Einstellungsänderung selbst wird als
+  `admin`/`auto_backup_settings` durch den auslösenden Admin geloggt.
+- **Frontend:** Zahnrad-Menü → „Automatisierung" → „🗄 Automatisches
+  Backup" (`#autoBackupDialog`, `admin.js openAutoBackup`/
+  `autoBackupRenderSchedule`/`saveAutoBackup`/`autoBackupRefreshList`) —
+  Zeitplan-Picker-UI ist eine 1:1-Kopie des Musters aus `autoScanModeSelect`,
+  nur gegen ein einzelnes `autoBackupCfg`-Objekt statt gegen ein
+  Array-Element. Liste der vorhandenen automatischen Sicherungen mit
+  ⬇-Download/🗑-Löschen pro Zeile, direkt im selben Dialog (kein separater
+  „Backup"-Dialog nötig — die manuelle Sofort-Sicherung bleibt aber weiterhin
+  im bestehenden `#backupDialog`, keine Vermischung der beiden Flows).
+- **Restore bleibt ausschließlich manuell** (siehe oben) — automatische
+  Backups sind reine Sicherungen zum Herunterladen/Aufbewahren, kein
+  automatisierter Restore-Pfad.
+
 ### Auto-Rename bestätigter Filme (seit 2026-04-30)
 - Setting `auto_rename_confirmed_movies` (Toggle in Settings → „Datei-Umbenennung",
   iOS-Style Slider rechts in der Zeile). Wenn an: jede ✅-Bestätigung eines
