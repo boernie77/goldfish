@@ -568,7 +568,18 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 	// Dateiname-Ableitung oben, da Musikdateien fast immer einen sinnvollen
 	// eingebetteten Titel haben.
 	if lib.Kind == model.KindMusic {
-		it.Artist = lookupTag(p.Format.Tags, "artist", "album_artist")
+		// "album_artist" VOR "artist": Store.GroupMusicAlbums gruppiert Tracks zu
+		// Album-Kacheln strikt über (artist,album) — bei Musicals/Soundtrack-/
+		// Compilation-Alben trägt jeder Track oft einen ANDEREN "artist"-Tag
+		// (je nachdem, wer den Song singt), während "album_artist" für alle
+		// Tracks des Albums identisch gesetzt ist (genau dafür existiert das Tag).
+		// Mit "artist" zuerst zerfiel so ein Album in eine Einzel-Kachel PRO
+		// TRACK, jede mit eigenem Cover (User-Report 2026-09-05: "Das Phantom
+		// der Oper" zeigte für jeden Titel eine eigene Kachel statt EINEM Album
+		// mit allen Liedern). Normale Alben mit nur einem "artist"-Tag (kein
+		// "album_artist" gesetzt) sind unverändert betroffen, weil dann auf
+		// "artist" zurückgefallen wird.
+		it.Artist = lookupTag(p.Format.Tags, "album_artist", "artist")
 		it.Album = lookupTag(p.Format.Tags, "album")
 		it.Genre = lookupTag(p.Format.Tags, "genre")
 		if track := lookupTag(p.Format.Tags, "track"); track != "" {
@@ -588,16 +599,24 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 
 // lookupTag sucht case-insensitiv nach dem ersten passenden Tag-Wert (Matroska/
 // Vorbis-Tags sind oft GROSSBUCHSTABEN, MP4/ID3 meist lower_snake_case).
+// Bei mehreren `keys` gilt deren Reihenfolge als Priorität (erster Treffer
+// gewinnt) — dafür wird ERST eine case-insensitive Lookup-Map aus `tags`
+// gebaut und DANACH `keys` in Reihenfolge geprüft. Die frühere Version
+// iterierte stattdessen `tags` in der (von Go bewusst randomisierten)
+// Map-Reihenfolge und gab den ERSTEN dabei gefundenen Match zurück, egal ob
+// er in `keys` zuerst oder zuletzt stand — bei zwei vorhandenen Tags (z. B.
+// "artist" UND "album_artist") war das Ergebnis dadurch nicht deterministisch
+// vorhersagbar. Betraf konkret die Artist-Priorität für Musik-Alben.
 func lookupTag(tags map[string]string, keys ...string) string {
+	byKey := make(map[string]string, len(tags))
 	for k, v := range tags {
-		if v == "" {
-			continue
+		if v != "" {
+			byKey[strings.ToLower(k)] = v
 		}
-		lk := strings.ToLower(k)
-		for _, want := range keys {
-			if lk == want {
-				return v
-			}
+	}
+	for _, want := range keys {
+		if v, ok := byKey[want]; ok {
+			return v
 		}
 	}
 	return ""

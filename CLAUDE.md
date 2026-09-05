@@ -1183,6 +1183,34 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Jahr. **Bereits gescannte Dateien brauchen einen vollständigen Rescan**
   (force=true) der Musik-Bibliothek, damit ffprobe das Tag nachliefert —
   ein inkrementeller Scan probet unveränderte Dateien nicht erneut.
+- **🔴 Musical-/Soundtrack-Alben zerfielen in eine Kachel PRO TRACK
+  (gefixt 2026-09-05, LIVE 1.0.76):** User-Report "Das Phantom der Oper"
+  zeigte für jeden Titel eine eigene Album-Kachel mit eigenem Cover statt
+  EINEM Album mit allen Liedern. Root Cause: `Store.GroupMusicAlbums`
+  gruppiert strikt über `(items.artist, items.album)` — der Scanner las
+  `items.Artist` bisher per `lookupTag(tags, "artist", "album_artist")`,
+  bevorzugte also den PER-TRACK-"artist"-Tag. Bei Musicals/Soundtracks/
+  Compilations trägt aber jeder Track oft einen ANDEREN "artist"-Tag (je
+  nachdem, wer den Song singt), während "album_artist" für alle Tracks
+  identisch gesetzt ist (genau dafür existiert das Tag) — jeder
+  abweichende Artist-Wert erzeugte dadurch eine eigene `music_albums`-Zeile.
+  Fix: Priorität in `internal/scanner/scanner.go` umgedreht —
+  `lookupTag(tags, "album_artist", "artist")`, normale Alben mit nur einem
+  "artist"-Tag (kein "album_artist" gesetzt) fallen unverändert darauf
+  zurück. **Zusätzlicher, unabhängig gefundener Bug in `lookupTag` selbst
+  behoben:** die alte Implementierung iterierte `tags` in Go's bewusst
+  RANDOMISIERTER Map-Reihenfolge und gab den ersten dabei gefundenen Match
+  zurück — die Priorität der übergebenen `keys`-Liste wurde dadurch NICHT
+  zuverlässig respektiert, wenn mehrere der gesuchten Tags gleichzeitig
+  vorhanden waren. Jetzt: erst case-insensitive Lookup-Map aus `tags`
+  bauen, dann `keys` in Reihenfolge prüfen — deterministisch. Test:
+  `internal/scanner/scanner_test.go`. **Bereits gescannte Musik-Alben
+  brauchen einen vollständigen Rescan** (force=true) der Bibliothek, damit
+  der `album_artist`-Tag nachgeliefert und `GroupMusicAlbums` die Tracks
+  neu zusammenführt — alte, jetzt verwaiste Einzel-Track-`music_albums`-
+  Zeilen bleiben dabei als harmlose Karteileichen zurück (kein Cleanup
+  dafür, kosmetisch irrelevant, tauchen ohne zugeordnete Items nirgends
+  mehr auf).
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
