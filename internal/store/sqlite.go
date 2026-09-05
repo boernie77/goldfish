@@ -1879,7 +1879,10 @@ func escapeLike(s string) string {
 
 // Folder beschreibt einen virtuellen Unterordner innerhalb einer Bibliothek.
 type Folder struct {
-	Name        string          `json:"name"` // voller relativer Pfad (z.B. "a/Siterips")
+	Name string `json:"name"` // voller relativer Pfad (z.B. "a/Siterips")
+	// ItemCount = Anzahl EINDEUTIGER Episoden/Titel (Dubletten mit gleicher
+	// metadata_id, z.B. zwei Qualitäts-Varianten derselben Folge, zählen nur
+	// einmal), nicht die Anzahl Dateizeilen — siehe topLevelFolders.
 	ItemCount   int             `json:"itemCount"`
 	ThumbItemID int64           `json:"thumbItemId"`
 	MetadataID  int64           `json:"metadataId,omitempty"`
@@ -1943,6 +1946,21 @@ func (s *Store) TopLevelFolders(libraryID int64) ([]Folder, error) {
 // TMDB-Zuordnung" genutzt. Folder ohne folder_metadata-Eintrag, deren
 // Episoden alle via Auto-Match gemappt wurden (z. B. Columbo, Downton Abbey),
 // sind aus User-Sicht „fertig" und tauchen hier nicht auf.
+//
+// Folder.ItemCount zählt seit 2026-09-05 EINDEUTIGE Episoden/Titel
+// (COUNT DISTINCT über metadata_id, unmatched Items sowie per variant_split
+// bewusst entkoppelte Items einzeln über ihre id — gleiche Konvention wie
+// attachVariantCounts), nicht mehr rohe Dateizeilen — User-Anfrage: „die
+// Kachel soll auch nur, so wie die Staffeln, die Anzahl unterschiedlicher
+// Folgen zeigen". Vorher
+// zählte ein simples COUNT(*) jede Datei einzeln, wodurch z. B. eine Folge,
+// die als zwei Qualitäts-Varianten vorlag, die Kachel um 1 zu hoch zeigte
+// (User-Report: "70 Folgen" auf der Kachel, aber nur 68 unterschiedliche
+// Episoden). Deckt NICHT den Fall ab, dass dieselbe metadata_id in ZWEI
+// gemergten Ordnern auftaucht (siehe mergeFoldersBySameShow) — dort wird
+// weiterhin einfach summiert, ein in beiden Ordnern vorhandenes Duplikat
+// würde dort doppelt gezählt. Für den ursprünglichen Bosch-Report (ein
+// vermutlich unmatched Streufile im verwaisten Ordner) ist das irrelevant.
 func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, error) {
 	postFilter := ""
 	if onlyUnmatched {
@@ -1957,7 +1975,7 @@ func (s *Store) topLevelFolders(libraryID int64, onlyUnmatched bool) ([]Folder, 
 			SELECT
 				SUBSTR(rel_path, 1, INSTR(rel_path, '/')-1) AS folder,
 				library_id,
-				COUNT(*) AS cnt,
+				COUNT(DISTINCT CASE WHEN metadata_id IS NOT NULL AND COALESCE(variant_split,0)=0 THEN 'm'||metadata_id ELSE 'i'||id END) AS cnt,
 				SUM(CASE WHEN metadata_id IS NULL THEN 1 ELSE 0 END) AS unmatched_cnt,
 				MIN(CASE WHEN has_thumb=1 THEN id ELSE NULL END) AS thumb_id,
 				MAX(added_at) AS added_at

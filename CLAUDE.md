@@ -1528,6 +1528,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (rein informativ). Frontend: kleines 🔗-Icon oben links auf der Kachel
   (`cards.js renderFolderCard`, `.folder-merged` in style.css, Tooltip zeigt
   die zusammengeführten Ordnernamen). Test: `internal/store/folders_merge_test.go`.
+- **`ItemCount` zählt seit 2026-09-05 eindeutige Episoden, nicht Dateien**
+  (Folgefrage desselben User: "70 Folgen" auf der Kachel, aber nur 68
+  unterschiedliche — eine Folge lag doppelt als zwei Qualitäts-Varianten
+  vor). Die innere Aggregations-Query in `topLevelFolders` nutzt jetzt
+  `COUNT(DISTINCT CASE WHEN metadata_id IS NOT NULL AND
+  COALESCE(variant_split,0)=0 THEN 'm'||metadata_id ELSE 'i'||id END)`
+  statt `COUNT(*)` — Items mit gleicher `metadata_id` (typischerweise
+  mehrere Qualitäts-Dateien derselben Folge) zählen nur einmal, genau wie
+  die Staffel-Ansicht sie zu einem Owned-Slot mergt. Unmatched Items UND
+  bewusst per `variant_split` entkoppelte Items (siehe „Varianten
+  trennen") zählen weiterhin einzeln — gleiche Konvention wie
+  `attachVariantCounts`. **Bewusste Lücke:** bei `mergeFoldersBySameShow`
+  wird weiterhin naiv aufsummiert — käme dieselbe `metadata_id` in ZWEI
+  gemergten Ordnern vor, würde sie doppelt gezählt (kein bekannter
+  Praxisfall bisher). Test:
+  `internal/store/folders_merge_test.go TestTopLevelFoldersItemCountDedupesVariants`.
 - **Löst NICHT den allgemeineren Fall**, dass zwei Ordner mit jeweils
   ECHTEM, unterschiedlichem Episoden-Inhalt zur selben Show gehören (z. B.
   wenn jemand die Staffeln einer Serie versehentlich auf zwei verschieden
