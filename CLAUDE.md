@@ -1229,10 +1229,7 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
     (auch inkrementeller) Scan der Musik-Bibliothek reicht, um
     `GroupMusicAlbums` mit dem neuen Algorithmus erneut laufen zu lassen
     (`Scanner.run` ruft es am Ende JEDES Musik-Scans auf, unabhängig von
-    `force`). Alte, jetzt verwaiste Einzel-Track-`music_albums`-Zeilen aus
-    beiden Runden bleiben als harmlose Karteileichen zurück (kein Cleanup
-    dafür, kosmetisch irrelevant, tauchen ohne zugeordnete Items nirgends
-    mehr auf).
+    `force`).
   - **Lektion:** bei einem gemeldeten Fix, der laut User "nicht geklappt"
     hat, IMMER zuerst mit Live-Daten (claude-in-chrome + direkter
     `fetch()`-Aufruf gegen die eigene API im Browser-Kontext) verifizieren,
@@ -1240,6 +1237,29 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
     Vermutung auf der ersten aufzubauen — die ursprüngliche Diagnose
     ("fehlendes album_artist-Tag") war plausibel, aber schlicht falsch für
     diese konkreten Dateien.
+  - **🔴→✅ Korrektur (2026-09-06):** die Annahme "alte, verwaiste
+    music_albums-Zeilen sind harmlose Karteileichen, kein Cleanup nötig"
+    aus Runde 2 war FALSCH — `ListMusicAlbums` filterte nie nach
+    Track-Anzahl, verwaiste Zeilen (kein Item zeigt mehr per
+    `music_album_id` drauf) erschienen dadurch als sichtbare "0 Titel"-
+    Kacheln (User-Report). Doppelter Fix: `ListMusicAlbums` filtert jetzt
+    zusätzlich per `EXISTS(SELECT 1 FROM items i WHERE i.music_album_id =
+    a.id)`, UND `GroupMusicAlbums` räumt am Ende jedes Laufs verwaiste
+    Zeilen der eigenen Library aktiv per `DELETE ... WHERE id NOT IN
+    (SELECT DISTINCT music_album_id FROM items ...)` weg — verhindert
+    unbegrenztes Anwachsen von `music_albums`/`user_music_album_favorites`
+    über mehrere Rescans/Algorithmus-Wechsel hinweg (Favoriten auf einer
+    verwaisten Zeile verschwinden automatisch mit, `ON DELETE CASCADE`).
+    Test: `internal/store/music_grouping_test.go
+    TestGroupMusicAlbumsCleansUpOrphanedAlbums`.
+- **Künstler in der Album-Detail-Listenansicht** (seit 2026-09-06,
+  User-Wunsch): `renderMusicTrackRow`-Spalten für die Album-Track-Liste
+  (`views.js`) sind jetzt `["track","title","artist","duration","fav"]`
+  statt ohne Artist-Spalte — bei "Verschiedene Interpreten"-Alben (siehe
+  oben) war der tatsächliche Interpret pro Track sonst nirgends in dieser
+  Liste sichtbar. CSS-Grid-Template der Zeile (`.track-row:has(.track-row-
+  duration)` in `style.css`) entsprechend um eine Spalte erweitert
+  (`32px 1.5fr 1fr 60px 32px`).
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/

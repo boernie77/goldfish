@@ -110,6 +110,22 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 			return err
 		}
 	}
+	// Verwaiste Alben-Zeilen aufräumen (kein Item zeigt mehr drauf) — jeder
+	// Wechsel der Gruppierungslogik (z. B. dieser Ordner-statt-Artist-Umbau
+	// vom 2026-09-05) lässt die vorherigen Zeilen sonst als "Karteileichen"
+	// zurück. Das ist NICHT nur kosmetisch: ohne dieses DELETE tauchten sie
+	// in ListMusicAlbums als sichtbare "0 Titel"-Kacheln auf (User-Report),
+	// die ursprüngliche Annahme "kein Cleanup nötig, kosmetisch irrelevant"
+	// war falsch. `user_music_album_favorites` hat ON DELETE CASCADE, ein
+	// Favorit auf einer verwaisten Zeile verschwindet also automatisch mit.
+	if _, err := s.db.Exec(
+		`DELETE FROM music_albums WHERE library_id = ? AND id NOT IN (
+			SELECT DISTINCT music_album_id FROM items WHERE music_album_id IS NOT NULL
+		)`,
+		libraryID,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -206,6 +222,7 @@ func (s *Store) ListMusicAlbums(libraryID, userID int64) ([]model.MusicAlbum, er
 		       EXISTS(SELECT 1 FROM user_music_album_favorites f WHERE f.album_id = a.id AND f.user_id = ?)
 		FROM music_albums a
 		WHERE a.library_id = ?
+		  AND EXISTS(SELECT 1 FROM items i WHERE i.music_album_id = a.id)
 		ORDER BY a.artist COLLATE NATSORT, a.album COLLATE NATSORT`, userID, libraryID)
 	if err != nil {
 		return nil, err

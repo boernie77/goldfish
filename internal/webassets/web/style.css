@@ -944,9 +944,11 @@ body.selection-mode .track-row-select { display: flex; }
   padding-bottom: 2px;
 }
 .track-row--head:hover { background: transparent; }
-/* Spalten-Layouts je nach Kontext — Album-Detail-Liste (Track#+Titel+Dauer+Fav) */
+/* Spalten-Layouts je nach Kontext — Album-Detail-Liste (Track#+Titel+Artist+Dauer+Fav,
+   Artist seit 2026-09-06 ergänzt — bei "Verschiedene Interpreten"-Alben sonst
+   nirgends sichtbar, welcher Interpret den einzelnen Track tatsächlich singt) */
 .track-row:not(.track-row--head):not(.track-row--album):has(.track-row-duration) {
-  grid-template-columns: 32px 1fr 60px 32px;
+  grid-template-columns: 32px 1.5fr 1fr 60px 32px;
 }
 /* "Alle Titel"-Liste (Cover+Titel+Artist+Album+Zuletzt gehört+Fav) */
 .track-row:has(.track-row-played) {

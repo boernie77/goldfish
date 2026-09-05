@@ -875,7 +875,11 @@ function renderAlbumTracks(grid, data, listView) {
   if (listView) {
     const list = document.createElement("div");
     list.className = "track-list";
-    tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["track", "title", "duration", "fav"])));
+    // "artist" seit 2026-09-06 ergänzt (User-Wunsch) — bei Compilations/
+    // Musicals mit "Verschiedene Interpreten" als Album-Artist (siehe
+    // Store.GroupMusicAlbums) ist der TATSÄCHLICHE Interpret pro Track sonst
+    // nirgends in dieser Liste sichtbar.
+    tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["track", "title", "artist", "duration", "fav"])));
     grid.appendChild(list);
     return;
   }
@@ -921,8 +925,10 @@ function renderAllTracksList(grid, tracks) {
 
 // renderMusicTrackRow: gemeinsamer Zeilen-Renderer für alle Musik-
 // Listenansichten (Album-Detail-Liste + "Alle Titel"). `columns` steuert,
-// welche Felder gezeigt werden — Album-Kontext braucht keine Artist/Album-
-// Spalte (redundant mit dem Header), die "Alle Titel"-Übersicht schon.
+// welche Felder gezeigt werden. Album-Kontext zeigt seit 2026-09-06 auch
+// "artist" (User-Wunsch) — bei "Verschiedene Interpreten"-Alben (siehe
+// Store.GroupMusicAlbums) ist der tatsächliche Interpret pro Track sonst
+// nirgends sichtbar, das Album-Feld selbst ist dort redundant/weggelassen.
 function renderMusicTrackRow(it, queue, idx, columns) {
   const row = document.createElement("div");
   row.className = "track-row";

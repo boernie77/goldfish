@@ -125,6 +125,53 @@ func TestGroupMusicAlbumsRootLevelFilesUseTagPair(t *testing.T) {
 	}
 }
 
+// TestGroupMusicAlbumsCleansUpOrphanedAlbums: eine music_albums-Zeile, auf
+// die kein Item mehr zeigt (z.B. Rückstand einer früheren Gruppierungslogik
+// nach einem Algorithmus-Wechsel), darf nach einem GroupMusicAlbums-Lauf
+// nicht mehr als sichtbare "0 Titel"-Karteileiche auftauchen (User-Report
+// 2026-09-05 — genau das passierte beim Wechsel von Artist- auf
+// Ordner-basierte Gruppierung).
+func TestGroupMusicAlbumsCleansUpOrphanedAlbums(t *testing.T) {
+	s := newTestStore(t)
+	libID, err := s.CreateLibrary("Musik", t.TempDir(), model.KindMusic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustUpsertMusicItem(t, s, libID, "Folder/track.mp3", "Artist", "Album", "")
+
+	// Simuliert eine "Karteileiche" von einem früheren Gruppierungslauf, auf
+	// die kein Item (mehr) zeigt.
+	if _, err := s.db.Exec(
+		`INSERT INTO music_albums(library_id, artist, album, genre) VALUES(?, 'Ghost Artist', 'Ghost Album', '')`,
+		libID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var orphanID int64
+	if err := s.db.QueryRow(`SELECT id FROM music_albums WHERE artist = 'Ghost Artist'`).Scan(&orphanID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.GroupMusicAlbums(libID); err != nil {
+		t.Fatal(err)
+	}
+
+	albums, err := s.ListMusicAlbums(libID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(albums) != 1 {
+		t.Fatalf("expected exactly 1 visible album (orphan must not leak through), got %d: %+v", len(albums), albums)
+	}
+	var orphanCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM music_albums WHERE id = ?`, orphanID).Scan(&orphanCount); err != nil {
+		t.Fatal(err)
+	}
+	if orphanCount != 0 {
+		t.Errorf("expected orphaned album row %d to be deleted by GroupMusicAlbums, still exists", orphanID)
+	}
+}
+
 // TestGroupMusicAlbumsConsistentArtistSurvives: normales Album, jeder Track
 // trägt denselben Artist-Tag -> keine "Verschiedene Interpreten"-Regression.
 func TestGroupMusicAlbumsConsistentArtistSurvives(t *testing.T) {
