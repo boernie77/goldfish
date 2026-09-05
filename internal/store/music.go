@@ -3,6 +3,9 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/boernie77/goldfish/internal/model"
 )
@@ -16,62 +19,179 @@ import (
 // für Musik-Items unverändert); music_albums ist NUR die zusätzliche
 // Album-Gruppierung für die Kachel-Ansicht.
 
+// musicItemTag: eine Zeile aus `items` für die Gruppierung — nur die für
+// GroupMusicAlbums relevanten Tag-Felder + id/rel_path.
+type musicItemTag struct {
+	id                            int64
+	relPath, artist, album, genre string
+}
+
 // GroupMusicAlbums läuft am Ende jedes Musik-Library-Scans (Scanner.run,
 // analog zum enricher.EnrichAllFoldersNow-Trigger für TV-Bibliotheken).
-// Legt für jede (artist,album)-Kombination der Library eine music_albums-
-// Zeile an (falls noch nicht vorhanden) und verknüpft alle passenden Items.
+//
+// Gruppierung seit 2026-09-05 PRIMÄR über den physischen Elternordner der
+// Datei, NICHT mehr direkt über das rohe (artist,album)-Tag-Paar — User-
+// Report: "Das Phantom der Oper" zerfiel in eine Kachel PRO TRACK. Root
+// Cause per Live-Diagnose verifiziert: die Datei hatte KEIN "album_artist"-
+// Tag, und das "artist"-Tag enthielt pro Track eine ANDERE Kombination der
+// beteiligten Sänger/Darsteller (z. B. "Peter Hofmann, Andrew Lloyd Webber,
+// ..." bei Track 5, "Thomas Schulze" bei Track 7) — bei Compilations/
+// Musicals/Klassik-Sammlungen ist das "artist"-Tag pro Track strukturell
+// unzuverlässig für die Gruppierung, selbst wenn "album" konsistent ist.
+// Der physische Ordner ist das robustere Signal: eine Ordner-Gruppe ist so
+// gut wie immer EIN Album. `canonicalAlbumFields` bestimmt daraus einen
+// EINZELNEN Artist-/Album-/Genre-Wert für die ganze Gruppe (uneinheitlicher
+// Artist -> "Verschiedene Interpreten" statt eines zufällig "gewinnenden"
+// Einzelnamens; fehlender Album-Tag -> Ordnername als Fallback-Titel).
+//
+// Dateien direkt im Bibliotheks-Root (kein Unterordner) haben keinen
+// gemeinsamen Ordner, der mehrere Tracks bündeln könnte — die behalten das
+// alte reine (artist,album)-Tag-Verhalten (siehe musicGroupKey).
 func (s *Store) GroupMusicAlbums(libraryID int64) error {
-	// MAX(genre) statt DISTINCT auf (artist,album,genre) — einzelne Tracks
-	// eines Albums können leicht abweichende/leere Genre-Tags haben, die
-	// Gruppierung bleibt strikt auf (artist,album) begrenzt.
 	rows, err := s.db.Query(
-		`SELECT artist, album, MAX(genre) FROM items
-		 WHERE library_id = ? AND (artist != '' OR album != '')
-		 GROUP BY artist, album`,
+		`SELECT id, rel_path, artist, album, genre FROM items
+		 WHERE library_id = ? AND (artist != '' OR album != '')`,
 		libraryID,
 	)
 	if err != nil {
 		return err
 	}
-	type pair struct{ artist, album, genre string }
-	var pairs []pair
+	var items []musicItemTag
 	for rows.Next() {
-		var p pair
-		if err := rows.Scan(&p.artist, &p.album, &p.genre); err != nil {
+		var it musicItemTag
+		if err := rows.Scan(&it.id, &it.relPath, &it.artist, &it.album, &it.genre); err != nil {
 			_ = rows.Close()
 			return err
 		}
-		pairs = append(pairs, p)
+		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	_ = rows.Close()
 
-	for _, p := range pairs {
+	groups := map[string][]musicItemTag{}
+	for _, it := range items {
+		key := musicGroupKey(it.relPath, it.artist, it.album)
+		groups[key] = append(groups[key], it)
+	}
+
+	for _, g := range groups {
+		artist, album, genre := canonicalAlbumFields(g)
+		if artist == "" && album == "" {
+			continue
+		}
 		if _, err := s.db.Exec(
 			`INSERT INTO music_albums(library_id, artist, album, genre) VALUES(?, ?, ?, ?)
 			 ON CONFLICT(library_id, artist, album) DO UPDATE SET
 			   genre = CASE WHEN music_albums.genre = '' AND excluded.genre != '' THEN excluded.genre ELSE music_albums.genre END`,
-			libraryID, p.artist, p.album, p.genre,
+			libraryID, artist, album, genre,
 		); err != nil {
 			return err
 		}
 		var albumID int64
 		if err := s.db.QueryRow(
 			`SELECT id FROM music_albums WHERE library_id = ? AND artist = ? AND album = ?`,
-			libraryID, p.artist, p.album,
+			libraryID, artist, album,
 		).Scan(&albumID); err != nil {
 			return err
 		}
+		placeholders := make([]string, len(g))
+		args := make([]any, 0, len(g)+1)
+		args = append(args, albumID)
+		for i, it := range g {
+			placeholders[i] = "?"
+			args = append(args, it.id)
+		}
 		if _, err := s.db.Exec(
-			`UPDATE items SET music_album_id = ? WHERE library_id = ? AND artist = ? AND album = ?`,
-			albumID, libraryID, p.artist, p.album,
+			fmt.Sprintf(`UPDATE items SET music_album_id = ? WHERE id IN (%s)`, strings.Join(placeholders, ",")),
+			args...,
 		); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// musicGroupKey: physischer Elternordner ist die primäre Gruppierungs-
+// Identität (siehe GroupMusicAlbums-Kommentar). Root-Level-Dateien ohne
+// Unterordner (kein "/" in relPath) fallen auf das alte (artist,album)-
+// Tag-Paar zurück, weil es dort keinen gemeinsamen Ordner gibt.
+func musicGroupKey(relPath, artist, album string) string {
+	if idx := strings.LastIndex(relPath, "/"); idx > 0 {
+		return "dir:" + relPath[:idx]
+	}
+	return "tag:" + artist + "\x00" + album
+}
+
+// canonicalAlbumFields bestimmt EINEN Artist-/Album-/Genre-Wert für eine
+// ganze Gruppe (i. d. R. ein physischer Ordner). Mehrere unterschiedliche
+// Artist-Werte innerhalb der Gruppe (Compilation/Musical/Klassik, siehe
+// GroupMusicAlbums-Kommentar) ergeben "Verschiedene Interpreten" statt
+// eines zufällig "gewinnenden" Einzelnamens. Fehlt jeder Album-Tag in der
+// Gruppe, wird der letzte Ordnername als Titel verwendet.
+func canonicalAlbumFields(g []musicItemTag) (artist, album, genre string) {
+	albumCounts := map[string]int{}
+	artistSet := map[string]bool{}
+	for _, it := range g {
+		if it.album != "" {
+			albumCounts[it.album]++
+		}
+		if it.artist != "" {
+			artistSet[it.artist] = true
+		}
+		if genre == "" && it.genre != "" {
+			genre = it.genre
+		}
+	}
+	album = mostCommonString(albumCounts)
+	if album == "" && len(g) > 0 {
+		album = folderDisplayName(g[0].relPath)
+	}
+	switch len(artistSet) {
+	case 0:
+		artist = ""
+	case 1:
+		for a := range artistSet {
+			artist = a
+		}
+	default:
+		artist = "Verschiedene Interpreten"
+	}
+	return artist, album, genre
+}
+
+// mostCommonString liefert den häufigsten Wert; bei Gleichstand gewinnt der
+// lexikografisch kleinste (deterministisch, unabhängig von Map-Iteration).
+func mostCommonString(counts map[string]int) string {
+	if len(counts) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	best := keys[0]
+	for _, k := range keys[1:] {
+		if counts[k] > counts[best] {
+			best = k
+		}
+	}
+	return best
+}
+
+// folderDisplayName liefert den letzten Ordnernamen des physischen
+// Elternordners einer Datei (z. B. "a/b/Album XY/track.mp3" -> "Album XY").
+func folderDisplayName(relPath string) string {
+	dir := relPath
+	if idx := strings.LastIndex(dir, "/"); idx > 0 {
+		dir = dir[:idx]
+	}
+	if idx := strings.LastIndex(dir, "/"); idx >= 0 {
+		dir = dir[idx+1:]
+	}
+	return dir
 }
 
 // ListMusicAlbums liefert alle Alben einer Bibliothek inkl. Track-Anzahl,
@@ -196,7 +316,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 }
 
 // PendingAlbumsForCoverExtraction liefert ALLE Alben einer Library ohne Cover
-// (cover_source=''), OHNE den artist!=album-Ausschluss von PendingMusicAlbums
+// (cover_source=”), OHNE den artist!=album-Ausschluss von PendingMusicAlbums
 // — Cover-Extraktion aus der Audiodatei selbst funktioniert auch für den
 // Ordner-Fallback-Fall (embedded Picture kennt keine Tags), nur die spätere
 // MusicBrainz-Suche braucht verlässliche Artist/Album-Strings. Für den
@@ -234,7 +354,7 @@ func (s *Store) FirstTrackPathForAlbum(albumID int64) (string, error) {
 	return path, err
 }
 
-// PendingMusicAlbums liefert Alben ohne Cover (cover_source='') mit
+// PendingMusicAlbums liefert Alben ohne Cover (cover_source=”) mit
 // nicht-leerem Artist UND Album. Der Ordner-Fallback-Fall (Scanner setzt bei
 // fehlenden Tags beide Felder auf denselben Ordnernamen, siehe
 // GroupMusicAlbums-Aufrufer) wird über `artist != album` ausgeschlossen —

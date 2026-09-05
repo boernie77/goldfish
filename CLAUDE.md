@@ -1184,33 +1184,62 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (force=true) der Musik-Bibliothek, damit ffprobe das Tag nachliefert —
   ein inkrementeller Scan probet unveränderte Dateien nicht erneut.
 - **🔴 Musical-/Soundtrack-Alben zerfielen in eine Kachel PRO TRACK
-  (gefixt 2026-09-05, LIVE 1.0.76):** User-Report "Das Phantom der Oper"
+  (User-Report 2026-09-05, zwei Fix-Runden):** "Das Phantom der Oper"
   zeigte für jeden Titel eine eigene Album-Kachel mit eigenem Cover statt
-  EINEM Album mit allen Liedern. Root Cause: `Store.GroupMusicAlbums`
-  gruppiert strikt über `(items.artist, items.album)` — der Scanner las
-  `items.Artist` bisher per `lookupTag(tags, "artist", "album_artist")`,
-  bevorzugte also den PER-TRACK-"artist"-Tag. Bei Musicals/Soundtracks/
-  Compilations trägt aber jeder Track oft einen ANDEREN "artist"-Tag (je
-  nachdem, wer den Song singt), während "album_artist" für alle Tracks
-  identisch gesetzt ist (genau dafür existiert das Tag) — jeder
-  abweichende Artist-Wert erzeugte dadurch eine eigene `music_albums`-Zeile.
-  Fix: Priorität in `internal/scanner/scanner.go` umgedreht —
-  `lookupTag(tags, "album_artist", "artist")`, normale Alben mit nur einem
-  "artist"-Tag (kein "album_artist" gesetzt) fallen unverändert darauf
-  zurück. **Zusätzlicher, unabhängig gefundener Bug in `lookupTag` selbst
-  behoben:** die alte Implementierung iterierte `tags` in Go's bewusst
-  RANDOMISIERTER Map-Reihenfolge und gab den ersten dabei gefundenen Match
-  zurück — die Priorität der übergebenen `keys`-Liste wurde dadurch NICHT
-  zuverlässig respektiert, wenn mehrere der gesuchten Tags gleichzeitig
-  vorhanden waren. Jetzt: erst case-insensitive Lookup-Map aus `tags`
-  bauen, dann `keys` in Reihenfolge prüfen — deterministisch. Test:
-  `internal/scanner/scanner_test.go`. **Bereits gescannte Musik-Alben
-  brauchen einen vollständigen Rescan** (force=true) der Bibliothek, damit
-  der `album_artist`-Tag nachgeliefert und `GroupMusicAlbums` die Tracks
-  neu zusammenführt — alte, jetzt verwaiste Einzel-Track-`music_albums`-
-  Zeilen bleiben dabei als harmlose Karteileichen zurück (kein Cleanup
-  dafür, kosmetisch irrelevant, tauchen ohne zugeordnete Items nirgends
-  mehr auf).
+  EINEM Album mit allen Liedern.
+  - **Runde 1 (LIVE 1.0.76, reichte NICHT):** Vermutung war ein fehlendes
+    `album_artist`-Tag — Scanner-Priorität von `lookupTag(tags, "artist",
+    "album_artist")` auf `lookupTag(tags, "album_artist", "artist")`
+    umgedreht (+ unabhängig gefundener Determinismus-Bug in `lookupTag`
+    selbst behoben, iterierte vorher `tags` in Go's randomisierter
+    Map-Reihenfolge statt die `keys`-Priorität zu respektieren; Test:
+    `internal/scanner/scanner_test.go`). **User meldete danach "hat nicht
+    geklappt".**
+  - **Live-Diagnose (per claude-in-chrome direkt gegen die echten Tracks):**
+    Root Cause war etwas anderes als angenommen — es gibt in diesen
+    Dateien GAR KEIN "album_artist"-Tag, das "artist"-Tag enthält
+    stattdessen pro Track eine ANDERE Kombination/Reihenfolge aller
+    beteiligten Sänger (z. B. Track 5: "Peter Hofmann, Andrew Lloyd
+    Webber, Anna Maria Kaufmann, …", Track 7: "Thomas Schulze"). Bei
+    Compilations/Musicals/Klassik ist das "artist"-Tag pro Track
+    strukturell unzuverlässig für die Gruppierung — Runde 1 fiel deshalb
+    einfach auf denselben unzuverlässigen Wert zurück.
+  - **Runde 2 (LIVE 1.0.77, tatsächlicher Fix):** `Store.GroupMusicAlbums`
+    (`internal/store/music.go`) gruppiert seither PRIMÄR über den
+    **physischen Elternordner** der Datei (`musicGroupKey`), nicht mehr
+    über das rohe `(artist,album)`-Tag-Paar — ein Ordner ist so gut wie
+    immer EIN Album, unabhängig davon wie inkonsistent die Tags sind.
+    `canonicalAlbumFields` bestimmt daraus GENAU EINEN Artist-/Album-/
+    Genre-Wert für die ganze Ordner-Gruppe: uneinheitlicher Artist
+    innerhalb der Gruppe → **"Verschiedene Interpreten"** statt eines
+    zufällig "gewinnenden" Einzelnamens; fehlt jeder Album-Tag in der
+    Gruppe → letzter Ordnername als Titel-Fallback (macht das in CLAUDE.md
+    schon lange behauptete, aber nie tatsächlich implementierte
+    "Ordnername als Fallback" jetzt real wahr). Dateien direkt im
+    Bibliotheks-Root ohne Unterordner (kein gemeinsamer Ordner zum Bündeln)
+    behalten bewusst das alte reine `(artist,album)`-Tag-Verhalten —
+    verhindert, dass völlig unabhängige lose Singles im Root
+    zusammengeworfen werden. Tests:
+    `internal/store/music_grouping_test.go` (4 Szenarien: inkonsistenter
+    Artist im Ordner, fehlendes Album-Tag, Root-Level-Fallback,
+    konsistenter Artist bleibt unverändert).
+  - **Kein Rescan nötig für Runde 2** (anders als Runde 1) — die Gruppierung
+    arbeitet rein auf bereits in der DB gespeicherten `items.artist/album/
+    genre`-Werten, kein erneutes ffprobe-Tag-Lesen nötig. Ein normaler
+    (auch inkrementeller) Scan der Musik-Bibliothek reicht, um
+    `GroupMusicAlbums` mit dem neuen Algorithmus erneut laufen zu lassen
+    (`Scanner.run` ruft es am Ende JEDES Musik-Scans auf, unabhängig von
+    `force`). Alte, jetzt verwaiste Einzel-Track-`music_albums`-Zeilen aus
+    beiden Runden bleiben als harmlose Karteileichen zurück (kein Cleanup
+    dafür, kosmetisch irrelevant, tauchen ohne zugeordnete Items nirgends
+    mehr auf).
+  - **Lektion:** bei einem gemeldeten Fix, der laut User "nicht geklappt"
+    hat, IMMER zuerst mit Live-Daten (claude-in-chrome + direkter
+    `fetch()`-Aufruf gegen die eigene API im Browser-Kontext) verifizieren,
+    welchen Tag-Wert die Datei tatsächlich hat, statt eine zweite
+    Vermutung auf der ersten aufzubauen — die ursprüngliche Diagnose
+    ("fehlendes album_artist-Tag") war plausibel, aber schlicht falsch für
+    diese konkreten Dateien.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
