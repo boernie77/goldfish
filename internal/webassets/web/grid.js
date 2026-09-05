@@ -831,13 +831,19 @@ async function loadItemsBody() {
     return;
   }
 
-  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt" und "Laufzeit".
-  // Alle drei ignorieren die Ordner-STRUKTUR (keine Folder-Kacheln) und zeigen
-  // eine flache Liste. SCOPE: nur nach unten flach — im Library-Root die ganze
-  // Library, in einem Unterordner NUR dessen Inhalt (rekursiv), nicht library-
-  // weit hochziehen. Server sortiert (bei played zusätzlich Filter auf
-  // last_played_at IS NOT NULL) und filtert `folder` rekursiv via LIKE.
-  const FLAT_SORTS = new Set(["played", "added", "duration"]);
+  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt", "Laufzeit"
+  // und "Veröffentlicht". Alle vier ignorieren die Ordner-STRUKTUR (keine
+  // Folder-Kacheln) und zeigen eine flache Liste. SCOPE: nur nach unten flach
+  // — im Library-Root die ganze Library, in einem Unterordner NUR dessen
+  // Inhalt (rekursiv), nicht library-weit hochziehen. Server sortiert (bei
+  // played zusätzlich Filter auf last_played_at IS NOT NULL) und filtert
+  // `folder` rekursiv via LIKE. "released" seit 2026-09-05 ergänzt
+  // (User-Wunsch: bei Serien ohne TMDB-Staffelstruktur, z.B. Tatort mit
+  // Kommissar-Unterordnern statt TMDB-Staffeln, soll "Veröffentlicht" alle
+  // Folgen auf der aktuellen Ordnerebene inkl. Unterordnern chronologisch
+  // zeigen — Backend unterstützte sort=released rekursiv bereits, nur hier
+  // im Set fehlte der Eintrag).
+  const FLAT_SORTS = new Set(["played", "added", "duration", "released"]);
   const flatSort = $("#sortSelect").value;
   // Musik-Bibliotheken haben ihren EIGENEN Flat-Sort-Pfad weiter unten
   // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —
@@ -914,13 +920,30 @@ async function loadItemsBody() {
       data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
     } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
-    renderBreadcrumb({});
-    if (state.currentSeason == null) {
-      renderSeasonFolders(grid, data);
+    // Sackgassen-Vermeidung (User-Report 2026-09-05, "Tatort" mit Kommissar-
+    // Unterordnern statt TMDB-Staffeln): wenn die Seasons-API auf oberster
+    // Ebene (kein Staffel-Klick, currentSeason===null) NICHTS liefert — Ordner
+    // noch nicht TMDB-zugeordnet, oder die physische Struktur passt schlicht
+    // nicht zu TMDB-Staffeln — bringt die "Keine Staffel-Daten"-Meldung den
+    // User nicht weiter. Statt dort hängenzubleiben: Staffel-Ansicht für GENAU
+    // diesen Ordner automatisch abschalten (persistiert wie ein manuelles
+    // Toggle) und unten in die normale Ordner-/Datei-Ansicht durchfallen —
+    // dort funktionieren Sortierung/Filter (inkl. "Veröffentlicht", rekursiv
+    // über Unterordner) unabhängig von jeder TMDB-Zuordnung. Der "Serie
+    // zuordnen…"-Button im Breadcrumb-Header bleibt unverändert erreichbar.
+    if (state.currentSeason == null && (!data.seasons || data.seasons.length === 0)) {
+      try { localStorage.setItem(`seasonView:${state.currentLibrary || 0}:${state.currentFolder}`, "0"); } catch {}
+      state.seasonView = false;
+      showToast("Keine Staffel-Struktur erkannt – zeige normale Ordner-Ansicht", { kind: "info" });
     } else {
-      renderSeasonEpisodes(grid, data, state.currentSeason);
+      renderBreadcrumb({});
+      if (state.currentSeason == null) {
+        renderSeasonFolders(grid, data);
+      } else {
+        renderSeasonEpisodes(grid, data, state.currentSeason);
+      }
+      return;
     }
-    return;
   }
 
   // Musik-Bibliotheken (seit 2026-09-04): Album-Kacheln im Library-Root,

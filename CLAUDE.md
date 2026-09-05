@@ -1571,6 +1571,36 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
     öffnen automatisch in der Staffel-Ansicht. Explizites Ausschalten pro
     Library (Toggle-Button in Library-Root) bleibt als "0" gespeichert und
     respektiert.
+- **Automatischer Fallback bei fehlenden Staffel-Daten** (seit 2026-09-05,
+  `grid.js`, User-Report: „Tatort" mit Kommissar-Unterordnern statt
+  TMDB-Staffeln zeigte eine Sackgassen-Meldung „Keine Staffel-Daten
+  verfügbar…" statt nutzbar zu bleiben — auf zwei verschiedenen Rechnern
+  sogar unterschiedlich, weil `seasonView:*`-Overrides reines
+  `localStorage` sind und nie zwischen Browsern synchronisieren). Liefert
+  die Seasons-API auf oberster Ebene (kein Staffel-Klick,
+  `state.currentSeason === null`) ein leeres `seasons`-Array — Ordner noch
+  nicht TMDB-zugeordnet ODER die physische Struktur passt schlicht nicht zu
+  TMDB-Staffeln (Tatort: Unterordner pro Ermittler-Duo, keine
+  Sendejahr-Staffeln) — schaltet der Client die Staffel-Ansicht für GENAU
+  diesen Ordner automatisch ab (persistiert wie ein manuelles Toggle unter
+  `seasonView:<libID>:<folder>`, Toast „Keine Staffel-Struktur erkannt –
+  zeige normale Ordner-Ansicht") und fällt in die normale, rekursive
+  Ordner-/Dateiliste durch — dort funktionieren Sortierung/Filter
+  unabhängig von jeder TMDB-Zuordnung. Der „Serie zuordnen…"-Button bleibt
+  über `renderBreadcrumb` unverändert erreichbar (kommt für `kind=tv`
+  automatisch, unabhängig vom Staffel-Modus).
+- **Sort „Veröffentlicht" jetzt Teil von `FLAT_SORTS`/`FLAT_LIBRARY_SORTS`**
+  (`grid.js`/`app.js`, seit 2026-09-05) — vorher fehlte `"released"` in
+  beiden Sets, obwohl der Server (`ListItems`-SQL-Sort-Switch,
+  `internal/store/sqlite.go`) rekursiv sortiertes `sort=released` schon
+  lange unterstützt hat (Fallback-Kette `m.release_date → m.year →
+  i.released_at → i.mod_time`, funktioniert auch OHNE TMDB-Zuordnung).
+  Jetzt zeigt „Veröffentlicht" wie „Zuletzt hinzugefügt"/„Laufzeit" eine
+  flache, chronologische Liste **auf der aktuellen Ordnerebene inkl. aller
+  Unterordner** (Scope „nur nach unten flach", gleiche Konvention wie die
+  anderen drei Flat-Sorts) — der eigentliche Weg, um z. B. alle
+  Tatort-Folgen unabhängig von der Kommissar-Unterordner-Struktur
+  chronologisch durchzublättern.
 - In einem Show-Ordner mit aktivem Toggle: Staffeln als **Folder-Kacheln**
   (Poster + „x/y Folgen"-Badge). Klick öffnet Staffel → normales Grid mit
   owned + „Fehlt"-Kacheln.
