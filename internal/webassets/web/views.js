@@ -447,9 +447,13 @@ const SHOW_STATUS_DE = {
 function renderShowHeader(show, counts) {
   const el = document.createElement("section");
   el.className = "show-header detail-wrap";
-  const poster = show.posterPath
-    ? `https://image.tmdb.org/t/p/w342${show.posterPath}`
-    : "/placeholder.svg";
+  // Über den eigenen Poster-Proxy (nicht direkt TMDB-CDN) laden — der Proxy
+  // liest den tatsächlich gespeicherten metadata.poster_path, der nach einem
+  // eigenen Upload/Poster-Wechsel vom live-gefetchten TMDB-Wert abweicht
+  // (synthetischer "custom:…"-Pfad, den TMDB-CDN nicht auflösen könnte).
+  const poster = show.metadataId
+    ? `/api/poster/metadata/${show.metadataId}`
+    : (show.posterPath ? `https://image.tmdb.org/t/p/w342${show.posterPath}` : "/placeholder.svg");
   const y1 = (show.firstAirDate || "").slice(0, 4);
   const y2 = (show.lastAirDate || "").slice(0, 4);
   const yearRange = y1 && y2 && y1 !== y2 ? `${y1}–${y2}` : (y1 || y2 || "");
@@ -498,6 +502,7 @@ function renderShowHeader(show, counts) {
       ${show.overview ? `<p class="overview">${escapeHTML(show.overview)}</p>` : ""}
       <div class="show-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" data-refresh-tmdb title="Lädt Show- und Staffel-Daten frisch von TMDB (Cache umgehen)">↻ TMDB neu laden</button>
+        <button type="button" data-edit-poster title="Anderes TMDB-Poster wählen oder eigenes Bild hochladen">🖼 Poster ändern</button>
         <button type="button" data-reenrich-episodes title="Setzt ALLE Episoden-Zuordnungen dieses Ordners zurück und matcht neu (hilft bei Off-by-One-Fehlern)" style="background:#b45309;">⚠ Episoden neu zuordnen</button>
         <button type="button" data-unmatch-folder title="Entfernt die Serien-Zuordnung komplett (kein automatisches Neu-Matchen — sonst würde ein Fehltreffer wie 'Terra Xpress' sofort wiederkehren). Danach normale Ordneransicht statt Staffel-Ansicht." style="background:#7f1d1d;">🚫 Zuordnung entfernen</button>
       </div>
@@ -541,6 +546,27 @@ function renderShowHeader(show, counts) {
         refreshBtn.disabled = false;
         refreshBtn.textContent = "↻ TMDB neu laden";
       }
+    });
+  }
+  // "🖼 Poster ändern": öffnet denselben TMDB-Poster-Picker/Upload-Dialog wie
+  // im Item-Detail-Dialog, aber gezielt auf die Show-metadata.id statt auf
+  // state.currentItem — nach Anwenden wird die Show-Ansicht neu geladen statt
+  // den (hier gar nicht offenen) Detail-Dialog zu aktualisieren.
+  const editPosterBtn = el.querySelector("[data-edit-poster]");
+  if (editPosterBtn) {
+    editPosterBtn.addEventListener("click", () => {
+      if (!show.metadataId) {
+        appAlert("Für diese Serie wurde noch kein lokaler Metadaten-Eintrag gefunden — Poster kann erst nach einem TMDB-Match geändert werden.");
+        return;
+      }
+      openPosterPicker(show.metadataId, async () => {
+        const url = `/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`;
+        const data = await api(url);
+        const grid = $("#grid");
+        grid.innerHTML = "";
+        if (state.currentSeason == null) renderSeasonFolders(grid, data);
+        else renderSeasonEpisodes(grid, data, state.currentSeason);
+      });
     });
   }
   // „⚠ Episoden neu zuordnen": nukes alle Episoden-Matches im Ordner

@@ -1406,8 +1406,18 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	case "exact3":
 		q += ` AND COALESCE(us.rating, 0) >= 3`
 	}
-	if f.MatchState == "unmatched" {
+	switch f.MatchState {
+	case "unmatched":
 		q += ` AND i.metadata_id IS NULL`
+	case "unconfirmed":
+		// "Alle Unbestätigten" (User-Wunsch 2026-09-06, vor allem für Filme):
+		// Items MIT TMDB-Zuordnung, die aber nie über den ✅-Button bestätigt
+		// wurden — bewusst NICHT dasselbe wie "unmatched" (das sind Items OHNE
+		// jede Zuordnung, dafür gibt es bereits den eigenen Filter). Deckt sich
+		// nicht mit "⚠ Verdächtige Zuordnungen" (Token-Overlap-Heuristik) —
+		// hier zählt einzig, ob ✅ je gedrückt wurde, unabhängig davon, wie
+		// plausibel die Zuordnung aussieht.
+		q += ` AND i.metadata_id IS NOT NULL AND COALESCE(i.metadata_confirmed, 0) = 0`
 	}
 	if f.MetadataID > 0 {
 		q += ` AND i.metadata_id = ?`

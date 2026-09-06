@@ -1733,6 +1733,29 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
     Nach 4 s lädt die Ansicht automatisch mit `?refresh=true` neu. Für Off-by-One-
     Fehler wie bei Billions Staffel 2, wo alle Episoden systematisch um eins
     verschoben gemappt waren.
+  - **„🖼 Poster ändern" (seit 2026-09-06):** wiederverwendet denselben
+    TMDB-Poster-Picker/Upload-Dialog (`#posterPickerDialog`) wie der
+    ✏-Edit-Metadata-Dialog bei Filmen/Items — bisher nur für
+    `state.currentItem` erreichbar, jetzt generalisiert
+    (`openPosterPicker(explicitMetaID, onApplied)` in `matching.js`; der
+    bestehende Item-Button ruft weiterhin ohne Argument auf, bekommt dabei
+    das Click-Event als ersten Parameter, das ist kein `number` und fällt
+    korrekt auf `state.currentItem.metadataId` zurück). Der Show-Header-
+    Button übergibt explizit `show.metadataId` + einen Callback, der nach
+    Anwenden die Staffel-Ansicht neu lädt (statt des sonst üblichen
+    Item-Detail-Refreshs). **`show.metadataId` ist NEU im
+    `GET /api/libraries/{id}/seasons`-Response** (`internal/api/series.go`,
+    `showOut.MetadataID`) — kommt aus `Store.ShowMetadataIDForFolder`
+    (`internal/store/series.go`, Pendant zu `ShowTMDBForFolder`, liefert
+    aber die lokale `metadata.id` statt der TMDB-ID: erst `folder_metadata`,
+    sonst der Parent-Metadata-Fallback über die Episoden im Ordner) — nötig,
+    weil `POST /api/metadata/{id}/poster` auf `metadata.id` arbeitet, nicht
+    auf `tmdb_id`. Ohne Zuordnung (`metadataId == 0`) zeigt der Button einen
+    Hinweis statt den Dialog zu öffnen. **Show-Poster wird jetzt über den
+    eigenen Proxy geladen** (`/api/poster/metadata/{id}` statt direkt TMDB-
+    CDN) — sonst wäre ein per Upload gesetztes Poster (synthetischer
+    `custom:…`-Pfad) nie sichtbar gewesen, das TMDB-CDN kann diesen Pfad
+    nicht auflösen. Test: `internal/store/show_metadata_id_test.go`.
 
 ### Metadaten-Bestätigung + Verdächtige Zuordnungen
 - **`✅ Zuordnung bestätigen`**-Button im Detail-Dialog togglet
@@ -1745,6 +1768,21 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
     bleibt die individuell bestätigte Episode erhalten)
   - Lösen Auto-NFO-Write aus (siehe „NFO-Sidecars")
 - Unmatch (`SetItemMetadata(id, 0)`) setzt confirmed ebenfalls auf 0 zurück.
+- **„Alle Unbestätigten" (Sort-Dropdown, seit 2026-09-06):** eigener
+  Pseudo-Filter-Modus `unconfirmed`, vor allem für Filme gedacht (User-Wunsch:
+  "Dort sollen alle Filme erscheinen, welche nicht manuell bestätigt
+  wurden"). Anders als `unmatched` (Items OHNE jede TMDB-Zuordnung) zeigt er
+  Items MIT `metadata_id`, deren `metadata_confirmed` nie gesetzt wurde —
+  unabhängig davon, wie plausibel die Zuordnung aussieht (das unterscheidet
+  ihn auch von „⚠ Verdächtige Zuordnungen", das nur Token-Overlap-Heuristik
+  nutzt). SQL: `ItemFilter.MatchState == "unconfirmed"` in `ListItems`
+  (`internal/store/sqlite.go`): `i.metadata_id IS NOT NULL AND
+  COALESCE(i.metadata_confirmed, 0) = 0`. Wie `unmatched` überall dort
+  registriert, wo Pseudo-Filter-Modi behandelt werden: `currentMatchMode()`,
+  `PSEUDO_FILTER_MODES`, `directionless`-Check in `updateSortDirIcon()`
+  (app.js), Season-View-Bypass in `grid.js`, `showConfirm`-Bedingung in
+  `cards.js` (inline ✅-Button erscheint auch hier). Test:
+  `internal/store/unconfirmed_filter_test.go`.
 - **🚫 Zuordnung entfernen** (Detail-Dialog, seit 2026-09-02, admin-only,
   neben 🔍 „Manuell zuordnen"): bis dahin gab es nur „Manuell zuordnen" zum
   ERSETZEN einer Zuordnung — keinen Weg, ein Item wieder komplett in den

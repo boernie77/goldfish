@@ -666,11 +666,11 @@ function renderCard(it, opts = {}) {
     ? `<span class="rating">★ ${it.metadata.rating.toFixed(1)}</span>` : "";
   // Click-baren Haken einblenden: dimmt sich bei ungesehen, leuchtet grün bei gesehen.
   const watched = `<button type="button" class="watched-toggle ${it.watched ? "is-on" : ""}" title="${it.watched ? "Als ungesehen markieren" : "Als gesehen markieren"}" data-toggle-watched aria-label="${it.watched ? "Gesehen" : "Ungesehen"}">✓</button>`;
-  // Confirm-Button nur in den Filter-Modi „duplicates" und „suspicious" — dort
-  // will der User häufig die Zuordnung bestätigen, ohne jedes Item einzeln
-  // zu öffnen. In anderen Views wäre der Button Clutter.
+  // Confirm-Button nur in den Filter-Modi „duplicates", „suspicious" und
+  // „unconfirmed" — dort will der User häufig die Zuordnung bestätigen, ohne
+  // jedes Item einzeln zu öffnen. In anderen Views wäre der Button Clutter.
   const sortVal = $("#sortSelect") ? $("#sortSelect").value : "";
-  const showConfirm = (sortVal === "duplicates" || sortVal === "suspicious")
+  const showConfirm = (sortVal === "duplicates" || sortVal === "suspicious" || sortVal === "unconfirmed")
                       && it.metadataId > 0 && !it.metadataConfirmed;
   const confirmBtn = showConfirm
     ? `<button type="button" class="confirm-toggle" title="Zuordnung bestätigen" data-toggle-confirm aria-label="Zuordnung bestätigen">✅</button>`

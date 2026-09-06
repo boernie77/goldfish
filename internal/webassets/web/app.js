@@ -263,7 +263,10 @@ function currentFavoriteMode() {
   return $("#sortSelect").value === "favorites" ? "yes" : "";
 }
 function currentMatchMode() {
-  return $("#sortSelect").value === "unmatched" ? "unmatched" : "";
+  const v = $("#sortSelect").value;
+  if (v === "unmatched") return "unmatched";
+  if (v === "unconfirmed") return "unconfirmed";
+  return "";
 }
 function currentInterlacedMode() {
   return $("#sortSelect").value === "interlaced" ? "yes" : "";
@@ -274,7 +277,7 @@ function currentInterlacedMode() {
 // ignoriert SQLite sie und fällt auf Default-Order zurück.
 function currentSortMode() {
   const v = $("#sortSelect").value || "title";
-  if (v === "favorites" || v === "unmatched" || v === "duplicates" || v === "multiversion" || v === "suspicious" || v === "interlaced" || v === "simnames" || v === "shuffle") return "title";
+  if (v === "favorites" || v === "unmatched" || v === "unconfirmed" || v === "duplicates" || v === "multiversion" || v === "suspicious" || v === "interlaced" || v === "simnames" || v === "shuffle") return "title";
   return v;
 }
 // Fisher-Yates Shuffle für client-seitige Zufalls-Sortierung — Server liefert
@@ -655,7 +658,7 @@ function sortStorageKey() {
 // Default-Sortierung ersetzt werden — sonst verliert man den Filter sofort
 // beim Reingehen und sieht alle Items, statt der unmatched/duplicates/etc.
 const PSEUDO_FILTER_MODES = new Set([
-  "unmatched", "favorites", "duplicates", "multiversion", "suspicious", "interlaced", "simnames",
+  "unmatched", "unconfirmed", "favorites", "duplicates", "multiversion", "suspicious", "interlaced", "simnames",
 ]);
 
 // Sort-Modi, die eine flache, library-weite Liste zeigen (Ordner-Struktur
@@ -745,7 +748,7 @@ function updateSortDirIcon() {
   // und „Zufällig". Button wird ausgegraut + disabled, damit der User nicht
   // erwartet dass ein Klick was bewirkt.
   const v = $("#sortSelect").value || "title";
-  const directionless = (v === "shuffle" || v === "favorites" || v === "unmatched"
+  const directionless = (v === "shuffle" || v === "favorites" || v === "unmatched" || v === "unconfirmed"
                        || v === "duplicates" || v === "multiversion" || v === "suspicious" || v === "interlaced"
                        || v === "simnames");
   if (directionless) {

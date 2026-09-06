@@ -922,7 +922,7 @@ async function loadItemsBody() {
   // Auflösungs-Variante bleibt ein eigenes, einzeln löschbares Item.
   const matchMode = currentMatchMode();
   if (state.seasonView && lib && lib.kind === "tv" && state.currentFolder
-      && matchMode !== "unmatched" && state.resBuckets.size === 0) {
+      && matchMode !== "unmatched" && matchMode !== "unconfirmed" && state.resBuckets.size === 0) {
     let data;
     try {
       data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);

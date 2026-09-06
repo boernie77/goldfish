@@ -188,6 +188,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		ProfilePath string `json:"profilePath,omitempty"`
 	}
 	type showOut struct {
+		MetadataID       int64     `json:"metadataId,omitempty"`
 		Title            string    `json:"title"`
 		OriginalName     string    `json:"originalName,omitempty"`
 		Overview         string    `json:"overview,omitempty"`
@@ -221,9 +222,12 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	}()
 	tvWG.Wait()
 
+	showMetaID, _ := s.Store.ShowMetadataIDForFolder(libID, folder)
+
 	var show *showOut
 	if tv != nil {
 		so := &showOut{
+			MetadataID:       showMetaID,
 			Title:            tv.Name,
 			OriginalName:     tv.OriginalName,
 			Overview:         tv.Overview,

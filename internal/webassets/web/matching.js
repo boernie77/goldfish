@@ -467,9 +467,23 @@ function openEditMetaDialog() {
 // openPosterPicker zeigt ein Grid mit verfügbaren TMDB-Postern + ein Upload-
 // Formular für ein eigenes Bild. Beide Wege rufen denselben Endpoint, der
 // das Poster im posters-Cache ablegt und metadata.poster_path aktualisiert.
-async function openPosterPicker() {
-  const it = state.currentItem;
-  if (!it || !it.metadataId) return;
+// `explicitMetaID` erlaubt den Aufruf für eine beliebige metadata.id (z. B.
+// eine Show im Staffel-Header) statt nur für state.currentItem — der
+// Button-Click-Handler im Item-Detail-Dialog ruft weiterhin ohne Argument
+// auf (bekommt dabei das Click-Event als ersten Parameter, das ist kein
+// number und fällt daher korrekt auf state.currentItem zurück).
+// `onApplied` ist ein optionaler Refresh-Callback für den Erfolgsfall; ohne
+// ihn greift der bisherige Item-Detail-Refresh.
+let posterPickerMetaID = null;
+let posterPickerOnApplied = null;
+
+async function openPosterPicker(explicitMetaID, onApplied) {
+  const metaID = typeof explicitMetaID === "number"
+    ? explicitMetaID
+    : (state.currentItem && state.currentItem.metadataId);
+  if (!metaID) return;
+  posterPickerMetaID = metaID;
+  posterPickerOnApplied = typeof onApplied === "function" ? onApplied : null;
   const dlg = $("#posterPickerDialog");
   const grid = $("#posterPickerGrid");
   const status = $("#posterPickerStatus");
@@ -477,7 +491,7 @@ async function openPosterPicker() {
   status.textContent = "Lade TMDB-Poster…";
   dlg.showModal();
   try {
-    const list = await api(`/api/metadata/${it.metadataId}/posters`);
+    const list = await api(`/api/metadata/${metaID}/posters`);
     if (!Array.isArray(list) || list.length === 0) {
       status.textContent = "TMDB hat keine Poster — nutze den Upload unten.";
       return;
@@ -496,12 +510,30 @@ async function openPosterPicker() {
           <span class="poster-dim">${p.width}×${p.height}</span>
         </div>
       `;
-      tile.addEventListener("click", () => applyTMDBPoster(it.metadataId, p.filePath));
+      tile.addEventListener("click", () => applyTMDBPoster(metaID, p.filePath));
       grid.appendChild(tile);
     }
   } catch (e) {
     status.textContent = "Fehler: " + e.message;
   }
+}
+
+// Gemeinsamer Erfolgs-Pfad für Poster-Anwenden (TMDB-Pick oder Upload):
+// nutzt den mitgegebenen onApplied-Callback (z. B. Show-Header neu laden),
+// sonst den ursprünglichen Item-Detail-Refresh.
+async function refreshAfterPosterApplied() {
+  invalidateItemsCache();
+  if (posterPickerOnApplied) {
+    try { await posterPickerOnApplied(); } catch {}
+  } else if (state.currentItem) {
+    try {
+      const fresh = await api(`/api/items/${state.currentItem.id}`);
+      state.currentItem = fresh;
+      $("#detailDialog").close();
+      openDetail(fresh);
+    } catch {}
+  }
+  loadItems();
 }
 
 async function applyTMDBPoster(metaID, tmdbPath) {
@@ -512,18 +544,7 @@ async function applyTMDBPoster(metaID, tmdbPath) {
     });
     showToast("Poster aktualisiert", { kind: "success" });
     $("#posterPickerDialog").close();
-    invalidateItemsCache();
-    // Cache-Buster für die <img>-URLs: einfach Detail-Dialog mit frischem
-    // Item neu öffnen — der Browser holt das Bild dann frisch.
-    if (state.currentItem) {
-      try {
-        const fresh = await api(`/api/items/${state.currentItem.id}`);
-        state.currentItem = fresh;
-        $("#detailDialog").close();
-        openDetail(fresh);
-      } catch {}
-    }
-    loadItems();
+    await refreshAfterPosterApplied();
   } catch (e) {
     appAlert("Fehler: " + e.message);
   }
@@ -531,8 +552,8 @@ async function applyTMDBPoster(metaID, tmdbPath) {
 
 async function handlePosterUpload(e) {
   e.preventDefault();
-  const it = state.currentItem;
-  if (!it || !it.metadataId) return;
+  const metaID = posterPickerMetaID || (state.currentItem && state.currentItem.metadataId);
+  if (!metaID) return;
   const form = e.target;
   const file = form.file.files[0];
   if (!file) return;
@@ -541,7 +562,7 @@ async function handlePosterUpload(e) {
   try {
     // Direct fetch — `api()`-Helper setzt JSON-Content-Type, das brauchen wir
     // hier nicht. Cookie-Auth läuft mit credentials:include.
-    const r = await fetch(`/api/metadata/${it.metadataId}/poster`, {
+    const r = await fetch(`/api/metadata/${metaID}/poster`, {
       method: "POST",
       body: fd,
       credentials: "include",
@@ -553,16 +574,7 @@ async function handlePosterUpload(e) {
     showToast("Poster hochgeladen", { kind: "success" });
     form.reset();
     $("#posterPickerDialog").close();
-    invalidateItemsCache();
-    if (state.currentItem) {
-      try {
-        const fresh = await api(`/api/items/${state.currentItem.id}`);
-        state.currentItem = fresh;
-        $("#detailDialog").close();
-        openDetail(fresh);
-      } catch {}
-    }
-    loadItems();
+    await refreshAfterPosterApplied();
   } catch (err) {
     appAlert("Upload fehlgeschlagen: " + err.message);
   }

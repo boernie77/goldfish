@@ -148,6 +148,39 @@ func (s *Store) ShowTMDBForFolder(libraryID int64, folder string) (int64, error)
 	return showTMDB, err
 }
 
+// ShowMetadataIDForFolder sucht die lokale metadata.id der Show (nicht die
+// TMDB-ID) — für Poster-Bearbeitung (setMetadataPoster/listMetadataPosters
+// arbeiten auf metadata.id, nicht auf tmdb_id). Gleiche zwei Fallback-Stufen
+// wie ShowTMDBForFolder: erst folder_metadata, sonst die Parent-Metadata der
+// Episoden im Ordner.
+func (s *Store) ShowMetadataIDForFolder(libraryID int64, folder string) (int64, error) {
+	var metaID int64
+	err := s.db.QueryRow(`
+		SELECT m.id
+		FROM folder_metadata fm
+		JOIN metadata m ON m.id = fm.metadata_id
+		WHERE fm.library_id = ? AND fm.folder = ? AND m.tmdb_type = 'tv'
+	`, libraryID, folder).Scan(&metaID)
+	if err == nil && metaID > 0 {
+		return metaID, nil
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+	err = s.db.QueryRow(`
+		SELECT parent.id
+		FROM items i
+		JOIN metadata m ON m.id = i.metadata_id AND m.tmdb_type = 'episode'
+		JOIN metadata parent ON parent.id = m.parent_id
+		WHERE i.library_id = ? AND i.rel_path LIKE ? ESCAPE '\'
+		LIMIT 1
+	`, libraryID, escapeLike(folder)+"/%").Scan(&metaID)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return metaID, err
+}
+
 // ItemByShowSeasonEpisode findet das Item, das zu einer konkreten Folge einer
 // Show im angegebenen Folder der Library gehört — für das Markieren von Parts
 // als "owned" in der Staffel-Ansicht.
