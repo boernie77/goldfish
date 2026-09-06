@@ -3513,7 +3513,21 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    Playlist-Root + einzelne Playlist, Person-Filter, normales
    Filme/Serien-Grid, Staffel-Ansicht (Tatort — Fallback-Pfad),
    Musik-Album-Übersicht.
-3. sqlite.go → metadata.go + trickplay_status.go
+3. ✅ **sqlite.go → metadata.go + trickplay_status.go** (LIVE 1.2.10) —
+   Grenzen diesmal nicht per Hand gesucht, sondern per kleinem Go-AST-Tool
+   (`go/parser`, Zeilen-Offsets aller Top-Level-`FuncDecl`s inkl.
+   Doc-Kommentar) exakt bestimmt — sicherer als Klammer-Zählen von Hand bei
+   ~2500 Zeilen Go. `trickplay_status.go` (300 Zeilen): `SetTrickplayFolder`
+   bis `ListTrickplayFolders` (13 Funktionen). `metadata.go` (443 Zeilen):
+   `UpsertMetadata` bis `PendingFolders` (21 Funktionen) — `nullInt`/
+   `nullTime` (generische Helper, keine Metadata-Spezifika) bleiben bewusst
+   in sqlite.go. sqlite.go: 2457 → 1738 Zeilen. Verifiziert per Multiset-Diff
+   (sortierte Zeilen alt vs. neu-3-Dateien-kombiniert) — einzige
+   Unterschiede sind die neuen Datei-Header/Package/Import-Zeilen selbst,
+   kein Code verloren oder verändert. `go build`/`go vet`/`go test ./...`
+   grün. Reine Backend-Datei-Verschiebung ohne API-Auswirkung — kein
+   Browser-Live-Test nötig (anders als Schritt 2), Test-Suite deckt
+   `internal/store` ab.
 4. views.js Musik-Views → music-views.js
 5. player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js
 6. enrich/worker.go → matching.go (matchItem/matchShow/enrichItems/enrichFolders)
