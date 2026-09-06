@@ -1260,6 +1260,33 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Liste sichtbar. CSS-Grid-Template der Zeile (`.track-row:has(.track-row-
   duration)` in `style.css`) entsprechend um eine Spalte erweitert
   (`32px 1.5fr 1fr 60px 32px`).
+- **Spalten-Breite + -Reihenfolge frei konfigurierbar (seit 2026-09-06,
+  User-Wunsch)**: gilt für beide Listen-Kontexte — Album-Detail-Liste
+  (Titel/Künstler/Dauer) und "🎵 Alle Titel" (Titel/Künstler/Album/Zuletzt
+  gehört). Nur die "echten" Text-Spalten sind betroffen — Track-Nummer,
+  Cover-Thumbnail und der Favoriten-Button bleiben an fester Position (reine
+  Icon-Slots, keine Daten-Spalten). `MUSIC_LIST_CONTEXTS` (`views.js`)
+  definiert pro Kontext `fixedLeading`/`reorderable`/`fixedTrailing` +
+  Default-/Min-Breiten; Persistenz in `localStorage` unter
+  `musicColumns:album`/`musicColumns:all` (`{order, widths}`). Beide Listen
+  bekamen dafür eine echte Kopfzeile (`renderMusicColumnHeader`) — die
+  Album-Detail-Liste hatte bisher GAR keine Kopfzeile, „Alle Titel" hatte
+  eine rein statische. **Resize**: `mousedown` auf `.col-resize-handle`
+  (rechter Zellrand) trackt `mousemove` bis `mouseup`, schreibt die neue
+  Breite direkt in `localStorage` und ruft `applyMusicGridTemplate()` — setzt
+  das berechnete `grid-template-columns` per Inline-Style auf Kopf- UND alle
+  Datenzeilen (schlägt die `:has()`-CSS-Fallback-Regeln, die nur für den
+  allerersten Sync-Render vor JS-Zugriff greifen). **Reorder**: natives
+  HTML5-Drag&Drop auf den Kopfzellen (`draggable=true`,
+  dragstart/dragover/drop), verschiebt die Spalte in der `order`-Liste und
+  triggert einen kompletten Rebuild von Kopfzeile + allen Zeilen
+  (`musicColumnHeaderRefreshers`-WeakMap pro Listen-Container) — nötig, weil
+  die Reihenfolge nicht nur das CSS-Raster betrifft, sondern auch welcher
+  Inhalt in welcher Zellen-Position im HTML steht (`renderMusicTrackRow`
+  baut die Zeile in `columns`-Array-Reihenfolge). Album-Übersicht als Liste
+  (`track-row--album`, Cover+Album+Artist+Trackzahl+Fav) ist NICHT
+  betroffen — User-Wunsch bezog sich erkennbar auf die Track-Listen
+  ("Titel, Künstler, Dauer"), nicht die Album-Kacheln/-Zeilen selbst.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/

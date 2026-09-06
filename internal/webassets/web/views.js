@@ -904,8 +904,17 @@ function renderAlbumTracks(grid, data, listView) {
     // "artist" seit 2026-09-06 ergänzt (User-Wunsch) — bei Compilations/
     // Musicals mit "Verschiedene Interpreten" als Album-Artist (siehe
     // Store.GroupMusicAlbums) ist der TATSÄCHLICHE Interpret pro Track sonst
-    // nirgends in dieser Liste sichtbar.
-    tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["track", "title", "artist", "duration", "fav"])));
+    // nirgends in dieser Liste sichtbar. Spalten Titel/Künstler/Dauer sind
+    // seit 2026-09-06 breiten-/reihenfolge-verschiebbar (musicColumns:album).
+    const rerenderRows = () => {
+      list.innerHTML = "";
+      renderMusicColumnHeader("album", list);
+      const columns = musicEffectiveColumns("album");
+      tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, columns)));
+      applyMusicGridTemplate(list, "album");
+    };
+    musicColumnHeaderRefreshers.set(list, rerenderRows);
+    rerenderRows();
     grid.appendChild(list);
     return;
   }
@@ -931,22 +940,199 @@ function renderAllTracksList(grid, tracks) {
   state.lastRenderedItems = tracks;
   const list = document.createElement("div");
   list.className = "track-list track-list--all";
-  const head = document.createElement("div");
-  head.className = "track-row track-row--head";
-  head.innerHTML = `
-    <span class="track-row-cover"></span>
-    <span class="track-row-title">Titel</span>
-    <span class="track-row-artist">Künstler</span>
-    <span class="track-row-album">Album</span>
-    <span class="track-row-played">Zuletzt gehört</span>
-    <span></span>
-  `;
-  list.appendChild(head);
   // "fav": Favoriten-Herz auch in der flachen Liste — war hier bisher die
   // einzige Musik-Ansicht ohne Möglichkeit, einen einzelnen Titel zu
-  // favorisieren (User-Anfrage 2026-09-04).
-  tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, ["cover", "title", "artist", "album", "lastPlayed", "fav"])));
+  // favorisieren (User-Anfrage 2026-09-04). Spalten Titel/Künstler/Album/
+  // Zuletzt gehört sind seit 2026-09-06 breiten-/reihenfolge-verschiebbar
+  // (musicColumns:all, siehe MUSIC_LIST_CONTEXTS).
+  const rerenderRows = () => {
+    list.innerHTML = "";
+    renderMusicColumnHeader("all", list);
+    const columns = musicEffectiveColumns("all");
+    tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, columns)));
+    applyMusicGridTemplate(list, "all");
+  };
+  musicColumnHeaderRefreshers.set(list, rerenderRows);
+  rerenderRows();
   grid.appendChild(list);
+}
+
+// Musik-Listenansicht: Spalten (Breite + Reihenfolge) frei konfigurierbar
+// (User-Wunsch 2026-09-06: "Diese Spalten möchte ich von der Breite und
+// damit auch von der Position verschiebbar machen"). Betroffen sind nur die
+// "echten" Text-Spalten (Titel/Künstler/Album/Dauer/Zuletzt gehört) — Track-
+// Nummer, Cover-Thumbnail und der Favoriten-Button bleiben an fester
+// Position, das sind reine Icon-Slots, keine Daten-Spalten im Sinne des
+// User-Wunschs. Persistiert pro Kontext in localStorage
+// (musicColumns:album / musicColumns:all), analog anderen Listen-Prefs wie
+// flatView/musicListView.
+const MUSIC_LIST_CONTEXTS = {
+  album: {
+    fixedLeading: ["track"],
+    reorderable: ["title", "artist", "duration"],
+    fixedTrailing: ["fav"],
+    labels: { title: "Titel", artist: "Künstler", duration: "Dauer" },
+    defaultWidths: { title: 260, artist: 160, duration: 70 },
+    minWidths: { title: 100, artist: 80, duration: 50 },
+    fixedWidths: { track: 32, fav: 32 },
+  },
+  all: {
+    fixedLeading: ["cover"],
+    reorderable: ["title", "artist", "album", "lastPlayed"],
+    fixedTrailing: ["fav"],
+    labels: { title: "Titel", artist: "Künstler", album: "Album", lastPlayed: "Zuletzt gehört" },
+    defaultWidths: { title: 280, artist: 160, album: 160, lastPlayed: 140 },
+    minWidths: { title: 100, artist: 80, album: 80, lastPlayed: 100 },
+    fixedWidths: { cover: 40, fav: 32 },
+  },
+};
+
+function musicColumnLayoutKey(context) { return `musicColumns:${context}`; }
+
+function loadMusicColumnLayoutRaw(context) {
+  try { return JSON.parse(localStorage.getItem(musicColumnLayoutKey(context)) || "null"); } catch { return null; }
+}
+
+function loadMusicColumnOrder(context) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const saved = loadMusicColumnLayoutRaw(context);
+  if (saved && Array.isArray(saved.order) && saved.order.length === cfg.reorderable.length
+      && cfg.reorderable.every(c => saved.order.includes(c))) {
+    return saved.order.slice();
+  }
+  return cfg.reorderable.slice();
+}
+
+function loadMusicColumnWidths(context) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const saved = loadMusicColumnLayoutRaw(context);
+  const widths = {};
+  for (const col of cfg.reorderable) {
+    widths[col] = (saved && saved.widths && typeof saved.widths[col] === "number")
+      ? saved.widths[col] : cfg.defaultWidths[col];
+  }
+  return widths;
+}
+
+function saveMusicColumnLayout(context, order, widths) {
+  try { localStorage.setItem(musicColumnLayoutKey(context), JSON.stringify({ order, widths })); } catch {}
+}
+
+// Komplettes Spalten-Array inkl. fixer Leading/Trailing-Slots in aktueller
+// Reihenfolge — direkt als `columns`-Parameter für renderMusicTrackRow nutzbar.
+function musicEffectiveColumns(context) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  return [...cfg.fixedLeading, ...loadMusicColumnOrder(context), ...cfg.fixedTrailing];
+}
+
+function musicGridTemplate(context) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const order = loadMusicColumnOrder(context);
+  const widths = loadMusicColumnWidths(context);
+  const parts = [];
+  for (const col of cfg.fixedLeading) parts.push(`${cfg.fixedWidths[col]}px`);
+  for (const col of order) parts.push(`${Math.max(widths[col], cfg.minWidths[col])}px`);
+  for (const col of cfg.fixedTrailing) parts.push(`${cfg.fixedWidths[col]}px`);
+  return parts.join(" ");
+}
+
+// Setzt das berechnete Grid-Template auf Kopf- UND alle Daten-Zeilen eines
+// Track-List-Containers — ein zentraler Anwendungspunkt, damit Resize sofort
+// überall konsistent wirkt (inline style schlägt die CSS-":has()"-Fallback-
+// Regeln in style.css, die nur für den Erstanstrich vor JS-Init greifen).
+function applyMusicGridTemplate(list, context) {
+  const tmpl = musicGridTemplate(context);
+  list.querySelectorAll(".track-row").forEach(row => { row.style.gridTemplateColumns = tmpl; });
+}
+
+// Pro Listen-Container hinterlegter Re-Render-Callback (kompletter Rebuild
+// von Kopfzeile + allen Zeilen mit neuer Spaltenreihenfolge) — nötig weil
+// die Spalten-Reihenfolge nicht nur das CSS-Raster betrifft, sondern auch
+// welcher Inhalt in welcher Zellen-Position steht (renderMusicTrackRow baut
+// das HTML in `columns`-Reihenfolge). Von renderAlbumTracks/
+// renderAllTracksList gesetzt, da nur deren Closure Zugriff auf `tracks` hat.
+const musicColumnHeaderRefreshers = new WeakMap();
+
+// renderMusicColumnHeader: Kopfzeile mit Resize-Handles (Drag am rechten
+// Zellrand) + Drag-and-Drop-Reorder (natives HTML5-DnD) für die
+// reorderable-Spalten. Fixe Icon-Slots bekommen nur einen leeren Platzhalter,
+// damit das Grid-Raster mit den Datenzeilen übereinstimmt.
+function renderMusicColumnHeader(context, list) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const head = document.createElement("div");
+  head.className = "track-row track-row--head track-row--col-head";
+  let html = "";
+  for (const _ of cfg.fixedLeading) html += `<span class="track-row-head-fixed"></span>`;
+  for (const col of loadMusicColumnOrder(context)) {
+    html += `<span class="track-row-head-cell" draggable="true" data-col="${col}">` +
+      `<span class="track-row-head-label">${escapeHTML(cfg.labels[col] || col)}</span>` +
+      `<span class="col-resize-handle" data-resize="${col}" title="Spaltenbreite ziehen"></span></span>`;
+  }
+  for (const _ of cfg.fixedTrailing) html += `<span class="track-row-head-fixed"></span>`;
+  head.innerHTML = html;
+  list.appendChild(head);
+  wireMusicColumnHeader(head, context, list);
+  return head;
+}
+
+function wireMusicColumnHeader(head, context, list) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+
+  // --- Breite ziehen ---
+  head.querySelectorAll(".col-resize-handle").forEach(handle => {
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const col = handle.dataset.resize;
+      const startX = e.clientX;
+      const widths = loadMusicColumnWidths(context);
+      const startWidth = widths[col];
+      function onMove(ev) {
+        const delta = ev.clientX - startX;
+        widths[col] = Math.max(cfg.minWidths[col], startWidth + delta);
+        saveMusicColumnLayout(context, loadMusicColumnOrder(context), widths);
+        applyMusicGridTemplate(list, context);
+      }
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+    handle.addEventListener("click", (e) => e.stopPropagation());
+    handle.addEventListener("dragstart", (e) => e.preventDefault());
+  });
+
+  // --- Reihenfolge per Drag&Drop ---
+  let dragCol = null;
+  head.querySelectorAll(".track-row-head-cell").forEach(cell => {
+    cell.addEventListener("dragstart", (e) => {
+      dragCol = cell.dataset.col;
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", dragCol); } catch {}
+      cell.classList.add("dragging");
+    });
+    cell.addEventListener("dragend", () => cell.classList.remove("dragging"));
+    cell.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    });
+    cell.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const targetCol = cell.dataset.col;
+      if (!dragCol || dragCol === targetCol) return;
+      const order = loadMusicColumnOrder(context);
+      const from = order.indexOf(dragCol);
+      const to = order.indexOf(targetCol);
+      if (from === -1 || to === -1) return;
+      order.splice(from, 1);
+      order.splice(to, 0, dragCol);
+      saveMusicColumnLayout(context, order, loadMusicColumnWidths(context));
+      const refresh = musicColumnHeaderRefreshers.get(list);
+      if (refresh) refresh();
+    });
+  });
 }
 
 // renderMusicTrackRow: gemeinsamer Zeilen-Renderer für alle Musik-

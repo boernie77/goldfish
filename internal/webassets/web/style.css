@@ -944,6 +944,36 @@ body.selection-mode .track-row-select { display: flex; }
   padding-bottom: 2px;
 }
 .track-row--head:hover { background: transparent; }
+/* Spalten-Kopfzeile mit Resize-/Reorder-Handles (seit 2026-09-06, User-Wunsch:
+   Breite + Position der Musik-Listen-Spalten verschiebbar). Das tatsächliche
+   Grid-Raster kommt per Inline-Style von applyMusicGridTemplate() —
+   die :has()-Regeln unten bleiben nur als Fallback für den allerersten
+   Sync-Render, bevor JS die Zeile antastet. */
+.track-row--col-head { gap: 10px; }
+.track-row-head-fixed { min-width: 0; }
+.track-row-head-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: grab;
+  user-select: none;
+}
+.track-row-head-cell.dragging { opacity: 0.4; }
+.track-row-head-cell:hover { color: var(--fg, #eee); }
+.col-resize-handle {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  bottom: -8px;
+  width: 12px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.col-resize-handle:hover { background: rgba(255, 255, 255, 0.12); }
 /* Spalten-Layouts je nach Kontext — Album-Detail-Liste (Track#+Titel+Artist+Dauer+Fav,
    Artist seit 2026-09-06 ergänzt — bei "Verschiedene Interpreten"-Alben sonst
    nirgends sichtbar, welcher Interpret den einzelnen Track tatsächlich singt) */
