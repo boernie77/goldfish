@@ -1064,7 +1064,7 @@ function renderMusicColumnHeader(context, list) {
   let html = "";
   for (const _ of cfg.fixedLeading) html += `<span class="track-row-head-fixed"></span>`;
   for (const col of loadMusicColumnOrder(context)) {
-    html += `<span class="track-row-head-cell" draggable="true" data-col="${col}">` +
+    html += `<span class="track-row-head-cell" data-col="${col}">` +
       `<span class="track-row-head-label">${escapeHTML(cfg.labels[col] || col)}</span>` +
       `<span class="col-resize-handle" data-resize="${col}" title="Spaltenbreite ziehen"></span></span>`;
   }
@@ -1075,8 +1075,20 @@ function renderMusicColumnHeader(context, list) {
   return head;
 }
 
+// Reorder UND Resize laufen bewusst über dasselbe reine mousedown/mousemove/
+// mouseup-System, NICHT über natives HTML5-Drag&Drop (draggable="true"):
+// ein `draggable`-Kopfzellen-Container "verschluckt" jede Mausbewegung, die
+// INNERHALB der Zelle beginnt — auch auf einem Kind-Element wie dem Resize-
+// Handle, selbst mit explizitem draggable="false" darauf. Der Browser
+// wechselt intern in den nativen Drag-Modus, sobald die Maus über dem
+// draggable-Vorfahren bewegt wird, und liefert danach GAR KEINE regulären
+// `mousemove`-Events mehr an JS — der Resize-Handler lief dadurch komplett
+// leer (User-Bericht 2026-09-06: "Verschieben klappt, Vergrößern nicht").
+// Live mit `computer`-Tool-Drag UND manuell verifiziert: mit natives-DnD kam
+// nicht einmal das `mousedown` beim Handle an.
 function wireMusicColumnHeader(head, context, list) {
   const cfg = MUSIC_LIST_CONTEXTS[context];
+  const REORDER_THRESHOLD = 4; // px Mausbewegung bis ein Reorder-Drag beginnt
 
   // --- Breite ziehen ---
   head.querySelectorAll(".col-resize-handle").forEach(handle => {
@@ -1101,36 +1113,49 @@ function wireMusicColumnHeader(head, context, list) {
       document.addEventListener("mouseup", onUp);
     });
     handle.addEventListener("click", (e) => e.stopPropagation());
-    handle.addEventListener("dragstart", (e) => e.preventDefault());
   });
 
-  // --- Reihenfolge per Drag&Drop ---
-  let dragCol = null;
+  // --- Reihenfolge per Maus-Drag (eigenes Pointer-Tracking statt HTML5-DnD) ---
   head.querySelectorAll(".track-row-head-cell").forEach(cell => {
-    cell.addEventListener("dragstart", (e) => {
-      dragCol = cell.dataset.col;
-      e.dataTransfer.effectAllowed = "move";
-      try { e.dataTransfer.setData("text/plain", dragCol); } catch {}
-      cell.classList.add("dragging");
-    });
-    cell.addEventListener("dragend", () => cell.classList.remove("dragging"));
-    cell.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-    });
-    cell.addEventListener("drop", (e) => {
-      e.preventDefault();
-      const targetCol = cell.dataset.col;
-      if (!dragCol || dragCol === targetCol) return;
-      const order = loadMusicColumnOrder(context);
-      const from = order.indexOf(dragCol);
-      const to = order.indexOf(targetCol);
-      if (from === -1 || to === -1) return;
-      order.splice(from, 1);
-      order.splice(to, 0, dragCol);
-      saveMusicColumnLayout(context, order, loadMusicColumnWidths(context));
-      const refresh = musicColumnHeaderRefreshers.get(list);
-      if (refresh) refresh();
+    cell.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".col-resize-handle")) return; // Resize hat Vorrang
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const sourceCol = cell.dataset.col;
+      let dragging = false;
+      let overCell = null;
+
+      function onMove(ev) {
+        if (!dragging) {
+          if (Math.abs(ev.clientX - startX) < REORDER_THRESHOLD && Math.abs(ev.clientY - startY) < REORDER_THRESHOLD) return;
+          dragging = true;
+          cell.classList.add("dragging");
+        }
+        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+        const targetCell = target && target.closest(".track-row-head-cell");
+        if (overCell && overCell !== targetCell) overCell.classList.remove("drag-over");
+        overCell = (targetCell && targetCell !== cell && head.contains(targetCell)) ? targetCell : null;
+        if (overCell) overCell.classList.add("drag-over");
+      }
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        cell.classList.remove("dragging");
+        if (overCell) overCell.classList.remove("drag-over");
+        if (!dragging || !overCell) return;
+        const targetCol = overCell.dataset.col;
+        const order = loadMusicColumnOrder(context);
+        const from = order.indexOf(sourceCol);
+        const to = order.indexOf(targetCol);
+        if (from === -1 || to === -1) return;
+        order.splice(from, 1);
+        order.splice(to, 0, sourceCol);
+        saveMusicColumnLayout(context, order, loadMusicColumnWidths(context));
+        const refresh = musicColumnHeaderRefreshers.get(list);
+        if (refresh) refresh();
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
     });
   });
 }

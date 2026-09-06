@@ -1287,6 +1287,26 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (`track-row--album`, Cover+Album+Artist+Trackzahl+Fav) ist NICHT
   betroffen — User-Wunsch bezog sich erkennbar auf die Track-Listen
   ("Titel, Künstler, Dauer"), nicht die Album-Kacheln/-Zeilen selbst.
+  **🔴 Vergrößern (Resize) funktionierte zunächst nicht, Verschieben (Reorder)
+  schon (Bug, gefixt noch am selben Tag):** zwei unabhängige Ursachen.
+  (1) Der Resize-Handle war `position:absolute; right:-6px` — ragte damit in
+  den `gap:10px` zwischen den Grid-Spalten hinein, wo der Head-Container
+  selbst über ihm lag (`document.elementFromPoint` an der berechneten
+  Handle-Mitte traf nie den Handle, nur den Container — live per
+  `claude-in-chrome`/`javascript_tool` verifiziert). Fix: Handle liegt jetzt
+  als normales Flex-Kind (`flex:0 0 10px`) IM Zellfluss, keine absolute
+  Positionierung mehr — Klickfläche = tatsächliche Bounding-Box. (2) Reorder
+  lief über natives HTML5-`draggable="true"` auf der Kopfzelle — ein
+  Resize-Versuch, der auf einem Kind-Element INNERHALB einer draggable-Zelle
+  beginnt, wird vom Browser als Drag-Kandidat des Elternteils erkannt und
+  unterdrückt danach reguläre `mousemove`-Events komplett (bestätigt: selbst
+  mit explizitem `draggable="false"` auf dem Handle kam nicht einmal das
+  `mousedown` an). Fix: Reorder läuft jetzt über dasselbe reine
+  mousedown/mousemove/mouseup-Tracking wie Resize, kein natives DnD mehr
+  (`REORDER_THRESHOLD` von 4px Mausbewegung, bevor ein Drag als Reorder statt
+  Klick gilt). Getestet mit echten OS-Level-Mausereignissen (nicht nur
+  synthetischen `dispatchEvent`-Aufrufen, die kein natives Drag auslösen und
+  den Bug deshalb zunächst verdeckten).
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/

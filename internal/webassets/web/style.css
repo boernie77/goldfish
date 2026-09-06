@@ -954,26 +954,33 @@ body.selection-mode .track-row-select { display: flex; }
 .track-row-head-cell {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: grab;
   user-select: none;
 }
 .track-row-head-cell.dragging { opacity: 0.4; }
+.track-row-head-cell.drag-over { outline: 2px dashed #3b82f6; outline-offset: -2px; }
 .track-row-head-cell:hover { color: var(--fg, #eee); }
-.col-resize-handle {
-  position: absolute;
-  top: -8px;
-  right: -6px;
-  bottom: -8px;
-  width: 12px;
-  cursor: col-resize;
-  z-index: 2;
+.track-row-head-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: center;
 }
-.col-resize-handle:hover { background: rgba(255, 255, 255, 0.12); }
+/* Handle liegt bewusst IM normalen Flex-Fluss der Zelle (nicht absolut über
+   den Rand hinausragend) — eine absolute Positionierung mit negativem
+   right-Offset ragte in den Grid-Gap zwischen den Spalten hinein, wo sie
+   vom Head-Container selbst überlagert wurde (elementFromPoint traf dort
+   nie den Handle, nur den Container). Als normales Flex-Kind ist die
+   Klickfläche exakt so groß wie ihre eigene Bounding-Box. */
+.col-resize-handle {
+  flex: 0 0 10px;
+  cursor: col-resize;
+}
+.col-resize-handle:hover { background: rgba(255, 255, 255, 0.15); }
 /* Spalten-Layouts je nach Kontext — Album-Detail-Liste (Track#+Titel+Artist+Dauer+Fav,
    Artist seit 2026-09-06 ergänzt — bei "Verschiedene Interpreten"-Alben sonst
    nirgends sichtbar, welcher Interpret den einzelnen Track tatsächlich singt) */
