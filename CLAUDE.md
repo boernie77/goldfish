@@ -3580,7 +3580,16 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    bei Gelegenheit einmal vom User selbst im echten Browser gegengeprüft
    werden — nicht erneut per claude-in-chrome versuchen, das Ergebnis ist
    umgebungsbedingt vorhersagbar negativ.
-6. enrich/worker.go → matching.go (matchItem/matchShow/enrichItems/enrichFolders)
+6. ✅ **enrich/worker.go → matching.go** (LIVE 1.2.13) — der Ziel-Block war
+   bereits ein einziger zusammenhängender, unveränderter Abschnitt
+   (`enrichFolders`/`enrichItems`/`matchShow`/`matchItem`, Zeilen 262–533)
+   ohne modul-scoped `var`/`const` (nur `type`-Deklarationen im
+   Worker-struct, unberührt) — einfachster Schritt der ganzen Serie.
+   worker.go: 1103 → 829 Zeilen, matching.go: 289 Zeilen. Verifiziert per
+   Multiset-Diff (nur neue Datei-Header/Imports unterscheiden sich) +
+   `go build`/`go vet`/`go test ./...` grün (kein `enrich`-Package-Test
+   vorhanden, war schon vorher so). Reine Backend-Verschiebung ohne
+   API-Auswirkung, kein Browser-Live-Test nötig (wie Schritt 3).
 7. Rest von sqlite.go (items.go/folders.go/libraries.go/settings.go)
 
 **Golint/biome-Bestandsaufnahme** (nicht alles behoben, nur dokumentiert):
