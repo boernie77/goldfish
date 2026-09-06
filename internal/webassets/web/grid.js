@@ -205,7 +205,214 @@ async function loadItemsBody() {
   // Trickplay-Fehler-View (aus dem Trickplay-Manager-Dialog ausgelöst):
   // flache Library-übergreifende Liste aller Items mit trickplay_status=failed.
   // ✕ im Breadcrumb öffnet den Trickplay-Manager-Dialog wieder.
-  if (state.tpFailedView) {
+  if (state.tpFailedView) return await renderTpFailedView();
+
+  // Startseite: bei aktiver Suche wird sie zu einer globalen Suche quer
+  // über alle Libraries; sonst die drei klassischen Sektionen aus /api/home.
+  if (state.homeView) return await renderHomeBranch();
+
+  // Playlist-Ansicht
+  if (state.currentPlaylist) return await renderPlaylistBranch();
+
+  // Playlists-Ansicht (Root): zeigt alle Playlists als Kacheln + eigene Toolbar.
+  if (state.playlistsView && !state.currentPlaylist) return await renderPlaylistsRootBranch();
+
+  // Collections-Ansicht: zeigt alle TMDB-Sammlungen, in die mindestens ein Film fällt.
+  if (state.collectionsView) return await renderCollectionsBranch();
+
+  // Person-Filter-Ansicht: zeigt quer über alle Libraries alle Items, bei denen
+  // die gewählte Person im Cast ist. Filme und Serien werden getrennt gerendert:
+  //   - Filme: Standard-Kacheln, chronologisch sortiert (neueste zuerst)
+  //   - Serien: pro Show genau EINE Kachel mit Show-Poster. Klick navigiert zur
+  //     Serie wie aus dem Episoden-Titel heraus.
+  if (state.personFilter) return await renderPersonFilterBranch();
+
+  // "🔀 Mehrere Versionen" (Dropdown-Option, seit 2026-09-02): zeigt genau die
+  // Kacheln, die im normalen Grid einen ×N-Varianten-Badge tragen würden —
+  // im Unterschied zu "Duplikate" (flach, jede Datei einzeln, library-
+  // übergreifend über alle Libs gleichen Kinds) bleibt diese Ansicht auf die
+  // GERADE BETRACHTETE Bibliothek beschränkt (User-Wunsch: "jeweils auf
+  // Bibliotheken bezogen, in Serien nur von Serien") und mergt wie gewohnt
+  // zu einer Kachel pro Titel/Episode. Nutzt items[].variantCount, das
+  // ListItems ohnehin für JEDES Item mitliefert (global gezählt, s.
+  // attachVariantCounts) — kein neuer Server-Endpoint nötig. Scope wie die
+  // anderen Flat-Sorts: aktueller Ordner rekursiv falls gesetzt, sonst ganze
+  // Library.
+  if ($("#sortSelect").value === "multiversion" && state.currentLibrary) return await renderMultiversionBranch();
+
+  // "≈ Ähnliche Dateinamen" (Dropdown-Option): Fast-Duplikate — Dateiname zu
+  // ≥ 90 % identisch (nach Normalisierung: klein, ohne Endung, ohne " (N)"),
+  // exakt gleiche Auflösung, Laufzeit ±1 s. Fängt "film.mp4" ↔ "film (2).mp4"
+  // und "film.wmv" ↔ "film.mp4", die der "Duplikate"-Filter (metadata_id)
+  // nicht sieht. Löste 2026-09-02 den strengeren "⧉ Datei in anderem Ordner"-
+  // Filter (exakter Name + Größe) komplett ab, der eine echte Teilmenge davon
+  // war (jedes Größen-Duplikat hat zwangsläufig auch gleiche Auflösung+Länge)
+  // und zuletzt immer 0 Treffer brachte. Scoped auf den aktuellen Ordner
+  // (falls in einem, rekursiv), sonst ganze Library.
+  if ($("#sortSelect").value === "simnames" && state.currentLibrary) return await renderSimNamesBranch();
+
+  // Verdächtige TMDB-Zuordnungen (Dropdown-Option). Server-seitig heuristisch
+  // bestimmt: kein Token-Overlap zwischen Top-Folder und Metadata-Titel, kein
+  // Jahres-Match → wahrscheinlich falsch gematcht.
+  if ($("#sortSelect").value === "suspicious" && state.currentLibrary) return await renderSuspiciousBranch();
+
+  // Interlaced-Ansicht (via Sort-Dropdown): flache Liste aller Items mit
+  // mindestens einem Video-Stream, dessen field_order Halbbilder hat. Gut
+  // für Diagnose und gezielten Force-Re-Encode mit Deinterlace.
+  if (currentInterlacedMode() === "yes" && state.currentLibrary) return await renderInterlacedBranch();
+
+  // Duplikate-Ansicht (via Sortierungs-Dropdown-Option): alle Items mit mehrfach
+  // vergebener metadata_id, flach innerhalb der aktuellen Library, und OHNE
+  // Merge — der User will ja gerade jede Einzeldatei sehen, um Kopien vergleichen
+  // und ggf. löschen zu können.
+  if ($("#sortSelect").value === "duplicates" && state.currentLibrary) return await renderDuplicatesBranch();
+
+  // Musik-Bibliotheken haben ihren EIGENEN Flat-Pfad weiter unten (Album-
+  // Übersicht/"Alle Titel"), der die Listenansicht respektiert — einmal
+  // zentral nachschlagen, von den Favoriten- UND FLAT_SORTS-Weichen unten
+  // genutzt (gleicher Bug wie bei "Zuletzt abgespielt": User-Bericht
+  // 2026-09-04 "diese dürfen natürlich nicht in der Filmfavoriten-Liste mit
+  // erscheinen" — Scope ist zwar bereits korrekt auf state.currentLibrary
+  // begrenzt, aber ohne diese Weiche ignorierte die Ansicht den
+  // Listen-Toggle genau wie beim Sortier-Bug).
+  const musicFlatLib = state.libraries.find(l => l.id == state.currentLibrary);
+  const isMusicFlatLib = musicFlatLib?.kind === "music";
+
+  // Favoriten-Modus (via Sort-Dropdown): flache Ansicht ohne Ordner-Struktur.
+  // SCOPE: nur nach unten flach — im Library-Root die ganze Library, in einem
+  // Unterordner NUR dessen Favoriten (rekursiv inkl. Unterordner), nicht
+  // library-weit (gleiche Konvention wie die Flat-Sorts / der folder-gescopte
+  // Scan; User-Wunsch 2026-08-30). Library-Wechsel wirkt weiterhin.
+  if (currentFavoriteMode() === "yes" && state.currentLibrary && !isMusicFlatLib) return await renderFavoritesFlatBranch();
+
+  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt", "Laufzeit",
+  // "Veröffentlicht" und "Dateiname". Alle ignorieren die Ordner-STRUKTUR
+  // (keine Folder-Kacheln) und zeigen eine flache Liste. SCOPE: nur nach
+  // unten flach — im Library-Root die ganze Library, in einem Unterordner
+  // NUR dessen Inhalt (rekursiv), nicht library-weit hochziehen. Server
+  // sortiert (bei played zusätzlich Filter auf last_played_at IS NOT NULL)
+  // und filtert `folder` rekursiv via LIKE. "released" seit 2026-09-05
+  // ergänzt (User-Wunsch: bei Serien ohne TMDB-Staffelstruktur, z.B. Tatort
+  // mit Kommissar-Unterordnern statt TMDB-Staffeln, soll "Veröffentlicht"
+  // alle Folgen auf der aktuellen Ordnerebene inkl. Unterordnern
+  // chronologisch zeigen). "filename" (Dateiname) ebenfalls seit 2026-09-05
+  // NEU als eigener Sort-Key ergänzt — BEWUSST NICHT einfach "title" (Name)
+  // in dieses Set aufgenommen: "title" ist der App-weite Default-Sort und
+  // würde dann JEDE Ordner-Kachel-Ansicht (Library-Root, Drilldown-Ordner)
+  // permanent flach schalten. "filename" ist ein eigener, explizit vom User
+  // gewählter Sort-Key (Backend sortiert dabei IMMER nach i.title/Dateiname,
+  // nie nach einem eventuellen TMDB-Titel), der genau dieses Flatten sicher
+  // nur bei aktiver Auswahl auslöst — nützlich für Serien wie Tatort, deren
+  // Dateinamen Jahr+Episodennummer tragen, aber nicht durchgängig pro Folge
+  // TMDB-gematcht sind.
+  const FLAT_SORTS = new Set(["played", "added", "duration", "released", "filename"]);
+  const flatSort = $("#sortSelect").value;
+  // Musik-Bibliotheken haben ihren EIGENEN Flat-Sort-Pfad weiter unten
+  // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —
+  // dieser generische Zweig würde "Zuletzt abgespielt" IMMER als Kachel-
+  // Grid rendern, unabhängig vom Listen-Toggle (User-Bericht 2026-09-04).
+  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && !isMusicFlatLib) return await renderFlatSortLibraryBranch();
+
+  if (!state.currentLibrary) {
+    grid.innerHTML = `<div class="empty">Noch keine Bibliothek. Klicke auf 📁, um eine hinzuzufügen.</div>`;
+    return;
+  }
+
+  // In einem TV-Subfolder automatisch nach Episode sortieren (außer der User hat
+  // bewusst eine andere Sortierung gewählt).
+  const lib = state.libraries.find(l => l.id == state.currentLibrary);
+  let sort = currentSortMode();
+  if (lib && lib.kind === "tv" && state.currentFolder !== null && sort === "title") {
+    sort = "episode";
+  }
+
+  // Staffel-Ansicht: Toggle aktiv + TV-Lib + Show-Ordner. Zwei Modi:
+  //  (a) state.currentSeason === null → Staffel-Kacheln (Drilldown-Eintritt)
+  //  (b) state.currentSeason === N    → flache Folgen-Liste der Staffel
+  // Bei aktivem „Ohne TMDB-Zuordnung"-Filter muss die Staffel-Ansicht jedoch
+  // weichen — die Seasons-API kennt nur Items mit erkennbarem SxxExx im Pfad,
+  // unmatched Bonus-/Extras-/Behind-the-Scenes-Dateien wären sonst unsichtbar.
+  // GLEICHES gilt für einen aktiven Auflösungsfilter (seit 2026-09-02,
+  // User-Wunsch): die Seasons-API mergt mehrere Dateien derselben Episode
+  // (z. B. 720p + 360p) zu EINEM Owned-Slot mit Varianten-Dropdown — ein
+  // Auflösungsfilter hätte dort keinerlei Wirkung ("aktuell passiert gar
+  // nichts", User-Report) UND würde die gezielte Auswahl "nur die 360p-Datei
+  // dieser Folge, nicht die 720p-Variante" unmöglich machen. Mit aktivem
+  // Filter fällt die Ansicht auf die normale flache Ordner-Liste zurück
+  // (weiterhin auf state.currentFolder = den Show-Ordner gescoped, rekursiv
+  // wie jeder andere Ordner) — dort filtert der Server pro Datei, jede
+  // Auflösungs-Variante bleibt ein eigenes, einzeln löschbares Item.
+  const matchMode = currentMatchMode();
+  // Bewusst NICHT mehr an `state.seasonView` gegated (Bug, gefixt 2026-09-06,
+  // User-Report "Ich sehe den Poster-Button nicht"): der Fallback-Zweig unten
+  // setzt `seasonView:<lib>:<folder>` dauerhaft auf "0", sobald einmal keine
+  // Staffel-Struktur erkannt wurde — bei jedem SPÄTEREN Öffnen desselben
+  // Ordners war `state.seasonView` dadurch schon "false" und der GESAMTE
+  // Block (inkl. Info-Header) wurde komplett übersprungen, nicht nur die
+  // Staffel-Kachel-Darstellung. Der Seasons-API-Call läuft jetzt immer für
+  // TV-Ordner (auch mit deaktivierter Staffel-Ansicht) — die Entscheidung
+  // "Kacheln vs. normale Liste" fällt weiterhin anhand `state.seasonView`,
+  // aber NUR das betrifft, nicht mehr den Info-Header.
+  if (lib && lib.kind === "tv" && state.currentFolder
+      && matchMode !== "unmatched" && matchMode !== "unconfirmed"
+      && state.resBuckets.size === 0 && state.genreFilter.size === 0) {
+    let data;
+    try {
+      data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
+    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+    const hasSeasons = !!(data.seasons && data.seasons.length > 0);
+    // Sackgassen-Vermeidung (User-Report 2026-09-05, "Tatort" mit Kommissar-
+    // Unterordnern statt TMDB-Staffeln): wenn die Seasons-API auf oberster
+    // Ebene (kein Staffel-Klick, currentSeason===null) NICHTS liefert — Ordner
+    // noch nicht TMDB-zugeordnet, oder die physische Struktur passt schlicht
+    // nicht zu TMDB-Staffeln — bringt die "Keine Staffel-Daten"-Meldung den
+    // User nicht weiter. Staffel-Ansicht für GENAU diesen Ordner einmalig
+    // automatisch abschalten (persistiert wie ein manuelles Toggle) — nur
+    // beim ÜBERGANG true→false, sonst würde der Toast bei jedem Öffnen erneut
+    // feuern, seit der Fallback-Zweig nicht mehr `state.seasonView`-gegated ist.
+    if (state.currentSeason == null && !hasSeasons && state.seasonView) {
+      try { localStorage.setItem(`seasonView:${state.currentLibrary || 0}:${state.currentFolder}`, "0"); } catch {}
+      state.seasonView = false;
+      showToast("Keine Staffel-Struktur erkannt – zeige normale Ordner-Ansicht", { kind: "info" });
+    }
+    if (state.seasonView && hasSeasons) {
+      renderBreadcrumb({});
+      if (state.currentSeason == null) {
+        renderSeasonFolders(grid, data);
+      } else {
+        renderSeasonEpisodes(grid, data, state.currentSeason);
+      }
+      return;
+    }
+    // Fällt durch in die normale Ordner-/Datei-Ansicht unten (rekursiv wie
+    // jeder andere Ordner, Sortierung/Filter funktionieren unverändert).
+    // Info-Header davor (User-Wunsch 2026-09-06): `data.show` ist gesetzt,
+    // wenn der Ordner TMDB-zugeordnet ist (auch ohne erkennbare Staffel-
+    // Struktur, Tatort/Terra-X-Fall) oder ein Custom-Poster gesetzt wurde —
+    // sonst der schlanke "unmatched"-Header. Nur auf oberster Ebene
+    // (currentSeason===null); innerhalb einer Staffel mit deaktivierter
+    // Kachel-Ansicht (Rand-Fall) bleibt es bei der reinen Dateiliste.
+    if (state.currentSeason == null) {
+      state.pendingShowInfoHeader = data.show || { unmatched: true, folder: state.currentFolder };
+    }
+  }
+
+  // Musik-Bibliotheken (seit 2026-09-04): Album-Kacheln im Library-Root,
+  // Track-Liste beim Öffnen eines Albums (state.currentAlbum). Greift NUR im
+  // Root — normale Ordner-Navigation (Unterordner) bleibt für Musik-Libs
+  // unverändert nutzbar (Ordnerstruktur bleibt Navigation, kanonische Album-
+  // Identität kommt separat aus den Tags).
+  if (lib && lib.kind === "music" && state.currentFolder === null) return await renderMusicLibraryBranch();
+
+  return await renderDefaultLibraryGrid();
+
+  // --- Extrahierte Anzeige-Branches (Schritt 2 Modularisierung, siehe CLAUDE.md) ---
+  // Jede Funktion ist eine reine Verschiebung des vormaligen if-Branch-Bodys,
+  // ohne Logikänderung. Bleiben als verschachtelte Funktionen (statt Top-Level),
+  // damit sie grid/stale/mySeq/lib/sort/matchMode/musicFlatLib/... unverändert
+  // per Closure sehen — keine Parameter-Umbauten nötig, null Referenz-Risiko.
+  async function renderTpFailedView() {
     const params = new URLSearchParams({ trickplay: "failed", sort: "title", dir: "asc" });
     let items = [];
     try { items = await apiGetCached(`/api/items?${params}`); }
@@ -225,9 +432,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Startseite: bei aktiver Suche wird sie zu einer globalen Suche quer
-  // über alle Libraries; sonst die drei klassischen Sektionen aus /api/home.
-  if (state.homeView) {
+  async function renderHomeBranch() {
     const sq = $("#searchInput").value.trim();
     $("#searchClear").classList.toggle("hidden", sq === "");
     // Mindestlänge 2 — bei 1 Buchstaben matcht die Suche zu viel (LIKE %h%
@@ -262,8 +467,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Playlist-Ansicht
-  if (state.currentPlaylist) {
+  async function renderPlaylistBranch() {
     let items = [];
     try {
       // Sortierung wie in jeder anderen Ansicht ueber #sortSelect steuerbar
@@ -315,8 +519,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Playlists-Ansicht (Root): zeigt alle Playlists als Kacheln + eigene Toolbar.
-  if (state.playlistsView && !state.currentPlaylist) {
+  async function renderPlaylistsRootBranch() {
     let pls = [];
     try { pls = await api("/api/playlists"); }
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
@@ -350,8 +553,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Collections-Ansicht: zeigt alle TMDB-Sammlungen, in die mindestens ein Film fällt.
-  if (state.collectionsView) {
+  async function renderCollectionsBranch() {
     const searchQ = $("#searchInput").value.trim();
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     // Geöffnete Collection: alle TMDB-Parts (eigene + fehlende) nebeneinander.
@@ -444,12 +646,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Person-Filter-Ansicht: zeigt quer über alle Libraries alle Items, bei denen
-  // die gewählte Person im Cast ist. Filme und Serien werden getrennt gerendert:
-  //   - Filme: Standard-Kacheln, chronologisch sortiert (neueste zuerst)
-  //   - Serien: pro Show genau EINE Kachel mit Show-Poster. Klick navigiert zur
-  //     Serie wie aus dem Episoden-Titel heraus.
-  if (state.personFilter) {
+  async function renderPersonFilterBranch() {
     // Innerhalb einer Show-Sammelkachel: die Episoden stehen schon fest (kein
     // erneuter Server-Call), nur die zur Person passenden Folgen dieser Serie.
     if (state.personFilterShow) {
@@ -596,18 +793,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // "🔀 Mehrere Versionen" (Dropdown-Option, seit 2026-09-02): zeigt genau die
-  // Kacheln, die im normalen Grid einen ×N-Varianten-Badge tragen würden —
-  // im Unterschied zu "Duplikate" (flach, jede Datei einzeln, library-
-  // übergreifend über alle Libs gleichen Kinds) bleibt diese Ansicht auf die
-  // GERADE BETRACHTETE Bibliothek beschränkt (User-Wunsch: "jeweils auf
-  // Bibliotheken bezogen, in Serien nur von Serien") und mergt wie gewohnt
-  // zu einer Kachel pro Titel/Episode. Nutzt items[].variantCount, das
-  // ListItems ohnehin für JEDES Item mitliefert (global gezählt, s.
-  // attachVariantCounts) — kein neuer Server-Endpoint nötig. Scope wie die
-  // anderen Flat-Sorts: aktueller Ordner rekursiv falls gesetzt, sonst ganze
-  // Library.
-  if ($("#sortSelect").value === "multiversion" && state.currentLibrary) {
+  async function renderMultiversionBranch() {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({ libraryId: state.currentLibrary, sort: "title", dir: "asc" });
     if (state.currentFolder) p.set("folder", state.currentFolder);
@@ -634,16 +820,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // "≈ Ähnliche Dateinamen" (Dropdown-Option): Fast-Duplikate — Dateiname zu
-  // ≥ 90 % identisch (nach Normalisierung: klein, ohne Endung, ohne " (N)"),
-  // exakt gleiche Auflösung, Laufzeit ±1 s. Fängt "film.mp4" ↔ "film (2).mp4"
-  // und "film.wmv" ↔ "film.mp4", die der "Duplikate"-Filter (metadata_id)
-  // nicht sieht. Löste 2026-09-02 den strengeren "⧉ Datei in anderem Ordner"-
-  // Filter (exakter Name + Größe) komplett ab, der eine echte Teilmenge davon
-  // war (jedes Größen-Duplikat hat zwangsläufig auch gleiche Auflösung+Länge)
-  // und zuletzt immer 0 Treffer brachte. Scoped auf den aktuellen Ordner
-  // (falls in einem, rekursiv), sonst ganze Library.
-  if ($("#sortSelect").value === "simnames" && state.currentLibrary) {
+  async function renderSimNamesBranch() {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({});
     if (state.currentFolder) p.set("folder", state.currentFolder);
@@ -679,10 +856,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Verdächtige TMDB-Zuordnungen (Dropdown-Option). Server-seitig heuristisch
-  // bestimmt: kein Token-Overlap zwischen Top-Folder und Metadata-Titel, kein
-  // Jahres-Match → wahrscheinlich falsch gematcht.
-  if ($("#sortSelect").value === "suspicious" && state.currentLibrary) {
+  async function renderSuspiciousBranch() {
     const searchQ = $("#searchInput").value.trim();
     let items = [];
     try {
@@ -711,10 +885,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Interlaced-Ansicht (via Sort-Dropdown): flache Liste aller Items mit
-  // mindestens einem Video-Stream, dessen field_order Halbbilder hat. Gut
-  // für Diagnose und gezielten Force-Re-Encode mit Deinterlace.
-  if (currentInterlacedMode() === "yes" && state.currentLibrary) {
+  async function renderInterlacedBranch() {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
@@ -747,11 +918,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Duplikate-Ansicht (via Sortierungs-Dropdown-Option): alle Items mit mehrfach
-  // vergebener metadata_id, flach innerhalb der aktuellen Library, und OHNE
-  // Merge — der User will ja gerade jede Einzeldatei sehen, um Kopien vergleichen
-  // und ggf. löschen zu können.
-  if ($("#sortSelect").value === "duplicates" && state.currentLibrary) {
+  async function renderDuplicatesBranch() {
     const searchQ = $("#searchInput").value.trim();
     const currentLib = state.libraries.find(l => l.id == state.currentLibrary);
     const currentKind = currentLib ? currentLib.kind : null;
@@ -828,23 +995,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Musik-Bibliotheken haben ihren EIGENEN Flat-Pfad weiter unten (Album-
-  // Übersicht/"Alle Titel"), der die Listenansicht respektiert — einmal
-  // zentral nachschlagen, von den Favoriten- UND FLAT_SORTS-Weichen unten
-  // genutzt (gleicher Bug wie bei "Zuletzt abgespielt": User-Bericht
-  // 2026-09-04 "diese dürfen natürlich nicht in der Filmfavoriten-Liste mit
-  // erscheinen" — Scope ist zwar bereits korrekt auf state.currentLibrary
-  // begrenzt, aber ohne diese Weiche ignorierte die Ansicht den
-  // Listen-Toggle genau wie beim Sortier-Bug).
-  const musicFlatLib = state.libraries.find(l => l.id == state.currentLibrary);
-  const isMusicFlatLib = musicFlatLib?.kind === "music";
-
-  // Favoriten-Modus (via Sort-Dropdown): flache Ansicht ohne Ordner-Struktur.
-  // SCOPE: nur nach unten flach — im Library-Root die ganze Library, in einem
-  // Unterordner NUR dessen Favoriten (rekursiv inkl. Unterordner), nicht
-  // library-weit (gleiche Konvention wie die Flat-Sorts / der folder-gescopte
-  // Scan; User-Wunsch 2026-08-30). Library-Wechsel wirkt weiterhin.
-  if (currentFavoriteMode() === "yes" && state.currentLibrary && !isMusicFlatLib) {
+  async function renderFavoritesFlatBranch() {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
@@ -880,33 +1031,7 @@ async function loadItemsBody() {
     return;
   }
 
-  // Flache Sort-Modi: "Zuletzt abgespielt", "Zuletzt hinzugefügt", "Laufzeit",
-  // "Veröffentlicht" und "Dateiname". Alle ignorieren die Ordner-STRUKTUR
-  // (keine Folder-Kacheln) und zeigen eine flache Liste. SCOPE: nur nach
-  // unten flach — im Library-Root die ganze Library, in einem Unterordner
-  // NUR dessen Inhalt (rekursiv), nicht library-weit hochziehen. Server
-  // sortiert (bei played zusätzlich Filter auf last_played_at IS NOT NULL)
-  // und filtert `folder` rekursiv via LIKE. "released" seit 2026-09-05
-  // ergänzt (User-Wunsch: bei Serien ohne TMDB-Staffelstruktur, z.B. Tatort
-  // mit Kommissar-Unterordnern statt TMDB-Staffeln, soll "Veröffentlicht"
-  // alle Folgen auf der aktuellen Ordnerebene inkl. Unterordnern
-  // chronologisch zeigen). "filename" (Dateiname) ebenfalls seit 2026-09-05
-  // NEU als eigener Sort-Key ergänzt — BEWUSST NICHT einfach "title" (Name)
-  // in dieses Set aufgenommen: "title" ist der App-weite Default-Sort und
-  // würde dann JEDE Ordner-Kachel-Ansicht (Library-Root, Drilldown-Ordner)
-  // permanent flach schalten. "filename" ist ein eigener, explizit vom User
-  // gewählter Sort-Key (Backend sortiert dabei IMMER nach i.title/Dateiname,
-  // nie nach einem eventuellen TMDB-Titel), der genau dieses Flatten sicher
-  // nur bei aktiver Auswahl auslöst — nützlich für Serien wie Tatort, deren
-  // Dateinamen Jahr+Episodennummer tragen, aber nicht durchgängig pro Folge
-  // TMDB-gematcht sind.
-  const FLAT_SORTS = new Set(["played", "added", "duration", "released", "filename"]);
-  const flatSort = $("#sortSelect").value;
-  // Musik-Bibliotheken haben ihren EIGENEN Flat-Sort-Pfad weiter unten
-  // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —
-  // dieser generische Zweig würde "Zuletzt abgespielt" IMMER als Kachel-
-  // Grid rendern, unabhängig vom Listen-Toggle (User-Bericht 2026-09-04).
-  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && !isMusicFlatLib) {
+  async function renderFlatSortLibraryBranch() {
     const searchQ = $("#searchInput").value.trim();
     const p = new URLSearchParams({
       libraryId: state.currentLibrary,
@@ -941,97 +1066,7 @@ async function loadItemsBody() {
     return;
   }
 
-  if (!state.currentLibrary) {
-    grid.innerHTML = `<div class="empty">Noch keine Bibliothek. Klicke auf 📁, um eine hinzuzufügen.</div>`;
-    return;
-  }
-
-  // In einem TV-Subfolder automatisch nach Episode sortieren (außer der User hat
-  // bewusst eine andere Sortierung gewählt).
-  const lib = state.libraries.find(l => l.id == state.currentLibrary);
-  let sort = currentSortMode();
-  if (lib && lib.kind === "tv" && state.currentFolder !== null && sort === "title") {
-    sort = "episode";
-  }
-
-  // Staffel-Ansicht: Toggle aktiv + TV-Lib + Show-Ordner. Zwei Modi:
-  //  (a) state.currentSeason === null → Staffel-Kacheln (Drilldown-Eintritt)
-  //  (b) state.currentSeason === N    → flache Folgen-Liste der Staffel
-  // Bei aktivem „Ohne TMDB-Zuordnung"-Filter muss die Staffel-Ansicht jedoch
-  // weichen — die Seasons-API kennt nur Items mit erkennbarem SxxExx im Pfad,
-  // unmatched Bonus-/Extras-/Behind-the-Scenes-Dateien wären sonst unsichtbar.
-  // GLEICHES gilt für einen aktiven Auflösungsfilter (seit 2026-09-02,
-  // User-Wunsch): die Seasons-API mergt mehrere Dateien derselben Episode
-  // (z. B. 720p + 360p) zu EINEM Owned-Slot mit Varianten-Dropdown — ein
-  // Auflösungsfilter hätte dort keinerlei Wirkung ("aktuell passiert gar
-  // nichts", User-Report) UND würde die gezielte Auswahl "nur die 360p-Datei
-  // dieser Folge, nicht die 720p-Variante" unmöglich machen. Mit aktivem
-  // Filter fällt die Ansicht auf die normale flache Ordner-Liste zurück
-  // (weiterhin auf state.currentFolder = den Show-Ordner gescoped, rekursiv
-  // wie jeder andere Ordner) — dort filtert der Server pro Datei, jede
-  // Auflösungs-Variante bleibt ein eigenes, einzeln löschbares Item.
-  const matchMode = currentMatchMode();
-  // Bewusst NICHT mehr an `state.seasonView` gegated (Bug, gefixt 2026-09-06,
-  // User-Report "Ich sehe den Poster-Button nicht"): der Fallback-Zweig unten
-  // setzt `seasonView:<lib>:<folder>` dauerhaft auf "0", sobald einmal keine
-  // Staffel-Struktur erkannt wurde — bei jedem SPÄTEREN Öffnen desselben
-  // Ordners war `state.seasonView` dadurch schon "false" und der GESAMTE
-  // Block (inkl. Info-Header) wurde komplett übersprungen, nicht nur die
-  // Staffel-Kachel-Darstellung. Der Seasons-API-Call läuft jetzt immer für
-  // TV-Ordner (auch mit deaktivierter Staffel-Ansicht) — die Entscheidung
-  // "Kacheln vs. normale Liste" fällt weiterhin anhand `state.seasonView`,
-  // aber NUR das betrifft, nicht mehr den Info-Header.
-  if (lib && lib.kind === "tv" && state.currentFolder
-      && matchMode !== "unmatched" && matchMode !== "unconfirmed"
-      && state.resBuckets.size === 0 && state.genreFilter.size === 0) {
-    let data;
-    try {
-      data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
-    } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
-    if (stale()) return;
-    const hasSeasons = !!(data.seasons && data.seasons.length > 0);
-    // Sackgassen-Vermeidung (User-Report 2026-09-05, "Tatort" mit Kommissar-
-    // Unterordnern statt TMDB-Staffeln): wenn die Seasons-API auf oberster
-    // Ebene (kein Staffel-Klick, currentSeason===null) NICHTS liefert — Ordner
-    // noch nicht TMDB-zugeordnet, oder die physische Struktur passt schlicht
-    // nicht zu TMDB-Staffeln — bringt die "Keine Staffel-Daten"-Meldung den
-    // User nicht weiter. Staffel-Ansicht für GENAU diesen Ordner einmalig
-    // automatisch abschalten (persistiert wie ein manuelles Toggle) — nur
-    // beim ÜBERGANG true→false, sonst würde der Toast bei jedem Öffnen erneut
-    // feuern, seit der Fallback-Zweig nicht mehr `state.seasonView`-gegated ist.
-    if (state.currentSeason == null && !hasSeasons && state.seasonView) {
-      try { localStorage.setItem(`seasonView:${state.currentLibrary || 0}:${state.currentFolder}`, "0"); } catch {}
-      state.seasonView = false;
-      showToast("Keine Staffel-Struktur erkannt – zeige normale Ordner-Ansicht", { kind: "info" });
-    }
-    if (state.seasonView && hasSeasons) {
-      renderBreadcrumb({});
-      if (state.currentSeason == null) {
-        renderSeasonFolders(grid, data);
-      } else {
-        renderSeasonEpisodes(grid, data, state.currentSeason);
-      }
-      return;
-    }
-    // Fällt durch in die normale Ordner-/Datei-Ansicht unten (rekursiv wie
-    // jeder andere Ordner, Sortierung/Filter funktionieren unverändert).
-    // Info-Header davor (User-Wunsch 2026-09-06): `data.show` ist gesetzt,
-    // wenn der Ordner TMDB-zugeordnet ist (auch ohne erkennbare Staffel-
-    // Struktur, Tatort/Terra-X-Fall) oder ein Custom-Poster gesetzt wurde —
-    // sonst der schlanke "unmatched"-Header. Nur auf oberster Ebene
-    // (currentSeason===null); innerhalb einer Staffel mit deaktivierter
-    // Kachel-Ansicht (Rand-Fall) bleibt es bei der reinen Dateiliste.
-    if (state.currentSeason == null) {
-      state.pendingShowInfoHeader = data.show || { unmatched: true, folder: state.currentFolder };
-    }
-  }
-
-  // Musik-Bibliotheken (seit 2026-09-04): Album-Kacheln im Library-Root,
-  // Track-Liste beim Öffnen eines Albums (state.currentAlbum). Greift NUR im
-  // Root — normale Ordner-Navigation (Unterordner) bleibt für Musik-Libs
-  // unverändert nutzbar (Ordnerstruktur bleibt Navigation, kanonische Album-
-  // Identität kommt separat aus den Tags).
-  if (lib && lib.kind === "music" && state.currentFolder === null) {
+  async function renderMusicLibraryBranch() {
     const musicSearchQ = $("#searchInput").value.trim();
     $("#searchClear").classList.toggle("hidden", musicSearchQ === "");
     // "Alle Titel": flache Liste ALLER Tracks der Bibliothek (Artist/Album/
@@ -1136,6 +1171,7 @@ async function loadItemsBody() {
     return;
   }
 
+  async function renderDefaultLibraryGrid() {
   const searchQ = $("#searchInput").value.trim();
   const params = new URLSearchParams({
     libraryId: state.currentLibrary,
@@ -1299,4 +1335,6 @@ async function loadItemsBody() {
       : renderShowHeader(info, null);
     grid.insertBefore(header, grid.firstChild);
   }
+  }
+
 }

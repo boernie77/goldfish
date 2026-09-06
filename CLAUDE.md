@@ -3480,7 +3480,39 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    NICHT ergänzt — das `store`-Package importiert nirgendwo `"log"`
    (Store-Methoden loggen grundsätzlich nie selbst, das ist Aufgabe der
    Aufrufer). Ein Logging-Import hier hätte diese Konvention gebrochen.
-2. grid.js loadItemsBody in benannte Handler zerlegen (nächster Schritt)
+2. ✅ **grid.js loadItemsBody in benannte Handler zerlegen** (LIVE 1.2.9) —
+   beim genauen Lesen waren es **16 Branches statt der ursprünglich
+   angenommenen 7** (tpFailedView/homeView/currentPlaylist/playlistsRoot/
+   collectionsView/personFilter/multiversion/simnames/suspicious/
+   interlaced/duplicates/favoritesFlat/FLAT_SORTS-Library/music/
+   Standard-Grid). 15 davon (alle außer der Staffel-Ansicht) wurden per
+   Skript **mechanisch** (Python, kein manuelles Copy-Paste — Risiko einer
+   Übertragungs-Fehlers bei ~1200 Zeilen war zu hoch) in verschachtelte
+   `async function render<Name>()`-Funktionen extrahiert, `loadItemsBody`
+   selbst ist jetzt ein reiner Dispatcher aus 15 `if (cond) return await
+   render...();`-Zeilen. Verschachtelt (nicht Top-Level), damit sie
+   `grid`/`stale`/`mySeq`/`lib`/`sort`/`matchMode`/`musicFlatLib`/
+   `isMusicFlatLib`/`FLAT_SORTS`/`flatSort` weiterhin per Closure sehen —
+   **keine einzige Parameter-Signatur geändert, keine Variable neu
+   referenziert**, reine Textverschiebung. Verifiziert per Multiset-Diff
+   (sortierte Zeilen alt vs. neu) — exakt nur die 15 geänderten
+   Dispatch-Zeilen + 15 neue Funktions-Wrapper unterscheiden sich, sonst
+   ist der Inhalt Zeile für Zeile identisch.
+   **Staffel-Ansicht (Season-View, ~984–1027) bewusst NICHT extrahiert:**
+   einziger Branch mit echtem Fallthrough (setzt bei fehlender
+   Staffel-Struktur `state.pendingShowInfoHeader` und läuft dann WEITER in
+   den Musik-Check und das Standard-Grid) — das passt nicht zum
+   "if (cond) return await fn()"-Dispatcher-Muster, ohne die
+   Fallthrough-Semantik selbst umzubauen (siehe „Automatischer Fallback
+   bei fehlenden Staffel-Daten" oben). Bleibt zusammen mit der
+   Bibliotheks-/Sort-Vorberechnung (`lib`/`sort`/`matchMode`) und den
+   `FLAT_SORTS`/`musicFlatLib`-Konstanten inline im Dispatcher-Körper.
+   `grid.js`: 1302 → 1340 Zeilen (mehr, nicht weniger — Funktions-Wrapper
+   + Doku-Kommentar kosten Zeilen, der Lesbarkeits-Gewinn liegt in der
+   Struktur, nicht in der Kürze). Live getestet: Home, Sammlungen,
+   Playlist-Root + einzelne Playlist, Person-Filter, normales
+   Filme/Serien-Grid, Staffel-Ansicht (Tatort — Fallback-Pfad),
+   Musik-Album-Übersicht.
 3. sqlite.go → metadata.go + trickplay_status.go
 4. views.js Musik-Views → music-views.js
 5. player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js
