@@ -24,28 +24,34 @@ async function loadItems() {
     state.scrollPositions.set(state.lastNavKey, window.scrollY);
   }
   const targetKey = navKey();
-  // Bei Navigations-Wechsel den Anfangsbuchstaben-Filter zurücksetzen — er
-  // ist kontextspezifisch (z. B. „M in Filme") und macht in einer anderen
-  // Library keinen Sinn mehr.
-  // 🔴 User-Report 2026-09-06 ("wenn ich bei Serien nach Buchstabe filtere,
-  // in eine Serie rein gehe und wieder raus, ist der Filter weg"): der
-  // Reset feuerte bisher bei JEDER navKey-Änderung, auch bei einem reinen
-  // Rein-und-wieder-raus INNERHALB derselben Bibliothek (Library-Root →
-  // Serien-Ordner → zurück zum Library-Root sind drei verschiedene navKeys).
-  // Der Filter ist aber an die BIBLIOTHEK gebunden, nicht an den exakten
-  // navKey — nur beim Wechsel in eine ANDERE Bibliothek/einen anderen
-  // Top-Level-Kontext (Home/Sammlungen/Playlists/Person-Filter) ergibt ein
-  // Reset Sinn. `navLibraryKey()` liefert dafür nur den Bibliotheks-/
-  // Kontext-Teil (z. B. "lib:7" statt "lib:7:Billions:s1").
+  // Bibliotheks-Wechsel (auch zu Home/Sammlungen/Playlists/Person-Filter)
+  // löscht den Anfangsbuchstaben-Filter komplett — er ist kontextspezifisch
+  // (z. B. „M in Filme") und macht in einer anderen Library keinen Sinn mehr.
+  // `navLibraryKey()` liefert dafür nur den Bibliotheks-/Kontext-Teil (z. B.
+  // "lib:7" statt "lib:7:Billions:s1").
+  // 🔴 User-Report 2026-09-06, ZWEI Runden: (1) "wenn ich bei Serien nach
+  // Buchstabe filtere, in eine Serie rein gehe und wieder raus, ist der
+  // Filter weg" — der Reset feuerte bisher bei JEDER navKey-Änderung, auch
+  // bei reinem Rein-und-Raus INNERHALB derselben Bibliothek. (2) Die erste
+  // Fix-Version behielt den Filter zwar bibliotheksweit, wendete ihn dabei
+  // aber synchron auch INNERHALB der Serie an (Episodentitel matchen selten
+  // denselben Buchstaben wie die Show → praktisch alle Folgen ausgeblendet).
+  // Endgültige Lösung: der WERT bleibt bibliotheksweit erhalten (dieser
+  // Block hier räumt ihn nur beim ECHTEN Bibliothekswechsel weg), ob er
+  // sich aber sichtbar AUSWIRKT, entscheidet `applyAlphaFilter()` (app.js)
+  // anhand von `state.alphaFilterScopeKey` — nur exakt an dem navKey aktiv,
+  // an dem er gesetzt wurde (z. B. die Serien-Übersicht), nicht in jedem
+  // navKey darunter/danach.
   // NUR State + Banner zurücksetzen, NICHT setAlphaFilter() rufen: das würde
   // synchron applyAlphaFilter() auf das noch alte, gerade verlassene Grid
   // anwenden und kurz alle vorher ausgeblendeten Kacheln wieder einblenden
   // (sichtbares Aufflackern der vollen Übersicht), bevor der asynchrone
-  // Sprung ins Ziel (z. B. eine über die Buchstaben-Sidebar gewählte Serie)
-  // überhaupt fertig geladen ist. Die neuen Kacheln bekommen ihren Filter-
-  // Zustand ohnehin frisch über den applyAlphaFilter()-Aufruf im finally-Block.
+  // Sprung ins Ziel überhaupt fertig geladen ist. Die neuen Kacheln bekommen
+  // ihren Filter-Zustand ohnehin frisch über den applyAlphaFilter()-Aufruf
+  // im finally-Block.
   if (state.lastNavKey && navLibraryKey(state.lastNavKey) !== navLibraryKey(targetKey) && state.alphaFilter) {
     state.alphaFilter = null;
+    state.alphaFilterScopeKey = null;
     const banner = $("#alphaFilterBanner");
     if (banner) banner.classList.add("hidden");
   }

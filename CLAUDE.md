@@ -10,6 +10,10 @@ Patch-Stelle um 1 erhöhen** (User-Vorgabe 2026-08-31) — also 1.0.1 → 1.0.2 
 … im selben Commit, der rausgeht. Ausgeliefert als `version` im `/api/health`,
 angezeigt im Zahnrad-Menü-Fuß (`#drawerVersion`). (Die App-Repos zählen davon
 unabhängig weiter, siehe `feedback_apple_versioning` / Android-Block.)
+**Einmalige Ausnahme (User-Vorgabe 2026-09-06):** der Deploy nach 1.0.94
+sprang bewusst auf **1.2.0** (explizit vom User so gewünscht, kein Tippfehler
+und keine Fortsetzung der 1.0.x-Zählung) — ab da läuft die normale
++0.0.1-Patch-Regel auf Basis von 1.2.0 weiter (1.2.1 → 1.2.2 → …).
 
 ---
 
@@ -1684,6 +1688,25 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Kontext (Home/Sammlungen/Playlists/Person-Filter — dort bleibt das alte
   Verhalten: kompletter navKey-Vergleich, da `navLibraryKey` für
   Nicht-`"lib:"`-Keys den Key unverändert durchreicht).
+  **🔴→✅ Zweite Runde, noch am selben Tag (User-Korrektur: "Da läuft was
+  schief... Der Buchstabenfilter soll erhalten bleiben, wenn man wieder
+  zurück geht. In den Ordner/Serie wenn man reingeht, darf kein Filter
+  greifen"):** die erste Fix-Version behielt zwar den Filter-WERT über die
+  ganze Bibliothek hinweg, wendete ihn aber weiterhin blind auf JEDES Grid
+  an — beim Reingehen in eine Serie wurden dadurch praktisch alle Episoden
+  ausgeblendet (Episodentitel starten selten mit demselben Buchstaben wie
+  der Show-Name). Fix: neuer State `state.alphaFilterScopeKey` (app.js) —
+  merkt sich den `navKey()`, an dem der Filter per Sidebar-Klick GESETZT
+  wurde. `applyAlphaFilter()` (läuft nach jedem Render, auch nach reiner
+  Navigation) blendet Kacheln nur noch aus, wenn `state.alphaFilterScopeKey
+  === navKey()` — also exakt an der Stelle, wo der User ihn gesetzt hat
+  (typischerweise die Serien-Übersicht einer Library), nicht mehr in jedem
+  Ordner darunter oder danach. Der WERT (`state.alphaFilter`) selbst bleibt
+  weiterhin bibliotheksweit erhalten (siehe `navLibraryKey`-Reset oben) und
+  wird beim Zurücknavigieren zum ursprünglichen navKey automatisch wieder
+  sichtbar aktiv — inkl. Banner- und Sidebar-Aktiv-Markierung, die jetzt
+  ebenfalls zentral in `applyAlphaFilter()` statt verstreut in
+  `setAlphaFilter()` gepflegt werden.
 - Favoriten-Filter zeigt flach ohne Ordner-Ebenen; Scope „nur nach unten flach"
   wie die Flat-Sorts — im Library-Root library-weit, in einem Unterordner nur
   dessen Favoriten (rekursiv). Breadcrumb hat dann einen Zurück-Pfeil.

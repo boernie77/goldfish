@@ -46,6 +46,7 @@ const state = {
   scrollPositions: new Map(), // navKey → scrollY für Zurück-Navigation
   lastNavKey: null,            // navKey der zuletzt gerenderten Ansicht
   alphaFilter: null,           // null oder "A".."Z"|"#" — Anfangsbuchstaben-Filter via Sidebar-Klick
+  alphaFilterScopeKey: null,   // navKey(), an dem der Filter GESETZT wurde — nur dort wird er auch angewendet
   moveContext: null,           // {mode:"single",item} oder {mode:"bulk",ids,libId} während #moveDialog offen ist
   shuffleFolders: [],          // [{libraryId,libraryName,folder,label}] — Ordner-Scoping für Zufallswiedergabe (leer = aktueller Kontext)
   currentAlbum: null,          // Album-ID wenn ein Musik-Album geöffnet ist (Track-Liste statt Album-Kacheln)
@@ -446,16 +447,27 @@ function jumpToLetter(ch) {
 
 function setAlphaFilter(ch) {
   state.alphaFilter = ch || null;
+  // Scope: der Filter wird nur an GENAU dem navKey angewendet, an dem er
+  // gesetzt wurde (z. B. die Serien-Übersicht einer Library). Geht man in
+  // eine Serie rein, greift er dort NICHT (Episodentitel starten selten mit
+  // demselben Buchstaben wie der Show-Name) — bleibt aber gemerkt und wird
+  // beim Zurücknavigieren zum selben navKey automatisch wieder aktiv.
+  // 🔴 User-Report 2026-09-06: eine erste Fix-Version hielt den Filter zwar
+  // über Navigation hinweg am Leben, wendete ihn dabei aber unverändert auch
+  // INNERHALB der Serie an — blendete dort praktisch alle Folgen aus.
+  state.alphaFilterScopeKey = ch ? navKey() : null;
   applyAlphaFilter();
-  // Aktiv-Markierung in der Sidebar nachziehen (ohne den ganzen Bar zu rebuilden).
-  const bar = $("#alphaSidebar");
-  if (bar) {
-    for (const btn of bar.querySelectorAll("button")) {
-      btn.classList.toggle("is-active", !!ch && btn.textContent === ch);
-    }
-  }
-  // Banner ein-/ausblenden — sitzt zwischen Breadcrumb und Grid und ist
-  // immer sichtbar, wenn der Filter aktiv ist (egal in welcher View).
+}
+
+// applyAlphaFilter: läuft nach jedem Render (auch nach reiner Navigation,
+// aus grid.js loadItems()) und entscheidet, ob der gemerkte Filter am
+// AKTUELLEN navKey überhaupt greift (siehe state.alphaFilterScopeKey oben).
+// Verbirgt bei aktivem Filter Kacheln, deren Anfangsbuchstabe nicht passt —
+// liest den Titel aus `.card-title`, funktioniert für Folder- und Item-Cards
+// gleichermaßen, ohne dass beide Render-Funktionen data-Attribute brauchen.
+function applyAlphaFilter() {
+  const ch = state.alphaFilter && state.alphaFilterScopeKey === navKey() ? state.alphaFilter : null;
+  // Banner ein-/ausblenden — sitzt zwischen Breadcrumb und Grid.
   const banner = $("#alphaFilterBanner");
   const letter = $("#alphaFilterLetter");
   if (banner && letter) {
@@ -466,17 +478,15 @@ function setAlphaFilter(ch) {
       banner.classList.add("hidden");
     }
   }
-}
-
-// applyAlphaFilter: läuft nach jedem Render und verbirgt Kacheln, deren
-// Anfangsbuchstabe nicht zum aktiven Filter passt. Liest den Titel aus
-// `.card-title` der gerade gerenderten Kachel — funktioniert sowohl für
-// Folder- als auch Item-Cards, ohne dass beide Render-Funktionen
-// einzelne data-Attribute setzen müssen.
-function applyAlphaFilter() {
+  // Aktiv-Markierung in der Sidebar nachziehen.
+  const bar = $("#alphaSidebar");
+  if (bar) {
+    for (const btn of bar.querySelectorAll("button")) {
+      btn.classList.toggle("is-active", !!ch && btn.textContent === ch);
+    }
+  }
   const grid = $("#grid");
   if (!grid) return;
-  const ch = state.alphaFilter;
   for (const card of grid.querySelectorAll(".card")) {
     if (!ch) {
       card.classList.remove("alpha-hidden");
