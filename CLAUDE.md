@@ -3560,9 +3560,26 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    `<script defer>`-Tags in `index.html` zwischen `player.js` und
    `admin.js` ergänzt (`go:embed all:web` fasst sie automatisch mit).
    Verifiziert per Multiset-Diff (nur neue Datei-Header unterscheiden
-   sich) + Live-Test: Video abspielen (Direct Play + Transcode),
-   Trickplay-Hover in der Progress-Bar, Transcode-Seek per Klick weit
-   vorne in die Progress-Bar, Startpuffer-Overlay beim Öffnen.
+   sich). Live-Test im Browser bestätigte Detail-Dialog/Resume-Dialog/
+   Modus-Dropdowns/Cast-Token-Fetch/Buffer-Overlay-Statuszeile/HLS-
+   Playlist-Polling (`/api/transcode/…/progress` lief korrekt +342s→+812s
+   hoch) — die eigentliche Pixel-Wiedergabe (`<video>` zeigt ein Bild)
+   ließ sich in dieser Session NICHT verifizieren: `document
+   .visibilityState` ist im claude-in-chrome-Tab dauerhaft `"hidden"`
+   (bestätigt per `javascript_tool`, reproduziert in einem komplett
+   frischen zweiten Tab, sowohl bei Direct Play als auch Transcode) —
+   Chrome defers dadurch das eigentliche Laden der Videodatei komplett
+   (`readyState=0`/`networkState=LOADING` für immer, **null** Netzwerk-
+   Requests an `/api/stream/…` trotz korrekt gesetztem `<video src>` +
+   `autoplay`). Bekannte, bereits an anderer Stelle in CLAUDE.md
+   dokumentierte Umgebungseinschränkung (siehe „GoldfishTV"-Abschnitt:
+   „document.visibilityState ist im claude-in-chrome-MCP-Tab 'hidden'"),
+   kein Bug dieses Refactors — Beweis: der komplette Multiset-Diff zeigt
+   nirgendwo eine inhaltliche Änderung an `vjs.src()`/Player-Erzeugung
+   (die bleiben unverändert in player.js). Echte Pixel-Wiedergabe sollte
+   bei Gelegenheit einmal vom User selbst im echten Browser gegengeprüft
+   werden — nicht erneut per claude-in-chrome versuchen, das Ergebnis ist
+   umgebungsbedingt vorhersagbar negativ.
 6. enrich/worker.go → matching.go (matchItem/matchShow/enrichItems/enrichFolders)
 7. Rest von sqlite.go (items.go/folders.go/libraries.go/settings.go)
 
