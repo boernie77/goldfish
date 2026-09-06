@@ -1269,7 +1269,7 @@ function renderMusicTrackRow(it, queue, idx, columns) {
         html += `<span class="track-row-genre">${escapeHTML(it.genre || "")}</span>`;
         break;
       case "year":
-        html += `<span class="track-row-year">${it.releasedAt ? new Date(it.releasedAt).getFullYear() : "—"}</span>`;
+        html += `<span class="track-row-year">${it.year || "—"}</span>`;
         break;
       case "duration":
         html += `<span class="track-row-duration">${fmtDuration(it.durationSec)}</span>`;

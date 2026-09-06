@@ -425,7 +425,7 @@ function openEditMetaDialog() {
     f.musicAlbum.value = it.album || "";
     f.musicTrackNo.value = it.trackNo || "";
     f.musicGenre.value = it.genre || "";
-    f.musicYear.value = it.releasedAt ? new Date(it.releasedAt).getFullYear() : "";
+    f.musicYear.value = it.year || "";
     $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
     const posterBtn = $("#editMetaPoster");
     if (posterBtn) posterBtn.style.display = "none"; // Musik-Tracks haben kein eigenes Poster (nur das Album ein Cover)

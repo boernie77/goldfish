@@ -617,6 +617,17 @@ func (s *Store) migrate() error {
 	if err := addCol("items", "genre", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
+	// Jahr-Tag pro Track (User-Wunsch 2026-09-06: "Jahr als Spalte/Feld
+	// ergänzen") — bewusst NICHT `items.released_at` wiederverwendet: das
+	// füllt der Scanner IMMER mit mindestens der Datei-mtime
+	// (`extractReleaseTime`-Fallback), zeigte beim ersten Anlauf dieses
+	// Features dadurch reihenweise das aktuelle Kopierdatum statt des
+	// echten Erscheinungsjahrs (User-Report mit Screenshot: "An Innocent
+	// Man" von Billy Joel [1983] zeigte "2026"). Eigene Spalte, exakt wie
+	// `genre` aus den Tags gelesen (0 = kein Jahr-Tag gefunden).
+	if err := addCol("items", "year", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// MusicBrainz-Metadaten-Backfill (Genre + Jahr, User-Wunsch 2026-09-06:
 	// "Alle sollen Titel, Künstler, Genre, Dauer und Jahr enthalten") —
 	// analog cover_fetched_at, verhindert Endlos-Retry bei Alben ohne
@@ -932,8 +943,8 @@ func (s *Store) DeleteLibrary(id int64) error {
 
 func (s *Store) UpsertItem(it *model.Item) error {
 	_, err := s.db.Exec(`
-		INSERT INTO items(library_id, path, rel_path, title, container, video_codec, audio_codec, width, height, duration_sec, size_bytes, bitrate_kbps, thumb_path, has_thumb, mod_time, released_at, artist, album, track_no, genre)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO items(library_id, path, rel_path, title, container, video_codec, audio_codec, width, height, duration_sec, size_bytes, bitrate_kbps, thumb_path, has_thumb, mod_time, released_at, artist, album, track_no, genre, year)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(path) DO UPDATE SET
 			library_id=excluded.library_id,
 			rel_path=excluded.rel_path,
@@ -953,11 +964,12 @@ func (s *Store) UpsertItem(it *model.Item) error {
 			artist=excluded.artist,
 			album=excluded.album,
 			track_no=excluded.track_no,
-			genre=excluded.genre
+			genre=excluded.genre,
+			year=excluded.year
 	`,
 		it.LibraryID, it.Path, it.RelPath, it.Title, it.Container, it.VideoCodec, it.AudioCodec,
 		it.Width, it.Height, it.DurationSec, it.SizeBytes, it.BitrateKbps, it.ThumbPath, boolToInt(it.HasThumb), it.ModTime, it.ReleasedAt,
-		it.Artist, it.Album, it.TrackNo, it.Genre,
+		it.Artist, it.Album, it.TrackNo, it.Genre, it.Year,
 	)
 	return err
 }
@@ -1316,7 +1328,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       COALESCE(i.variant_split, 0),
 	       COALESCE(us.rating, 0),
 	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
-	       COALESCE(i.genre, ''),
+	       COALESCE(i.genre, ''), COALESCE(i.year, 0),
 	       us.last_played_at
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
@@ -1757,7 +1769,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &lastPlayedAt); err != nil {
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &it.Year, &lastPlayedAt); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -2215,7 +2227,7 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		       i.intro_start_sec, i.intro_end_sec,
 		       COALESCE(us.rating, 0),
 		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
-		       COALESCE(i.genre, '')
+		       COALESCE(i.genre, ''), COALESCE(i.year, 0)
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.id = ?`, userID, id).
@@ -2224,7 +2236,7 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 			&confirmed,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit,
 			&introStart, &introEnd, &it.Rating,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre)
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &it.Year)
 	it.MetadataConfirmed = confirmed == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

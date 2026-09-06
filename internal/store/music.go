@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/boernie77/goldfish/internal/model"
 )
@@ -25,6 +24,7 @@ import (
 type musicItemTag struct {
 	id                            int64
 	relPath, artist, album, genre string
+	year                          int
 }
 
 // GroupMusicAlbums läuft am Ende jedes Musik-Library-Scans (Scanner.run,
@@ -50,7 +50,7 @@ type musicItemTag struct {
 // alte reine (artist,album)-Tag-Verhalten (siehe musicGroupKey).
 func (s *Store) GroupMusicAlbums(libraryID int64) error {
 	rows, err := s.db.Query(
-		`SELECT id, rel_path, artist, album, genre FROM items
+		`SELECT id, rel_path, artist, album, genre, year FROM items
 		 WHERE library_id = ? AND (artist != '' OR album != '')`,
 		libraryID,
 	)
@@ -60,7 +60,7 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 	var items []musicItemTag
 	for rows.Next() {
 		var it musicItemTag
-		if err := rows.Scan(&it.id, &it.relPath, &it.artist, &it.album, &it.genre); err != nil {
+		if err := rows.Scan(&it.id, &it.relPath, &it.artist, &it.album, &it.genre, &it.year); err != nil {
 			_ = rows.Close()
 			return err
 		}
@@ -78,15 +78,16 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 	}
 
 	for _, g := range groups {
-		artist, album, genre := canonicalAlbumFields(g)
+		artist, album, genre, year := canonicalAlbumFields(g)
 		if artist == "" && album == "" {
 			continue
 		}
 		if _, err := s.db.Exec(
-			`INSERT INTO music_albums(library_id, artist, album, genre) VALUES(?, ?, ?, ?)
+			`INSERT INTO music_albums(library_id, artist, album, genre, year) VALUES(?, ?, ?, ?, ?)
 			 ON CONFLICT(library_id, artist, album) DO UPDATE SET
-			   genre = CASE WHEN music_albums.genre = '' AND excluded.genre != '' THEN excluded.genre ELSE music_albums.genre END`,
-			libraryID, artist, album, genre,
+			   genre = CASE WHEN music_albums.genre = '' AND excluded.genre != '' THEN excluded.genre ELSE music_albums.genre END,
+			   year = CASE WHEN music_albums.year = 0 AND excluded.year != 0 THEN excluded.year ELSE music_albums.year END`,
+			libraryID, artist, album, genre, year,
 		); err != nil {
 			return err
 		}
@@ -139,23 +140,23 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 // Stößt danach GroupMusicAlbums für die Library erneut an, weil ein
 // geänderter Artist/Album-Wert die Album-Zuordnung dieses Tracks ändern
 // kann (z. B. Track landet jetzt in einem neuen oder anderen Album).
-// `year` (seit 2026-09-06, User-Wunsch "Jahr als Feld ergänzen") nutzt
-// bewusst KEINE neue Spalte — Musik hat kein separates Jahr-Feld im Schema,
-// nur `items.released_at` (bereits die Datenquelle für den "Veröffentlicht"-
-// Sort UND die neue Jahr-Spalte in der Listenansicht). `year=0` (leeres
-// Formularfeld) lässt `released_at` unangetastet, da die Spalte NOT NULL ist
-// und daher kein "kein Jahr"-Zustand existiert — ein explizit gewähltes
-// Jahr wird auf den 1. Januar dieses Jahres (UTC) geschrieben.
+// `year` (seit 2026-09-06, User-Wunsch "Jahr als Feld ergänzen") schreibt
+// direkt auf `items.year` — bewusst NICHT `items.released_at`: ein erster
+// Anlauf tat das, released_at ist aber bei JEDEM Item immer gesetzt
+// (Datei-mtime-Fallback in extractReleaseTime) und zeigte dadurch reihenweise
+// das Kopierdatum statt des echten Jahres (User-Report mit Screenshot: "An
+// Innocent Man" [1983] zeigte "2026"). `year` ist eine eigene Spalte, exakt
+// wie `genre` aus den Tags gelesen — 0 bedeutet zuverlässig "kein Jahr
+// bekannt", `year=0` im Formular lässt den Wert daher unverändert.
 func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album string, trackNo int, genre string, year int) error {
 	var libraryID int64
 	if err := s.db.QueryRow(`SELECT library_id FROM items WHERE id = ?`, itemID).Scan(&libraryID); err != nil {
 		return err
 	}
 	if year > 0 {
-		releasedAt := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
 		if _, err := s.db.Exec(
-			`UPDATE items SET title = ?, artist = ?, album = ?, track_no = ?, genre = ?, released_at = ? WHERE id = ?`,
-			title, artist, album, trackNo, genre, releasedAt, itemID,
+			`UPDATE items SET title = ?, artist = ?, album = ?, track_no = ?, genre = ?, year = ? WHERE id = ?`,
+			title, artist, album, trackNo, genre, year, itemID,
 		); err != nil {
 			return err
 		}
@@ -185,7 +186,7 @@ func musicGroupKey(relPath, artist, album string) string {
 // GroupMusicAlbums-Kommentar) ergeben "Verschiedene Interpreten" statt
 // eines zufällig "gewinnenden" Einzelnamens. Fehlt jeder Album-Tag in der
 // Gruppe, wird der letzte Ordnername als Titel verwendet.
-func canonicalAlbumFields(g []musicItemTag) (artist, album, genre string) {
+func canonicalAlbumFields(g []musicItemTag) (artist, album, genre string, year int) {
 	albumCounts := map[string]int{}
 	artistSet := map[string]bool{}
 	for _, it := range g {
@@ -197,6 +198,9 @@ func canonicalAlbumFields(g []musicItemTag) (artist, album, genre string) {
 		}
 		if genre == "" && it.genre != "" {
 			genre = it.genre
+		}
+		if year == 0 && it.year != 0 {
+			year = it.year
 		}
 	}
 	album = mostCommonString(albumCounts)
@@ -213,7 +217,7 @@ func canonicalAlbumFields(g []musicItemTag) (artist, album, genre string) {
 	default:
 		artist = "Verschiedene Interpreten"
 	}
-	return artist, album, genre
+	return artist, album, genre, year
 }
 
 // mostCommonString liefert den häufigsten Wert; bei Gleichstand gewinnt der
@@ -352,7 +356,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 		       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb,
 		       i.mod_time, i.released_at, i.added_at, COALESCE(i.metadata_id, 0),
 		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
-		       COALESCE(i.genre, ''),
+		       COALESCE(i.genre, ''), COALESCE(i.year, 0),
 		       COALESCE(us.favorite, 0), us.last_played_at
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -371,7 +375,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb,
 			&it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre,
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &it.Year,
 			&favorite, &lastPlayedAt); err != nil {
 			return nil, err
 		}

@@ -29,11 +29,8 @@ func TestUpdateMusicItemMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if it.Title != "Neuer Titel" || it.Artist != "Neue Band" || it.TrackNo != 3 || it.Genre != "Pop" {
+	if it.Title != "Neuer Titel" || it.Artist != "Neue Band" || it.TrackNo != 3 || it.Genre != "Pop" || it.Year != 2011 {
 		t.Fatalf("unexpected item after update: %+v", it)
-	}
-	if it.ReleasedAt.Year() != 2011 {
-		t.Fatalf("expected released_at year 2011, got %v", it.ReleasedAt)
 	}
 
 	albums, err := s.ListMusicAlbums(libID, 0)
@@ -42,6 +39,33 @@ func TestUpdateMusicItemMetadata(t *testing.T) {
 	}
 	if len(albums) != 1 || albums[0].Artist != "Neue Band" || albums[0].Genre != "Pop" {
 		t.Fatalf("expected album re-grouped with updated artist/genre, got %+v", albums)
+	}
+}
+
+// TestUpdateMusicItemMetadataYearZeroKeepsExisting sichert ab, dass ein
+// leeres Jahr-Feld (year=0) den bestehenden Wert NICHT löscht — anders als
+// Genre/Artist/Album/Titel, die immer überschrieben werden, gibt es für
+// Jahr keinen "leer setzen"-Weg über dieses Formular (0 ist kein gültiger
+// Jahreswert, sondern bedeutet "unverändert lassen").
+func TestUpdateMusicItemMetadataYearZeroKeepsExisting(t *testing.T) {
+	s := newTestStore(t)
+	libID, err := s.CreateLibrary("Musik", t.TempDir(), model.KindMusic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := mustUpsertMusicItem(t, s, libID, "Band/01 Song.mp3", "Band", "Album", "Rock")
+	if err := s.UpdateMusicItemMetadata(id, "Song", "Band", "Album", 1, "Rock", 1983); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateMusicItemMetadata(id, "Song", "Band", "Album", 1, "Pop", 0); err != nil {
+		t.Fatal(err)
+	}
+	it, err := s.GetItem(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.Year != 1983 || it.Genre != "Pop" {
+		t.Fatalf("expected year to stay 1983 (genre updated to Pop), got %+v", it)
 	}
 }
 

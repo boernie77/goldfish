@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -582,6 +583,17 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 		it.Artist = lookupTag(p.Format.Tags, "album_artist", "artist")
 		it.Album = lookupTag(p.Format.Tags, "album")
 		it.Genre = lookupTag(p.Format.Tags, "genre")
+		// Jahr aus dem Tag, NICHT aus ReleasedAt (das ist Datei-mtime-
+		// Fallback-poisoned, siehe Kommentar bei items.year-addCol in
+		// sqlite.go). "date" liefert oft ein volles Datum (z. B.
+		// "2021-05-01") — die ersten 4 Ziffern reichen als Jahr.
+		if dateTag := lookupTag(p.Format.Tags, "date", "year", "originaldate", "TYER", "TDRC"); dateTag != "" {
+			if m := yearTagRe.FindString(dateTag); m != "" {
+				if y, err := strconv.Atoi(m); err == nil {
+					it.Year = y
+				}
+			}
+		}
 		if track := lookupTag(p.Format.Tags, "track"); track != "" {
 			if idx := strings.Index(track, "/"); idx > 0 {
 				track = track[:idx]
@@ -607,6 +619,10 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 // er in `keys` zuerst oder zuletzt stand — bei zwei vorhandenen Tags (z. B.
 // "artist" UND "album_artist") war das Ergebnis dadurch nicht deterministisch
 // vorhersagbar. Betraf konkret die Artist-Priorität für Musik-Alben.
+// yearTagRe extrahiert die ersten 4 aufeinanderfolgenden Ziffern aus einem
+// Datums-Tag ("2021-05-01" -> "2021", "1983" -> "1983").
+var yearTagRe = regexp.MustCompile(`\d{4}`)
+
 func lookupTag(tags map[string]string, keys ...string) string {
 	byKey := make(map[string]string, len(tags))
 	for k, v := range tags {

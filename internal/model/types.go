@@ -181,6 +181,12 @@ type Item struct {
 	// in der Musik-Listenansicht angezeigt (User-Wunsch), daher jetzt auch im
 	// JSON exportiert.
 	Genre string `json:"genre,omitempty"`
+	// Year: Erscheinungsjahr aus dem Musik-Tag (date/year/originaldate),
+	// seit 2026-09-06 (User-Wunsch: "Jahr als Spalte/Feld ergänzen").
+	// Bewusst NICHT ReleasedAt — das ist bei jedem Item immer gesetzt
+	// (Datei-mtime-Fallback in extractReleaseTime), 0 hier bedeutet
+	// zuverlässig "kein Jahr-Tag in der Datei gefunden".
+	Year int `json:"year,omitempty"`
 	// LastPlayedAt: user_item_state.last_played_at (pro User). Nur in
 	// ListItems befüllt (für die "Alle Titel"-Listenansicht der Musik-
 	// Bibliotheken); andere Item-Ladepfade lassen es bewusst leer.

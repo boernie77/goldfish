@@ -1436,19 +1436,34 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `internal/store/music_edit_metadata_test.go`.
 - **Jahr-Spalte + -Feld (seit 2026-09-06, User-Wunsch: "in der Musik
   Listenansicht und in dem Metadaten Formular noch das Jahr ergänzen")**:
-  bewusst **keine neue Spalte** im Schema — Musik hat kein eigenes
-  Jahr-Feld, nutzt direkt `items.released_at` (dieselbe Quelle wie der
-  "Veröffentlicht"-Sort bei Filmen/Serien, bei jedem Item ohnehin immer
-  gesetzt, siehe Fallback-Kette in `extractReleaseTime`). `year` als
-  weitere `reorderable`-Spalte in `MUSIC_LIST_CONTEXTS` (`album`/`all`),
-  `renderMusicTrackRow case "year"` zeigt `new Date(it.releasedAt)
-  .getFullYear()`. Edit-Dialog: neues Feld `musicYear` (Zahleneingabe
-  1900–2099) neben Genre; `Store.UpdateMusicItemMetadata` bekam einen
-  `year int`-Parameter — `year=0` (leeres Feld) lässt `released_at`
-  unangetastet (die Spalte ist NOT NULL, es gibt keinen "kein Jahr"-
-  Zustand), ein gesetztes Jahr wird auf den 1. Januar dieses Jahres (UTC)
-  geschrieben. `PUT /api/items/{id}/music-metadata` validiert `year`
-  serverseitig auf 0 oder 1900–2099.
+  eigene Spalte `items.year INTEGER NOT NULL DEFAULT 0`, exakt wie `genre`
+  aus den Tags gelesen (`lookupTag(..., "date", "year", "originaldate",
+  "TYER", "TDRC")`, erste 4 Ziffern per Regex — "date" liefert oft ein
+  volles Datum wie "2021-05-01"). `year` als weitere `reorderable`-Spalte
+  in `MUSIC_LIST_CONTEXTS` (`album`/`all`), Edit-Dialog-Feld `musicYear`
+  (1900–2099) neben Genre. `Store.UpdateMusicItemMetadata` schreibt `year`
+  direkt auf `items.year`; `year=0` (leeres Feld) lässt den Wert
+  unverändert (0 ist kein gültiges Jahr, sondern "unbekannt/unverändert").
+  `GroupMusicAlbums`/`canonicalAlbumFields` aggregieren `year` genau wie
+  `genre` aufs Album (erster nicht-0-Wert der Gruppe gewinnt), die
+  `music_albums`-Upsert-Klausel überschreibt einen bereits gesetzten
+  Album-Jahreswert NIE (`year = CASE WHEN music_albums.year = 0 AND
+  excluded.year != 0 THEN excluded.year ELSE music_albums.year END`) —
+  damit bleibt ein per MusicBrainz-Backfill (siehe oben) bereits gesetztes
+  Jahr erhalten, falls ein späterer Rescan keine Tag-Jahr-Angabe findet.
+  **🔴 Erster Anlauf war fehlerhaft (Bug, noch am selben Tag gefixt, User-
+  Report mit Screenshot: "An Innocent Man" von Billy Joel [1983] zeigte
+  Jahr "2026"):** die erste Version nutzte bewusst KEINE neue Spalte,
+  sondern `items.released_at` (dieselbe Quelle wie der "Veröffentlicht"-
+  Sort) — das füllt der Scanner aber IMMER mit mindestens der Datei-mtime
+  (`extractReleaseTime`-Fallback), zeigte dadurch bei praktisch jedem
+  frisch gescannten Track das Kopierdatum statt des echten
+  Erscheinungsjahrs. Fix: eigene, zuverlässig unterscheidbare Spalte
+  (0 = "kein Jahr-Tag gefunden") statt der mtime-verseuchten
+  `released_at`-Wiederverwendung. Bestehende Bibliotheken brauchen einen
+  Rescan, damit der Scanner die Tags nachträglich liest (inkrementeller
+  Scan reicht — unveränderte Dateien werden dabei NICHT neu geprobet, nur
+  ein `force=true`-Rescan liest bereits bekannte Dateien erneut).
 - **Musik-Metadaten bearbeiten (seit 2026-09-06, User-Wunsch: "Bei Musik
   fehlt grundsätzlich noch, die Metadaten zu bearbeiten")**: der ✏-Edit-
   Dialog war zwar für Admins auch bei Musik-Tracks sichtbar, zeigte aber nur
