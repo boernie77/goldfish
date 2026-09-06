@@ -1021,23 +1021,30 @@ function renderAllTracksList(grid, tracks) {
 // User-Wunschs. Persistiert pro Kontext in localStorage
 // (musicColumns:album / musicColumns:all), analog anderen Listen-Prefs wie
 // flatView/musicListView.
+// "genre" seit 2026-09-06 in beiden Kontexten ergänzt (User-Wunsch: "IN Der
+// Musikansicht fehlt mir Genre noch in der Listenansicht als Spalte") —
+// dieselbe Spalte, die es in der Album-ÜBERSICHT schon gibt (Kachel +
+// Listenzeile), jetzt auch in den beiden Track-Listen. Braucht items.genre
+// im JSON-Response (model.Item.Genre trug bis dahin `json:"-"`, war nur
+// internes Zwischenlager für GroupMusicAlbums — jetzt exportiert +
+// ListItems SELECTed es).
 const MUSIC_LIST_CONTEXTS = {
   album: {
     fixedLeading: ["track"],
-    reorderable: ["title", "artist", "duration"],
+    reorderable: ["title", "artist", "genre", "duration"],
     fixedTrailing: ["fav"],
-    labels: { title: "Titel", artist: "Künstler", duration: "Dauer" },
-    defaultWidths: { title: 260, artist: 160, duration: 70 },
-    minWidths: { title: 100, artist: 80, duration: 50 },
+    labels: { title: "Titel", artist: "Künstler", genre: "Genre", duration: "Dauer" },
+    defaultWidths: { title: 260, artist: 160, genre: 110, duration: 70 },
+    minWidths: { title: 100, artist: 80, genre: 70, duration: 50 },
     fixedWidths: { track: 32, fav: 32 },
   },
   all: {
     fixedLeading: ["cover"],
-    reorderable: ["title", "artist", "album", "lastPlayed"],
+    reorderable: ["title", "artist", "album", "genre", "lastPlayed"],
     fixedTrailing: ["fav"],
-    labels: { title: "Titel", artist: "Künstler", album: "Album", lastPlayed: "Zuletzt gehört" },
-    defaultWidths: { title: 280, artist: 160, album: 160, lastPlayed: 140 },
-    minWidths: { title: 100, artist: 80, album: 80, lastPlayed: 100 },
+    labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", lastPlayed: "Zuletzt gehört" },
+    defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, lastPlayed: 140 },
+    minWidths: { title: 100, artist: 80, album: 80, genre: 70, lastPlayed: 100 },
     fixedWidths: { cover: 40, fav: 32 },
   },
 };
@@ -1253,6 +1260,9 @@ function renderMusicTrackRow(it, queue, idx, columns) {
         break;
       case "album":
         html += `<span class="track-row-album">${escapeHTML(it.album || "")}</span>`;
+        break;
+      case "genre":
+        html += `<span class="track-row-genre">${escapeHTML(it.genre || "")}</span>`;
         break;
       case "duration":
         html += `<span class="track-row-duration">${fmtDuration(it.durationSec)}</span>`;

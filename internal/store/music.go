@@ -129,6 +129,29 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 	return nil
 }
 
+// UpdateMusicItemMetadata schreibt manuell korrigierte Musik-Tags direkt auf
+// den Track (title/artist/album/track_no/genre auf items — Musik hat kein
+// metadata/TMDB-Konzept, siehe Paket-Kommentar oben). User-Wunsch
+// 2026-09-06: "Bei Musik fehlt grundsätzlich noch, die Metadaten zu
+// bearbeiten" — bisher konnte man falsch gelesene/fehlende Tags (Scanner
+// liest sie 1:1 aus den eingebetteten Dateitags) nirgends korrigieren.
+// Stößt danach GroupMusicAlbums für die Library erneut an, weil ein
+// geänderter Artist/Album-Wert die Album-Zuordnung dieses Tracks ändern
+// kann (z. B. Track landet jetzt in einem neuen oder anderen Album).
+func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album string, trackNo int, genre string) error {
+	var libraryID int64
+	if err := s.db.QueryRow(`SELECT library_id FROM items WHERE id = ?`, itemID).Scan(&libraryID); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(
+		`UPDATE items SET title = ?, artist = ?, album = ?, track_no = ?, genre = ? WHERE id = ?`,
+		title, artist, album, trackNo, genre, itemID,
+	); err != nil {
+		return err
+	}
+	return s.GroupMusicAlbums(libraryID)
+}
+
 // musicGroupKey: physischer Elternordner ist die primäre Gruppierungs-
 // Identität (siehe GroupMusicAlbums-Kommentar). Root-Level-Dateien ohne
 // Unterordner (kein "/" in relPath) fallen auf das alte (artist,album)-

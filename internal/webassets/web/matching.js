@@ -410,6 +410,27 @@ function openEditMetaDialog() {
   const isNew = !it.metadataId;
   const itemLib = (state.libraries || []).find(l => l.id === it.libraryId);
   const isPrivate = itemLib && itemLib.kind === "private";
+  // Musik-Tracks nutzen NIE das TMDB/metadata-Konzept — Artist/Album/Genre/
+  // Track-Nr. sitzen direkt auf items, unabhängig von it.metadataId (User-
+  // Feedback 2026-09-06: "Bei Musik fehlt grundsätzlich noch, die Metadaten
+  // zu bearbeiten" — der Dialog zeigte bisher nur die Film/Serien-Felder,
+  // die dort weder passen noch etwas bewirkt hätten). Kompletter eigener
+  // Zweig + eigener Speicherpfad, siehe handleEditMetaSubmit.
+  const isMusic = itemLib && itemLib.kind === "music";
+  f.querySelectorAll(".editmeta-music-field").forEach(el => el.classList.toggle("hidden", !isMusic));
+  f.querySelectorAll(".editmeta-movie-field").forEach(el => el.classList.toggle("hidden", isMusic));
+  if (isMusic) {
+    f.title.value = it.title || "";
+    f.musicArtist.value = it.artist || "";
+    f.musicAlbum.value = it.album || "";
+    f.musicTrackNo.value = it.trackNo || "";
+    f.musicGenre.value = it.genre || "";
+    $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
+    const posterBtn = $("#editMetaPoster");
+    if (posterBtn) posterBtn.style.display = "none"; // Musik-Tracks haben kein eigenes Poster (nur das Album ein Cover)
+    $("#editMetaDialog").showModal();
+    return;
+  }
   if (isNew) {
     // Manuelles Anlegen: Vorbefüllung je nach Lib-Typ.
     // Privat-Libs (YouTube/Urlaubsvideos): Default = Dateiname (ohne
@@ -645,6 +666,33 @@ async function handleEditMetaSubmit(e) {
   const it = state.currentItem;
   if (!it) return;
   const f = e.target;
+  const itemLib = (state.libraries || []).find(l => l.id === it.libraryId);
+  if (itemLib && itemLib.kind === "music") {
+    // Eigener Speicherpfad — items.title/artist/album/track_no/genre direkt,
+    // kein metadata/TMDB-Umweg (siehe openEditMetaDialog-Kommentar).
+    const body = {
+      title: f.title.value.trim(),
+      artist: f.musicArtist.value.trim(),
+      album: f.musicAlbum.value.trim(),
+      trackNo: parseInt(f.musicTrackNo.value, 10) || 0,
+      genre: f.musicGenre.value.trim(),
+    };
+    try {
+      await api(`/api/items/${it.id}/music-metadata`, { method: "PUT", body: JSON.stringify(body) });
+      $("#editMetaDialog").close();
+      invalidateItemsCache();
+      try {
+        const fresh = await api(`/api/items/${it.id}`);
+        state.currentItem = fresh;
+        openDetail(fresh);
+      } catch {}
+      loadItems();
+      showToast("Metadaten gespeichert", { kind: "success" });
+    } catch (err) {
+      appAlert("Fehler: " + err.message);
+    }
+    return;
+  }
   const body = {
     title: f.title.value.trim(),
     originalTitle: f.originalTitle.value.trim(),
@@ -762,10 +810,25 @@ async function handleMatchImdb(e) {
           body: JSON.stringify({ tmdbType: "movie", imdbId }),
         });
       } else {
-        const item = state.currentItem;
-        const m = (item && item.title || "").match(/S(\d{1,2})E(\d{1,3})/i);
-        if (!m) {
-          appAlert("Konnte Staffel/Episode aus Dateiname nicht ermitteln.");
+        // 🔴 Bug (gefixt 2026-09-06, User-Report: obfuskierter Dateiname
+        // "gb-100jamamoihwage-1080p" ohne SxxExx-Muster): dieser Zweig
+        // parste bisher NOCHMAL stur aus item.title, statt die im Dialog
+        // sichtbaren #matchSeason/#matchEpisode-Felder zu nutzen — genau die
+        // sind laut openMatchItem für exakt diesen Fall gedacht ("User kann
+        // manuell korrigieren, wenn der Dateiname nichts hergibt"), wurden
+        // von handleMatchImdb aber komplett ignoriert. Jetzt: Felder sind
+        // die primäre Quelle (vorbefüllt aus dem Dateinamen, vom User
+        // überschreibbar), nur als letzter Fallback erneut aus dem Titel
+        // parsen, falls die Felder aus irgendeinem Grund leer geblieben sind.
+        let season = parseInt($("#matchSeason").value, 10);
+        let episode = parseInt($("#matchEpisode").value, 10);
+        if (!season || !episode) {
+          const item = state.currentItem;
+          const m = (item && item.title || "").match(/S(\d{1,2})E(\d{1,3})/i);
+          if (m) { season = parseInt(m[1], 10); episode = parseInt(m[2], 10); }
+        }
+        if (!season || !episode) {
+          appAlert("Staffel und Episode nicht ermittelbar — bitte oben in den Feldern \"Staffel\"/\"Episode\" manuell eintragen.");
           return;
         }
         await api(`/api/items/${tgt.itemId}/metadata`, {
@@ -773,8 +836,8 @@ async function handleMatchImdb(e) {
           body: JSON.stringify({
             tmdbType: "episode",
             imdbId, // IMDb der SHOW, nicht der Episode
-            season: parseInt(m[1], 10),
-            episode: parseInt(m[2], 10),
+            season,
+            episode,
           }),
         });
       }

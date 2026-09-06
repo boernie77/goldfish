@@ -1308,6 +1308,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       COALESCE(i.variant_split, 0),
 	       COALESCE(us.rating, 0),
 	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+	       COALESCE(i.genre, ''),
 	       us.last_played_at
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
@@ -1748,7 +1749,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &lastPlayedAt); err != nil {
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &lastPlayedAt); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -2205,7 +2206,8 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 		       COALESCE(i.variant_split, 0),
 		       i.intro_start_sec, i.intro_end_sec,
 		       COALESCE(us.rating, 0),
-		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0)
+		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+		       COALESCE(i.genre, '')
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.id = ?`, userID, id).
@@ -2214,7 +2216,7 @@ func (s *Store) GetItemFor(userID, id int64) (*model.Item, error) {
 			&confirmed,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit,
 			&introStart, &introEnd, &it.Rating,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID)
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre)
 	it.MetadataConfirmed = confirmed == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

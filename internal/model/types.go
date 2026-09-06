@@ -176,10 +176,11 @@ type Item struct {
 	Album        string `json:"album,omitempty"`
 	TrackNo      int    `json:"trackNo,omitempty"`
 	MusicAlbumID int64  `json:"musicAlbumId,omitempty"`
-	// Genre: nur als Zwischenlager für GroupMusicAlbums genutzt (aggregiert
-	// nach music_albums.genre) — nicht Teil der normalen Item-JSON-Antworten
-	// an den Client, daher kein json-Tag-Export nötig über Umwege.
-	Genre string `json:"-"`
+	// Genre: ursprünglich nur Zwischenlager für GroupMusicAlbums (aggregiert
+	// nach music_albums.genre) — seit 2026-09-06 zusätzlich als eigene Spalte
+	// in der Musik-Listenansicht angezeigt (User-Wunsch), daher jetzt auch im
+	// JSON exportiert.
+	Genre string `json:"genre,omitempty"`
 	// LastPlayedAt: user_item_state.last_played_at (pro User). Nur in
 	// ListItems befüllt (für die "Alle Titel"-Listenansicht der Musik-
 	// Bibliotheken); andere Item-Ladepfade lassen es bewusst leer.

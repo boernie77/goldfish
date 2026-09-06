@@ -32,6 +32,36 @@ func (s *Server) listAlbums(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, albums)
 }
 
+// updateMusicItemMetadata speichert manuell korrigierte Musik-Tags direkt
+// auf den Track (kein metadata/TMDB-Umweg, siehe Store.UpdateMusicItemMetadata).
+func (s *Server) updateMusicItemMetadata(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		Title   string `json:"title"`
+		Artist  string `json:"artist"`
+		Album   string `json:"album"`
+		TrackNo int    `json:"trackNo"`
+		Genre   string `json:"genre"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if body.Title == "" {
+		writeError(w, 400, "Titel darf nicht leer sein")
+		return
+	}
+	if err := s.Store.UpdateMusicItemMetadata(id, body.Title, body.Artist, body.Album, body.TrackNo, body.Genre); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
 // getAlbum liefert Album-Detail + Tracks (sortiert nach Track-Nummer).
 func (s *Server) getAlbum(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")

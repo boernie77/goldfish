@@ -1366,6 +1366,51 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Klick gilt). Getestet mit echten OS-Level-Mausereignissen (nicht nur
   synthetischen `dispatchEvent`-Aufrufen, die kein natives Drag auslösen und
   den Bug deshalb zunächst verdeckten).
+- **Genre-Spalte in beiden Track-Listen** (seit 2026-09-06, User-Wunsch:
+  "IN Der Musikansicht fehlt mir Genre noch in der Listenansicht als
+  Spalte"): `MUSIC_LIST_CONTEXTS` (`album`/`all`) um `genre` als weitere
+  `reorderable`-Spalte ergänzt, `renderMusicTrackRow` bekam den passenden
+  `case "genre"`. Voraussetzung: `model.Item.Genre` trug bis dahin
+  `json:"-"` (reines internes Zwischenlager für `GroupMusicAlbums`, nie an
+  den Client geliefert) — jetzt `json:"genre,omitempty"`, und sowohl
+  `ListItems` als auch `GetItemFor` SELECTen `i.genre` jetzt mit (vorher
+  fehlte es in beiden SQL-Queries).
+- **Musik-Metadaten bearbeiten (seit 2026-09-06, User-Wunsch: "Bei Musik
+  fehlt grundsätzlich noch, die Metadaten zu bearbeiten")**: der ✏-Edit-
+  Dialog war zwar für Admins auch bei Musik-Tracks sichtbar, zeigte aber nur
+  die Film/Serien-Felder (Jahr/Beschreibung/TMDB-Rating/FSK/…), die für
+  Musik weder passen noch etwas bewirkt hätten — Speichern lief über
+  `POST .../metadata-manual`, das eine `tmdb_type=custom`-**metadata**-Zeile
+  anlegt, während Musik-Tracks ihre Felder direkt auf `items` tragen
+  (`artist`/`album`/`track_no`/`genre`) und nie mit dem TMDB/metadata-
+  Konzept arbeiten. Komplett eigener Pfad: `index.html` bekam vier neue
+  Felder (Künstler/Album/Track-Nr./Genre, Klasse `.editmeta-music-field`),
+  die bestehenden Film-Felder eine Gegenklasse `.editmeta-movie-field` —
+  `openEditMetaDialog()` togglet beide Gruppen per `kind==="music"` und
+  befüllt bei Musik direkt aus `it.artist/album/trackNo/genre` (unabhängig
+  von `it.metadataId`, das bei Musik immer 0 ist). `handleEditMetaSubmit`
+  ruft bei Musik `PUT /api/items/{id}/music-metadata`
+  (`Store.UpdateMusicItemMetadata`, `internal/store/music.go`) statt des
+  TMDB-Pfads — schreibt `items.title/artist/album/track_no/genre` direkt
+  und stößt danach `GroupMusicAlbums(libraryID)` erneut an, weil ein
+  geänderter Artist/Album-Wert die Album-Zuordnung dieses Tracks ändern
+  kann. Poster-Button ist bei Musik ausgeblendet (kein Item-eigenes Poster,
+  nur das Album hat ein Cover — eigener, hier nicht betroffener Mechanismus
+  über `/api/poster/album/{id}`). Test:
+  `internal/store/music_edit_metadata_test.go`.
+- **🔴 IMDb-Zuordnung schlug bei obfuskierten Dateinamen fehl (Bug, gefixt
+  2026-09-06, User-Report mit Screenshot: Datei „gb-100jamamoihwage-1080p",
+  Fehler „Konnte Staffel/Episode aus Dateiname nicht ermitteln")**:
+  `handleMatchImdb` (`matching.js`) parste im TV-Zweig stur NOCHMAL
+  `S(\d{1,2})E(\d{1,3})` aus `item.title` — ignorierte dabei komplett die im
+  selben Dialog sichtbaren `#matchSeason`/`#matchEpisode`-Eingabefelder, die
+  laut `openMatchItem`-Kommentar GENAU für diesen Fall gedacht sind ("User
+  kann manuell korrigieren, wenn der Dateiname nichts hergibt"). Bei einem
+  Dateinamen ganz ohne SxxExx-Muster (Release-Obfuskation) blieben die
+  Felder zwar sichtbar und ausfüllbar, wurden aber nie ausgelesen — jede
+  manuelle Eingabe dort war wirkungslos. Fix: Season/Episode kommen jetzt
+  primär aus den Formularfeldern, das Datei-Parsing ist nur noch Fallback
+  falls die Felder leer sind.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
