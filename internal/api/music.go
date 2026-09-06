@@ -46,6 +46,7 @@ func (s *Server) updateMusicItemMetadata(w http.ResponseWriter, r *http.Request)
 		Album   string `json:"album"`
 		TrackNo int    `json:"trackNo"`
 		Genre   string `json:"genre"`
+		Year    int    `json:"year"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiges JSON")
@@ -55,7 +56,11 @@ func (s *Server) updateMusicItemMetadata(w http.ResponseWriter, r *http.Request)
 		writeError(w, 400, "Titel darf nicht leer sein")
 		return
 	}
-	if err := s.Store.UpdateMusicItemMetadata(id, body.Title, body.Artist, body.Album, body.TrackNo, body.Genre); err != nil {
+	if body.Year != 0 && (body.Year < 1900 || body.Year > 2099) {
+		writeError(w, 400, "year muss leer oder zwischen 1900 und 2099 liegen")
+		return
+	}
+	if err := s.Store.UpdateMusicItemMetadata(id, body.Title, body.Artist, body.Album, body.TrackNo, body.Genre, body.Year); err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}

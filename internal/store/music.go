@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/boernie77/goldfish/internal/model"
 )
@@ -138,12 +139,27 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 // Stößt danach GroupMusicAlbums für die Library erneut an, weil ein
 // geänderter Artist/Album-Wert die Album-Zuordnung dieses Tracks ändern
 // kann (z. B. Track landet jetzt in einem neuen oder anderen Album).
-func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album string, trackNo int, genre string) error {
+// `year` (seit 2026-09-06, User-Wunsch "Jahr als Feld ergänzen") nutzt
+// bewusst KEINE neue Spalte — Musik hat kein separates Jahr-Feld im Schema,
+// nur `items.released_at` (bereits die Datenquelle für den "Veröffentlicht"-
+// Sort UND die neue Jahr-Spalte in der Listenansicht). `year=0` (leeres
+// Formularfeld) lässt `released_at` unangetastet, da die Spalte NOT NULL ist
+// und daher kein "kein Jahr"-Zustand existiert — ein explizit gewähltes
+// Jahr wird auf den 1. Januar dieses Jahres (UTC) geschrieben.
+func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album string, trackNo int, genre string, year int) error {
 	var libraryID int64
 	if err := s.db.QueryRow(`SELECT library_id FROM items WHERE id = ?`, itemID).Scan(&libraryID); err != nil {
 		return err
 	}
-	if _, err := s.db.Exec(
+	if year > 0 {
+		releasedAt := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+		if _, err := s.db.Exec(
+			`UPDATE items SET title = ?, artist = ?, album = ?, track_no = ?, genre = ?, released_at = ? WHERE id = ?`,
+			title, artist, album, trackNo, genre, releasedAt, itemID,
+		); err != nil {
+			return err
+		}
+	} else if _, err := s.db.Exec(
 		`UPDATE items SET title = ?, artist = ?, album = ?, track_no = ?, genre = ? WHERE id = ?`,
 		title, artist, album, trackNo, genre, itemID,
 	); err != nil {

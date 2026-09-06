@@ -1031,24 +1031,24 @@ function renderAllTracksList(grid, tracks) {
 const MUSIC_LIST_CONTEXTS = {
   album: {
     fixedLeading: ["track"],
-    reorderable: ["title", "artist", "genre", "duration"],
+    reorderable: ["title", "artist", "genre", "year", "duration"],
     // "editMeta" seit 2026-09-06 ergänzt (User-Wunsch: "Der Bearbeitungs-
     // button soll auch in der Listenansicht am Ende der Zeile sein") — reiner
     // Icon-Slot wie "fav", kein Spalten-Label nötig (renderMusicColumnHeader
     // baut für fixedLeading/fixedTrailing nur leere Platzhalter).
     fixedTrailing: ["fav", "editMeta"],
-    labels: { title: "Titel", artist: "Künstler", genre: "Genre", duration: "Dauer" },
-    defaultWidths: { title: 260, artist: 160, genre: 110, duration: 70 },
-    minWidths: { title: 100, artist: 80, genre: 70, duration: 50 },
+    labels: { title: "Titel", artist: "Künstler", genre: "Genre", year: "Jahr", duration: "Dauer" },
+    defaultWidths: { title: 260, artist: 160, genre: 110, year: 60, duration: 70 },
+    minWidths: { title: 100, artist: 80, genre: 70, year: 50, duration: 50 },
     fixedWidths: { track: 32, fav: 32, editMeta: 32 },
   },
   all: {
     fixedLeading: ["cover"],
-    reorderable: ["title", "artist", "album", "genre", "lastPlayed"],
+    reorderable: ["title", "artist", "album", "genre", "year", "lastPlayed"],
     fixedTrailing: ["fav", "editMeta"],
-    labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", lastPlayed: "Zuletzt gehört" },
-    defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, lastPlayed: 140 },
-    minWidths: { title: 100, artist: 80, album: 80, genre: 70, lastPlayed: 100 },
+    labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", year: "Jahr", lastPlayed: "Zuletzt gehört" },
+    defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, year: 60, lastPlayed: 140 },
+    minWidths: { title: 100, artist: 80, album: 80, genre: 70, year: 50, lastPlayed: 100 },
     fixedWidths: { cover: 40, fav: 32, editMeta: 32 },
   },
 };
@@ -1267,6 +1267,9 @@ function renderMusicTrackRow(it, queue, idx, columns) {
         break;
       case "genre":
         html += `<span class="track-row-genre">${escapeHTML(it.genre || "")}</span>`;
+        break;
+      case "year":
+        html += `<span class="track-row-year">${it.releasedAt ? new Date(it.releasedAt).getFullYear() : "—"}</span>`;
         break;
       case "duration":
         html += `<span class="track-row-duration">${fmtDuration(it.durationSec)}</span>`;

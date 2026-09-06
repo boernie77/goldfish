@@ -1434,6 +1434,21 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `/api/items?genre=`, aber nicht für `/api/albums/{id}`, für dasselbe
   Item). Test: `TestListMusicAlbumTracksIncludesGenre` in
   `internal/store/music_edit_metadata_test.go`.
+- **Jahr-Spalte + -Feld (seit 2026-09-06, User-Wunsch: "in der Musik
+  Listenansicht und in dem Metadaten Formular noch das Jahr ergänzen")**:
+  bewusst **keine neue Spalte** im Schema — Musik hat kein eigenes
+  Jahr-Feld, nutzt direkt `items.released_at` (dieselbe Quelle wie der
+  "Veröffentlicht"-Sort bei Filmen/Serien, bei jedem Item ohnehin immer
+  gesetzt, siehe Fallback-Kette in `extractReleaseTime`). `year` als
+  weitere `reorderable`-Spalte in `MUSIC_LIST_CONTEXTS` (`album`/`all`),
+  `renderMusicTrackRow case "year"` zeigt `new Date(it.releasedAt)
+  .getFullYear()`. Edit-Dialog: neues Feld `musicYear` (Zahleneingabe
+  1900–2099) neben Genre; `Store.UpdateMusicItemMetadata` bekam einen
+  `year int`-Parameter — `year=0` (leeres Feld) lässt `released_at`
+  unangetastet (die Spalte ist NOT NULL, es gibt keinen "kein Jahr"-
+  Zustand), ein gesetztes Jahr wird auf den 1. Januar dieses Jahres (UTC)
+  geschrieben. `PUT /api/items/{id}/music-metadata` validiert `year`
+  serverseitig auf 0 oder 1900–2099.
 - **Musik-Metadaten bearbeiten (seit 2026-09-06, User-Wunsch: "Bei Musik
   fehlt grundsätzlich noch, die Metadaten zu bearbeiten")**: der ✏-Edit-
   Dialog war zwar für Admins auch bei Musik-Tracks sichtbar, zeigte aber nur

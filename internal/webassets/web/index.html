@@ -663,7 +663,10 @@
       <label style="flex:2">Album <input name="musicAlbum" type="text" /></label>
       <label style="flex:1">Track-Nr. <input name="musicTrackNo" type="number" min="0" step="1" /></label>
     </div>
-    <label class="editmeta-music-field">Genre <input name="musicGenre" type="text" placeholder="z. B. Rock" /></label>
+    <div class="row editmeta-music-field" style="gap:8px">
+      <label style="flex:2">Genre <input name="musicGenre" type="text" placeholder="z. B. Rock" /></label>
+      <label style="flex:1">Jahr <input name="musicYear" type="number" min="1900" max="2099" step="1" /></label>
+    </div>
     <label class="editmeta-movie-field">Originaltitel <input name="originalTitle" type="text" /></label>
     <div class="row editmeta-movie-field" style="gap:8px">
       <label style="flex:1">Jahr <input name="year" type="number" min="1900" max="2099" step="1" /></label>

@@ -425,6 +425,7 @@ function openEditMetaDialog() {
     f.musicAlbum.value = it.album || "";
     f.musicTrackNo.value = it.trackNo || "";
     f.musicGenre.value = it.genre || "";
+    f.musicYear.value = it.releasedAt ? new Date(it.releasedAt).getFullYear() : "";
     $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
     const posterBtn = $("#editMetaPoster");
     if (posterBtn) posterBtn.style.display = "none"; // Musik-Tracks haben kein eigenes Poster (nur das Album ein Cover)
@@ -676,6 +677,7 @@ async function handleEditMetaSubmit(e) {
       album: f.musicAlbum.value.trim(),
       trackNo: parseInt(f.musicTrackNo.value, 10) || 0,
       genre: f.musicGenre.value.trim(),
+      year: parseInt(f.musicYear.value, 10) || 0,
     };
     try {
       await api(`/api/items/${it.id}/music-metadata`, { method: "PUT", body: JSON.stringify(body) });

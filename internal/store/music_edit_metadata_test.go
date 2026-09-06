@@ -21,7 +21,7 @@ func TestUpdateMusicItemMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.UpdateMusicItemMetadata(id, "Neuer Titel", "Neue Band", "Altes Album", 3, "Pop"); err != nil {
+	if err := s.UpdateMusicItemMetadata(id, "Neuer Titel", "Neue Band", "Altes Album", 3, "Pop", 2011); err != nil {
 		t.Fatal(err)
 	}
 
@@ -31,6 +31,9 @@ func TestUpdateMusicItemMetadata(t *testing.T) {
 	}
 	if it.Title != "Neuer Titel" || it.Artist != "Neue Band" || it.TrackNo != 3 || it.Genre != "Pop" {
 		t.Fatalf("unexpected item after update: %+v", it)
+	}
+	if it.ReleasedAt.Year() != 2011 {
+		t.Fatalf("expected released_at year 2011, got %v", it.ReleasedAt)
 	}
 
 	albums, err := s.ListMusicAlbums(libID, 0)
