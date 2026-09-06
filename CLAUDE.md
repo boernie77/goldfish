@@ -1375,6 +1375,15 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   den Client geliefert) — jetzt `json:"genre,omitempty"`, und sowohl
   `ListItems` als auch `GetItemFor` SELECTen `i.genre` jetzt mit (vorher
   fehlte es in beiden SQL-Queries).
+  **🔴 Spalte blieb trotzdem leer (Bug, gefixt noch am selben Tag):** die
+  tatsächliche Datenquelle für die Album-Detail-Trackliste im Frontend ist
+  NICHT `ListItems`, sondern `Store.ListMusicAlbumTracks`
+  (`GET /api/albums/{id}`) — ein dritter, unabhängiger SELECT, der beim
+  ersten Fix übersehen wurde und `i.genre` ebenfalls nicht lud. Live per
+  claude-in-chrome verifiziert (API lieferte `genre` korrekt für
+  `/api/items?genre=`, aber nicht für `/api/albums/{id}`, für dasselbe
+  Item). Test: `TestListMusicAlbumTracksIncludesGenre` in
+  `internal/store/music_edit_metadata_test.go`.
 - **Musik-Metadaten bearbeiten (seit 2026-09-06, User-Wunsch: "Bei Musik
   fehlt grundsätzlich noch, die Metadaten zu bearbeiten")**: der ✏-Edit-
   Dialog war zwar für Admins auch bei Musik-Tracks sichtbar, zeigte aber nur

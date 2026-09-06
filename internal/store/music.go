@@ -336,6 +336,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 		       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb,
 		       i.mod_time, i.released_at, i.added_at, COALESCE(i.metadata_id, 0),
 		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+		       COALESCE(i.genre, ''),
 		       COALESCE(us.favorite, 0), us.last_played_at
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -354,7 +355,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb,
 			&it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID,
+			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre,
 			&favorite, &lastPlayedAt); err != nil {
 			return nil, err
 		}

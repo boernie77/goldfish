@@ -41,3 +41,32 @@ func TestUpdateMusicItemMetadata(t *testing.T) {
 		t.Fatalf("expected album re-grouped with updated artist/genre, got %+v", albums)
 	}
 }
+
+// TestListMusicAlbumTracksIncludesGenre sichert ab, dass ListMusicAlbumTracks
+// (Datenquelle für GET /api/albums/{id}, die tatsächliche Album-Detail-
+// Trackliste im Frontend) das Genre pro Track mitliefert — Bug gefunden
+// 2026-09-06: die Genre-Spalte in der Listenansicht blieb leer, weil dieser
+// Query i.genre nicht SELECTed hatte (ListItems/GetItemFor waren bereits
+// gefixt, dieser dritte Aufrufer wurde zunächst übersehen).
+func TestListMusicAlbumTracksIncludesGenre(t *testing.T) {
+	s := newTestStore(t)
+	libID, err := s.CreateLibrary("Musik", t.TempDir(), model.KindMusic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustUpsertMusicItem(t, s, libID, "Band/Album/01 Song.mp3", "Band", "Album", "Jazz")
+	if err := s.GroupMusicAlbums(libID); err != nil {
+		t.Fatal(err)
+	}
+	albums, err := s.ListMusicAlbums(libID, 0)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("setup: albums=%v err=%v", albums, err)
+	}
+	tracks, err := s.ListMusicAlbumTracks(albums[0].ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 1 || tracks[0].Genre != "Jazz" {
+		t.Fatalf("expected track genre 'Jazz', got %+v", tracks)
+	}
+}
