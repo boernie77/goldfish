@@ -1741,6 +1741,27 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   unabhängig von jeder TMDB-Zuordnung. Der „Serie zuordnen…"-Button bleibt
   über `renderBreadcrumb` unverändert erreichbar (kommt für `kind=tv`
   automatisch, unabhängig vom Staffel-Modus).
+  **Bleibender Info-Header im Fallback (seit 2026-09-06, User-Wunsch: „bei
+  nicht zugeordneten Serien soll auch so ein Infofenster aufgehen, mit den
+  gleichen Buttons"):** der Toast allein verschwindet nach wenigen Sekunden
+  ohne bleibenden Hinweis. `grid.js` merkt sich beim Fallback in
+  `state.pendingShowInfoHeader` entweder `data.show` (Ordner IST TMDB-
+  zugeordnet, nur keine erkennbare Staffel-Struktur — Tatort/Terra-X-Fall)
+  oder `{unmatched:true, folder}` (showTmdbId===0, gar keine Zuordnung) und
+  stellt danach — NACH dem `grid.innerHTML=""` des normalen Ordner-
+  Renderings, sonst sofort wieder gelöscht — einen Header voran:
+  `renderShowHeader(data.show, null)` (voller Header inkl. ALLER Buttons:
+  TMDB neu laden/Poster ändern/Episoden neu zuordnen/Zuordnung entfernen)
+  im ersten Fall, `renderUnmatchedFolderHeader(folder)` (views.js, schlanker
+  Header nur mit „🔍 Serie zuordnen…" — die anderen Buttons brauchen alle
+  eine bestehende Zuordnung, die hier per Definition fehlt) im zweiten.
+  **Bekannte Einschränkung:** die wiederverwendeten Show-Header-Buttons
+  (TMDB neu laden etc.) rufen bei Erfolg weiterhin `renderSeasonFolders`/
+  `renderSeasonEpisodes` direkt auf statt `loadItems()` — im Fallback-
+  Kontext (Season-View bereits deaktiviert) kann das kurzzeitig ein leeres
+  Season-Grid statt der normalen Dateiliste zeigen, bis erneut navigiert
+  wird. Kein Crash, nur ein UX-Rest, der bei Bedarf durch Umstellen auf
+  `loadItems()` als gemeinsamen Refresh-Pfad behoben werden könnte.
 - **Sort „Veröffentlicht" jetzt Teil von `FLAT_SORTS`/`FLAT_LIBRARY_SORTS`**
   (`grid.js`/`app.js`, seit 2026-09-05) — vorher fehlte `"released"` in
   beiden Sets, obwohl der Server (`ListItems`-SQL-Sort-Switch,

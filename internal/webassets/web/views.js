@@ -650,6 +650,38 @@ function renderShowHeader(show, counts) {
   return el;
 }
 
+// renderUnmatchedFolderHeader: schlanke Variante von renderShowHeader für
+// Serien-Ordner OHNE jede TMDB-Zuordnung (showTmdbId===0) im Season-
+// Fallback (User-Wunsch 2026-09-06: "bei nicht zugeordneten Serien soll auch
+// so ein Infofenster aufgehen"). Anders als der volle Show-Header (der bei
+// bereits zugeordneten, aber strukturell nicht passenden Ordnern wie
+// Tatort/Terra-X unverändert mit ALLEN Buttons weiterläuft, s. grid.js)
+// gibt es hier nur den einen Button, der tatsächlich etwas bewirken kann —
+// "TMDB neu laden"/"Episoden neu zuordnen"/"Poster ändern" brauchen alle
+// eine bestehende Zuordnung, die hier per Definition fehlt.
+function renderUnmatchedFolderHeader(folder) {
+  const el = document.createElement("section");
+  el.className = "show-header detail-wrap";
+  const title = folder.split("/").pop() || folder;
+  el.innerHTML = `
+    <div class="detail-poster" style="background-image:url('/placeholder.svg')"></div>
+    <div class="detail-body">
+      <h2>${escapeHTML(title)}</h2>
+      <div class="sub"><span>Noch keine Serien-Zuordnung</span></div>
+      <p class="overview">Für diesen Ordner wurde noch keine TMDB-Serie zugeordnet — deshalb gibt es
+        weder eine Staffel-Übersicht noch Poster/Cast. Die Dateien darunter sind trotzdem normal
+        nutzbar (Ordneransicht unten).</p>
+      <div class="show-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" data-assign-folder>🔍 Serie zuordnen…</button>
+      </div>
+    </div>
+  `;
+  el.querySelector("[data-assign-folder]").addEventListener("click", () => {
+    openMatchFolder(state.currentLibrary, folder);
+  });
+  return el;
+}
+
 // renderSeasonEpisodes: nach Klick auf eine Staffel — normales Grid mit
 // owned + missing Kacheln.
 async function renderSeasonEpisodes(grid, data, seasonNum) {

@@ -59,6 +59,10 @@ async function loadItems() {
 
 async function loadItemsBody() {
   const grid = $("#grid");
+  // Reset für den Season-Fallback-Info-Header (s. u.) — nur der TV-Season-
+  // Fallback-Zweig setzt das, jeder andere Anzeige-Modus (Playlist/Home/
+  // Sammlungen/Person-Filter/…) soll ihn nie sehen.
+  state.pendingShowInfoHeader = null;
   // Reset hier zentral statt in jeder einzelnen render*-Funktion: "Alle
   // Titel" (renderAllTracksList) setzte die Klasse, entfernte sie aber
   // nirgends beim Verlassen der Musik-Bibliothek — #grid blieb dadurch in
@@ -943,6 +947,15 @@ async function loadItemsBody() {
       try { localStorage.setItem(`seasonView:${state.currentLibrary || 0}:${state.currentFolder}`, "0"); } catch {}
       state.seasonView = false;
       showToast("Keine Staffel-Struktur erkannt – zeige normale Ordner-Ansicht", { kind: "info" });
+      // Info-Header auch im Fallback zeigen (User-Wunsch 2026-09-06): der
+      // Toast verschwindet, ohne einen bleibenden Hinweis + Handlungsmöglichkeit
+      // zu hinterlassen. `data.show` ist gesetzt, wenn der Ordner sehr wohl
+      // TMDB-zugeordnet ist, nur keine erkennbare Staffel-Struktur hat (Tatort/
+      // Terra-X-Fall) — dann derselbe volle Header mit allen Buttons wie in der
+      // Staffel-Ansicht. Ohne jede Zuordnung (showTmdbId===0) ein schlankerer
+      // Header nur mit "Serie zuordnen…". Wird unten nach dem generischen
+      // Grid-Rendering vorangestellt (das setzt grid.innerHTML komplett neu).
+      state.pendingShowInfoHeader = data.show || { unmatched: true, folder: state.currentFolder };
     } else {
       renderBreadcrumb({});
       if (state.currentSeason == null) {
@@ -1215,4 +1228,13 @@ async function loadItemsBody() {
   grid.innerHTML = "";
   grid.appendChild(frag);
   updateAlphaSidebar();
+  // Season-Fallback-Info-Header voranstellen (s. Reset oben) — muss NACH dem
+  // `grid.innerHTML = ""` passieren, sonst würde er sofort wieder gelöscht.
+  if (state.pendingShowInfoHeader) {
+    const info = state.pendingShowInfoHeader;
+    const header = info.unmatched
+      ? renderUnmatchedFolderHeader(info.folder)
+      : renderShowHeader(info, null);
+    grid.insertBefore(header, grid.firstChild);
+  }
 }
