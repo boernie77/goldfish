@@ -2899,6 +2899,30 @@ func (s *Store) GetFolderMetadataID(libraryID int64, folder string) (int64, erro
 	return id.Int64, err
 }
 
+// FolderMetadataRowExists prüft, ob für diesen Ordner ÜBERHAUPT schon eine
+// `folder_metadata`-Zeile existiert — unabhängig davon, ob `metadata_id`
+// gesetzt oder NULL ist. Wichtig, um "noch nie versucht" (keine Zeile) von
+// "bewusst unmatched" (Zeile mit NULL — entweder weil TMDB nichts fand, ODER
+// weil ein Admin die Zuordnung per "🚫 Zuordnung entfernen" bewusst gelöscht
+// hat) zu unterscheiden. `GetFolderMetadataID` allein kann das NICHT: beide
+// Fälle liefern dort `0` zurück (User-Report 2026-09-06: "Terra X" wurde
+// nach dem Entfernen der Zuordnung binnen Minuten vom periodischen
+// 5-Minuten-Enrichment-Worker automatisch wieder gematcht, weil `matchItem`
+// nur auf `showMetaID == 0` prüfte, nicht auf "gab es schon einen Versuch").
+func (s *Store) FolderMetadataRowExists(libraryID int64, folder string) (bool, error) {
+	var exists int
+	err := s.db.QueryRow(
+		`SELECT 1 FROM folder_metadata WHERE library_id = ? AND folder = ?`,
+		libraryID, folder).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // PendingItems liefert Items ohne Metadata-Zuordnung für den Enrichment-Worker.
 func (s *Store) PendingItems(limit int) ([]model.Item, error) {
 	rows, err := s.db.Query(`
@@ -2944,6 +2968,21 @@ type PendingFolder struct {
 // PendingFolders liefert bis zu `limit` Top-Level-Ordner einer TV-Library,
 // für die noch keine Show-Metadata zugeordnet wurde.
 func (s *Store) PendingFolders(limit int) ([]PendingFolder, error) {
+	// `fm.folder IS NULL` (NICHT `fm.metadata_id IS NULL`!) ist die einzig
+	// korrekte Bedingung für "noch nie versucht": bei einem LEFT JOIN ist
+	// `fm.folder` nur dann NULL, wenn GAR KEINE folder_metadata-Zeile
+	// existiert — `fm.metadata_id` dagegen ist AUCH NULL, wenn eine Zeile
+	// existiert, TMDB aber nichts fand (matchShow setzt dann bewusst NULL,
+	// "damit wir nicht endlos retry'en") ODER ein Admin die Zuordnung über
+	// "🚫 Zuordnung entfernen" gelöscht hat. Mit der alten Bedingung wurde
+	// GENAU DAS "nicht endlos retry'en" durch DIESE Query systematisch
+	// unterlaufen: jeder 5-minütliche Worker-Lauf griff sich einen so
+	// "unmatched" markierten Ordner erneut und matchte ihn sofort neu (User-
+	// Report 2026-09-06: "Terra X" war Minuten nach dem manuellen Entfernen
+	// der Zuordnung schon wieder — diesmal auf eine andere, ebenfalls
+	// falsche Show — gematcht). `folder_metadata` hat PRIMARY KEY
+	// (library_id, folder), beide NOT NULL — `fm.folder` ist deshalb ein
+	// zuverlässiger "Zeile existiert überhaupt"-Indikator.
 	rows, err := s.db.Query(`
 		SELECT DISTINCT i.library_id, SUBSTR(i.rel_path, 1, INSTR(i.rel_path, '/')-1) AS folder
 		FROM items i
@@ -2953,7 +2992,7 @@ func (s *Store) PendingFolders(limit int) ([]PendingFolder, error) {
 		  AND fm.folder = SUBSTR(i.rel_path, 1, INSTR(i.rel_path, '/')-1)
 		WHERE INSTR(i.rel_path, '/') > 0
 		  AND l.kind = 'tv'
-		  AND fm.metadata_id IS NULL
+		  AND fm.folder IS NULL
 		LIMIT ?`, limit)
 	if err != nil {
 		return nil, err

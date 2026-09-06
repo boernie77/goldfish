@@ -1776,6 +1776,44 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   dem Entfernen zeigt `loadItems()` automatisch die normale Ordneransicht
   (greift der Staffel-Ansicht-Fallback bei leeren Seasons, siehe
   „Serienübersicht — Auto-Merge doppelter Serien-Ordner" oben).
+- **🔴 "Zuordnung entfernen" hielt nicht — Ordner wurde binnen Minuten vom
+  periodischen Enrichment-Worker automatisch wieder (falsch) gematcht
+  (gefixt 2026-09-06):** User-Report direkt nach dem Feature oben: "Terra X"
+  war Minuten nach dem manuellen Entfernen schon wieder zugeordnet — diesmal
+  auf "Terra X History" statt "Terra Xpress", also erneut falsch. Root
+  Cause war ein VORBESTEHENDER Bug, der durch das neue Feature erst
+  sichtbar wurde, an ZWEI unabhängigen Stellen im 5-Minuten-Worker
+  (`internal/enrich/worker.go runOnce` → `enrichFolders` UND `enrichItems`):
+  beide prüften nur, ob der Ordner (noch) eine `metadata_id` hat, NIE ob
+  bereits ein bewusster Versuch (mit Ergebnis "NULL") stattgefunden hat.
+  - **`Store.PendingFolders`** (SQL): `LEFT JOIN folder_metadata fm ...
+    WHERE fm.metadata_id IS NULL` — bei einem LEFT JOIN ist `fm.metadata_id`
+    NICHT NUR NULL, wenn GAR KEINE Zeile existiert, sondern AUCH, wenn eine
+    Zeile existiert und ihr `metadata_id` NULL ist (TMDB fand nichts, ODER
+    Admin hat entfernt). Fix: Bedingung auf `fm.folder IS NULL` geändert —
+    `folder_metadata` hat `PRIMARY KEY (library_id, folder)`, beide NOT
+    NULL, `fm.folder` ist daher ein zuverlässiger "Zeile existiert
+    überhaupt"-Indikator, unabhängig vom `metadata_id`-Wert. Das war
+    ursprünglich SCHON ALS BUG vorhanden (der Code-Kommentar bei
+    `matchShow`s NULL-Write sagt explizit "damit wir nicht endlos
+    retry'en") — nur bis jetzt nie aufgefallen, weil vor "🚫 Zuordnung
+    entfernen" der einzige Weg zu einer NULL-Zeile ein gescheiterter
+    TMDB-Suchversuch war (seltener Fall, kaum beobachtet).
+  - **`enrichItems`/`enrichFolderSync`** (über `matchItem`,
+    `internal/enrich/worker.go`): prüfte nur `showMetaID == 0` (aus
+    `GetFolderMetadataID`, das „keine Zeile" und „Zeile mit NULL" NICHT
+    unterscheiden KANN) und löste bei 0 sofort erneut `matchShow` aus.
+    Fix: neue `Store.FolderMetadataRowExists(libID, folder)` — liefert
+    `true`, sobald irgendeine Zeile existiert (Wert egal). `matchItem`
+    triggert `matchShow` jetzt NUR NOCH, wenn GAR KEINE Zeile existiert;
+    existiert eine (auch mit NULL), gibt es einen Fehler zurück
+    ("bewusst unmatched (kein Auto-Retry)") statt erneut zu suchen.
+  - Beide Fixe zusammen sind nötig — `enrichFolders` läuft VOR `enrichItems`
+    in jedem `runOnce()`-Zyklus und hätte den Ordner sonst weiterhin allein
+    schon wieder gematcht, selbst mit nur einem der beiden Fixe.
+  - Tests: `internal/store/folder_metadata_test.go` (`PendingFolders`
+    ignoriert eine bewusst-NULL-Zeile, `FolderMetadataRowExists`
+    unterscheidet beide Fälle direkt).
 
 ### NFO-Sidecars (Plex/Jellyfin-Kompatibilität)
 - Kodi-kompatibles XML-Format in `<Dateiname>.nfo` neben der Videodatei,

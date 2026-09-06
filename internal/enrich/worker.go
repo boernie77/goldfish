@@ -38,14 +38,14 @@ type Worker struct {
 }
 
 type Status struct {
-	Running       bool      `json:"running"`
-	LastRun       time.Time `json:"lastRun,omitempty"`
-	LastError     string    `json:"lastError,omitempty"`
-	ItemsTotal    int       `json:"itemsTotal"`
-	ItemsMatched  int       `json:"itemsMatched"`
-	ItemsFailed   int       `json:"itemsFailed"`
-	FoldersTotal  int       `json:"foldersTotal"`
-	FoldersMatched int      `json:"foldersMatched"`
+	Running        bool      `json:"running"`
+	LastRun        time.Time `json:"lastRun,omitempty"`
+	LastError      string    `json:"lastError,omitempty"`
+	ItemsTotal     int       `json:"itemsTotal"`
+	ItemsMatched   int       `json:"itemsMatched"`
+	ItemsFailed    int       `json:"itemsFailed"`
+	FoldersTotal   int       `json:"foldersTotal"`
+	FoldersMatched int       `json:"foldersMatched"`
 }
 
 // RefreshAllStatus beschreibt den Fortschritt eines Bulk-Refresh-Laufs
@@ -458,7 +458,23 @@ func (w *Worker) matchItem(ctx context.Context, lib *model.Library, it model.Ite
 			return err
 		}
 		if showMetaID == 0 {
-			// Show-Match ist noch nicht gelaufen oder gescheitert – trigger jetzt
+			// "0" heißt entweder "noch nie versucht" (keine folder_metadata-Zeile)
+			// ODER "bewusst/automatisch unmatched" (Zeile MIT metadata_id=NULL —
+			// TMDB fand nichts, ODER ein Admin hat die Zuordnung über "🚫
+			// Zuordnung entfernen" gelöscht). NUR im ersten Fall soll erneut
+			// gesucht werden — sonst würde jeder der 5-minütlichen Worker-Läufe
+			// eine bewusst entfernte Zuordnung sofort wieder herstellen (User-
+			// Report 2026-09-06: "Terra X" war Minuten nach dem Entfernen wieder
+			// zugeordnet, weil hier nur auf showMetaID==0 statt auf einen
+			// bereits existierenden NULL-Eintrag geprüft wurde).
+			hasRow, err := w.store.FolderMetadataRowExists(lib.ID, folder)
+			if err != nil {
+				return err
+			}
+			if hasRow {
+				return errors.New("Ordner ist bewusst unmatched (kein Auto-Retry)")
+			}
+			// Show-Match ist noch nie gelaufen – trigger jetzt
 			if err := w.matchShow(ctx, lib.ID, folder); err != nil {
 				return err
 			}
