@@ -294,6 +294,22 @@ Chronologisch, Build 0100 (2026-08-19) bis Build 179:
   `PlaybackResponse.streams` + `&audio=<index>` an der Transcode-URL,
   `restartTranscodeSession` an der aktuellen Position (Browser-Pendant: Audio-Dropdown im
   Player-Dialog). Zweites `waveform`-Menü in `PlayerControlsBar`, sichtbar bei >1 Spur.
+- **Serien-Ordner zeigte Ordner-Kacheln UND rekursiv alle Folgen gleichzeitig**
+  (Build 184/185/3, 2026-09-06, User-Report mit Screenshots Mac+iOS): der
+  `ShowSeasonsView`-Fallback (keine TMDB-Staffel-Struktur, z. B. "Terra X
+  History") übergab einen konkreten Ordnerpfad an `ItemGridView` — dort lud
+  `effectiveFolder=folder` REKURSIV alle Dateien (der Server kennt kein
+  "nur direkte Kinder eines Unterpfads", nur `""`=alles/`"/"`=echte
+  Bibliotheks-Root/`"<path>"`=rekursiv darunter, siehe `internal/store/sqlite.go
+  ListItems`), während gleichzeitig `showsFolderTiles=true` die direkten
+  Unterordner als Kacheln zeigte — dieselben Dateien erschienen doppelt.
+  Fix: die (weiterhin rekursiv geladenen) Items werden client-seitig auf
+  echte direkte Kinder gefiltert (`relPath` ohne weiteren `/` nach dem
+  `folder`-Präfix), wenn Ordner-Kacheln gleichzeitig gezeigt werden — bewahrt
+  Drilldown-Fähigkeit für Ordner mit sinnvoller Unterstruktur (Tatort-
+  Kommissar-Duos), ohne Duplizierung. Auf echtem iPhone + Apple TV installiert
+  und getestet, Mac-App auf Desktop kopiert. Details: `goldfish-apple`-Repo,
+  Commit `0be7a4b`.
 
 ## Gesehen-Sync zwischen zwei Usern (seit 2026-08-19)
 - User-Anfrage: zwei eigene Accounts (z. B. Christian + Alex/Börnie) sollen
