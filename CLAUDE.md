@@ -3528,7 +3528,22 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    grün. Reine Backend-Datei-Verschiebung ohne API-Auswirkung — kein
    Browser-Live-Test nötig (anders als Schritt 2), Test-Suite deckt
    `internal/store` ab.
-4. views.js Musik-Views → music-views.js
+4. ✅ **views.js Musik-Views → music.js** (LIVE 1.2.11) — Ziel war laut
+   ursprünglichem Vorschlag ein neues `music-views.js`, aber es gibt
+   bereits ein passendes Modul `music.js` (Mini-Player) in der
+   Lade-Reihenfolge — Funktionen dort ergänzt statt eine weitere Datei
+   + einen weiteren `<script>`-Tag anzulegen. Verschobener Block (529
+   Zeilen, `renderAlbumTiles` bis `renderMusicTrackRow` inkl. der
+   Spalten-Resize/Reorder-Helfer): views.js 1965 → 1435 Zeilen, music.js
+   290 → 825 Zeilen. Ladereihenfolge-Unbedenklichkeit: alle Funktionen
+   sind einfache globale `function`-Deklarationen (kein ES-Module), erst
+   NACH `DOMContentLoaded`/`boot()` aufgerufen — zu dem Zeitpunkt haben
+   alle `<script defer>`-Tags bereits ausgeführt, `music.js` lädt zwar
+   nach `views.js`/`grid.js` in `index.html`, das spielt aber keine Rolle
+   (bestehendes Projekt-Muster, kein Sonderfall). Verifiziert per
+   Multiset-Diff (views.js+music.js alt vs. neu) — nur neue Kommentarzeilen
+   unterscheiden sich. Live getestet: Musik-Album-Übersicht (Kacheln +
+   Liste), Album-Detail-Tracklist, „Alle Titel", Spalten-Resize/Reorder.
 5. player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js
 6. enrich/worker.go → matching.go (matchItem/matchShow/enrichItems/enrichFolders)
 7. Rest von sqlite.go (items.go/folders.go/libraries.go/settings.go)
