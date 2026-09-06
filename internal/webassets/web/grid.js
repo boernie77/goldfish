@@ -663,7 +663,7 @@ async function loadItemsBody() {
     // nebeneinander steht.
     const normName = s => (s || "").split("/").pop().toLowerCase()
       .replace(/\.[a-z0-9]{2,4}$/, "").replace(/\s*\(\d{1,2}\)\s*$/, "")
-      .replace(/[._\-]+/g, " ").replace(/\s+/g, " ").trim();
+      .replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
     items.sort((a, b) => normName(a.relPath).localeCompare(normName(b.relPath))
       || (a.relPath || "").localeCompare(b.relPath || ""));
     renderBreadcrumb({ searchCount: items.length, simNamesView: true });

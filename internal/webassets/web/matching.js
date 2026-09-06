@@ -781,10 +781,10 @@ function openMatchFolder(libraryId, folderName) {
 function parseTitle(name) {
   const s = String(name).replace(/\.(mkv|mp4|avi|wmv|mov)$/i, "");
   const m = s.match(/(19|20)\d{2}/);
-  let year = m ? parseInt(m[0], 10) : 0;
+  const year = m ? parseInt(m[0], 10) : 0;
   let title = s;
   if (m) title = s.substring(0, m.index);
-  title = title.replace(/[._]+/g, " ").replace(/[()\[\]]/g, " ").replace(/\s+/g, " ").trim();
+  title = title.replace(/[._]+/g, " ").replace(/[()[\]]/g, " ").replace(/\s+/g, " ").trim();
   return { title, year };
 }
 

@@ -29,7 +29,7 @@
 // Dialoge ohne erkennbaren Kopf (kein <h2> als erstes/zweites Element)
 // werden übersprungen und behalten das alte sticky-Verhalten als Fallback
 // (betrifft z. B. detailDialog mit seiner Sonderstruktur).
-(function () {
+(() => {
   function normalizeModalLayout(dlg) {
     if (!dlg.classList || !dlg.classList.contains("modal") || dlg.classList.contains("app-dialog")) return;
     if (dlg.dataset.modalFlex) return;

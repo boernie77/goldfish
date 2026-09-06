@@ -587,7 +587,11 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 		// Fallback-poisoned, siehe Kommentar bei items.year-addCol in
 		// sqlite.go). "date" liefert oft ein volles Datum (z. B.
 		// "2021-05-01") — die ersten 4 Ziffern reichen als Jahr.
-		if dateTag := lookupTag(p.Format.Tags, "date", "year", "originaldate", "TYER", "TDRC"); dateTag != "" {
+		// lookupTag vergleicht ausschließlich gegen kleingeschriebene Keys
+		// (siehe dortiger Kommentar) — "tyer"/"tdrc" MÜSSEN hier lowercase
+		// sein, sonst matchen sie nie (Bug, im selben Review-Durchgang
+		// gefunden und behoben, in dem dieser Aufruf entstand).
+		if dateTag := lookupTag(p.Format.Tags, "date", "year", "originaldate", "tyer", "tdrc"); dateTag != "" {
 			if m := yearTagRe.FindString(dateTag); m != "" {
 				if y, err := strconv.Atoi(m); err == nil {
 					it.Year = y

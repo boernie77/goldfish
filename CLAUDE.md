@@ -3399,6 +3399,97 @@ volumes:
 
 Vollstaendige Routenliste inkl. Admin-Gating: `internal/api/router.go` (`grep -n "r\." internal/api/router.go`). Body-Parameter je Endpoint stehen als Kommentare in den jeweiligen Handlern in `internal/api/*.go`.
 
+## Code-Review 2026-09-06 (Clean-Code/SOLID/Performance/Security, User-Auftrag)
+
+User-Auftrag: vollständige Codebasis (Go-Backend + JS-Frontend) auf Lesbarkeit,
+DRY/SOLID, Performance/Sicherheit, Fehlerbehandlung prüfen; Modularisierung
+NUR intern (weitere Go-Dateien im selben Package bzw. weitere JS-Module) —
+**explizit KEINE separaten Repos/Go-Module** (Goldfish bleibt bewusst Single-
+Binary/Single-Container, siehe Projektbeschreibung oben).
+
+**Sofort behobene, konkrete Funde (LIVE):**
+- **cards.js:769 — XSS-Lücke:** `subtitle` (u. a. roher Musik-Artist-Tag)
+  landete ungeschützt in `innerHTML`, während `title` an jeder anderen Stelle
+  konsequent durch `escapeHTML()` läuft. Fix: `escapeHTML(subtitle)`.
+- **cards.js `renderCard` — DRY-Verstoß**, selbst in dieser Session
+  eingeführt (siehe "Kachel-Overlay"-Abschnitt oben, Custom-Metadaten-Titel-
+  Fix): Titel-/Jahr-Override stand doppelt (posterPath-Zweig UND neuer
+  Non-Poster-Zweig). Zusammengeführt zu einem einzigen, von der Bild-URL-
+  Ermittlung entkoppelten Override-Block.
+- **scanner.go — `lookupTag`-Fallstrick, selbst in dieser Session
+  eingeführt:** `lookupTag` vergleicht ausschließlich gegen kleingeschriebene
+  Keys (baut eine lowercase-Lookup-Map). Der neue Jahr-Tag-Aufruf übergab
+  `"TYER", "TDRC"` in Großschreibung — hätten NIE gematcht. Auf `"tyer",
+  "tdrc"` korrigiert.
+- **biome-Autofixes (sicher, einzeln verifiziert):** `let`→`const` wo nie
+  reassigned, `function(){}`→Arrow-Function wo kein `this` im Rumpf
+  verwendet wird, unnötige Regex-Escapes. **Warnung für künftige Sessions:**
+  `biome lint --write` NICHT blind vertrauen — die `noUnusedVariables`-Regel
+  kennt das global-Window-Scope-Modulmuster dieses Projekts nicht und hätte
+  (laut Diagnose-Vorschau, NICHT tatsächlich geschrieben) `appPrompt` in
+  `_appPrompt` umbenannt — das hätte den globalen Aufruf aus anderen Modulen
+  gebrochen. Jede vorgeschlagene Änderung einzeln gegen die Datei prüfen,
+  bevor sie übernommen wird.
+
+**Strukturanalyse (Ergebnis, noch NICHT umgesetzt — größerer Umbau, braucht
+eigene Session(s) mit Tests nach jedem Schritt):**
+
+*Backend, größter Kandidat `internal/store/sqlite.go` (3091 Zeilen):* passt
+zum bereits etablierten Muster (`music.go`/`stats.go`/`users.go`/
+`collections.go`/`introskip.go` sind schon eigene Dateien) — sqlite.go ist
+der nie ausgelagerte Rest. Vorschlag: `schema.go` (migrate()-Funktion),
+`items.go` (ListItems/UpsertItem/GetItemFor/CountItems/attachMetadata/
+attachVariantCounts), `folders.go`, `metadata.go`, `trickplay_status.go`,
+`settings.go`, `libraries.go` — reine Datei-Umzüge, keine Signatur-/API-
+Änderung. Nebenfund: `attachMetadata`/`attachVariantCounts` schlucken
+DB-Fehler komplett ohne Logging (`sqlite.go` ~1861/~1926) — sollten
+mindestens `log.Printf` bekommen. `internal/enrich/worker.go` (1103 Zeilen):
+`matchItem` (~185 Zeilen) ist die größte Einzelfunktion des Backends,
+Kandidat für `matching.go`-Auslagerung. `internal/tmdb/client.go`,
+`internal/api/tmdb.go`, `internal/api/items.go`, `internal/store/
+collections.go`, `internal/scanner/scanner.go` wurden geprüft und sind
+strukturell in Ordnung (je eine zusammenhängende Domäne, Größe kommt von
+fachlicher Breite, nicht Vermischung) — keine Aufteilung nötig.
+
+*Frontend, schärfster Einzelfund:* `grid.js loadItemsBody` ist **1206
+Zeilen in einer einzigen Funktion** (fast die ganze Datei) — eine
+If/Switch-Kette über alle Anzeige-Modi (Playlist/Home/Sammlungen/
+Season-View/Musik/Standard). Läuft bei praktisch jeder Navigation, größter
+Lesbarkeits-Hebel im gesamten Frontend. Vorschlag: Dispatcher +
+`loadItemsForPlaylist`/`loadItemsForHome`/`loadItemsForSeasonView`/
+`loadItemsForMusic`/`loadItemsDefault`. `views.js renderBreadcrumb`
+(~480 Zeilen) ist eine ähnliche, kleinere God-Function. `player.js`
+(2250 Zeilen) hat vier sauber abgrenzbare Unterthemen (Detail-Dialog,
+Trickplay-Hover, Untertitel, Transcode-Seek/Buffer-Gate — letztere beiden
+decken sich exakt mit eigenen CLAUDE.md-Abschnitten), Kandidaten für
+`player-detail.js`/`player-trickplay.js`/`player-subtitles.js`/
+`player-buffer.js`. `views.js`' Musik-Views (~530 Zeilen, `renderAlbumTiles`
+bis `renderMusicTrackRow`) gehören fachlich zu `music.js`, nicht `views.js`.
+`views.js`' Trickplay-Admin-Toolbar (Ende der Datei) ist fehlplatziert,
+gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
+`admin.js` ist bereits klar organisiert, kein akuter Bedarf.
+
+**Priorisierte Reihenfolge für einen künftigen Umbau** (Impact vs. Risiko):
+1. sqlite.go → schema.go (reine Funktionsverschiebung, minimales Risiko)
+2. grid.js loadItemsBody in benannte Handler zerlegen
+3. sqlite.go → metadata.go + trickplay_status.go
+4. views.js Musik-Views → music-views.js
+5. player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js
+6. enrich/worker.go → matching.go (matchItem/matchShow/enrichItems/enrichFolders)
+7. Rest von sqlite.go (items.go/folders.go/libraries.go/settings.go)
+
+**Golint/biome-Bestandsaufnahme** (nicht alles behoben, nur dokumentiert):
+`golangci-lint run ./...` fand 20 Funde (10 errcheck — meist unkritisches
+`defer x.Close()`, 8 staticcheck-Stilhinweise, 2 unused: `scanner.go
+musicExt` und `api/subtitle_gen.go maskKey` sind toter Code, vorbestehend).
+`biome lint` über alle 19 JS-Module: 128× `noUnusedVariables`, 192×
+`useOptionalChain`, 115× `useTemplate` (alles Stil, überwiegend
+FIXABLE-aber-nicht-blind-anzuwenden, siehe Warnung oben), 33×
+`noDoubleEquals` (`==`/`!=` statt `===`/`!==` — echte Typkoerzitions-
+Risikoklasse, aber nicht pauschal automatisierbar, jede Stelle einzeln
+prüfen). Kein akuter Handlungsbedarf, aber als Fundgrube für künftige
+Aufräum-Sessions hier vermerkt.
+
 ## Refactor-Abschluss 2026-04-30 (Frontend-Modul-Split, fertig)
 
 **Phase 1 — Linter-Findings (live):** kleine Bugs gefixt — poster-edit

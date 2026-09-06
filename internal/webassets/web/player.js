@@ -217,7 +217,7 @@ async function openDetail(item) {
   const posterUrl = (meta && meta.posterPath) ? `/api/poster/metadata/${item.metadataId}?v=${encodeURIComponent(meta.posterPath)}` : (item.hasThumb ? `/api/thumb/${item.id}` : "/placeholder.svg");
 
   let title = item.title;
-  let sub = [];
+  const sub = [];
   let overview = "";
   let rating = "";
   if (meta) {
@@ -1591,7 +1591,7 @@ function syncTranscodeDisplays(vjs) {
       const c = cb.getChild(name);
       if (!c || typeof c.updateContent !== "function" || c._patchedForTranscode) continue;
       const orig = c.updateContent.bind(c);
-      c.updateContent = function (ev) {
+      c.updateContent = (ev) => {
         if (state.playback && state.playback.mode === "transcode") return; // wir übernehmen
         return orig(ev);
       };
@@ -1609,7 +1609,7 @@ function syncTranscodeDisplays(vjs) {
     const sb = pc && pc.getChild("seekBar");
     if (sb && typeof sb.update === "function" && !sb._patchedForTranscode) {
       const origUpdate = sb.update.bind(sb);
-      sb.update = function () {
+      sb.update = () => {
         if (state.playback && state.playback.mode === "transcode") return;
         return origUpdate();
       };

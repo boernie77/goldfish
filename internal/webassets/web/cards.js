@@ -643,24 +643,23 @@ function renderCard(it, opts = {}) {
     // zeigen (User-Bericht 2026-08-19: "American Fighter" zeigte ein falsch zugeschnitten
     // wirkendes Poster, reproduzierbar sowohl hier als auch in der nativen Mac-App).
     imgUrl = `/api/poster/metadata/${it.metadataId}?v=${encodeURIComponent(it.metadata.posterPath)}`;
-    if (!isEpisode) {
-      title = it.metadata.title || it.title;
-      if (it.metadata.year) subtitle = String(it.metadata.year);
-    }
   } else {
     imgUrl = it.hasThumb ? `/api/thumb/${it.id}` : "/placeholder.svg";
-    // 🔴 Bug (gefixt 2026-09-06, User-Report mit Screenshot: eine per Custom-
-    // Metadaten zugeordnete Serien-Episode ohne TMDB-Poster zeigte weiterhin
-    // den rohen Release-Dateinamen als Kachel-Titel): der Titel-Override kam
-    // bisher NUR im posterPath-Zweig oben vor — ein Item mit Metadaten, aber
-    // ohne Poster (Custom-Match ohne hochgeladenes Bild, TMDB-Eintrag ohne
-    // Poster) behielt dadurch immer `it.title` (Dateiname). Betrifft nicht
-    // nur Musik/TV, sondern jede Custom-Zuordnung ohne Poster-Upload
-    // (Privat-Libs, unmatched Serien-Ordner mit manuell gesetztem Titel).
-    if (!isEpisode && it.metadata && it.metadata.title) {
-      title = it.metadata.title;
-      if (it.metadata.year) subtitle = String(it.metadata.year);
-    }
+  }
+  // Titel-/Jahr-Override aus den Metadaten — UNABHÄNGIG davon, welcher der
+  // obigen Bild-URL-Zweige gegriffen hat (kein Musik-Item, kein Episode-Fall,
+  // der seinen eigenen Titel schon oben gesetzt hat).
+  // 🔴 Bug (gefixt 2026-09-06, User-Report mit Screenshot: eine per Custom-
+  // Metadaten zugeordnete Serien-Episode ohne TMDB-Poster zeigte weiterhin
+  // den rohen Release-Dateinamen als Kachel-Titel): dieser Override saß
+  // bisher NUR im posterPath-Zweig — ein Item MIT Metadaten, aber OHNE
+  // Poster (Custom-Match ohne hochgeladenes Bild, TMDB-Eintrag ohne Poster)
+  // behielt dadurch immer `it.title` (Dateiname). Betrifft nicht nur
+  // Musik/TV, sondern jede Custom-Zuordnung ohne Poster-Upload (Privat-Libs,
+  // unmatched Serien-Ordner mit manuell gesetztem Titel).
+  if (!isMusicLib && !isEpisode && it.metadata && it.metadata.title) {
+    title = it.metadata.title;
+    if (it.metadata.year) subtitle = String(it.metadata.year);
   }
   // Private Libraries (YouTube-Channels, Urlaubsordner, etc.): Top-Zeile zeigt
   // den Kanal/Top-Folder (relPath[0]) — der Dateiname/Titel kommt unten in der
@@ -767,7 +766,7 @@ function renderCard(it, opts = {}) {
         ${episodeCode ? `<span class="episode-code">${episodeCode}</span>` : ""}
         ${episodeName ? `<span class="episode-name">${escapeHTML(episodeName)}</span>` :
           isMusicLib ? (it.trackNo ? `<span>Track ${it.trackNo}</span>` : "") :
-          (subtitle ? `<span>${subtitle}</span>` : `<span>${it.width || "?"}×${it.height || "?"}</span>`)}
+          (subtitle ? `<span>${escapeHTML(subtitle)}</span>` : `<span>${it.width || "?"}×${it.height || "?"}</span>`)}
         <span>${fmtSize(it.sizeBytes)}</span>
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}

@@ -90,7 +90,7 @@ function initBell() {
 // ============================================================
 
 let whisperGlobalPollTimer = null;
-let whisperLastKnownJobs = {}; // itemId+lang → status
+const whisperLastKnownJobs = {}; // itemId+lang → status
 
 function startWhisperGlobalPoll() {
   if (whisperGlobalPollTimer) return;
