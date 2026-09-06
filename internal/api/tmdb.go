@@ -137,10 +137,42 @@ func (s *Server) setItemMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	// IMDb-ID → TMDB oder OMDb-Fallback
 	if body.TMDBID == 0 && body.IMDBID != "" {
-		meta, err := s.Enrich.EnrichByIMDbID(r.Context(), body.IMDBID)
-		if err != nil {
-			writeError(w, 502, "IMDb-Lookup: "+err.Error())
-			return
+		var meta *model.Metadata
+		// 🔴 Bug (gefixt 2026-09-06, User-Report: manuelle Episoden-Zuordnung
+		// per IMDb-ID scheiterte, obwohl Staffel/Episode im Dialog ausgefüllt
+		// waren): dieser Zweig ignorierte body.Season/body.Episode komplett
+		// und rief IMMER EnrichByIMDbID auf — das liefert bei einem TV-Treffer
+		// nur SHOW-Metadata (kein Episode-Konzept) und hätte das Item fälschlich
+		// an die ganze Show statt an die konkrete Episode gebunden. Bei
+		// tmdbType=episode wird die Show-ID jetzt erst über TMDBs
+		// /find-Endpoint aufgelöst (auch aus tv_episode_results/
+		// tv_season_results, falls die IMDb-ID einer einzelnen Folge gehört —
+		// TMDB liefert dafür bereits die Parent-Show-ID), dann exakt derselbe
+		// season/episode-Fetch wie beim normalen numerischen TMDB-ID-Pfad
+		// unten. Kein OMDb-Fallback hier — OMDb kennt kein Season/Episode-
+		// Konzept, wäre für den Episoden-Fall ohnehin nutzlos.
+		if body.TMDBType == "episode" {
+			res, err := s.Enrich.Client().FindByIMDb(r.Context(), body.IMDBID)
+			if err != nil {
+				writeError(w, 502, "IMDb-Lookup: "+err.Error())
+				return
+			}
+			if res == nil || res.TMDBType != "tv" {
+				writeError(w, 404, "IMDb-ID bei TMDB nicht als Serie gefunden")
+				return
+			}
+			meta, err = s.Enrich.FetchEpisodeMetadata(r.Context(), res.ID, body.Season, body.Episode)
+			if err != nil {
+				writeError(w, 502, "TMDB-Fetch: "+errString(err))
+				return
+			}
+		} else {
+			var err error
+			meta, err = s.Enrich.EnrichByIMDbID(r.Context(), body.IMDBID)
+			if err != nil {
+				writeError(w, 502, "IMDb-Lookup: "+err.Error())
+				return
+			}
 		}
 		if meta == nil {
 			writeError(w, 404, "IMDb-ID bei TMDB nicht gefunden und kein OMDb-Key / OMDb-Treffer")

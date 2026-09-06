@@ -1437,6 +1437,24 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   manuelle Eingabe dort war wirkungslos. Fix: Season/Episode kommen jetzt
   primär aus den Formularfeldern, das Datei-Parsing ist nur noch Fallback
   falls die Felder leer sind.
+  **🔴 Zweiter, tieferliegender Bug im selben Flow (gefixt 2026-09-06,
+  direkt danach entdeckt):** selbst mit korrekt übermittelten Season/
+  Episode-Werten ignorierte der Server (`setItemMetadata`,
+  `internal/api/tmdb.go`) sie im IMDb-Zweig komplett — rief immer
+  `Enrich.EnrichByIMDbID` auf, das bei einem TV-Treffer nur SHOW-Metadata
+  liefert (kein Episode-Konzept) und hätte das Item fälschlich an die ganze
+  Show statt an die konkrete Episode gebunden. Fix: bei
+  `tmdbType=episode` wird die Show-ID jetzt zuerst über
+  `client.FindByIMDb` aufgelöst (funktioniert auch, wenn die IMDb-ID einer
+  einzelnen Folge gehört — TMDB liefert dafür `tv_episode_results[0].show_id`,
+  die Parent-Show), danach exakt derselbe `FetchEpisodeMetadata(showID,
+  season, episode)`-Call wie beim normalen numerischen-TMDB-ID-Pfad. Kein
+  OMDb-Fallback für diesen Zweig — OMDb kennt kein Season/Episode-Konzept.
+  **Live-Diagnose des konkreten User-Falls** (`tt42958561`, Server-Log via
+  SSH geprüft: `[tmdb.FindByIMDb] tt42958561 -> movies=0 tv=0 episodes=0
+  seasons=0`): reines Datenproblem, TMDB **und** OMDb (beide laut
+  `GET /api/settings` konfiguriert) kennen diese IMDb-ID schlicht nicht —
+  kein Software-Bug, der zweite Fund war unabhängig davon.
 
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
