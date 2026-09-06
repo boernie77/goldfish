@@ -16,6 +16,22 @@ Movie metadata fallback is optionally sourced from OMDb
 (<https://www.omdbapi.com/>). OMDb is a free service with its own terms of
 use; an API key is required and configured by the end user.
 
+## MusicBrainz API / Cover Art Archive
+
+Music library metadata (album genre/year fallback when not present in the
+file's own tags) and album cover fallback are optionally sourced from the
+MusicBrainz API (<https://musicbrainz.org/>) and the Cover Art Archive
+(<https://coverartarchive.org/>), both operated by the MetaBrainz
+Foundation. No API key is required; requests are rate-limited to 1/s with a
+descriptive `User-Agent` per MusicBrainz's usage policy. MusicBrainz's own
+metadata (including the genre/year data Goldfish reads) is dedicated to the
+public domain under **CC0**; no attribution is legally required, though
+MusicBrainz appreciates it. Cover art images served by the Cover Art
+Archive are uploaded by individual contributors under their own licenses
+(commonly Creative Commons or public domain, but not guaranteed) — Goldfish
+caches whatever license terms apply to each uploaded image as-is and does
+not relicense them.
+
 ## Front-end libraries
 
 | Component | License | Upstream |
