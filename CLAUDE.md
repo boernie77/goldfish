@@ -3590,7 +3590,30 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    `go build`/`go vet`/`go test ./...` grün (kein `enrich`-Package-Test
    vorhanden, war schon vorher so). Reine Backend-Verschiebung ohne
    API-Auswirkung, kein Browser-Live-Test nötig (wie Schritt 3).
-7. Rest von sqlite.go (items.go/folders.go/libraries.go/settings.go)
+7. ✅ **Rest von sqlite.go → items.go/folders.go/libraries.go/settings.go**
+   (LIVE 1.2.14, letzter Schritt der Serie) — die verbliebenen ~1700
+   Zeilen waren KEIN sauber zusammenhängender Block mehr (Bibliotheks-
+   und Item-Funktionen liegen verschachtelt, z. B. `CountItems`
+   zwischen zwei `libraries`-Funktionen), daher per Skript anhand der
+   go/parser-Zeilenbereiche in 4 thematische Buckets sortiert:
+   `libraries.go` (239 Zeilen, 11 Funktionen: Bibliotheks-CRUD, Multi-
+   Path, Sortierung), `items.go` (997 Zeilen, 20 Funktionen: Item-CRUD,
+   `ListItems`-Hauptquery, Suche, `attachMetadata`/`attachVariantCounts`),
+   `folders.go` (321 Zeilen, 8 Funktionen: TV-Top-Level-Folder-Navigation,
+   Auto-Merge gleicher Show), `settings.go` (24 Zeilen, 2 Funktionen:
+   Key-Value-Settings). `sqlite.go` selbst bleibt als schlanker Kern
+   (204 Zeilen: `Store`-Struct, `Open`/`Close`, NATSORT-Collation-
+   Registrierung) — von ursprünglich **3091 Zeilen zu Beginn dieser
+   Modularisierungs-Serie auf 204 Zeilen**. Verifiziert per bereinigtem
+   Multiset-Diff (Leerzeilen/Package-/Import-/Kommentarzeilen beidseitig
+   rausgefiltert, dann sortiert verglichen) — **exakt null** übrig
+   gebliebene Differenz, jede Import-Korrektur einzeln anhand echter
+   Compiler-Fehler vorgenommen (nicht geraten). `go build`/`go vet`/
+   `go test ./...` grün. Reine Backend-Verschiebung, kein Browser-Test
+   nötig.
+   **Damit ist die komplette 7-Punkte-Prioritätenliste der Code-Review
+   2026-09-06 abgearbeitet** (Versionen 1.2.8 bis 1.2.14, jeder Schritt
+   einzeln deployed + verifiziert, kein einziger Rollback nötig).
 
 **Golint/biome-Bestandsaufnahme** (nicht alles behoben, nur dokumentiert):
 `golangci-lint run ./...` fand 20 Funde (10 errcheck — meist unkritisches
