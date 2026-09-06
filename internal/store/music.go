@@ -216,14 +216,32 @@ func folderDisplayName(relPath string) string {
 // `userID` <= 0 lässt Favorite auf false (z.B. interne Aufrufer ohne
 // User-Kontext) — analog dem watched/favorite-Muster bei ListItems.
 func (s *Store) ListMusicAlbums(libraryID, userID int64) ([]model.MusicAlbum, error) {
-	rows, err := s.db.Query(`
+	return s.ListMusicAlbumsFiltered(libraryID, userID, nil)
+}
+
+// ListMusicAlbumsFiltered ist ListMusicAlbums + optionaler Genre-Filter
+// (User-Wunsch 2026-09-06: Genre-Filter soll auch in der Album-Übersicht
+// wirken, nicht nur in der flachen Track-Liste). Multi-Select → OR, leer =
+// kein Filter (identisch zu ListMusicAlbums).
+func (s *Store) ListMusicAlbumsFiltered(libraryID, userID int64, genres []string) ([]model.MusicAlbum, error) {
+	q := `
 		SELECT a.id, a.library_id, a.artist, a.album, a.year, a.genre, a.cover_source,
 		       (SELECT COUNT(*) FROM items i WHERE i.music_album_id = a.id) AS track_count,
 		       EXISTS(SELECT 1 FROM user_music_album_favorites f WHERE f.album_id = a.id AND f.user_id = ?)
 		FROM music_albums a
 		WHERE a.library_id = ?
-		  AND EXISTS(SELECT 1 FROM items i WHERE i.music_album_id = a.id)
-		ORDER BY a.artist COLLATE NATSORT, a.album COLLATE NATSORT`, userID, libraryID)
+		  AND EXISTS(SELECT 1 FROM items i WHERE i.music_album_id = a.id)`
+	args := []any{userID, libraryID}
+	if len(genres) > 0 {
+		ph := make([]string, len(genres))
+		for i, g := range genres {
+			ph[i] = "?"
+			args = append(args, g)
+		}
+		q += ` AND a.genre IN (` + strings.Join(ph, ",") + `)`
+	}
+	q += ` ORDER BY a.artist COLLATE NATSORT, a.album COLLATE NATSORT`
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}

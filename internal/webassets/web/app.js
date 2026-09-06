@@ -840,6 +840,16 @@ function applyGenreFilter(params) {
   for (const g of state.genreFilter) params.append("genre", g);
 }
 
+// musicGenreQS: wie applyGenreFilter, aber für die Musik-Album-Übersicht
+// (GET /api/libraries/{id}/albums), die kein URLSearchParams-Objekt vorab
+// baut wie der normale /api/items-Pfad, sondern die Query direkt inline in
+// die URL schreibt.
+function musicGenreQS() {
+  const p = new URLSearchParams();
+  for (const g of state.genreFilter) p.append("genre", g);
+  return p.toString();
+}
+
 function setupGenreDropdown() {
   const btn = $("#genreDropdownBtn");
   const panel = $("#genreDropdown");

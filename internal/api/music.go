@@ -24,7 +24,7 @@ func (s *Server) listAlbums(w http.ResponseWriter, r *http.Request) {
 	if me != nil {
 		userID = me.ID
 	}
-	albums, err := s.Store.ListMusicAlbums(libID, userID)
+	albums, err := s.Store.ListMusicAlbumsFiltered(libID, userID, r.URL.Query()["genre"])
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

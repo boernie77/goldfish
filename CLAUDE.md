@@ -2320,6 +2320,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Risiko, und das erspart eine Kind-Fallunterscheidung im SQL. Query-Param
   `genre=` (mehrfach wie `bucket=`) an `/api/items` UND `/api/items/random`.
   Test: `internal/store/genres_test.go`.
+  **🔴 Wirkte zunächst nicht in der Musik-Album-Übersicht (Bug, gefixt noch
+  am selben Tag):** die Standard-Ansicht einer Musik-Bibliothek ist die
+  Album-Kachel-Übersicht (`GET /api/libraries/{id}/albums`), NICHT der
+  generische `/api/items`-Pfad, den `ItemFilter.Genres` bedient — der Filter
+  lief dort also komplett ins Leere (live per `claude-in-chrome` verifiziert:
+  gleiche Trefferzahl mit und ohne `genre=`-Query-Param). Fix:
+  `Store.ListMusicAlbumsFiltered(libraryID, userID, genres)` (neue Funktion,
+  `ListMusicAlbums` ist jetzt ein dünner Wrapper ohne Filter — bewahrt die
+  alte 2-Arg-Signatur für bestehende Aufrufer/Tests) filtert zusätzlich per
+  `a.genre IN (...)` auf `music_albums.genre` (die bereits aggregierte
+  Album-Genre-Spalte, kein LIKE nötig wie bei `items.genre`/Multi-Genre-
+  Strings). `listAlbums`-Handler + alle drei Frontend-Album-Fetch-Stellen in
+  `grid.js` (Übersicht/Favoriten/"Alle Titel") hängen den Filter jetzt mit an
+  (`musicGenreQS()`-Helper in app.js für den Albums-Endpoint, der anders als
+  `/api/items` keine URLSearchParams vorab baut). Test:
+  `internal/store/music_albums_genre_filter_test.go`.
 - **Musik-Genre in der Album-Übersicht** (seit 2026-09-06, User-Wunsch: "bei
   Musik möchte ich auch das Genre dabei stehen haben"): `music_albums.genre`
   war bisher nur im Album-Detail-Header sichtbar (seit 1.0.67) — jetzt auch

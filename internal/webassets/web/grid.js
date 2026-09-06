@@ -1031,6 +1031,7 @@ async function loadItemsBody() {
         });
         if (musicFavActive) p.set("favorite", "yes");
         if (musicSearchQ) p.set("search", musicSearchQ);
+        applyGenreFilter(p);
         tracks = await api(`/api/items?${p}`);
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
@@ -1041,7 +1042,7 @@ async function loadItemsBody() {
     if (musicFavActive) {
       let favAlbums;
       try {
-        favAlbums = await api(`/api/libraries/${state.currentLibrary}/albums`);
+        favAlbums = await api(`/api/libraries/${state.currentLibrary}/albums?${musicGenreQS()}`);
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
       favAlbums = favAlbums.filter(a => a.favorite);
@@ -1080,7 +1081,7 @@ async function loadItemsBody() {
     // IDs sammeln und die volle Albumliste darauf filtern — so bleiben Cover/
     // Trackzahl/Artist korrekt (nicht aus den gefilterten Tracks abgeleitet).
     let albums;
-    try { albums = await api(`/api/libraries/${state.currentLibrary}/albums`); }
+    try { albums = await api(`/api/libraries/${state.currentLibrary}/albums?${musicGenreQS()}`); }
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
     if (musicSearchQ) {
