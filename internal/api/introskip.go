@@ -110,10 +110,24 @@ func (s *Server) setIntroSkipFolder(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	if body.Enabled && body.Season != nil {
-		if err := s.Store.SetIntroSkipFolderSeason(libID, body.Folder, *body.Season); err != nil {
-			writeError(w, 500, err.Error())
-			return
+	if body.Enabled {
+		// 🔴 Bug bis 2026-09-06: UpsertIntroSkipJob hing fälschlich zusätzlich
+		// an `body.Season != nil` — ein reiner Checkbox-Toggle OHNE season-Feld
+		// (genau das, was jeder einzelne Zeilen-Klick UND "☑ Alle auswählen"
+		// im Dialog senden, introskip.js sendet dort nie ein season-Feld)
+		// aktivierte den Ordner zwar (Zeile in intro_skip_folders existiert),
+		// legte aber NIE einen intro_skip_jobs-Eintrag an — der Worker hatte
+		// dadurch für diesen Ordner schlicht nichts zu tun, "startet nie".
+		// Live gefunden: 6 von 218 aktivierten Serien einer Bibliothek hatten
+		// gar keinen jobStatus. Season-Set bleibt bewusst an Season!=nil
+		// gekoppelt (das war der korrekte Teil des ursprünglichen Fixes vom
+		// 2026-08-13, verhinderte ungewolltes Zurücksetzen einer season-
+		// Beschränkung) — nur der Job-Upsert selbst gehört an reines Enabled.
+		if body.Season != nil {
+			if err := s.Store.SetIntroSkipFolderSeason(libID, body.Folder, *body.Season); err != nil {
+				writeError(w, 500, err.Error())
+				return
+			}
 		}
 		if err := s.Store.UpsertIntroSkipJob(libID, body.Folder); err != nil {
 			writeError(w, 500, err.Error())

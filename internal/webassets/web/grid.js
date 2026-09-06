@@ -925,38 +925,39 @@ async function loadItemsBody() {
   // wie jeder andere Ordner) — dort filtert der Server pro Datei, jede
   // Auflösungs-Variante bleibt ein eigenes, einzeln löschbares Item.
   const matchMode = currentMatchMode();
-  if (state.seasonView && lib && lib.kind === "tv" && state.currentFolder
+  // Bewusst NICHT mehr an `state.seasonView` gegated (Bug, gefixt 2026-09-06,
+  // User-Report "Ich sehe den Poster-Button nicht"): der Fallback-Zweig unten
+  // setzt `seasonView:<lib>:<folder>` dauerhaft auf "0", sobald einmal keine
+  // Staffel-Struktur erkannt wurde — bei jedem SPÄTEREN Öffnen desselben
+  // Ordners war `state.seasonView` dadurch schon "false" und der GESAMTE
+  // Block (inkl. Info-Header) wurde komplett übersprungen, nicht nur die
+  // Staffel-Kachel-Darstellung. Der Seasons-API-Call läuft jetzt immer für
+  // TV-Ordner (auch mit deaktivierter Staffel-Ansicht) — die Entscheidung
+  // "Kacheln vs. normale Liste" fällt weiterhin anhand `state.seasonView`,
+  // aber NUR das betrifft, nicht mehr den Info-Header.
+  if (lib && lib.kind === "tv" && state.currentFolder
       && matchMode !== "unmatched" && matchMode !== "unconfirmed" && state.resBuckets.size === 0) {
     let data;
     try {
       data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
     } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
+    const hasSeasons = !!(data.seasons && data.seasons.length > 0);
     // Sackgassen-Vermeidung (User-Report 2026-09-05, "Tatort" mit Kommissar-
     // Unterordnern statt TMDB-Staffeln): wenn die Seasons-API auf oberster
     // Ebene (kein Staffel-Klick, currentSeason===null) NICHTS liefert — Ordner
     // noch nicht TMDB-zugeordnet, oder die physische Struktur passt schlicht
     // nicht zu TMDB-Staffeln — bringt die "Keine Staffel-Daten"-Meldung den
-    // User nicht weiter. Statt dort hängenzubleiben: Staffel-Ansicht für GENAU
-    // diesen Ordner automatisch abschalten (persistiert wie ein manuelles
-    // Toggle) und unten in die normale Ordner-/Datei-Ansicht durchfallen —
-    // dort funktionieren Sortierung/Filter (inkl. "Veröffentlicht", rekursiv
-    // über Unterordner) unabhängig von jeder TMDB-Zuordnung. Der "Serie
-    // zuordnen…"-Button im Breadcrumb-Header bleibt unverändert erreichbar.
-    if (state.currentSeason == null && (!data.seasons || data.seasons.length === 0)) {
+    // User nicht weiter. Staffel-Ansicht für GENAU diesen Ordner einmalig
+    // automatisch abschalten (persistiert wie ein manuelles Toggle) — nur
+    // beim ÜBERGANG true→false, sonst würde der Toast bei jedem Öffnen erneut
+    // feuern, seit der Fallback-Zweig nicht mehr `state.seasonView`-gegated ist.
+    if (state.currentSeason == null && !hasSeasons && state.seasonView) {
       try { localStorage.setItem(`seasonView:${state.currentLibrary || 0}:${state.currentFolder}`, "0"); } catch {}
       state.seasonView = false;
       showToast("Keine Staffel-Struktur erkannt – zeige normale Ordner-Ansicht", { kind: "info" });
-      // Info-Header auch im Fallback zeigen (User-Wunsch 2026-09-06): der
-      // Toast verschwindet, ohne einen bleibenden Hinweis + Handlungsmöglichkeit
-      // zu hinterlassen. `data.show` ist gesetzt, wenn der Ordner sehr wohl
-      // TMDB-zugeordnet ist, nur keine erkennbare Staffel-Struktur hat (Tatort/
-      // Terra-X-Fall) — dann derselbe volle Header mit allen Buttons wie in der
-      // Staffel-Ansicht. Ohne jede Zuordnung (showTmdbId===0) ein schlankerer
-      // Header nur mit "Serie zuordnen…". Wird unten nach dem generischen
-      // Grid-Rendering vorangestellt (das setzt grid.innerHTML komplett neu).
-      state.pendingShowInfoHeader = data.show || { unmatched: true, folder: state.currentFolder };
-    } else {
+    }
+    if (state.seasonView && hasSeasons) {
       renderBreadcrumb({});
       if (state.currentSeason == null) {
         renderSeasonFolders(grid, data);
@@ -964,6 +965,17 @@ async function loadItemsBody() {
         renderSeasonEpisodes(grid, data, state.currentSeason);
       }
       return;
+    }
+    // Fällt durch in die normale Ordner-/Datei-Ansicht unten (rekursiv wie
+    // jeder andere Ordner, Sortierung/Filter funktionieren unverändert).
+    // Info-Header davor (User-Wunsch 2026-09-06): `data.show` ist gesetzt,
+    // wenn der Ordner TMDB-zugeordnet ist (auch ohne erkennbare Staffel-
+    // Struktur, Tatort/Terra-X-Fall) oder ein Custom-Poster gesetzt wurde —
+    // sonst der schlanke "unmatched"-Header. Nur auf oberster Ebene
+    // (currentSeason===null); innerhalb einer Staffel mit deaktivierter
+    // Kachel-Ansicht (Rand-Fall) bleibt es bei der reinen Dateiliste.
+    if (state.currentSeason == null) {
+      state.pendingShowInfoHeader = data.show || { unmatched: true, folder: state.currentFolder };
     }
   }
 

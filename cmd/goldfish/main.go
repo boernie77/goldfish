@@ -48,6 +48,7 @@ func main() {
 	backfillEpisodeRanges(db)
 	backfillIntroSkipOutliers(db)
 	backfillIntroSkipDisableAllExceptChuckS2(db)
+	backfillIntroSkipMissingJobs(db)
 	backfillOrphanedLibraryPaths(db)
 	backfillMusicCoverArtVideoCodec(db)
 
@@ -331,6 +332,48 @@ func backfillIntroSkipOutliers(db *store.Store) {
 	}
 	_ = db.SetSetting("intro_skip_outlier_backfill_v3", "1")
 	log.Printf("[backfill] introskip-outliers-v3: %d Serien-Ordner für komplette Neuanalyse zurückgesetzt (korrigierter Algorithmus, Jobs korrekt auf pending)", reset)
+}
+
+// backfillIntroSkipMissingJobs läuft einmalig und repariert Serien-Ordner,
+// die zwar in intro_skip_folders aktiviert sind (Checkbox an), aber NIE
+// einen intro_skip_jobs-Eintrag bekamen — der Worker hatte für sie dadurch
+// schlicht nichts zu tun, "Intro-Erkennung startet nie" (User-Report
+// 2026-09-06). Root Cause (gefixt in setIntroSkipFolder, internal/api/introskip.go):
+// UpsertIntroSkipJob hing bis dahin fälschlich zusätzlich an `season != nil`
+// — ein reiner Checkbox-Toggle ohne season-Feld (genau das, was jeder
+// einzelne Zeilen-Klick UND "☑ Alle auswählen" im Dialog senden) aktivierte
+// den Ordner zwar, legte aber nie einen Job an. Live auf Christians Server
+// gefunden: 6 von 218 aktivierten Serien einer Bibliothek betroffen.
+func backfillIntroSkipMissingJobs(db *store.Store) {
+	done, _ := db.GetSetting("intro_skip_missing_jobs_backfill_v1", "")
+	if done == "1" {
+		return
+	}
+	folders, err := db.ListAllIntroSkipFolders()
+	if err != nil {
+		log.Printf("[backfill] introskip-missing-jobs-v1: %v", err)
+		return
+	}
+	fixed := 0
+	for _, f := range folders {
+		job, err := db.GetIntroSkipJob(f.LibraryID, f.Folder)
+		if err != nil {
+			log.Printf("[backfill] introskip-missing-jobs-v1 %s: GetIntroSkipJob: %v", f.Folder, err)
+			continue
+		}
+		if job != nil {
+			continue // hat schon einen Job (egal welcher Status) — nichts zu tun
+		}
+		if err := db.UpsertIntroSkipJob(f.LibraryID, f.Folder); err != nil {
+			log.Printf("[backfill] introskip-missing-jobs-v1 %s: UpsertIntroSkipJob: %v", f.Folder, err)
+			continue
+		}
+		fixed++
+	}
+	_ = db.SetSetting("intro_skip_missing_jobs_backfill_v1", "1")
+	if fixed > 0 {
+		log.Printf("[backfill] introskip-missing-jobs-v1: %d aktivierte(r) Serien-Ordner ohne Job nachträglich eingereiht", fixed)
+	}
 }
 
 // backfillIntroSkipDisableAllExceptChuckS2 läuft EINMALIG beim ersten Start

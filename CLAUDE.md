@@ -903,6 +903,27 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   gesehen" markieren und das Feature für Bestandsbibliotheken komplett
   wirkungslos machen würde. Tests:
   `internal/store/introskip_auto_new_test.go`.
+- **🔴 Aktivierte Serien starteten teils NIE (Bug, gefixt 2026-09-06,
+  User-Report "Intro-Erkennung startet nicht"):** `setIntroSkipFolder`
+  (`internal/api/introskip.go`) rief `Store.UpsertIntroSkipJob` bis dahin
+  fälschlich nur INNERHALB von `body.Enabled && body.Season != nil` auf.
+  Ein reiner Checkbox-Toggle OHNE `season`-Feld — genau das, was jeder
+  einzelne Zeilen-Klick im Dialog UND „☑ Alle auswählen"
+  (`setAllIntroSkipFolders` in introskip.js) senden — aktivierte den Ordner
+  zwar (Zeile in `intro_skip_folders` existiert), legte aber NIE einen
+  `intro_skip_jobs`-Eintrag an: der Worker hatte für diesen Ordner schlicht
+  nichts zu tun, "startet nie", ohne jede Fehlermeldung. Live-Diagnose per
+  claude-in-chrome direkt gegen den echten Server fand 6 von 218 aktivierten
+  Serien einer Bibliothek ohne jeden `jobStatus`. Fix: `UpsertIntroSkipJob`
+  läuft jetzt bei JEDEM `Enabled=true`, unabhängig vom `season`-Feld — nur
+  das season-spezifische `SetIntroSkipFolderSeason` bleibt an
+  `Season != nil` gekoppelt (das war der korrekte Teil des ursprünglichen
+  Season-Zeiger-Fixes vom 2026-08-13, verhinderte ein versehentliches
+  Zurücksetzen einer Staffel-Beschränkung — siehe Season-Abschnitt oben,
+  unverändert). Einmaliger Backfill `backfillIntroSkipMissingJobs`
+  (`cmd/goldfish/main.go`, Settings-Gate `intro_skip_missing_jobs_backfill_v1`)
+  holt für alle bereits aktivierten, aber job-losen Ordner den Job
+  nachträglich nach.
 - **Pausiert automatisch während eines Library-Scans** (`Worker.SetPauseCheck`
   in `cmd/goldfish/main.go`, gespeist aus `sc.Status().Running`): Introskip
   ist sehr I/O-intensiv (ffmpeg+fpcalc pro Episode) und kollidierte mit
@@ -1816,6 +1837,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Season-Grid statt der normalen Dateiliste zeigen, bis erneut navigiert
   wird. Kein Crash, nur ein UX-Rest, der bei Bedarf durch Umstellen auf
   `loadItems()` als gemeinsamen Refresh-Pfad behoben werden könnte.
+  **🔴 Header verschwand nach dem ersten Öffnen wieder (Bug, gefixt noch am
+  selben Tag, User-Report "ich sehe den Poster-Button nicht"):** der ganze
+  Block inkl. Info-Header-Logik hing an `if (state.seasonView && …)`. Der
+  Fallback selbst persistiert `seasonView:<lib>:<folder>="0"` — beim
+  NÄCHSTEN Öffnen desselben Ordners war `state.seasonView` dadurch schon
+  `false`, der komplette Block (nicht nur die Staffel-Kachel-Darstellung)
+  wurde übersprungen, der Header erschien nur beim allerersten Aufruf. Fix:
+  der Seasons-API-Call + die Header-Entscheidung laufen jetzt IMMER für
+  TV-Ordner (unabhängig von `state.seasonView`); nur ob Staffel-KACHELN
+  oder die normale Liste gerendert werden, hängt weiter vom Toggle ab. Der
+  Auto-Disable-Toast feuert weiterhin nur beim ÜBERGANG true→false (Guard
+  `&& state.seasonView` vor dem Umschalten), sonst hätte er bei jedem
+  Öffnen erneut auftauchen können.
 - **Sort „Veröffentlicht" jetzt Teil von `FLAT_SORTS`/`FLAT_LIBRARY_SORTS`**
   (`grid.js`/`app.js`, seit 2026-09-05) — vorher fehlte `"released"` in
   beiden Sets, obwohl der Server (`ListItems`-SQL-Sort-Switch,
