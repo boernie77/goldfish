@@ -3407,36 +3407,21 @@ Splits, aber falls man weitere Aufteilung braucht):
 
 ## TODO
 
-- [ ] **Repo öffentlich schalten als Open-Source-Projekt** (aktuell PRIVAT
-  unter `github.com/boernie77/goldfish`, Verifikation: `curl -I` → 404).
-  Vorbereitung ist abgeschlossen:
-  * MIT-Lizenz + NOTICE.md mit Third-Party-Attributionen
-  * README.md auf Englisch, TMDB-Attribution im Settings-Dialog
-  * CLAUDE.md sanitisiert (keine Email-Adressen, LAN-IPs nur als Platzhalter)
-  * `scripts/redeploy.sh` benötigt `$UNRAID_HOST` als Env (kein Hardcoded-IP)
-  * `docker-compose.yml` env-konfigurierbar via `RENDER_GID` + `MEDIA_ROOT`
-  * `.env.example` mit Hinweisen für Unraid/Synology/Arch/Fedora
-  * Setup-Wizard im Server (`/api/auth/setup`) fragt TMDB+OMDb beim ersten
-    Login mit ab — User muss nicht in Settings nachträglich
-  * **`install.sh`**: interaktiver Bash-Installer mit whiptail-Dialog-Boxen,
-    macht git clone + .env + docker compose up in einem Rutsch (commit
-    `24a1db1`). Auto-erkennt render-GID, fragt NVIDIA + OIDC ab, schreibt
-    docker-compose.override.yml für Port + NVIDIA. Fallback auf read-Prompts
-    wenn whiptail fehlt. **✅ End-to-End getestet (2026-09-04)** auf frischer
-    Ubuntu-24.04-VM — dabei einen echten Bug im Read-Fallback gefunden+gefixt
-    (Commit `8a737e7`: Dialog-Text landete via stdout-Leak in den erfassten
-    Eingabewerten). Details: Memory `project_installer_e2e_test.md`.
-  * **✅ Datenschutz-Check (2026-09-04)**: `datenschutz.html` mit Christians
-    echtem Namen/E-Mail als "Verantwortlicher" entfernt (Commit `a87b8f4`) —
-    weder das Repo noch die selbst gehostete Software brauchen ein Impressum
-    des Autors; jeder Self-Hoster betreibt seine eigene private Instanz.
-  * **✅ Git-Historie geprüft (2026-09-04)**: `git log --all -S` über die
-    komplette Historie nach Email/IP/Domain durchsucht — keine Funde außer
-    dem jetzt entfernten datenschutz.html. Kein `git filter-repo`/Rewrite nötig.
-  Offene Schritte vor public-Schalten:
-  1. Optional: Modulpfad anonymisieren (`go mod edit -module …`)
-  2. In Repo-Settings auf „Public" stellen
-  3. Topics setzen: `media-server`, `jellyfin-alternative`, `vaapi`, `go`
+- [x] **✅ Repo ist seit 2026-09-05 ÖFFENTLICH** (Open-Source, MIT-Lizenz) —
+  `github.com/boernie77/goldfish`, verifiziert per `gh repo view` (`visibility:
+  PUBLIC`). Modulpfad bewusst NICHT anonymisiert (war nur "optional" markiert,
+  jetzt mit öffentlichem Repo unter demselben Pfad ohnehin hinfällig — eine
+  Umbenennung wäre nur noch sinnlose Churn). Topics gesetzt: `golang`,
+  `homelab`, `jellyfin-alternative`, `media-server`, `unraid`, `vaapi`, `go`,
+  `self-hosted`, `sqlite`, `streaming`, `tmdb`. Vorbereitung (Lizenz/NOTICE.md,
+  sanitisiertes CLAUDE.md, `.env.example`, `install.sh` E2E-getestet,
+  Datenschutz-/Git-Historie-Check) war bereits vorher abgeschlossen, siehe
+  Memory `project_installer_e2e_test.md`.
+  **Konsequenz für jede künftige Session:** das Repo ist jetzt live-öffentlich
+  einsehbar — bei JEDER Änderung zusätzlich zum bestehenden CLAUDE.md-
+  Sanitisierungsstandard prüfen, ob committeter Code/Kommentare versehentlich
+  echte Namen/E-Mails/interne IPs/Secrets enthalten (nicht mehr nur
+  theoretisch relevant, sondern sofort für jeden sichtbar).
 
 - [ ] **Manuelles "Ordner zusammenführen" für Serien (à la Jellyfin)**
   — User-Wunsch 2026-09-05, explizit als nachzurüsten markiert ("will ich
