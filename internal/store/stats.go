@@ -1,5 +1,7 @@
 package store
 
+import "strings"
+
 // StatBucket ist ein einzelner Balken in der Statistik-Ansicht (Label + Anzahl).
 type StatBucket struct {
 	Label string `json:"label"`
@@ -18,6 +20,52 @@ type LibraryStatDetail struct {
 	ByResolution      []StatBucket `json:"byResolution"`
 	ByContainer       []StatBucket `json:"byContainer"`
 	ByDuration        []StatBucket `json:"byDuration"`
+	MusicMetadata     *MusicMetadataStat `json:"musicMetadata,omitempty"`
+}
+
+// MusicMetadataStat: Vollständigkeits-Übersicht für Musik-Bibliotheken
+// (User-Wunsch 2026-09-06: "einen Punkt, wo ich sehen kann, wieviel der
+// Titel komplett mit Metadaten versehen sind und wie sich das entwickelt").
+// Titel/Dauer fehlen absichtlich hier — die sind praktisch nie leer
+// (Dateiname- bzw. ffprobe-Fallback, siehe ApplyMusicBrainzMetadata-
+// Kommentar) und wären als "Vollständigkeits"-Kennzahl irreführend.
+type MusicMetadataStat struct {
+	TotalTracks      int `json:"totalTracks"`
+	TracksWithArtist int `json:"tracksWithArtist"`
+	TracksWithGenre  int `json:"tracksWithGenre"`
+	TotalAlbums      int `json:"totalAlbums"`
+	AlbumsWithYear   int `json:"albumsWithYear"`
+	AlbumsWithGenre  int `json:"albumsWithGenre"`
+}
+
+// GetMusicMetadataStat aggregiert die Vollständigkeits-Kennzahlen für eine
+// Musik-Bibliothek (gleicher folder-Scope wie GetLibraryStatDetail). Reine
+// COUNT-Aggregation, kein Item-Laden nach Go.
+func (s *Store) GetMusicMetadataStat(libraryID int64, folder string) (*MusicMetadataStat, error) {
+	where := `WHERE library_id = ?`
+	args := []any{libraryID}
+	if folder != "" {
+		where += ` AND rel_path LIKE ? ESCAPE '\'`
+		args = append(args, escapeLike(folder)+"/%")
+	}
+	res := &MusicMetadataStat{}
+	q := `SELECT COUNT(*),
+			SUM(CASE WHEN artist != '' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN genre != '' THEN 1 ELSE 0 END)
+		FROM items ` + where
+	if err := s.db.QueryRow(q, args...).Scan(&res.TotalTracks, &res.TracksWithArtist, &res.TracksWithGenre); err != nil {
+		return nil, err
+	}
+	albumQ := `SELECT COUNT(DISTINCT a.id),
+			COUNT(DISTINCT CASE WHEN a.year != 0 THEN a.id END),
+			COUNT(DISTINCT CASE WHEN a.genre != '' THEN a.id END)
+		FROM music_albums a
+		JOIN items i ON i.music_album_id = a.id
+		` + strings.Replace(where, "library_id", "i.library_id", 1)
+	if err := s.db.QueryRow(albumQ, args...).Scan(&res.TotalAlbums, &res.AlbumsWithYear, &res.AlbumsWithGenre); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // GetLibraryStatDetail aggregiert Auflösung/Filetyp/Länge-Verteilungen rein

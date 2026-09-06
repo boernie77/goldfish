@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -120,6 +121,68 @@ func (c *Client) SearchRelease(ctx context.Context, artist, album string) (*Rele
 		_, _ = fmt.Sscanf(best.Date[:4], "%d", &year)
 	}
 	return &ReleaseMatch{MBID: best.ID, Year: year}, nil
+}
+
+type releaseLookupResponse struct {
+	Genres []struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	} `json:"genres"`
+}
+
+// LookupReleaseGenres holt die von MusicBrainz kuratierten Genre-Tags eines
+// Releases (`inc=genres`, eigener Lookup-Call — die Suche selbst liefert
+// keine Genres mit) und gibt den mit den meisten Stimmen zurück ("", nil)
+// wenn das Release keine Genres trägt (häufig, kein Fehler). Bewusst
+// "genres" statt der älteren freien "tags" — kuratierter, weniger Rauschen.
+func (c *Client) LookupReleaseGenres(ctx context.Context, mbid string) (string, error) {
+	if err := c.waitForSlot(ctx); err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", mbBaseURL+"/release/"+mbid+"?inc=genres&fmt=json", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return "", fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(body))
+	}
+	var r releaseLookupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return "", err
+	}
+	if len(r.Genres) == 0 {
+		return "", nil
+	}
+	best := r.Genres[0]
+	for _, g := range r.Genres[1:] {
+		if g.Count > best.Count {
+			best = g
+		}
+	}
+	return titleCase(best.Name), nil
+}
+
+// titleCase groß-schreibt jedes Wort ("hard rock" -> "Hard Rock") — MB liefert
+// Genre-Namen durchgehend klein, embedded Tags (die primäre Quelle) sind i.d.R.
+// Title-Case. Rein kosmetisch, damit der Genre-Filter/die Anzeige nicht zwei
+// Schreibweisen desselben Genres nebeneinander zeigt.
+func titleCase(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		r := []rune(w)
+		if len(r) > 0 {
+			r[0] = []rune(strings.ToUpper(string(r[0])))[0]
+		}
+		words[i] = string(r)
+	}
+	return strings.Join(words, " ")
 }
 
 // DownloadCoverFront lädt das Front-Cover eines Releases aus dem Cover Art

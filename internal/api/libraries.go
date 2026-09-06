@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -245,6 +246,13 @@ func (s *Server) libraryStatDetail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	if lib, _ := s.Store.GetLibrary(id); lib != nil && lib.Kind == "music" {
+		if mm, err := s.Store.GetMusicMetadataStat(id, folder); err == nil {
+			detail.MusicMetadata = mm
+		} else {
+			log.Printf("[stats] GetMusicMetadataStat lib=%d: %v", id, err)
+		}
 	}
 	writeJSON(w, 200, detail)
 }

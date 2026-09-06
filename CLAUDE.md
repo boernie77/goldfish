@@ -1110,6 +1110,36 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   MusicBrainz verlangt einen aussagekräftigen `User-Agent` + max. 1 req/s
   (eigener Rate-Limiter, NICHT den TMDB-Limiter mitbenutzen). Läuft nur für
   Alben, deren `cover_source` nach der Scanner-Extraktion noch leer ist.
+- **Genre/Jahr-Backfill (seit 2026-09-06, LIVE 1.2.1, User-Wunsch: "Viele
+  Titel haben zum Beispiel kein Genre"):** zweite, unabhängige Worker-Phase
+  `runMetadataPhase` (`internal/enrich/music_worker.go`) NEBEN der
+  bestehenden Cover-Phase — eigenes Gate (`music_albums.metadata_fetched_at`,
+  analog `cover_source`), weil die meisten Alben ihr Cover schon lokal per
+  eingebettetem Bild bekommen (Scanner `extractAlbumCovers`) und MusicBrainz
+  für Cover dadurch oft NIE aufgerufen wird, obwohl Genre/Jahr trotzdem
+  fehlen können. `Store.PendingMusicMetadataAlbums` liefert Alben mit
+  `metadata_fetched_at IS NULL AND (genre='' OR year=0)` — Alben, die aus
+  den Tags bereits beides haben, tauchen nie auf (**Tags bleiben primäre
+  Quelle**, MusicBrainz überschreibt in `Store.ApplyMusicBrainzMetadata`
+  NIE einen vorhandenen Wert). Ein gefundenes Genre wird zusätzlich auf
+  Tracks OHNE eigenes Genre-Tag propagiert (`items.genre = ''` ist dort ein
+  zuverlässiges "fehlt"-Signal). **Bewusst KEINE Propagation auf
+  `items.released_at`** — das füllt der Scanner IMMER mit mindestens der
+  Datei-mtime (`extractReleaseTime`-Fallback), ist also NIE wirklich leer;
+  eine MB-Jahr-Schreibung dorthin würde echte Tag-Daten mit einer
+  bedeutungslosen Kopierdatum-Fiktion verwechseln lassen. Jahr existiert
+  stattdessen nur auf `music_albums.year` (Spalte war seit der ursprünglichen
+  Musik-Feature-Runde im Schema, aber nie beschrieben — `GroupMusicAlbums`
+  fasst nur Artist/Album/Genre zusammen, nie Jahr). `musicbrainz.Client
+  .LookupReleaseGenres` (`inc=genres`-Lookup, eigener Call neben der Suche)
+  liefert das Genre mit den meisten MusicBrainz-Stimmen, title-cased
+  ("hard rock" → "Hard Rock", angeglichen an die Groß-/Kleinschreibung
+  eingebetteter Tags). **Batch-Looping** (`musicPhaseBatchLimit=50`,
+  `musicPhaseMaxBatches=200`): beide Phasen laufen pro Worker-Zyklus so oft
+  in 50er-Batches durch, bis die Pending-Query leer ist (statt nur 50 Alben
+  alle 30 Min) — bei tausenden Alben mit fehlendem Genre (Erstlauf nach
+  diesem Feature: 2725 von 2742 Alben in der Musik-Bibliothek des Users)
+  wäre die alte 30-Min-Kadenz untragbar langsam gewesen.
 - **Playback** (`internal/playback/decider.go`+`ffmpeg.go`): eigener
   Audio-Only-Zweig VOR den Video-Codec-Checks (kein `VideoCodec` gesetzt) —
   mp3/aac/vorbis/opus spielt jeder Browser nativ (Direct Play), alles andere
@@ -2945,6 +2975,22 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   bestehenden `GET /api/libraries/{id}/stats` (liefert nur `totalItems`/
   `folderCount` für Folder-Kachel-Badges — separater, unveränderter Endpoint).
   Frontend: `openStatistikDialog()` in `admin.js`.
+- **🎵 Metadaten-Vollständigkeit für Musik-Bibliotheken (seit 2026-09-06,
+  User-Wunsch: "einen Punkt, wo ich sehen kann, wieviel der Titel komplett
+  mit Metadaten versehen sind und wie sich das entwickelt"):** nur bei
+  `kind=music` gesetzt — der `libraryStatDetail`-Handler lädt zusätzlich
+  `Store.GetMusicMetadataStat(libID, folder)` und hängt sie als
+  `musicMetadata`-Feld an (`nil`/omitted bei Filme/Serien/Privat). Zeigt vier
+  Balken: Künstler/Genre pro Track, Genre/Jahr pro Album (jeweils `X/Y
+  (Z%)`). Titel/Dauer bewusst NICHT gezeigt — die sind praktisch nie leer
+  (Dateiname- bzw. ffprobe-Fallback) und wären als Vollständigkeits-Kennzahl
+  irreführend. Dialog einfach erneut öffnen, um den Fortschritt des
+  MusicBrainz-Backfills (siehe „Musik-Bibliotheken" → „Genre/Jahr-Backfill")
+  zu sehen — kein Live-Update, reiner Snapshot bei Öffnen. Code:
+  `Store.GetMusicMetadataStat` (`internal/store/stats.go`),
+  `renderMusicMetadataSection` (`admin.js`). Test:
+  `internal/store/music_metadata_backfill_test.go
+  TestGetMusicMetadataStat`.
 
 ### Aktivitäts-Protokoll & Backup/Restore (seit 2026-09-02)
 

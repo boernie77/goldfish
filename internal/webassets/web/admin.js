@@ -887,7 +887,37 @@ function renderStatistikBody(d) {
   return totals
     + renderStatBarSection("Auflösung", d.byResolution)
     + renderStatBarSection("Filetyp", d.byContainer)
-    + renderStatBarSection("Länge", d.byDuration);
+    + renderStatBarSection("Länge", d.byDuration)
+    + renderMusicMetadataSection(d.musicMetadata);
+}
+
+// renderMusicMetadataSection: Vollständigkeits-Übersicht für Musik-
+// Bibliotheken (User-Wunsch 2026-09-06: "einen Punkt, wo ich sehen kann,
+// wieviel der Titel komplett mit Metadaten versehen sind und wie sich das
+// entwickelt"). `d.musicMetadata` ist nur bei kind=music gesetzt (siehe
+// libraryStatDetail-Handler) — bei Filmen/Serien/Privat rendert diese
+// Funktion nichts. Titel/Dauer bewusst ausgeklammert (fast nie leer, siehe
+// Server-Kommentar bei MusicMetadataStat).
+function renderMusicMetadataSection(m) {
+  if (!m) return "";
+  const pct = (have, total) => total > 0 ? Math.round((have / total) * 100) : 0;
+  const row = (label, have, total) => {
+    const p = pct(have, total);
+    return `
+      <div class="stat-bar-row" style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <div style="width:90px;font-size:12px;color:#94a3b8;text-align:right;flex-shrink:0">${escapeHTML(label)}</div>
+        <div style="flex:1;background:#1e293b;border-radius:4px;overflow:hidden;height:18px">
+          <div style="width:${p}%;background:#22c55e;height:100%"></div>
+        </div>
+        <div style="width:80px;font-size:12px;text-align:right;flex-shrink:0">${have}/${total} (${p}%)</div>
+      </div>`;
+  };
+  return `<h3 style="margin:16px 0 4px;font-size:14px">🎵 Metadaten-Vollständigkeit</h3>`
+    + row("Künstler", m.tracksWithArtist, m.totalTracks)
+    + row("Genre (Titel)", m.tracksWithGenre, m.totalTracks)
+    + row("Genre (Alben)", m.albumsWithGenre, m.totalAlbums)
+    + row("Jahr (Alben)", m.albumsWithYear, m.totalAlbums)
+    + `<div class="hint" style="margin-top:6px">Genre/Jahr werden im Hintergrund per MusicBrainz nachgetragen (nur wenn eine Datei selbst kein Tag hat) — nach einem Scan oder alle 30 Min. läuft automatisch ein neuer Abgleich. Dialog neu öffnen, um den Fortschritt zu sehen.</div>`;
 }
 
 async function openRenamesManager() {

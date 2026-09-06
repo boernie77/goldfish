@@ -388,6 +388,7 @@ func (s *Store) migrate() error {
 			cover_source TEXT NOT NULL DEFAULT '',
 			mb_release_id TEXT NOT NULL DEFAULT '',
 			cover_fetched_at DATETIME,
+			metadata_fetched_at DATETIME,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(library_id, artist, album)
 		)`,
@@ -614,6 +615,13 @@ func (s *Store) migrate() error {
 	// music_albums.genre blieb dadurch für ALLE Alben leer). User-Anfrage
 	// 2026-09-04: "Kann man dazu in den Infos noch das Genre hinzufügen?".
 	if err := addCol("items", "genre", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	// MusicBrainz-Metadaten-Backfill (Genre + Jahr, User-Wunsch 2026-09-06:
+	// "Alle sollen Titel, Künstler, Genre, Dauer und Jahr enthalten") —
+	// analog cover_fetched_at, verhindert Endlos-Retry bei Alben ohne
+	// MusicBrainz-Treffer. NULL = noch nie versucht.
+	if err := addCol("music_albums", "metadata_fetched_at", "DATETIME"); err != nil {
 		return err
 	}
 	// Playlists strikt nach Video/Musik getrennt (User-Wunsch 2026-09-04:

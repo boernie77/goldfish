@@ -440,6 +440,71 @@ func (s *Store) PendingMusicAlbums(limit int) ([]model.MusicAlbum, error) {
 	return out, rows.Err()
 }
 
+// PendingMusicMetadataAlbums liefert Alben, für die noch nie ein
+// MusicBrainz-Metadaten-Lookup versucht wurde (metadata_fetched_at IS NULL)
+// UND denen Genre oder Jahr fehlt — Alben, die aus den eingebetteten Tags
+// bereits beides haben, tauchen hier nie auf (Tags bleiben laut CLAUDE.md
+// die primäre Quelle, MusicBrainz ist NUR Fallback). Gleicher
+// `artist != album`-Ausschluss wie PendingMusicAlbums (Ordner-Fallback-Fall
+// ohne echte Tags wäre eine zu unzuverlässige Suchanfrage). Eigenständiger
+// Gate-Mechanismus von der Cover-Suche (`cover_source`) — die meisten Alben
+// haben ihr Cover schon lokal per eingebettetem Bild (Scanner
+// extractAlbumCovers), MusicBrainz wird für die Cover-Suche dadurch oft nie
+// aufgerufen, obwohl Genre/Jahr trotzdem fehlen können.
+func (s *Store) PendingMusicMetadataAlbums(limit int) ([]model.MusicAlbum, error) {
+	rows, err := s.db.Query(`
+		SELECT id, library_id, artist, album, year, genre, cover_source
+		FROM music_albums
+		WHERE metadata_fetched_at IS NULL
+		  AND artist != '' AND album != '' AND artist != album
+		  AND (genre = '' OR year = 0)
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []model.MusicAlbum
+	for rows.Next() {
+		var a model.MusicAlbum
+		if err := rows.Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// ApplyMusicBrainzMetadata schreibt Jahr/Genre eines MusicBrainz-Releases als
+// FALLBACK auf das Album — überschreibt NIE einen bereits vorhandenen Wert
+// (`year=0`/`genre=''` sind die einzigen "fehlt"-Zustände, siehe
+// PendingMusicMetadataAlbums). Markiert das Album danach als "versucht"
+// (`metadata_fetched_at`), unabhängig vom Ergebnis — verhindert Endlos-Retry
+// bei Alben ohne MusicBrainz-Treffer (analog `cast_fetched_at`). Ein
+// gefundenes Genre wird zusätzlich auf die einzelnen Tracks propagiert, aber
+// NUR bei Tracks ohne eigenes Genre-Tag (`items.genre = ''` ist dort ein
+// zuverlässiges "fehlt"-Signal, anders als `released_at`, das der Scanner
+// immer mit mindestens der Datei-mtime befüllt — deshalb bewusst KEINE
+// Propagation auf `items.released_at`, das würde echte Tag-Daten mit einer
+// bedeutungslosen Kopierdatum-Fiktion verwechseln lassen).
+func (s *Store) ApplyMusicBrainzMetadata(albumID int64, mbReleaseID string, year int, genre string) error {
+	if _, err := s.db.Exec(
+		`UPDATE music_albums SET
+		   year = CASE WHEN year = 0 THEN ? ELSE year END,
+		   genre = CASE WHEN genre = '' THEN ? ELSE genre END,
+		   mb_release_id = CASE WHEN mb_release_id = '' THEN ? ELSE mb_release_id END,
+		   metadata_fetched_at = CURRENT_TIMESTAMP
+		 WHERE id = ?`,
+		year, genre, mbReleaseID, albumID,
+	); err != nil {
+		return err
+	}
+	if genre == "" {
+		return nil
+	}
+	_, err := s.db.Exec(`UPDATE items SET genre = ? WHERE music_album_id = ? AND genre = ''`, genre, albumID)
+	return err
+}
+
 // FixMusicCoverArtVideoCodec räumt items auf, die VOR dem Scanner-Fix vom
 // 2026-09-04 gescannt wurden: ffprobe listet ein eingebettetes Cover in
 // MP3/FLAC/M4A-Dateien (ID3-APIC o.ä.) als eigenen "video"-Stream
