@@ -512,12 +512,12 @@ Standard-Go-Projektlayout (`cmd/`, `internal/<paket>/`, `scripts/`, `.github/wor
 HTML/CSS. Die Lade-Reihenfolge in `index.html` ist relevant, weil spaetere
 Module Funktionen aus frueheren nutzen.
 
-Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, admin, playlists, scan, matching, whisper, introskip, ocrsub, music) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar.
+Module unter `internal/webassets/web/` (helpers, dialogs, api, cast, player-components, cards, views, grid, player, player-trickplay, player-transcode-seek, player-buffer, admin, playlists, scan, matching, whisper, introskip, ocrsub, music) + app.js — Groessen per `wc -l`, Zweck per Dateikopf-Kommentar. player-trickplay/-transcode-seek/-buffer seit 2026-09-06 (Schritt 5 der Modularisierung, siehe „Code-Review 2026-09-06" unten) aus player.js ausgelagert.
 
 
 **Lade-Reihenfolge in index.html:**
 ```
-helpers → dialogs → api → cast → player-components → cards → views → grid → player → admin → playlists → scan → matching → whisper → introskip → ocrsub → music → app
+helpers → dialogs → api → cast → player-components → cards → views → grid → player → player-trickplay → player-transcode-seek → player-buffer → admin → playlists → scan → matching → whisper → introskip → ocrsub → music → app
 ```
 
 Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (−82 %)**. Jeder Modul-Schritt war ein eigener Commit auf einem `code-review/app-js-split-*`-Branch, danach in main gemerged + live deployed + im Browser getestet.
@@ -3544,7 +3544,25 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
    Multiset-Diff (views.js+music.js alt vs. neu) — nur neue Kommentarzeilen
    unterscheiden sich. Live getestet: Musik-Album-Übersicht (Kacheln +
    Liste), Album-Detail-Tracklist, „Alle Titel", Spalten-Resize/Reorder.
-5. player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js
+5. ✅ **player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js**
+   (LIVE 1.2.12) — drei klar abgrenzbare, per Kommentar-Header bereits
+   vormarkierte Blöcke extrahiert: `player-trickplay.js` (108 Zeilen,
+   Trickplay-Hover-Plugin inkl. seinem eigenen `trickplayState`-WeakMap),
+   `player-transcode-seek.js` (212 Zeilen, `syncTranscodeDisplays` +
+   `formatPlayerTime` + `attachSeekRestart` + `restartTranscodeAt`),
+   `player-buffer.js` (479 Zeilen, Startpuffer-Gate + Pause-Prefetch +
+   Buffer-Overlay inkl. `pausePrefetchTimer`/`pausePrefetchSeen`/
+   `forcedDurationState`). Vor dem Schneiden alle modul-scoped
+   `const`/`let`-Deklarationen (`grep -n "^const \|^let "`) durchsucht,
+   um sicherzustellen, dass jede mit ihren tatsächlichen Nutzern in
+   dieselbe neue Datei wandert (kein Modul-Grenzen-Bruch trotz weiterhin
+   globalem window-Scope). player.js: 2250 → 1475 Zeilen. Drei neue
+   `<script defer>`-Tags in `index.html` zwischen `player.js` und
+   `admin.js` ergänzt (`go:embed all:web` fasst sie automatisch mit).
+   Verifiziert per Multiset-Diff (nur neue Datei-Header unterscheiden
+   sich) + Live-Test: Video abspielen (Direct Play + Transcode),
+   Trickplay-Hover in der Progress-Bar, Transcode-Seek per Klick weit
+   vorne in die Progress-Bar, Startpuffer-Overlay beim Öffnen.
 6. enrich/worker.go → matching.go (matchItem/matchShow/enrichItems/enrichFolders)
 7. Rest von sqlite.go (items.go/folders.go/libraries.go/settings.go)
 
