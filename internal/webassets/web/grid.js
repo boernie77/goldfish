@@ -154,6 +154,12 @@ async function loadItemsBody() {
     $("#resolutionFilterLabel").classList.toggle("hidden", isMusicKind);
     $("#watchedFilterLabel").classList.toggle("hidden", isMusicKind);
     $("#ratingFilterLabel").classList.toggle("hidden", isMusicKind);
+    // Genre-Filter ist bewusst NICHT bei Musik ausgeblendet (anders als
+    // Auflösung/Gesehen/Bewertung oben) — der Filter gilt global für
+    // Filme/Serien UND Musik (User-Wunsch 2026-09-06). Nur bei Privat-Libs
+    // (kein Genre-Konzept) und ohne aktive Library (Home/Sammlungen/
+    // Playlists) ausgeblendet.
+    $("#genreFilterLabel").classList.toggle("hidden", !kind || kind === "private");
     // Suchfeld-Beschriftung an die Bibliothek anpassen (User-Wunsch
     // 2026-09-04): "Titel oder Schauspieler" passt für Musik nicht (kein
     // Cast), dort sucht man nach Künstler/Album.
@@ -431,6 +437,7 @@ async function loadItemsBody() {
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     const fav = currentFavoriteMode(); if (fav) p.set("favorite", fav);
     applyResolutionFilter(p);
+    applyGenreFilter(p);
     applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [], person = null;
@@ -683,6 +690,7 @@ async function loadItemsBody() {
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     const fav = currentFavoriteMode(); if (fav) p.set("favorite", fav);
     applyResolutionFilter(p);
+    applyGenreFilter(p);
     applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
@@ -813,6 +821,7 @@ async function loadItemsBody() {
     if (searchQ) p.set("search", searchQ);
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     applyResolutionFilter(p);
+    applyGenreFilter(p);
     applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
@@ -873,6 +882,7 @@ async function loadItemsBody() {
     if (searchQ) p.set("search", searchQ);
     const watched = $("#watchedFilter").value; if (watched) p.set("watched", watched);
     applyResolutionFilter(p);
+    applyGenreFilter(p);
     applyRatingFilter(p);
     $("#searchClear").classList.toggle("hidden", searchQ === "");
     let items = [];
@@ -936,7 +946,8 @@ async function loadItemsBody() {
   // "Kacheln vs. normale Liste" fällt weiterhin anhand `state.seasonView`,
   // aber NUR das betrifft, nicht mehr den Info-Header.
   if (lib && lib.kind === "tv" && state.currentFolder
-      && matchMode !== "unmatched" && matchMode !== "unconfirmed" && state.resBuckets.size === 0) {
+      && matchMode !== "unmatched" && matchMode !== "unconfirmed"
+      && state.resBuckets.size === 0 && state.genreFilter.size === 0) {
     let data;
     try {
       data = await api(`/api/libraries/${state.currentLibrary}/seasons?folder=${encodeURIComponent(state.currentFolder)}`);
@@ -1102,6 +1113,7 @@ async function loadItemsBody() {
   const match = matchMode;
   if (match) params.set("match", match);
   applyResolutionFilter(params);
+  applyGenreFilter(params);
   applyRatingFilter(params);
   // Clear-X nur sichtbar bei nicht-leerem Suchfeld
   $("#searchClear").classList.toggle("hidden", searchQ === "");
@@ -1116,7 +1128,8 @@ async function loadItemsBody() {
     || !!currentRatingFilter()
     || !!currentFavoriteMode()
     || !!currentMatchMode()
-    || state.resBuckets.size > 0;
+    || state.resBuckets.size > 0
+    || state.genreFilter.size > 0;
   // Flat-View: wenn Toggle aktiv ODER Movies-Library (keine Ordner-Struktur)
   // ODER aktiver Filter ODER Sort=Zufällig (sonst würden im Library-Root nur
   // Folder-Kacheln + Direkt-Root-Files gemischt werden — der User erwartet

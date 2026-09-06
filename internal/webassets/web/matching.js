@@ -457,11 +457,71 @@ function openEditMetaDialog() {
     f.ageRating.value = m.ageRating || "";
     $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
   }
-  // Poster-Button für ungematched Items ausblenden — Poster geht ueber metadata.id
-  // und braucht TMDB-Lookup, der bei custom-Metadata nichts liefert.
+  // Poster-Button war bei neu anzulegenden (unmatched) Items bisher komplett
+  // ausgeblendet — User-Feedback 2026-09-06: "Das Feld Metadaten bearbeiten
+  // bei einer Datei, welche nicht zugeordnet ist, unterscheidet sich von
+  // einer zugeordneten Datei. Das soll identisch sein!!". Der Picker selbst
+  // arbeitet längst generisch über eine explizite metadataId (Feature vom
+  // Serien-Poster-Upload) — für ein `isNew`-Item existiert die nur noch
+  // nicht, weil das Formular noch nicht gespeichert wurde. Bleibt sichtbar,
+  // Klick speichert bei Bedarf zuerst automatisch (openPosterPickerFromEditDialog).
   const posterBtn = $("#editMetaPoster");
-  if (posterBtn) posterBtn.style.display = isNew ? "none" : "";
+  if (posterBtn) {
+    posterBtn.style.display = "";
+    posterBtn.textContent = isNew ? "🖼 Poster hinzufügen" : "🖼 Poster ändern";
+  }
   $("#editMetaDialog").showModal();
+}
+
+// openPosterPickerFromEditDialog: Klick-Handler für den "🖼 Poster ändern/
+// hinzufügen"-Button im Edit-Metadata-Dialog. Bei einem bereits zugeordneten
+// Item einfach der normale Picker; bei einem neuen (unmatched) Item werden
+// zuerst die aktuellen Formularwerte gespeichert (derselbe Server-Call wie
+// beim regulären Submit, nur ohne den Dialog zu schließen), damit überhaupt
+// eine metadataId existiert, auf die ein Poster gesetzt werden kann.
+async function openPosterPickerFromEditDialog() {
+  const it = state.currentItem;
+  if (!it) return;
+  if (it.metadataId) {
+    openPosterPicker(it.metadataId);
+    return;
+  }
+  const f = $("#editMetaForm");
+  const body = {
+    title: f.title.value.trim(),
+    originalTitle: f.originalTitle.value.trim(),
+    year: parseInt(f.year.value, 10) || 0,
+    releaseDate: f.releaseDate.value,
+    overview: f.overview.value,
+    rating: parseFloat(f.rating.value) || 0,
+    runtimeMin: parseInt(f.runtimeMin.value, 10) || 0,
+    genres: f.genres.value.trim(),
+    ageRating: f.ageRating.value,
+  };
+  if (!body.title) {
+    appAlert("Bitte zuerst einen Titel eingeben, bevor ein Poster gesetzt werden kann.");
+    return;
+  }
+  const btn = $("#editMetaPoster");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api(`/api/items/${it.id}/metadata-manual`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    it.metadataId = res.metadataId;
+    $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
+    if (btn) btn.textContent = "🖼 Poster ändern";
+    openPosterPicker(res.metadataId, () => {
+      // Nach Poster-Anwenden: Edit-Dialog ist inzwischen inhaltlich "bearbeiten"
+      // statt "neu anlegen" — Item + Grid aktualisieren wie gewohnt.
+      loadItems();
+    });
+  } catch (e) {
+    appAlert("Fehler: " + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // openPosterPicker zeigt ein Grid mit verfügbaren TMDB-Postern + ein Upload-

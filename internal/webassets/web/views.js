@@ -823,6 +823,7 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
         <img class="track-row-cover" loading="lazy" decoding="async" alt="" src="${cover}">
         <span class="track-row-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</span>
         <span class="track-row-artist">${escapeHTML(a.artist || "")}</span>
+        <span class="track-row-genre">${escapeHTML(a.genre || "")}</span>
         <span class="track-row-count">${a.trackCount || 0} Titel</span>
         <button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>
       `;
@@ -854,7 +855,7 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
       </div>
       <div class="card-body">
         <div class="card-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</div>
-        <div class="card-meta"><span>${escapeHTML(a.artist || "")}</span></div>
+        <div class="card-meta"><span>${escapeHTML(a.artist || "")}</span>${a.genre ? `<span>${escapeHTML(a.genre)}</span>` : ""}</div>
       </div>
     `;
     el.addEventListener("click", (ev) => {

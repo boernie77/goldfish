@@ -34,6 +34,8 @@ const state = {
   loadSeq: 0,               // Sequenz-Zähler für loadItems — verhindert, dass veraltete async-Responses das Grid überschreiben
   sortDir: "",              // "asc" | "desc" | "" (Default) — Richtungs-Override
   resBuckets: new Set(),    // ausgewählte Auflösungs-Buckets ("4k","1080p",…) — Multi-Select
+  genreFilter: new Set(),   // ausgewählte Genres — Multi-Select, global (Filme/Serien/Musik)
+  genreCache: { libraryId: null, genres: null }, // pro Bibliothek gecachte Genre-Liste für den Picker
   collectionsView: false,   // true = Collections-Root-Ansicht (Liste aller Sammlungen)
   currentCollection: null,  // {id, name} wenn eine einzelne Collection geöffnet ist
   playlistsView: false,     // true = Playlists-Root (Kacheln aller Playlists)
@@ -308,6 +310,11 @@ function resetFilters() {
   state.resBuckets.clear();
   document.querySelectorAll('#resDropdown input[type="checkbox"]').forEach(cb => { cb.checked = false; });
   updateResDropdownLabel();
+  // Genre-Filter ebenfalls leeren — die verfügbaren Genres hängen an der
+  // Bibliothek, ein Rest-Filter aus der vorigen Library würde hier sonst
+  // stumm ins Leere laufen (Genre-Wert existiert dort evtl. gar nicht).
+  state.genreFilter.clear();
+  updateGenreDropdownLabel();
   $("#searchClear").classList.add("hidden");
   // Person-Filter ebenfalls aufheben
   state.personFilter = null;
@@ -822,6 +829,100 @@ function updateResDropdownLabel() {
   }
 }
 
+// Genre-Filter (seit 2026-09-06, User-Wunsch): global nutzbar (Filme/Serien/
+// Musik), Trefferliste kommt live aus der aktuell geöffneten Bibliothek
+// (GET /api/libraries/{id}/genres — Server wählt intern movies/tv-Genres aus
+// metadata.genres bzw. Musik-Genres aus items.genre, private liefert immer
+// leer). "im Ordner Musik sollen dort nur Musiktreffer stehen, bei Filmen
+// oder Serien nur die dortigen" ist damit serverseitig automatisch erfüllt,
+// ohne dass das Frontend selbst nach Bibliothekstyp unterscheiden muss.
+function applyGenreFilter(params) {
+  for (const g of state.genreFilter) params.append("genre", g);
+}
+
+function setupGenreDropdown() {
+  const btn = $("#genreDropdownBtn");
+  const panel = $("#genreDropdown");
+  const search = $("#genreDropdownSearch");
+  if (!btn || !panel) return;
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const wasHidden = panel.classList.contains("hidden");
+    if (wasHidden) {
+      panel.classList.remove("hidden");
+      btn.setAttribute("aria-expanded", "true");
+      await loadGenresForCurrentLibrary();
+      renderGenreDropdownList(search.value.trim());
+      search.value = "";
+      search.focus();
+    } else {
+      panel.classList.add("hidden");
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  panel.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", () => {
+    if (!panel.classList.contains("hidden")) {
+      panel.classList.add("hidden");
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  search.addEventListener("input", () => renderGenreDropdownList(search.value.trim()));
+  updateGenreDropdownLabel();
+}
+
+// Lädt die Genre-Liste der aktuell geöffneten Bibliothek — gecacht pro
+// Bibliotheks-ID, damit ein erneutes Öffnen des Pickers innerhalb derselben
+// Library keinen neuen Request auslöst.
+async function loadGenresForCurrentLibrary() {
+  const libId = state.currentLibrary;
+  if (!libId) { state.genreCache = { libraryId: null, genres: [] }; return; }
+  if (state.genreCache.libraryId === libId && state.genreCache.genres) return;
+  try {
+    const res = await api(`/api/libraries/${libId}/genres`);
+    state.genreCache = { libraryId: libId, genres: res.genres || [] };
+  } catch {
+    state.genreCache = { libraryId: libId, genres: [] };
+  }
+}
+
+function renderGenreDropdownList(query) {
+  const list = $("#genreDropdownList");
+  if (!list) return;
+  const all = (state.genreCache.genres || []);
+  const q = (query || "").toLowerCase();
+  const filtered = q ? all.filter(g => g.toLowerCase().includes(q)) : all;
+  if (!filtered.length) {
+    list.innerHTML = `<div class="genre-dropdown-empty">${all.length ? "Keine Treffer." : "Keine Genres in dieser Bibliothek."}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(g => `
+    <label><input type="checkbox" data-genre="${escapeHTML(g)}" ${state.genreFilter.has(g) ? "checked" : ""}> ${escapeHTML(g)}</label>
+  `).join("");
+  list.querySelectorAll('input[type="checkbox"][data-genre]').forEach(cb => {
+    cb.addEventListener("change", () => {
+      const g = cb.dataset.genre;
+      if (cb.checked) state.genreFilter.add(g);
+      else state.genreFilter.delete(g);
+      updateGenreDropdownLabel();
+      loadItems();
+    });
+  });
+}
+
+function updateGenreDropdownLabel() {
+  const btn = $("#genreDropdownBtn");
+  if (!btn) return;
+  const n = state.genreFilter.size;
+  if (n === 0) {
+    btn.textContent = "Alle ▾";
+  } else if (n === 1) {
+    btn.textContent = Array.from(state.genreFilter)[0] + " ▾";
+  } else {
+    btn.textContent = `${n} Genres ▾`;
+  }
+}
+
 async function toggleWatchedOnCard(item, btn) {
   const newState = !item.watched;
   btn.disabled = true;
@@ -1168,6 +1269,7 @@ function wire() {
   $("#watchedFilter").addEventListener("change", loadItems);
   { const rf = $("#ratingFilter"); if (rf) rf.addEventListener("change", loadItems); }
   setupResolutionDropdown();
+  setupGenreDropdown();
   $("#flatViewBtn").addEventListener("click", () => {
     state.flatView = !state.flatView;
     $("#flatViewBtn").classList.toggle("active", state.flatView);
@@ -1462,7 +1564,7 @@ function wire() {
   });
   $("#detailEditMeta").addEventListener("click", openEditMetaDialog);
   $("#editMetaForm").addEventListener("submit", handleEditMetaSubmit);
-  $("#editMetaPoster").addEventListener("click", openPosterPicker);
+  $("#editMetaPoster").addEventListener("click", openPosterPickerFromEditDialog);
   $("#posterUploadForm").addEventListener("submit", handlePosterUpload);
   $("#detailConfirm").addEventListener("click", async () => {
     if (!state.currentItem) return;

@@ -1278,6 +1278,14 @@ type ItemFilter struct {
 	// stattdessen auf die ODER-Verknüpfung dieser Selektoren (auch über
 	// mehrere Libraries hinweg möglich).
 	Folders []FolderSelector
+	// Genres: Multi-Select-Genre-Filter (User-Wunsch 2026-09-06), mehrere →
+	// OR. Global nutzbar (Filme/Serien UND Musik) — matcht wahlweise gegen
+	// metadata.genres (TMDB-JSON-Array-String, z.B. `["Drama","Krimi"]`) ODER
+	// items.genre (Musik-Tag-Wert). Beide Felder werden immer gemeinsam
+	// geprüft statt nach Library-Kind zu unterscheiden — ein Musik-Genre wie
+	// "Rock" kommt praktisch nie in TMDB-Genres vor und umgekehrt, echte
+	// Kollisionen sind kein realistisches Risiko.
+	Genres []string
 }
 
 // FolderSelector wählt einen Ordner (rekursiv inkl. Unterordner) oder eine
@@ -1523,6 +1531,16 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 				or = append(or, "("+effH+" <= ?)")
 				args = append(args, r.max)
 			}
+		}
+		if len(or) > 0 {
+			q += ` AND (` + strings.Join(or, " OR ") + `)`
+		}
+	}
+	if len(f.Genres) > 0 {
+		var or []string
+		for _, g := range f.Genres {
+			or = append(or, "(m.genres LIKE ? ESCAPE '\\' OR i.genre = ?)")
+			args = append(args, "%\""+escapeLike(g)+"\"%", g)
 		}
 		if len(or) > 0 {
 			q += ` AND (` + strings.Join(or, " OR ") + `)`

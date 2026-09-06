@@ -219,9 +219,12 @@ func (s *Server) introSkipWorkerStatus(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) introSkipLog(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
-	allowed := map[string]bool{"done": true, "failed": true, "pending": true}
+	// "running" seit 2026-09-06 ergänzt (User-Wunsch, analog OCR-Dialog) —
+	// der Status existiert im Store schon lange (MarkIntroSkipJobRunning),
+	// war nur nie im Log-Endpoint abfragbar.
+	allowed := map[string]bool{"done": true, "failed": true, "pending": true, "running": true}
 	if !allowed[status] {
-		writeError(w, 400, "status=done|failed|pending erforderlich")
+		writeError(w, 400, "status=pending|running|done|failed erforderlich")
 		return
 	}
 	jobs, err := s.Store.ListIntroSkipJobsByStatus(status)

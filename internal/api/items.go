@@ -437,6 +437,9 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	if buckets, ok := q["bucket"]; ok {
 		f.ResBuckets = buckets
 	}
+	if genres, ok := q["genre"]; ok {
+		f.Genres = genres
+	}
 	items, err := s.Store.ListItems(f)
 	if err != nil {
 		writeError(w, 500, err.Error())
@@ -526,6 +529,9 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 	}
 	if buckets, ok := q["bucket"]; ok {
 		f.ResBuckets = buckets
+	}
+	if genres, ok := q["genre"]; ok {
+		f.Genres = genres
 	}
 	items, err := s.Store.ListItems(f)
 	if err != nil {

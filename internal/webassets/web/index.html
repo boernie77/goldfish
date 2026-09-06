@@ -113,6 +113,15 @@
         </div>
       </span>
     </label>
+    <label class="field-label" id="genreFilterLabel">Genre
+      <span class="res-dropdown">
+        <button type="button" id="genreDropdownBtn" aria-haspopup="true" aria-expanded="false">Alle ▾</button>
+        <div id="genreDropdown" class="res-panel genre-panel hidden" role="menu">
+          <input type="text" id="genreDropdownSearch" placeholder="Suchen…" autocomplete="off">
+          <div id="genreDropdownList" class="genre-dropdown-list"></div>
+        </div>
+      </span>
+    </label>
     <button id="flatViewBtn" title="Flache Ansicht ohne Ordner" class="toggle-btn">📂 Flach</button>
     <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
     <button id="musicListViewBtn" title="Listenansicht statt Album-Kacheln" class="toggle-btn hidden">☰ Liste</button>
@@ -845,6 +854,7 @@
   <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">Erkennungs-Jobs</h3>
   <div class="row" style="margin:8px 0">
     <button type="button" data-tp-tab="pending" class="tp-tab primary" data-introskip-tab>Ausstehend</button>
+    <button type="button" data-tp-tab="running" class="tp-tab" data-introskip-tab>Läuft</button>
     <button type="button" data-tp-tab="done" class="tp-tab" data-introskip-tab>Fertig</button>
     <button type="button" data-tp-tab="failed" class="tp-tab" data-introskip-tab>Fehler</button>
   </div>

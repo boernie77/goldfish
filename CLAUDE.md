@@ -862,11 +862,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   GET/PUT /api/introskip/settings                  {enabled}
   GET/PUT /api/libraries/{id}/introskip             {folder, enabled, season?}
   GET     /api/introskip/status                     (Live-Worker-Status, offen)
-  GET     /api/introskip/log?status=done|failed|pending
+  GET     /api/introskip/log?status=pending|running|done|failed
   GET     /api/libraries/{id}/introskip/episodes?folder=
   POST    /api/introskip/folders/{id}/retry         {folder}
   POST    /api/introskip/retry-failed
   ```
+- **„Läuft"-Tab im Job-Status (seit 2026-09-06, User-Wunsch, analog OCR-
+  Dialog)**: Admin-Dialog zeigte bisher nur Ausstehend/Fertig/Fehler — der
+  `running`-Status existierte im Store schon lange
+  (`Store.MarkIntroSkipJobRunning`), war nur nie über `introSkipLog`
+  abfragbar (`allowed`-Map kannte nur `done|failed|pending`). Rein additiv:
+  neuer Tab-Button + erweiterte `allowed`-Map, `ListIntroSkipJobsByStatus`
+  selbst brauchte keine Änderung (reiner `WHERE status = ?`-Query).
 - **Deaktivierte Serien werden vom Worker wirklich ignoriert** (seit
   2026-08-13): `Store.ListPendingIntroSkipJobs` joint gegen
   `intro_skip_folders`, sodass nur Jobs aktivierter Ordner gezogen werden —
@@ -2287,6 +2294,40 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Auflösungs-Filter**: kompaktes Dropdown mit Checkboxen (Multi-Select).
   Server-seitig werden mehrere `bucket`-Werte per OR geORd.
   Buckets: 4K / 2K / 1080p / 720p / 576p / 540p / 480p / ≤360p.
+- **Genre-Filter (seit 2026-09-06, User-Wunsch)**: gleiches Dropdown-Muster
+  wie der Auflösungs-Filter (Button `#genreDropdownBtn` öffnet ein Panel),
+  aber mit dynamisch geladener Trefferliste statt fester Buckets — inkl.
+  Suchfeld im Panel (`#genreDropdownSearch`), da Filme/Serien deutlich mehr
+  Genres haben können als die Auflösungs-Buckets. **Global nutzbar**
+  (Filme/Serien UND Musik, User-Vorgabe: "der Filter kann global wirken, da
+  bei Filmen er auch sinnvoll ist") — anders als Auflösung/Gesehen/Bewertung
+  wird das Genre-Label bei Musik-Bibliotheken NICHT ausgeblendet.
+  `GET /api/libraries/{id}/genres` (`Store.ListGenresForLibrary`, gescoped
+  auf genau diese Library — "im Ordner Musik sollen dort nur Musiktreffer
+  stehen, bei Filmen oder Serien nur die dortigen") liefert die Trefferliste
+  jeweils aus der passenden Quelle: `movies`/`tv` parsen alle distinkten
+  Werte aus `metadata.genres` (TMDB-JSON-Array-String) in Go (bewusst ohne
+  SQLite-JSON-Funktionen, robuster), `music` aus `items.genre` (Tag-Wert),
+  `private` liefert immer `[]` (kein Genre-Konzept, Label bleibt
+  ausgeblendet). Response gecacht pro Bibliotheks-ID im Frontend
+  (`state.genreCache`), damit wiederholtes Öffnen des Pickers innerhalb
+  derselben Library keinen neuen Request auslöst.
+  **Server-Filter** `ItemFilter.Genres []string` (`internal/store/sqlite.go`,
+  Multi-Select → OR) matcht IMMER beide Spalten gleichzeitig
+  (`m.genres LIKE '%"<g>"%' OR i.genre = '<g>'`), unabhängig vom
+  Bibliothekstyp — ein Musik-Genre wie "Rock" kommt praktisch nie in
+  TMDB-Genres vor und umgekehrt, echte Kollisionen sind kein realistisches
+  Risiko, und das erspart eine Kind-Fallunterscheidung im SQL. Query-Param
+  `genre=` (mehrfach wie `bucket=`) an `/api/items` UND `/api/items/random`.
+  Test: `internal/store/genres_test.go`.
+- **Musik-Genre in der Album-Übersicht** (seit 2026-09-06, User-Wunsch: "bei
+  Musik möchte ich auch das Genre dabei stehen haben"): `music_albums.genre`
+  war bisher nur im Album-Detail-Header sichtbar (seit 1.0.67) — jetzt auch
+  in der Album-Kachel (`card-meta`, zweite Zeile neben Artist) und der
+  Album-Übersichts-Listenzeile (`renderAlbumTiles` in views.js, neue Spalte
+  `.track-row-genre`, `.track-row--album`-Grid-Template entsprechend
+  erweitert). `ListMusicAlbums`/`model.MusicAlbum` lieferten `genre` schon
+  vorher mit, reine Anzeige-Ergänzung ohne Server-Änderung.
 - **Sortierung** mit Default-Richtung je Feld (Title/Episode asc, Rest desc);
   ⬆/⬇-Button neben dem Dropdown flippt die Richtung.
 - **Duplikate** ist ein **Eintrag im Sort-Dropdown** (nicht eigenes Filterfeld).
@@ -2963,6 +3004,22 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Vorbefuellung mit Dateiname ohne Endung als Default-Titel, plus
   releasedAt und durationSec, damit der User schnell einen sprechenden
   Titel fuer „yt-dlp-2024-03-15.mp4" eintragen kann.
+  **🖼 Poster-Button jetzt auch bei unmatched Items (seit 2026-09-06,
+  User-Feedback: "Das Feld Metadaten bearbeiten bei einer Datei, welche
+  nicht zugeordnet ist, unterscheidet sich von einer zugeordneten Datei.
+  Das soll identisch sein!!")**: der Button war bei `isNew` (kein
+  `metadataId`) bisher komplett ausgeblendet — Begründung im (jetzt
+  veralteten) Code-Kommentar war "Poster geht über metadata.id, die es für
+  ein neues Item noch nicht gibt". Seit dem generalisierten Poster-Picker
+  (Serien-Poster-Feature, nimmt eine explizite metadataId + Callback
+  entgegen) ist das lösbar: `openPosterPickerFromEditDialog()`
+  (`matching.js`) speichert bei einem `isNew`-Item zuerst automatisch die
+  aktuellen Formularwerte (derselbe `POST .../metadata-manual`-Call wie der
+  reguläre Submit, nur ohne den Dialog zu schließen), aktualisiert
+  `state.currentItem.metadataId` + Dialog-Titel auf "Metadaten bearbeiten"
+  und öffnet danach den Picker darauf. Button-Text wechselt entsprechend
+  zwischen "🖼 Poster hinzufügen" (neu) und "🖼 Poster ändern" (bestehend) —
+  Verhalten sonst identisch für beide Fälle, wie vom User gefordert.
 - Enrichment-Queue: max. 35 req/10 s, läuft non-blocking im Hintergrund.
 
 ### TMDB-Client-Cache
