@@ -1078,6 +1078,26 @@ body.selection-mode .track-row-select { display: flex; }
   background: none;
   border-color: transparent;
 }
+/* .edit-toggle (Musik-Listenzeile) — dieselbe Vererbungsfalle wie oben bei
+   .fav-toggle: die generische Kachel-Overlay-Klasse ist position:absolute,
+   das muss für den normalen Grid-Zellen-Fluss der Listenzeile explizit
+   zurückgesetzt werden. */
+.track-row-edit.edit-toggle {
+  position: static;
+  top: auto;
+  left: auto;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  z-index: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: .5;
+}
+.track-row-edit.edit-toggle:hover { opacity: 1; background: none; }
 
 .card:hover {
   transform: translateY(-2px);
@@ -3060,6 +3080,33 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
   z-index: 3;
 }
 .card:hover .fav-toggle { opacity: 1; }
+/* Musik-Kacheln: ✏-Edit-Metadata-Button (seit 2026-09-06, admin-only) —
+   Musik hat keinen Weg zum Detail-Dialog (Klick spielt sofort ab), also
+   eigener Overlay-Button. Position laut CLAUDE.md-Kachel-Koordinatentabelle
+   ("Empfohlene Folgeplätze"): top:66 left:6, unter dem Watched-Haken. */
+.edit-toggle {
+  position: absolute;
+  top: 66px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.85);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity .15s, background-color .15s;
+  z-index: 3;
+}
+.card:hover .edit-toggle { opacity: 1; }
+.edit-toggle:hover { background: rgba(59, 130, 246, 0.85); }
 .fav-toggle.is-on {
   opacity: 1;
   background: rgba(239, 68, 68, 0.9);

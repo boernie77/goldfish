@@ -1407,6 +1407,23 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   nur das Album hat ein Cover — eigener, hier nicht betroffener Mechanismus
   über `/api/poster/album/{id}`). Test:
   `internal/store/music_edit_metadata_test.go`.
+  **🔴 Button war zunächst gar nicht erreichbar (Bug, gefixt noch am selben
+  Tag, User-Report "ich sehe bei der Musik keinen Button zum Bearbeiten der
+  Metadaten"):** ein Klick auf eine Musik-Kachel/-Zeile ruft IMMER
+  `musicPlayAlbum()` auf und öffnet NIE `openDetail()` (siehe „Persistenter
+  Mini-Player" oben — Musik startet Wiedergabe direkt, kein Video-Detail-
+  Dialog). Der neue Formular-Zweig war also für Admins technisch fertig,
+  aber es gab keinen Weg, ihn überhaupt zu öffnen. Fix: eigener ✏-Overlay-
+  Button, admin-only, NUR bei Musik-Items — in der Kachel-Ansicht
+  (`.edit-toggle`, `top:66 left:6`, cards.js) UND in beiden Track-
+  Listenansichten (neuer `editMeta`-Slot in `MUSIC_LIST_CONTEXTS.fixedTrailing`,
+  nach „fav", views.js) am Zeilenende. Beide Klick-Handler setzen
+  `state.currentItem` + rufen `openEditMetaDialog()` direkt, mit
+  `stopPropagation()` gegen das sonst auslösende Abspielen. Dieselbe
+  Vererbungsfalle wie beim `.fav-toggle` in Listenzeilen (die generische
+  Kachel-Overlay-Klasse ist `position:absolute`) — `.track-row-edit.edit-
+  toggle` setzt das analog zu `.track-row-fav.fav-toggle` explizit auf
+  normalen Inline-Fluss zurück.
 - **🔴 IMDb-Zuordnung schlug bei obfuskierten Dateinamen fehl (Bug, gefixt
   2026-09-06, User-Report mit Screenshot: Datei „gb-100jamamoihwage-1080p",
   Fehler „Konnte Staffel/Episode aus Dateiname nicht ermitteln")**:

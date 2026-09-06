@@ -678,6 +678,14 @@ function renderCard(it, opts = {}) {
   // Klickbares Herz wie der Watched-Haken: gedimmt wenn kein Favorit, rot wenn
   // Favorit. Click togglet und schließt Card-Click (Detail öffnen) aus.
   const fav = `<button type="button" class="fav-toggle ${it.favorite ? "is-on" : ""}" title="${it.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}" data-toggle-fav aria-label="${it.favorite ? "Favorit" : "Kein Favorit"}">${it.favorite ? "♥" : "♡"}</button>`;
+  // Musik-Items haben keinen anderen Weg zum Edit-Metadata-Dialog — ein Klick
+  // auf die Kachel spielt sofort ab (musicPlayAlbum, s. u.), öffnet NIE
+  // openDetail(), wo der ✏-Button im Detail-Dialog sonst sitzt (User-Bericht
+  // 2026-09-06: "ich sehe bei der Musik keinen Button zum Bearbeiten der
+  // Metadaten"). Eigener Kachel-Overlay-Button, admin-only, nur bei Musik.
+  const editMeta = (isMusicLib && state.me && state.me.isAdmin)
+    ? `<button type="button" class="edit-toggle" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✏</button>`
+    : "";
   let tp = "";
   if (it.trickplayStatus === "done") {
     tp = `<span class="tp-badge" title="Trickplay vorhanden">${ICON_FILM_SVG}</span>`;
@@ -732,6 +740,7 @@ function renderCard(it, opts = {}) {
       ${watched}
       ${confirmBtn}
       ${fav}
+      ${editMeta}
       ${tp}
       ${variantBadge}
       ${dupeBadge}
@@ -789,6 +798,16 @@ function renderCard(it, opts = {}) {
     if (favTog) {
       ev.stopPropagation();
       toggleFavoriteOnCard(it, favTog);
+      return;
+    }
+    // Click auf den ✏-Edit-Metadata-Button (nur Musik-Kacheln, admin-only):
+    // Detail NICHT öffnen (gäbe es für Musik ohnehin nicht) und NICHT
+    // abspielen — stattdessen direkt den Edit-Dialog öffnen.
+    const editTog = ev.target && ev.target.closest("[data-toggle-edit-meta]");
+    if (editTog) {
+      ev.stopPropagation();
+      state.currentItem = it;
+      openEditMetaDialog();
       return;
     }
     // Click auf den ✅-Confirm-Button (nur im Duplikate/Suspicious-Modus

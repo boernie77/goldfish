@@ -1032,20 +1032,24 @@ const MUSIC_LIST_CONTEXTS = {
   album: {
     fixedLeading: ["track"],
     reorderable: ["title", "artist", "genre", "duration"],
-    fixedTrailing: ["fav"],
+    // "editMeta" seit 2026-09-06 ergänzt (User-Wunsch: "Der Bearbeitungs-
+    // button soll auch in der Listenansicht am Ende der Zeile sein") — reiner
+    // Icon-Slot wie "fav", kein Spalten-Label nötig (renderMusicColumnHeader
+    // baut für fixedLeading/fixedTrailing nur leere Platzhalter).
+    fixedTrailing: ["fav", "editMeta"],
     labels: { title: "Titel", artist: "Künstler", genre: "Genre", duration: "Dauer" },
     defaultWidths: { title: 260, artist: 160, genre: 110, duration: 70 },
     minWidths: { title: 100, artist: 80, genre: 70, duration: 50 },
-    fixedWidths: { track: 32, fav: 32 },
+    fixedWidths: { track: 32, fav: 32, editMeta: 32 },
   },
   all: {
     fixedLeading: ["cover"],
     reorderable: ["title", "artist", "album", "genre", "lastPlayed"],
-    fixedTrailing: ["fav"],
+    fixedTrailing: ["fav", "editMeta"],
     labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", lastPlayed: "Zuletzt gehört" },
     defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, lastPlayed: 140 },
     minWidths: { title: 100, artist: 80, album: 80, genre: 70, lastPlayed: 100 },
-    fixedWidths: { cover: 40, fav: 32 },
+    fixedWidths: { cover: 40, fav: 32, editMeta: 32 },
   },
 };
 
@@ -1273,6 +1277,13 @@ function renderMusicTrackRow(it, queue, idx, columns) {
       case "fav":
         html += `<button type="button" class="fav-toggle track-row-fav ${it.favorite ? "is-on" : ""}" title="${it.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}" data-toggle-fav aria-label="${it.favorite ? "Favorit" : "Kein Favorit"}">${it.favorite ? "♥" : "♡"}</button>`;
         break;
+      case "editMeta":
+        // Admin-only — Klick auf eine Musik-Zeile spielt sonst sofort ab
+        // (musicPlayAlbum), es gibt keinen anderen Weg zum Edit-Dialog.
+        html += (state.me && state.me.isAdmin)
+          ? `<button type="button" class="edit-toggle track-row-edit" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✏</button>`
+          : `<span></span>`;
+        break;
     }
   }
   row.innerHTML = html;
@@ -1295,6 +1306,13 @@ function renderMusicTrackRow(it, queue, idx, columns) {
     if (favTog) {
       ev.stopPropagation();
       toggleFavoriteOnCard(it, favTog);
+      return;
+    }
+    const editTog = ev.target && ev.target.closest("[data-toggle-edit-meta]");
+    if (editTog) {
+      ev.stopPropagation();
+      state.currentItem = it;
+      openEditMetaDialog();
       return;
     }
     if (typeof musicPlayAlbum === "function") musicPlayAlbum(queue, idx);
