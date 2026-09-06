@@ -3470,8 +3470,17 @@ gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
 `admin.js` ist bereits klar organisiert, kein akuter Bedarf.
 
 **Priorisierte Reihenfolge für einen künftigen Umbau** (Impact vs. Risiko):
-1. sqlite.go → schema.go (reine Funktionsverschiebung, minimales Risiko)
-2. grid.js loadItemsBody in benannte Handler zerlegen
+1. ✅ **sqlite.go → schema.go** (LIVE 1.2.8) — `migrate()` (640 Zeilen,
+   alle CREATE-TABLE/addCol) reine Funktionsverschiebung, keine Logik-
+   /Signaturänderung. sqlite.go: 3091 → 2457 Zeilen. Nebenfund im selben
+   Schritt: `attachMetadata`/`attachVariantCounts` schluckten DB-Fehler
+   ohne jeden Kommentar — jetzt explizit als bewusstes Soft-Fail
+   dokumentiert (Poster/×N-Badge fehlen dann einfach, kein harter Fehler).
+   **Wichtige Korrektur zum ursprünglichen Plan:** `log.Printf` wurde
+   NICHT ergänzt — das `store`-Package importiert nirgendwo `"log"`
+   (Store-Methoden loggen grundsätzlich nie selbst, das ist Aufgabe der
+   Aufrufer). Ein Logging-Import hier hätte diese Konvention gebrochen.
+2. grid.js loadItemsBody in benannte Handler zerlegen (nächster Schritt)
 3. sqlite.go → metadata.go + trickplay_status.go
 4. views.js Musik-Views → music-views.js
 5. player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js
