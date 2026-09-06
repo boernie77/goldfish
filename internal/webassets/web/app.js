@@ -1184,6 +1184,21 @@ function navKey() {
   return "root";
 }
 
+// navLibraryKey: reduziert einen navKey auf seinen Bibliotheks-/Kontext-Teil
+// (z. B. "lib:7:Billions:s1" → "lib:7"), unabhängig von Ordner/Staffel/
+// Album-Tiefe. Grundlage für den Alpha-Filter-Reset (grid.js loadItems) —
+// der Buchstabenfilter soll beim Rein-und-Wieder-Rausnavigieren INNERHALB
+// derselben Bibliothek erhalten bleiben, nur beim Wechsel in eine andere
+// Bibliothek/einen anderen Top-Level-Kontext zurückgesetzt werden.
+function navLibraryKey(key) {
+  if (!key) return key;
+  if (key.startsWith("lib:")) {
+    const secondColon = key.indexOf(":", 4);
+    return secondColon === -1 ? key : key.slice(0, secondColon);
+  }
+  return key;
+}
+
 // loadItems + loadItemsBody liegen in grid.js.
 
 

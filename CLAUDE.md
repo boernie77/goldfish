@@ -1668,6 +1668,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (Default an). Eigener Namespace, unabhängig von `sort:lib:…`/`seasonView:…`.
   In der Collections-Root-Ansicht (`state.currentLibrary === null` dort) gibt
   es keinen Toggle-Button — die Leiste bleibt dort wie bisher unconditional an.
+  **🔴 Filter ging beim Rein-und-Wieder-Rausnavigieren verloren (Bug, gefixt
+  2026-09-06, User-Report: "Wenn ich bei Serien nach Buchstabe filtere, und
+  dann in eine Serie rein gehe, und dann wieder raus, dann ist der
+  Buchstabenfilter weg. Der soll jedoch bleiben"):** der Reset in
+  `loadItems()` (grid.js) feuerte bisher bei JEDER `navKey()`-Änderung — ein
+  reiner Rundgang Library-Root → Serien-Ordner → zurück zum Library-Root
+  sind DREI verschiedene navKeys, jeder Schritt löschte den Filter. Der
+  Filter ist aber an die BIBLIOTHEK gebunden, nicht an den exakten navKey.
+  Fix: neue `navLibraryKey(key)` (app.js) reduziert einen navKey auf seinen
+  Bibliotheks-/Kontext-Teil (`"lib:7:Billions:s1"` → `"lib:7"`) — der Reset
+  vergleicht jetzt NUR diesen Teil, bleibt also über Ordner/Staffel/Album-
+  Wechsel INNERHALB derselben Bibliothek erhalten und feuert nur noch beim
+  echten Wechsel in eine andere Bibliothek oder einen anderen Top-Level-
+  Kontext (Home/Sammlungen/Playlists/Person-Filter — dort bleibt das alte
+  Verhalten: kompletter navKey-Vergleich, da `navLibraryKey` für
+  Nicht-`"lib:"`-Keys den Key unverändert durchreicht).
 - Favoriten-Filter zeigt flach ohne Ordner-Ebenen; Scope „nur nach unten flach"
   wie die Flat-Sorts — im Library-Root library-weit, in einem Unterordner nur
   dessen Favoriten (rekursiv). Breadcrumb hat dann einen Zurück-Pfeil.
