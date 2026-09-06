@@ -1679,6 +1679,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   gemeldet (z. B. Tatort-Folgen ohne SxxExx im Dateinamen) — daher generisch
   gemacht statt library-kind-spezifisch. Root-Level-Dateien ohne Unterordner
   bleiben eine bekannte Restlücke (kein Ordnerpfad zum Anzeigen vorhanden).
+  **🔴 Custom-Metadaten ohne Poster zeigten trotzdem den Dateinamen (Bug,
+  gefixt 2026-09-06, User-Report mit Screenshot: 12 per Custom-Metadaten
+  betitelte "Terra X History"-Folgen zeigten weiterhin ihre kryptischen
+  Release-Dateinamen als Kachel-Titel):** der Titel-Override
+  (`title = it.metadata.title`) saß bisher NUR im `posterPath`-Zweig von
+  `renderCard` — ein Item MIT Metadaten, aber OHNE Poster (Custom-Match ohne
+  hochgeladenes Bild, oder ein TMDB-Treffer ohne Poster-URL) fiel in den
+  reinen Thumbnail-`else`-Zweig, der `title` nie anfasste. Betrifft nicht nur
+  den hier gemeldeten Fall, sondern jede Custom-Zuordnung ohne Poster-Upload
+  (auch Privat-Libs, `POST .../metadata-manual`). Fix: derselbe
+  Title/Jahr-Override läuft jetzt auch im Non-Poster-`else`-Zweig.
 - Breadcrumb-Navigation: Root zeigt Ordner-Kacheln + Root-Items,
   Klick auf Ordner zeigt alle Dateien **flach** (rekursiv, keine weitere Tiefe).
 - **Drilldown-Toggle:** Pro Ordner kann per Hover-⚙-Icon (Admin-only) eingestellt werden,

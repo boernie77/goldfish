@@ -649,6 +649,18 @@ function renderCard(it, opts = {}) {
     }
   } else {
     imgUrl = it.hasThumb ? `/api/thumb/${it.id}` : "/placeholder.svg";
+    // 🔴 Bug (gefixt 2026-09-06, User-Report mit Screenshot: eine per Custom-
+    // Metadaten zugeordnete Serien-Episode ohne TMDB-Poster zeigte weiterhin
+    // den rohen Release-Dateinamen als Kachel-Titel): der Titel-Override kam
+    // bisher NUR im posterPath-Zweig oben vor — ein Item mit Metadaten, aber
+    // ohne Poster (Custom-Match ohne hochgeladenes Bild, TMDB-Eintrag ohne
+    // Poster) behielt dadurch immer `it.title` (Dateiname). Betrifft nicht
+    // nur Musik/TV, sondern jede Custom-Zuordnung ohne Poster-Upload
+    // (Privat-Libs, unmatched Serien-Ordner mit manuell gesetztem Titel).
+    if (!isEpisode && it.metadata && it.metadata.title) {
+      title = it.metadata.title;
+      if (it.metadata.year) subtitle = String(it.metadata.year);
+    }
   }
   // Private Libraries (YouTube-Channels, Urlaubsordner, etc.): Top-Zeile zeigt
   // den Kanal/Top-Folder (relPath[0]) — der Dateiname/Titel kommt unten in der
