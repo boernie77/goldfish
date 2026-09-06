@@ -2376,6 +2376,35 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   invalidiert bei Mutation. `apiGetCached(path)` wrapt die üblichen Fetches.
 - **Request-Sequencing** in `loadItems` (`state.loadSeq`) — stale responses
   beim Tippen ins Suchfeld können das Grid nicht mehr überschreiben.
+- **Scroll-Position beim Zurück-Navigieren** (`state.scrollPositions`, Map
+  navKey→scrollY): beim Verlassen einer Ansicht wird `window.scrollY` unter
+  dem `navKey()` der VERLASSENEN Ansicht abgelegt, beim erneuten Betreten
+  per doppeltem `requestAnimationFrame` wiederhergestellt (Kommentar im Code
+  seit Langem: "content-visibility:auto braucht manchmal zwei Frames").
+  **🔴 Reichte bei sehr vielen Kacheln nicht (Bug, gefixt 2026-09-06,
+  User-Report "ich bin immer ganz oben, das hatten wir schon einmal
+  besser"):** bei Ansichten mit hunderten Kacheln (z. B. 219 Serien in der
+  TV-Bibliotheks-Übersicht) liefert `content-visibility:auto` +
+  `contain-intrinsic-size` beim allerersten Layout-Pass nur eine GESCHÄTZTE
+  Höhe für off-screen-Kacheln — der doppelte rAF reicht nicht immer, bis der
+  Browser genug Kacheln tatsächlich vermessen hat, damit die Seite schon
+  hoch genug für die Ziel-Scroll-Position ist. `scrollTo` clampt dann auf
+  die zu diesem frühen Zeitpunkt noch zu kleine maximale Scroll-Höhe — ohne
+  weiteren Versuch bleibt die Seite dauerhaft dort hängen, auch nachdem der
+  Inhalt seine finale Höhe erreicht hat. Fix: ein zusätzlicher, einmaliger
+  Korrektur-Versuch nach 200ms (nur wenn `window.scrollY` die gespeicherte
+  Position noch nicht erreicht hat UND der User inzwischen nicht bereits
+  weiternavigiert ist — `state.lastNavKey === targetKey`-Check verhindert,
+  dass ein verzögerter Restore einen erst später geöffneten, anderen navKey
+  trifft). **Nicht End-to-End live verifizierbar in dieser Session** —
+  `document.visibilityState` ist im claude-in-chrome-MCP-Tab "hidden",
+  wodurch `requestAnimationFrame` browserseitig gedrosselt/pausiert wird und
+  das Timing-Verhalten dort nicht reproduzierbar testbar ist (der reine
+  State-Save-Teil wurde bestätigt: `scrollPositions`-Map enthielt nach
+  Navigation korrekt den vorherigen scrollY-Wert). Der Fix ist rein additiv
+  (ein zusätzlicher späterer Korrekturversuch, kein Eingriff in den
+  bestehenden Pfad) — sollte im echten, fokussierten Browser des Users
+  bestätigt werden.
 - **DB-Indexe** auf `items(library_id, added_at|duration_sec|height|rel_path)`
   und `user_item_state(user_id, last_played_at)`.
 

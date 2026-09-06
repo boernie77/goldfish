@@ -53,6 +53,26 @@ async function loadItems() {
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const saved = state.scrollPositions.get(targetKey);
       window.scrollTo(0, saved != null ? saved : 0);
+      // 🔴 User-Report 2026-09-06 ("ich bin immer ganz oben, das hatten wir
+      // schon einmal besser"): bei sehr vielen Kacheln (z.B. 219 Serien)
+      // reicht der doppelte rAF nicht immer — `content-visibility:auto` +
+      // `contain-intrinsic-size` liefert beim allerersten Layout-Pass nur
+      // eine GESCHÄTZTE Höhe für off-screen-Kacheln, die sich erst korrigiert,
+      // sobald der Browser sie tatsächlich vermisst/rendert. Der Browser
+      // clampt `scrollTo` auf die zu diesem frühen Zeitpunkt noch zu kleine
+      // maximale Scroll-Höhe — ohne einen zweiten, späteren Versuch bleibt
+      // die Seite dauerhaft bei dieser zu niedrigen Position hängen, auch
+      // nachdem der Inhalt final seine echte Höhe erreicht hat. Ein
+      // Korrektur-Versuch nach 200ms reicht in der Praxis, ohne spürbares
+      // Ruckeln zu verursachen (nur EIN zusätzlicher scrollTo-Call, kein
+      // Loop) — nur wenn `saved` tatsächlich noch nicht erreicht ist.
+      if (saved != null && saved > 0) {
+        setTimeout(() => {
+          if (state.lastNavKey === targetKey && window.scrollY < saved) {
+            window.scrollTo(0, saved);
+          }
+        }, 200);
+      }
     }));
   }
 }
