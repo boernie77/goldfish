@@ -130,6 +130,7 @@ func main() {
 		enricher.EnrichAllFoldersNow()
 		trickplayWorker.Trigger()
 		introSkipWorker.EnqueueStaleFolders()
+		introSkipWorker.EnqueueNewShowsForAutoLibraries()
 		ocrSubWorker.EnqueueNewItems()
 		musicWorker.Trigger()
 	})

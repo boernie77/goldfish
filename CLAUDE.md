@@ -872,6 +872,37 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `intro_skip_folders`, sodass nur Jobs aktivierter Ordner gezogen werden —
   vorher hätte ein bereits `pending` stehender Job trotz Deaktivierung
   weitergelaufen.
+- **„🆕 Neue Serien automatisch aktivieren" pro Bibliothek (seit 2026-09-06,
+  User-Wunsch)**: bewusste, OPT-IN-Erweiterung des strikten Pro-Ordner-Opt-in
+  oben — ändert NICHTS an der Aktivierungslogik selbst (weiterhin eine Zeile
+  pro Serie in `intro_skip_folders`), sondern automatisiert nur das manuelle
+  Anhaken für Serien, die NACH dem Aktivieren des Schalters neu gescannt
+  werden. Auslöser: User hatte via „☑ Alle auswählen" alle vorhandenen
+  Serien aktiviert und erwartete danach, dass neu hinzukommende automatisch
+  mitlaufen. Neue Spalte `libraries.intro_skip_auto_new` (0/1) +
+  `PUT/GET /api/libraries/{id}/introskip-auto-new` (admin). Neue Tabelle
+  `intro_skip_seen_folders(library_id, folder)` — `SetIntroSkipFolder`
+  trägt bei JEDEM bewussten Toggle (an ODER aus) eine Zeile ein, NIE
+  gelöscht (anders als `intro_skip_folders` selbst, das seine Zeile beim
+  Deaktivieren löscht — "Zeilen-Existenz = aktiviert"). Ohne diese zweite
+  Tabelle könnte man "noch nie behandelt" nicht von "explizit deaktiviert"
+  unterscheiden — eine bewusst ausgeschaltete Serie würde sonst beim
+  nächsten Scan automatisch wieder aktiviert.
+  `Store.NewIntroSkipCandidateFolders(libID)` liefert alle Top-Level-Ordner
+  MINUS (aktiv ODER je gesehen). `Worker.EnqueueNewShowsForAutoLibraries()`
+  (analog `EnqueueStaleFolders`) läuft im selben `sc.OnComplete`-Hook in
+  `main.go` nach jedem Scan: für jede Library mit `intro_skip_auto_new=1`
+  werden alle Kandidaten aktiviert + eingereiht. UI: eigene Checkbox im
+  Introskip-Dialog unter dem Bibliotheks-Dropdown (`introSkipAutoNewToggle`,
+  pro Library geladen/gesetzt, nicht global). **Bekannte Einschränkung:**
+  ein Ordner, der VOR 2026-09-06 einmal aktiviert und wieder deaktiviert
+  wurde, hinterließ keine `intro_skip_seen_folders`-Spur und könnte beim
+  ersten Lauf nach diesem Update fälschlich als "neu" erneut aktiviert
+  werden — bewusst kein rückwirkender Backfill, weil der sonst JEDEN
+  bestehenden unaktivierten Ordner in JEDER Bibliothek pauschal als "schon
+  gesehen" markieren und das Feature für Bestandsbibliotheken komplett
+  wirkungslos machen würde. Tests:
+  `internal/store/introskip_auto_new_test.go`.
 - **Pausiert automatisch während eines Library-Scans** (`Worker.SetPauseCheck`
   in `cmd/goldfish/main.go`, gespeist aus `sc.Status().Running`): Introskip
   ist sehr I/O-intensiv (ffmpeg+fpcalc pro Episode) und kollidierte mit
@@ -1752,9 +1783,32 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Renderings, sonst sofort wieder gelöscht — einen Header voran:
   `renderShowHeader(data.show, null)` (voller Header inkl. ALLER Buttons:
   TMDB neu laden/Poster ändern/Episoden neu zuordnen/Zuordnung entfernen)
-  im ersten Fall, `renderUnmatchedFolderHeader(folder)` (views.js, schlanker
-  Header nur mit „🔍 Serie zuordnen…" — die anderen Buttons brauchen alle
-  eine bestehende Zuordnung, die hier per Definition fehlt) im zweiten.
+  im ersten Fall, `renderUnmatchedFolderHeader(folder)` (views.js, Header mit
+  „🔍 Serie zuordnen…" + „🖼 Poster hochladen") im zweiten. `showOut` trägt
+  seit diesem Feature zusätzlich `showTmdbId` (0 bei einem reinen Custom-
+  Eintrag ohne echtes TMDB-Match) — `renderShowHeader` blendet „↻ TMDB neu
+  laden"/„⚠ Episoden neu zuordnen" aus, wenn `showTmdbId` fehlt, „🖼 Poster
+  ändern"/„🚫 Zuordnung entfernen" bleiben immer sichtbar (funktionieren
+  generisch über `metadataId`, unabhängig vom TMDB-Match).
+  **🖼 Poster auch bei komplett unzugeordneten Serien (seit 2026-09-06,
+  User-Wunsch: „ich will auch bei unzugeordneten Serien ein Poster
+  hinzufügen können"):** `renderUnmatchedFolderHeader`s „🖼 Poster
+  hochladen"-Button legt bei Klick zuerst per
+  `POST /api/libraries/{id}/folders/metadata-manual` (`createCustomFolderMetadata`
+  in `internal/api/tmdb.go`, Pendant zu `createCustomMetadata` — dort für
+  ein Item, hier für den ganzen Ordner) einen `tmdb_type="custom"`-Metadata-
+  Eintrag an (`TMDBID = -time.Now().UnixNano()` für Eindeutigkeit, Titel =
+  Ordnername) und verknüpft ihn per `SetFolderMetadata`, dann öffnet er den
+  bestehenden `openPosterPicker(metadataId, onApplied)`-Dialog darauf (der
+  TMDB-Tab bleibt dort leer, der Upload-Teil funktioniert unverändert
+  generisch). **`seriesSeasons`-Handler liefert jetzt auch im
+  `showTmdbId===0`-Early-Return ein `show`-Objekt**, wenn
+  `Store.GetFolderMetadataID` (bewusst OHNE `tmdb_type`-Filter, anders als
+  `ShowTMDBForFolder`/`ShowMetadataIDForFolder`, die nur `tv` matchen) eine
+  Zuordnung findet — sonst wäre der gerade hochgeladene Custom-Titel/Poster
+  beim nächsten Öffnen des Ordners nicht mehr sichtbar gewesen (nur
+  `metadataId`/`title`/`posterPath`, keine Seasons/Cast — die gibt's nur
+  bei echtem TMDB-Match).
   **Bekannte Einschränkung:** die wiederverwendeten Show-Header-Buttons
   (TMDB neu laden etc.) rufen bei Erfolg weiterhin `renderSeasonFolders`/
   `renderSeasonEpisodes` direkt auf statt `loadItems()` — im Fallback-

@@ -822,8 +822,9 @@
 <dialog id="introSkipDialog" class="modal trickplay-modal">
   <h2>⏭️ Intro-Erkennung</h2>
   <p class="hint">Erkennt den Vorspann einer Serie automatisch durch Audio-Fingerprint-Vergleich
-    zwischen ihren Episoden. Aktivierung ist strikt pro einzelner Serie — keine ganze Bibliothek
-    auf einmal. Mindestens 2 Episoden pro Serie nötig.</p>
+    zwischen ihren Episoden. Aktivierung ist pro einzelner Serie (kein Wirkung auf ganze
+    Bibliotheken rückwirkend) — optional können neu hinzukommende Serien automatisch mit
+    aktiviert werden, siehe Schalter unten. Mindestens 2 Episoden pro Serie nötig.</p>
   <label class="switch-row">
     <span>Automatische Intro-Erkennung aktiviert</span>
     <span class="switch"><input id="introSkipGlobalToggle" type="checkbox" /><span class="slider"></span></span>
@@ -831,6 +832,10 @@
   <h3 style="margin-top:14px;margin-bottom:6px;font-size:14px">Serien auswählen</h3>
   <label>Bibliothek
     <select id="introSkipLibrarySelect"></select>
+  </label>
+  <label class="switch-row" title="Neu gescannte Serien in dieser Bibliothek werden automatisch für die Intro-Erkennung aktiviert, ohne dass du sie einzeln anhaken musst.">
+    <span>🆕 Neue Serien automatisch aktivieren</span>
+    <span class="switch"><input id="introSkipAutoNewToggle" type="checkbox" /><span class="slider"></span></span>
   </label>
   <div class="row" style="margin:6px 0;gap:8px">
     <button type="button" id="introSkipSelectAllBtn">☑ Alle auswählen</button>

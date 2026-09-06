@@ -625,6 +625,23 @@ func (s *Store) migrate() error {
 	if err := addCol("playlists", "kind", "TEXT NOT NULL DEFAULT 'video'"); err != nil {
 		return err
 	}
+	// Intro-Erkennung: "Neue Serien automatisch aktivieren" pro Bibliothek
+	// (User-Wunsch 2026-09-06: hatte über "Alle auswählen" im Dialog ALLE
+	// vorhandenen Serien einmalig aktiviert und erwartete danach, dass neu
+	// hinzukommende Serien automatisch mitlaufen — bewusste Erweiterung des
+	// bisher strikten Pro-Ordner-Opt-in, siehe intro_skip_folders unten).
+	if err := addCol("libraries", "intro_skip_auto_new", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS intro_skip_seen_folders (
+			library_id INTEGER NOT NULL,
+			folder     TEXT NOT NULL,
+			PRIMARY KEY(library_id, folder)
+		)
+	`); err != nil {
+		return fmt.Errorf("migrate intro_skip_seen_folders: %w", err)
+	}
 	// Indizes erst nach ALTER
 	idxStmts := []string{
 		`CREATE INDEX IF NOT EXISTS items_released_idx ON items(released_at)`,

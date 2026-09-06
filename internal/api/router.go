@@ -203,6 +203,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/items/merge", requireAdmin(s.mergeItems))
 		r.Post("/libraries/{id}/auto-merge-duplicates", requireAdmin(s.autoMergeDuplicates))
 		r.Post("/libraries/{id}/folders/metadata", requireAdmin(s.setFolderMetadata))
+		r.Post("/libraries/{id}/folders/metadata-manual", requireAdmin(s.createCustomFolderMetadata))
 		r.Delete("/libraries/{id}/folders/metadata", requireAdmin(s.unmatchFolderMetadata))
 		r.Post("/libraries/{id}/folders/re-enrich-episodes", requireAdmin(s.reEnrichFolderEpisodes))
 		r.Post("/enrich/backfill-age-ratings", requireAdmin(s.backfillAgeRatings))
@@ -274,6 +275,8 @@ func (s *Server) Router() http.Handler {
 		r.Put("/introskip/settings", requireAdmin(s.introSkipSaveSettings))
 		r.Get("/libraries/{id}/introskip", requireAdmin(s.listIntroSkipFolders))
 		r.Put("/libraries/{id}/introskip", requireAdmin(s.setIntroSkipFolder))
+		r.Get("/libraries/{id}/introskip-auto-new", requireAdmin(s.getIntroSkipAutoNew))
+		r.Put("/libraries/{id}/introskip-auto-new", requireAdmin(s.setIntroSkipAutoNew))
 		r.Get("/libraries/{id}/introskip/episodes", requireAdmin(s.introSkipFolderEpisodes))
 		r.Get("/introskip/status", s.introSkipWorkerStatus)
 		r.Get("/introskip/log", requireAdmin(s.introSkipLog))
@@ -336,7 +339,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.0.84"
+const appVersion = "1.0.85"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

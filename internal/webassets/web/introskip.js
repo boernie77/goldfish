@@ -21,9 +21,13 @@ async function openIntroSkipDialog() {
     sel.innerHTML = tvLibs.map(l => `<option value="${l.id}">${escapeHTML(l.name)}</option>`).join("");
     if (!sel.dataset.wired) {
       sel.dataset.wired = "1";
-      sel.addEventListener("change", () => renderIntroSkipFolderList(Number(sel.value)));
+      sel.addEventListener("change", () => {
+        renderIntroSkipFolderList(Number(sel.value));
+        loadIntroSkipAutoNew(Number(sel.value));
+      });
     }
     await renderIntroSkipFolderList(Number(sel.value));
+    await loadIntroSkipAutoNew(Number(sel.value));
   }
 
   try {
@@ -74,6 +78,34 @@ function wireIntroSkipDialogOnce() {
 
   $("#introSkipSelectAllBtn").addEventListener("click", () => setAllIntroSkipFolders(true));
   $("#introSkipSelectNoneBtn").addEventListener("click", () => setAllIntroSkipFolders(false));
+
+  $("#introSkipAutoNewToggle").addEventListener("change", async (e) => {
+    const libId = Number($("#introSkipLibrarySelect").value);
+    if (!libId) { e.target.checked = false; return; }
+    const enabled = e.target.checked;
+    try {
+      await api(`/api/libraries/${libId}/introskip-auto-new`, { method: "PUT", body: JSON.stringify({ enabled }) });
+      showToast(enabled ? "Neue Serien werden künftig automatisch aktiviert" : "Automatische Aktivierung ausgeschaltet", { kind: "success" });
+    } catch (err) {
+      appAlert(err.message);
+      e.target.checked = !enabled;
+    }
+  });
+}
+
+// loadIntroSkipAutoNew: lädt den Auto-Aktivieren-Zustand der gewählten
+// Bibliothek in die Checkbox (pro Library, nicht global — daher bei jedem
+// Bibliotheks-Wechsel im Dropdown neu geladen).
+async function loadIntroSkipAutoNew(libId) {
+  const cb = $("#introSkipAutoNewToggle");
+  if (!libId) { cb.checked = false; cb.disabled = true; return; }
+  cb.disabled = false;
+  try {
+    const res = await api(`/api/libraries/${libId}/introskip-auto-new`);
+    cb.checked = !!res.enabled;
+  } catch (e) {
+    cb.checked = false;
+  }
 }
 
 // setAllIntroSkipFolders: aktiviert/deaktiviert ALLE aktuell angezeigten

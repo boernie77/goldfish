@@ -501,9 +501,9 @@ function renderShowHeader(show, counts) {
       </div>
       ${show.overview ? `<p class="overview">${escapeHTML(show.overview)}</p>` : ""}
       <div class="show-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button type="button" data-refresh-tmdb title="Lädt Show- und Staffel-Daten frisch von TMDB (Cache umgehen)">↻ TMDB neu laden</button>
+        ${show.showTmdbId ? `<button type="button" data-refresh-tmdb title="Lädt Show- und Staffel-Daten frisch von TMDB (Cache umgehen)">↻ TMDB neu laden</button>` : ""}
         <button type="button" data-edit-poster title="Anderes TMDB-Poster wählen oder eigenes Bild hochladen">🖼 Poster ändern</button>
-        <button type="button" data-reenrich-episodes title="Setzt ALLE Episoden-Zuordnungen dieses Ordners zurück und matcht neu (hilft bei Off-by-One-Fehlern)" style="background:#b45309;">⚠ Episoden neu zuordnen</button>
+        ${show.showTmdbId ? `<button type="button" data-reenrich-episodes title="Setzt ALLE Episoden-Zuordnungen dieses Ordners zurück und matcht neu (hilft bei Off-by-One-Fehlern)" style="background:#b45309;">⚠ Episoden neu zuordnen</button>` : ""}
         <button type="button" data-unmatch-folder title="Entfernt die Serien-Zuordnung komplett (kein automatisches Neu-Matchen — sonst würde ein Fehltreffer wie 'Terra Xpress' sofort wiederkehren). Danach normale Ordneransicht statt Staffel-Ansicht." style="background:#7f1d1d;">🚫 Zuordnung entfernen</button>
       </div>
       ${castHtml}
@@ -655,10 +655,16 @@ function renderShowHeader(show, counts) {
 // Fallback (User-Wunsch 2026-09-06: "bei nicht zugeordneten Serien soll auch
 // so ein Infofenster aufgehen"). Anders als der volle Show-Header (der bei
 // bereits zugeordneten, aber strukturell nicht passenden Ordnern wie
-// Tatort/Terra-X unverändert mit ALLEN Buttons weiterläuft, s. grid.js)
-// gibt es hier nur den einen Button, der tatsächlich etwas bewirken kann —
-// "TMDB neu laden"/"Episoden neu zuordnen"/"Poster ändern" brauchen alle
-// eine bestehende Zuordnung, die hier per Definition fehlt.
+// Tatort/Terra-X unverändert mit den TMDB-Buttons weiterläuft, s. grid.js)
+// gibt es hier nur "Serie zuordnen…" und "Poster hochladen" — die anderen
+// TMDB-Buttons brauchen eine bestehende Zuordnung, die hier per Definition
+// fehlt.
+// "🖼 Poster hochladen" (User-Wunsch 2026-09-06: "ich will auch bei
+// unzugeordneten Serien ein Poster hinzufügen können"): legt bei Klick
+// zuerst per POST .../folders/metadata-manual einen Custom-Metadata-
+// Eintrag an (Titel = Ordnername, kein TMDB-Match) und öffnet danach den
+// normalen Poster-Picker/Upload-Dialog darauf — der TMDB-Tab bleibt dort
+// leer (kein TMDB-Match), der Upload-Teil funktioniert unverändert generisch.
 function renderUnmatchedFolderHeader(folder) {
   const el = document.createElement("section");
   el.className = "show-header detail-wrap";
@@ -669,15 +675,31 @@ function renderUnmatchedFolderHeader(folder) {
       <h2>${escapeHTML(title)}</h2>
       <div class="sub"><span>Noch keine Serien-Zuordnung</span></div>
       <p class="overview">Für diesen Ordner wurde noch keine TMDB-Serie zugeordnet — deshalb gibt es
-        weder eine Staffel-Übersicht noch Poster/Cast. Die Dateien darunter sind trotzdem normal
-        nutzbar (Ordneransicht unten).</p>
+        weder eine Staffel-Übersicht noch Cast. Die Dateien darunter sind trotzdem normal nutzbar
+        (Ordneransicht unten).</p>
       <div class="show-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" data-assign-folder>🔍 Serie zuordnen…</button>
+        <button type="button" data-upload-poster>🖼 Poster hochladen</button>
       </div>
     </div>
   `;
   el.querySelector("[data-assign-folder]").addEventListener("click", () => {
     openMatchFolder(state.currentLibrary, folder);
+  });
+  el.querySelector("[data-upload-poster]").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await api(`/api/libraries/${state.currentLibrary}/folders/metadata-manual`, {
+        method: "POST",
+        body: JSON.stringify({ folder }),
+      });
+      openPosterPicker(res.metadataId, () => loadItems());
+    } catch (e) {
+      appAlert("Fehler: " + e.message);
+    } finally {
+      btn.disabled = false;
+    }
   });
   return el;
 }

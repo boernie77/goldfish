@@ -155,6 +155,44 @@ func (w *Worker) EnqueueStaleFolders() {
 	}
 }
 
+// EnqueueNewShowsForAutoLibraries aktiviert automatisch alle neu gescannten
+// Serien-Ordner in Bibliotheken mit aktivem "Neue Serien automatisch
+// aktivieren"-Flag (User-Wunsch 2026-09-06 — hatte per "Alle auswählen" im
+// Dialog alle vorhandenen Serien aktiviert und erwartete, dass künftig neu
+// hinzukommende automatisch mitlaufen). Wird wie EnqueueStaleFolders vom
+// Scanner.OnComplete-Hook aufgerufen — läuft also nur nach abgeschlossenen
+// Scans, nicht als eigener Ticker.
+func (w *Worker) EnqueueNewShowsForAutoLibraries() {
+	libIDs, err := w.store.ListLibraryIDsWithIntroSkipAutoNew()
+	if err != nil {
+		log.Printf("[introskip] EnqueueNewShowsForAutoLibraries: %v", err)
+		return
+	}
+	activated := 0
+	for _, libID := range libIDs {
+		candidates, err := w.store.NewIntroSkipCandidateFolders(libID)
+		if err != nil {
+			log.Printf("[introskip] lib %d: NewIntroSkipCandidateFolders: %v", libID, err)
+			continue
+		}
+		for _, folder := range candidates {
+			if err := w.store.SetIntroSkipFolder(libID, folder, true); err != nil {
+				log.Printf("[introskip] lib %d, %s: auto-activate fehlgeschlagen: %v", libID, folder, err)
+				continue
+			}
+			if err := w.store.UpsertIntroSkipJob(libID, folder); err != nil {
+				log.Printf("[introskip] lib %d, %s: UpsertIntroSkipJob: %v", libID, folder, err)
+				continue
+			}
+			activated++
+		}
+	}
+	if activated > 0 {
+		log.Printf("[introskip] %d neue Serie(n) automatisch aktiviert", activated)
+		w.Trigger()
+	}
+}
+
 func (w *Worker) Run(ctx context.Context) {
 	if err := w.store.ResetRunningIntroSkipJobs(); err != nil {
 		log.Printf("[introskip] reset running jobs: %v", err)

@@ -653,6 +653,60 @@ func (s *Server) createCustomMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"metadataId": metaID})
 }
 
+// createCustomFolderMetadata legt für einen Serien-ORDNER ohne TMDB-Match
+// einen manuellen Metadata-Eintrag an und verknüpft ihn per folder_metadata
+// — Pendant zu createCustomMetadata (dort für ein einzelnes Item), hier für
+// den ganzen Show-Ordner. Zweck: der Poster-Picker/Upload-Dialog braucht
+// immer eine metadata.id, die für einen komplett unmatched Ordner sonst
+// nicht existiert (User-Wunsch 2026-09-06: "ich will auch bei
+// unzugeordneten Serien ein Poster hinzufügen können"). Titel ist optional
+// — leer bedeutet "Ordnername übernehmen", der Server macht daraus keinen
+// Zwang zur Eingabe eines eigenen Titels, weil der Poster-Upload der
+// eigentliche Zweck ist, nicht die Titel-Pflege.
+func (s *Server) createCustomFolderMetadata(w http.ResponseWriter, r *http.Request) {
+	libID, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		Folder string `json:"folder"`
+		Title  string `json:"title"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if body.Folder == "" {
+		writeError(w, 400, "folder erforderlich")
+		return
+	}
+	if existing, _ := s.Store.GetFolderMetadataID(libID, body.Folder); existing > 0 {
+		writeError(w, 400, "Ordner hat bereits eine Metadata-Zuordnung")
+		return
+	}
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		parts := strings.Split(body.Folder, "/")
+		title = parts[len(parts)-1]
+	}
+	meta := &model.Metadata{
+		TMDBType: "custom",
+		TMDBID:   -time.Now().UnixNano(), // negativ + Nanosekunden-Zeitstempel macht den Eintrag eindeutig
+		Title:    title,
+	}
+	metaID, err := s.Store.UpsertMetadata(meta)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if err := s.Store.SetFolderMetadata(libID, body.Folder, metaID); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]any{"metadataId": metaID})
+}
+
 // backfillAgeRatings durchsucht alle Movie-/TV-Metadaten ohne age_rating und
 // holt sie aus TMDB nach (für TV: content_ratings, für Movies: release_dates).
 // Läuft als Hintergrund-Goroutine — der Endpoint kehrt sofort zurück.

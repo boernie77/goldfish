@@ -20,6 +20,16 @@ func (s *Store) SetIntroSkipFolder(libraryID int64, folder string, enabled bool)
 	if folder == "" {
 		return errors.New("intro-erkennung: folder darf nicht leer sein (nur einzelne Serien-Ordner)")
 	}
+	// intro_skip_seen_folders: bei JEDEM bewussten Toggle (an ODER aus)
+	// gesetzt, NIE gelöscht — Grundlage für "Neue Serien automatisch
+	// aktivieren" (NewIntroSkipCandidateFolders unten): unterscheidet "noch
+	// nie behandelt" von "explizit deaktiviert" (intro_skip_folders selbst
+	// löscht seine Zeile beim Deaktivieren, könnte das allein nicht).
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO intro_skip_seen_folders(library_id, folder) VALUES(?, ?)`,
+		libraryID, folder); err != nil {
+		return err
+	}
 	if enabled {
 		_, err := s.db.Exec(
 			`INSERT OR IGNORE INTO intro_skip_folders(library_id, folder) VALUES(?, ?)`,
@@ -30,6 +40,89 @@ func (s *Store) SetIntroSkipFolder(libraryID int64, folder string, enabled bool)
 		`DELETE FROM intro_skip_folders WHERE library_id = ? AND folder = ?`,
 		libraryID, folder)
 	return err
+}
+
+// SetLibraryIntroSkipAutoNew togglet "Neue Serien automatisch aktivieren"
+// für eine TV-Bibliothek (User-Wunsch 2026-09-06). Wirkt NICHT rückwirkend
+// auf bereits vorhandene Ordner — nur auf welche, die künftig per Scan neu
+// dazukommen (siehe NewIntroSkipCandidateFolders + Worker.EnqueueNewShowsForAutoLibraries).
+func (s *Store) SetLibraryIntroSkipAutoNew(libraryID int64, enabled bool) error {
+	v := 0
+	if enabled {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE libraries SET intro_skip_auto_new = ? WHERE id = ?`, v, libraryID)
+	return err
+}
+
+// LibraryIntroSkipAutoNew liefert den aktuellen Zustand des Auto-Flags.
+func (s *Store) LibraryIntroSkipAutoNew(libraryID int64) (bool, error) {
+	var v int
+	err := s.db.QueryRow(`SELECT COALESCE(intro_skip_auto_new, 0) FROM libraries WHERE id = ?`, libraryID).Scan(&v)
+	return v == 1, err
+}
+
+// ListLibraryIDsWithIntroSkipAutoNew liefert alle Library-IDs mit aktivem
+// Auto-Flag — für den periodischen Worker-Check nach jedem Scan.
+func (s *Store) ListLibraryIDsWithIntroSkipAutoNew() ([]int64, error) {
+	rows, err := s.db.Query(`SELECT id FROM libraries WHERE COALESCE(intro_skip_auto_new, 0) = 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// NewIntroSkipCandidateFolders liefert alle Top-Level-Ordner (Serien) einer
+// Library, die WEDER aktiviert NOCH je bewusst behandelt (aktiviert oder
+// deaktiviert) wurden — die eigentlichen "neuen Serien" für das Auto-
+// Aktivieren-Feature. Bekannte Einschränkung: ein Ordner, der VOR Einführung
+// dieser Tabelle (2026-09-06) einmal aktiviert und wieder deaktiviert wurde,
+// hinterließ keine intro_skip_seen_folders-Spur und würde hier fälschlich
+// erneut als "neu" erscheinen — akzeptierter Rand-Fall, ein rückwirkender
+// Backfill würde stattdessen JEDEN bestehenden unaktivierten Ordner in JEDER
+// Bibliothek als "schon gesehen" markieren und das Feature für Bestands-
+// bibliotheken komplett wirkungslos machen.
+func (s *Store) NewIntroSkipCandidateFolders(libraryID int64) ([]string, error) {
+	folders, err := s.topLevelFolders(libraryID, false)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(`
+		SELECT folder FROM intro_skip_folders WHERE library_id = ?
+		UNION
+		SELECT folder FROM intro_skip_seen_folders WHERE library_id = ?
+	`, libraryID, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	known := map[string]struct{}{}
+	for rows.Next() {
+		var f string
+		if err := rows.Scan(&f); err != nil {
+			return nil, err
+		}
+		known[f] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, f := range folders {
+		if _, seen := known[f.Name]; !seen {
+			out = append(out, f.Name)
+		}
+	}
+	return out, nil
 }
 
 // SetIntroSkipFolderSeason schränkt einen bereits aktivierten Serien-Ordner

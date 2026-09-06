@@ -129,6 +129,45 @@ func (s *Server) setIntroSkipFolder(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// getIntroSkipAutoNew liefert den Zustand des "Neue Serien automatisch
+// aktivieren"-Flags einer Bibliothek (User-Wunsch 2026-09-06).
+func (s *Server) getIntroSkipAutoNew(w http.ResponseWriter, r *http.Request) {
+	libID, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	enabled, err := s.Store.LibraryIntroSkipAutoNew(libID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]any{"enabled": enabled})
+}
+
+func (s *Server) setIntroSkipAutoNew(w http.ResponseWriter, r *http.Request) {
+	libID, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetLibraryIntroSkipAutoNew(libID, body.Enabled); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "introskip_auto_new", fmt.Sprintf("lib %d → %v", libID, body.Enabled))
+	}
+	w.WriteHeader(204)
+}
+
 // introSkipFolderEpisodes liefert alle Episoden eines Serien-Ordners mit
 // ihrem aktuellen Erkennungs-Status — für die aufklappbare Episoden-Liste
 // im Admin-Dialog (pro Job-Tab: Fertig/Fehler/Ausstehend).

@@ -77,10 +77,26 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	if showTMDB == 0 || s.Enrich == nil || !s.Enrich.Client().Enabled() {
 		// Kein TMDB-Match oder kein TMDB-Key → Frontend gruppiert die owned
 		// Episoden client-seitig, ohne "Fehlt"-Einträge.
-		writeJSON(w, 200, map[string]any{
+		resp := map[string]any{
 			"showTmdbId": showTMDB,
 			"seasons":    []any{},
-		})
+		}
+		// Ein manuell angelegter Custom-Eintrag (kein TMDB-Match, aber ein
+		// per "🖼 Poster hochladen" gesetztes eigenes Poster/Titel, siehe
+		// createCustomFolderMetadata) soll trotzdem angezeigt werden können —
+		// GetFolderMetadataID ist bewusst ohne tmdb_type-Filter (deckt tv UND
+		// custom ab), anders als ShowTMDBForFolder/ShowMetadataIDForFolder
+		// oben, die nur echte TMDB-Shows berücksichtigen.
+		if folderMetaID, _ := s.Store.GetFolderMetadataID(libID, folder); folderMetaID > 0 {
+			if meta, _ := s.Store.GetMetadata(folderMetaID); meta != nil {
+				resp["show"] = map[string]any{
+					"metadataId": meta.ID,
+					"title":      meta.Title,
+					"posterPath": meta.PosterPath,
+				}
+			}
+		}
+		writeJSON(w, 200, resp)
 		return
 	}
 
@@ -188,7 +204,12 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		ProfilePath string `json:"profilePath,omitempty"`
 	}
 	type showOut struct {
-		MetadataID       int64     `json:"metadataId,omitempty"`
+		MetadataID int64 `json:"metadataId,omitempty"`
+		// ShowTmdbId: >0 nur bei echtem TMDB-Match. Frontend nutzt das, um
+		// TMDB-spezifische Header-Buttons (neu laden/Episoden neu zuordnen)
+		// bei einem reinen Custom-Eintrag (kein TMDB-Match, nur eigener
+		// Titel/Poster) auszublenden — die brauchen alle showTmdbId>0.
+		ShowTmdbId       int64     `json:"showTmdbId,omitempty"`
 		Title            string    `json:"title"`
 		OriginalName     string    `json:"originalName,omitempty"`
 		Overview         string    `json:"overview,omitempty"`
@@ -228,6 +249,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	if tv != nil {
 		so := &showOut{
 			MetadataID:       showMetaID,
+			ShowTmdbId:       showTMDB,
 			Title:            tv.Name,
 			OriginalName:     tv.OriginalName,
 			Overview:         tv.Overview,
