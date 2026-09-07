@@ -1660,9 +1660,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   werden Geschwister-Items ohne/mit abweichender Zuordnung angeglichen. Ordner
   mit mehreren konkurrierenden Zuordnungen (echte Trilogien) bleiben unberührt
   und werden als `skippedConflicts` zurückgegeben. Nur für Movies-Libs.
-- **Manueller Bulk-Merge (API)**: `POST /api/items/merge` mit `{ids:[…]}` —
-  erstes Item mit metadata_id ist canonical, andere übernehmen. Endpoint
-  existiert, aber UI-Button dafür ist nicht mehr in der Bulk-Bar.
+- **Manueller Bulk-Merge**: `POST /api/items/merge` mit `{ids:[…]}` (admin-only)
+  — erstes Item mit metadata_id ist canonical, andere übernehmen es. Seit
+  2026-09-07 wieder ein `🔗 Zusammenführen`-Button in der Bulk-Auswahl-Leiste
+  (`bulkMerge()` in app.js) — User-Anfrage: nach manueller Korrektur einer
+  Fehlzuordnung ("A Complete Unknown") blieben zwei Dateien getrennt, weil sie
+  bei der Einzelkorrektur auf verschiedene TMDB-Einträge für DENSELBEN Film
+  gelandet waren (TMDB listet manche Filme doppelt/fehlerhaft) — der
+  automatische Merge (`groupVariants` im Grid) greift nur bei bereits
+  identischer `metadata_id`. Funktioniert gleichermaßen für Filme UND Serien-
+  Episoden (Endpoint prüft nur "gleiche Bibliothek", kein `kind`-Unterschied).
+  Verlangt mind. 2 ausgewählte Kacheln, mindestens eine davon mit TMDB-
+  Zuordnung; alle müssen aus derselben Bibliothek stammen (Server-Validierung,
+  Fehlermeldung wird im Frontend als `appAlert` durchgereicht).
 - **Varianten trennen (seit 2026-07-31, Admin-only):** `items.variant_split`
   nimmt ein Item aus der automatischen ×N-Gruppierung heraus, OHNE die
   metadata_id zu ändern — bleibt derselbe Film, erscheint aber als eigene

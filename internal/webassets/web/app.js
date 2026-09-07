@@ -622,6 +622,38 @@ async function bulkDownload() {
   });
 }
 
+// Zusammenführen mehrerer Kacheln unter derselben TMDB-Zuordnung (User-
+// Anfrage 2026-09-07: "Ich dachte, das passiert bei mir automatisch" — der
+// automatische Merge (groupVariants im Grid) wirkt nur, wenn alle Dateien
+// bereits dieselbe metadata_id tragen. Wurden zwei Dateien desselben Films
+// unabhängig voneinander manuell zugeordnet (z. B. bei der Korrektur einer
+// Fehlzuordnung) und landeten dabei auf verschiedenen TMDB-Einträgen für
+// denselben Film (TMDB hat gelegentlich Doppel-/Fehleinträge), bleiben sie
+// als getrennte Kacheln stehen — genau das Muster bei "A Complete Unknown".
+// Nutzt den bereits vorhandenen, aber seit einer früheren UI-Aufräumrunde
+// nicht mehr verlinkten Server-Endpoint POST /api/items/merge (CLAUDE.md
+// "Merge-Duplikate" → "Manueller Bulk-Merge (API)").
+async function bulkMerge() {
+  const items = selectedItems();
+  if (items.length < 2) {
+    appAlert("Bitte mindestens 2 Kacheln auswählen, die zusammengeführt werden sollen.");
+    return;
+  }
+  if (!(await appConfirm(`${items.length} ausgewählte Einträge unter einer gemeinsamen Zuordnung zusammenführen? Der erste Eintrag mit TMDB-Zuordnung gewinnt, alle anderen übernehmen sie.`))) return;
+  try {
+    const res = await api("/api/items/merge", {
+      method: "POST",
+      body: JSON.stringify({ ids: items.map(it => it.id) }),
+    });
+    showToast(`${res.merged} Einträge zusammengeführt`, { kind: "success" });
+  } catch (e) {
+    appAlert(`Zusammenführen fehlgeschlagen: ${e.message}`);
+    return;
+  }
+  setSelectionMode(false);
+  loadItems();
+}
+
 async function bulkDelete() {
   const ids = Array.from(state.selection);
   if (!ids.length) return;
@@ -1361,6 +1393,7 @@ function wire() {
   // Merge-Aktion lebt jetzt im Zahnrad-Menü (data-action="merge"),
   // der alte Topbar-Button wurde entfernt.
   $("#bulkDownload").addEventListener("click", bulkDownload);
+  $("#bulkMerge").addEventListener("click", bulkMerge);
   $("#bulkDelete").addEventListener("click", bulkDelete);
 
   // Cancel-Buttons in den Status-Bars (delegiert, weil sie per innerHTML
