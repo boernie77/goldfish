@@ -315,6 +315,52 @@ async function openHomePrefsDialog() {
   }, { once: true });
 }
 
+// User-Anfrage 2026-09-08: die bisherige Toolbar-Buttons "🔤 A-Z" (per-Ordner-
+// Sichtbarkeits-Toggle der Buchstabenleiste) ist ins Zahnrad-Menü umgezogen,
+// zusammen mit zwei neuen, getrennt wählbaren Schaltern für Dateinamen auf
+// Film- bzw. Serien-Kacheln (state.showFilenameMovies/showFilenameTv,
+// localStorage-basiert, siehe cards.js renderCard). Alle drei Werte gelten
+// nur lokal für diesen Browser, kein Server-Roundtrip nötig — im Gegensatz zu
+// openHomePrefsDialog() also ein reiner Sync von/zu localStorage.
+function openDisplayPrefsDialog() {
+  const dlg = $("#displayPrefsDialog");
+  const alphaBox = $("#displayPrefsAlphaSidebar");
+  const moviesBox = $("#displayPrefsFilenameMovies");
+  const tvBox = $("#displayPrefsFilenameTv");
+
+  // Per-Ordner-Wert frisch lesen (kann sich seit dem letzten Öffnen des
+  // Dialogs durch Navigation geändert haben) — kein Toggle, wenn außerhalb
+  // einer Bibliothek geöffnet (z. B. Home/Sammlungen/Playlists).
+  const toggleable = !!state.currentLibrary;
+  alphaBox.disabled = !toggleable;
+  alphaBox.checked = toggleable && !alphaSidebarHiddenHere();
+
+  moviesBox.checked = state.showFilenameMovies;
+  tvBox.checked = state.showFilenameTv;
+
+  alphaBox.onchange = () => {
+    const key = alphaSidebarStorageKey();
+    if (!key) return;
+    try {
+      if (alphaBox.checked) localStorage.removeItem(key); // Default (an)
+      else localStorage.setItem(key, "0");
+    } catch {}
+    updateAlphaSidebar();
+  };
+  moviesBox.onchange = () => {
+    state.showFilenameMovies = moviesBox.checked;
+    try { localStorage.setItem("showFilenameMovies", moviesBox.checked ? "1" : "0"); } catch {}
+    loadItems();
+  };
+  tvBox.onchange = () => {
+    state.showFilenameTv = tvBox.checked;
+    try { localStorage.setItem("showFilenameTv", tvBox.checked ? "1" : "0"); } catch {}
+    loadItems();
+  };
+
+  if (!dlg.open) dlg.showModal();
+}
+
 // --- Staffel-Ansicht für Serien ---
 
 // renderSeasonFolders: in einem Serien-Ordner mit aktivem Staffel-Toggle

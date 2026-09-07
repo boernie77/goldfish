@@ -24,6 +24,10 @@ const state = {
   browseAt: "/media",
   personFilter: null,       // {tmdbId, name} wenn Person-Filter aktiv
   personOwnedOnly: (() => { try { return localStorage.getItem("personOwnedOnly") === "1"; } catch { return false; } })(), // Filmografie: nicht vorhandene Einträge ausblenden
+  // Anzeige-Einstellungen (Zahnrad-Menü → "Anzeige"), per-User/-Browser, localStorage.
+  // Default an (Verhalten unverändert gegenüber vorher, wo card-filename immer lief).
+  showFilenameMovies: (() => { try { return localStorage.getItem("showFilenameMovies") !== "0"; } catch { return true; } })(),
+  showFilenameTv: (() => { try { return localStorage.getItem("showFilenameTv") !== "0"; } catch { return true; } })(),
   personFilterBackup: null, // zwischengespeicherter Lib/Folder-Kontext
   personFilterShow: null,   // {folder, libraryId, episodes} wenn innerhalb einer Serie im Person-Filter
   transcodePollTimer: null, // setInterval-Handle für Transcode-Progress-Polling
@@ -394,17 +398,13 @@ function updateAlphaSidebar() {
   // und damit auch keinen Storage-Key für den Per-Ordner-Toggle — bleibt wie
   // bisher unconditional sichtbar, kein Toggle-Button.
   const collectionsRoot = !!(state.collectionsView && !state.currentCollection);
-  const toggleBtn = $("#alphaToggleBtn");
   const eligible = (!!state.currentLibrary || collectionsRoot) && totalCount > 0;
+  // User-Anfrage 2026-09-08: der frühere Toolbar-Button "🔤 A-Z" (setzte hier
+  // .hidden/.active + Tooltip) ist ins Zahnrad-Menü umgezogen (siehe
+  // views.js openDisplayPrefsDialog) — dessen Checkbox liest den aktuellen
+  // Zustand beim ÖFFNEN frisch, braucht also kein Live-Sync von hier aus.
   const toggleable = !!state.currentLibrary; // Collections-Root: kein Toggle
-  if (toggleBtn) toggleBtn.classList.toggle("hidden", !eligible || !toggleable);
   const hiddenHere = toggleable && alphaSidebarHiddenHere();
-  if (toggleBtn) {
-    toggleBtn.classList.toggle("active", !hiddenHere);
-    toggleBtn.title = hiddenHere
-      ? "Buchstabenleiste für diesen Ordner einblenden"
-      : "Buchstabenleiste für diesen Ordner ausblenden";
-  }
   if (!eligible || hiddenHere) {
     bar.classList.add("hidden");
     bar.innerHTML = "";
@@ -1391,16 +1391,6 @@ function wire() {
     loadItems();
   });
   $("#selectModeBtn").addEventListener("click", () => setSelectionMode(!state.selectionMode));
-  $("#alphaToggleBtn").addEventListener("click", () => {
-    const key = alphaSidebarStorageKey();
-    if (!key) return;
-    const next = alphaSidebarHiddenHere();
-    try {
-      if (next) localStorage.removeItem(key); // wieder einblenden → Default (an)
-      else localStorage.setItem(key, "0");
-    } catch {}
-    updateAlphaSidebar();
-  });
   $("#bulkSelectAll").addEventListener("click", selectAllVisible);
   $("#bulkSelectNone").addEventListener("click", () => setSelectionMode(false));
   $("#bulkFavorite").addEventListener("click", bulkSetFavorite);
@@ -1496,6 +1486,7 @@ function wire() {
       case "myhome":    openHomePrefsDialog(); break;
       case "mypassword": $("#passwordDialog").showModal(); break;
       case "anleitung": window.open("/anleitung.html", "_blank", "noopener"); break;
+      case "displayprefs": openDisplayPrefsDialog(); break;
       case "settings":  openSettings(); break;
       case "libraries": openManage(); break;
       case "users":     openUsersManager(); break;

@@ -1821,6 +1821,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   den hier gemeldeten Fall, sondern jede Custom-Zuordnung ohne Poster-Upload
   (auch Privat-Libs, `POST .../metadata-manual`). Fix: derselbe
   Title/Jahr-Override läuft jetzt auch im Non-Poster-`else`-Zweig.
+- **Dateinamen-Zeile bei Filmen/Serien ein-/ausblendbar (seit 2026-09-08,
+  User-Wunsch):** getrennte Schalter im Zahnrad-Menü → „🔤 Anzeige" (siehe
+  „Anzeige-Einstellungen" unten), `state.showFilenameMovies`/
+  `showFilenameTv` (localStorage, Default an). `renderCard` (`cards.js`)
+  berechnet `showFilenameLine` daraus (nur für `kind=movies`/`kind=tv` —
+  Privat/Musik bleiben unberührt, dort ist die Zeile Teil des normalen
+  Titel-Layouts) und umschließt den `.card-filename`-Block damit. Die
+  Inhalts-Logik selbst (Dateiname vs. Ordnerpfad bei `title === rawTitle`,
+  siehe oben) ist unverändert — der Schalter blendet nur die ganze Zeile
+  komplett aus.
 - Breadcrumb-Navigation: Root zeigt Ordner-Kacheln + Root-Items,
   Klick auf Ordner zeigt alle Dateien **flach** (rekursiv, keine weitere Tiefe).
 - **Drilldown-Toggle:** Pro Ordner kann per Hover-⚙-Icon (Admin-only) eingestellt werden,
@@ -1853,12 +1863,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (Toggle bei erneutem Klick, ✕-Chip im Breadcrumb-Banner hebt den Filter
   ebenfalls auf). Body bekommt Klasse `has-alpha-sidebar`, dann nimmt das
   Grid 36px Rand rechts frei.
-  **Per-Ordner-Toggle:** Button `🔤 A-Z` in der Topbar-Toolbar blendet die
-  Leiste NUR für den aktuell offenen Ordner aus/ein — localStorage
-  `alphaSidebar:<libID>:<folder|"root">` = `"0"` (ausgeblendet) oder kein Key
-  (Default an). Eigener Namespace, unabhängig von `sort:lib:…`/`seasonView:…`.
-  In der Collections-Root-Ansicht (`state.currentLibrary === null` dort) gibt
-  es keinen Toggle-Button — die Leiste bleibt dort wie bisher unconditional an.
+  **Per-Ordner-Toggle** (seit 2026-09-08 im Zahnrad-Menü statt Topbar, siehe
+  „Anzeige-Einstellungen" unten) blendet die Leiste NUR für den aktuell
+  offenen Ordner aus/ein — localStorage `alphaSidebar:<libID>:<folder|"root">`
+  = `"0"` (ausgeblendet) oder kein Key (Default an). Eigener Namespace,
+  unabhängig von `sort:lib:…`/`seasonView:…`. In der Collections-Root-Ansicht
+  (`state.currentLibrary === null` dort) gibt es keinen Toggle — die Leiste
+  bleibt dort wie bisher unconditional an.
   **🔴 Filter ging beim Rein-und-Wieder-Rausnavigieren verloren (Bug, gefixt
   2026-09-06, User-Report: "Wenn ich bei Serien nach Buchstabe filtere, und
   dann in eine Serie rein gehe, und dann wieder raus, dann ist der
@@ -2945,6 +2956,30 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Hardware-Beschleunigung/Direct-Play-vs-Transcode/Auto-Rename) besonders
   ausführlich. Muss bei größeren UI-Änderungen manuell mitgepflegt werden
   (kein automatischer Abgleich mit dem Code).
+- **🔤 Anzeige** (seit 2026-09-08, `data-action="displayprefs"` in „Mein
+  Konto", für alle sichtbar, `#displayPrefsDialog`,
+  `views.js openDisplayPrefsDialog`): bündelt drei rein clientseitige,
+  localStorage-basierte Anzeige-Schalter, die vorher entweder ein
+  Toolbar-Button waren oder noch gar nicht existierten — User-Wunsch: „AZ
+  Auswahl … ins Menü unter Einstellungen verschieben" + „ein Schalter …
+  welcher die Dateinamen in den Kacheln ein bzw. ausblendet, bei Filmen und
+  Serien, getrennt wählbar".
+  1. **Buchstabenleiste in diesem Ordner** — ersetzt den bisherigen
+     Topbar-Button `🔤 A-Z` (komplett aus `index.html`/`app.js` entfernt,
+     kein Verhaltensunterschied: gleicher `alphaSidebar:<libID>:<folder>`-
+     Storage-Key, siehe „Alphabet-Sidebar rechts" oben). Per-Ordner-Wert,
+     die Checkbox liest ihn bei jedem Dialog-Öffnen frisch (kein Live-Sync
+     nötig, da der Dialog beim Navigieren ohnehin geschlossen ist).
+  2. **Dateinamen auf Film-Kacheln** / 3. **… auf Serien-Kacheln** — zwei
+     neue, unabhängig voneinander schaltbare Toggles
+     (`state.showFilenameMovies`/`showFilenameTv`, Default an), steuern die
+     `.card-filename`-Zeile nur für `kind=movies`/`kind=tv` (siehe
+     „Dateinamen-Zeile bei Filmen/Serien ein-/ausblendbar" oben). Musik/
+     Privat-Bibliotheken haben keinen Schalter — dort ist die Zeile fester
+     Teil des Layouts.
+  Alle drei Werte sind rein lokal (kein Server-Roundtrip, anders als z. B.
+  `openHomePrefsDialog`) — `#displayPrefsAlphaSidebar`/`#displayPrefsFilenameMovies`/
+  `#displayPrefsFilenameTv` in `index.html`, Standard-`switch-row`-Markup.
 
 ### Playlists als eigene Seite
 - **NICHT** mehr im Library-Dropdown. Der 📋-Button in der Topbar öffnet eine

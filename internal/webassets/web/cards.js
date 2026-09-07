@@ -681,6 +681,13 @@ function renderCard(it, opts = {}) {
   // card-filename-Zeile (CSS macht ihn dort etwas dicker). Per-Lib via
   // Library-Manager-Checkbox abschaltbar (channelLabelOnTop=false).
   const channelTop = itLib && itLib.kind === "private" && itLib.channelLabelOnTop !== false;
+  // User-Anfrage 2026-09-08: getrennt wählbarer Ein/Aus-Schalter für die
+  // card-filename-Zeile bei Filmen bzw. Serien (Zahnrad-Menü → "Anzeige").
+  // Private/Musik-Bibliotheken sind davon unberührt (dort ist die Zeile Teil
+  // des eigentlichen Titel-Layouts, kein optionales Extra).
+  const showFilenameLine = itLib && itLib.kind === "movies" ? state.showFilenameMovies
+    : itLib && itLib.kind === "tv" ? state.showFilenameTv
+    : true;
   if (channelTop && !isEpisode) {
     const rel = (it.relPath || "").split("/").filter(Boolean);
     if (rel.length > 1) {
@@ -786,7 +793,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
-      <div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (title === rawTitle && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>
+      ${showFilenameLine ? `<div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (title === rawTitle && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>` : ""}
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
       ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch: ${(() => {
         const ownDir = (() => { const r = it.relPath || it.path || ""; const i = r.lastIndexOf("/"); return i > 0 ? r.slice(0, i) : ""; })();

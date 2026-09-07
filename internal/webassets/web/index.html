@@ -127,7 +127,6 @@
     <button id="musicListViewBtn" title="Listenansicht statt Album-Kacheln" class="toggle-btn hidden">☰ Liste</button>
     <button id="musicAllTracksBtn" title="Alle Titel dieser Bibliothek in einer Liste" class="toggle-btn hidden">🎵 Alle Titel</button>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
-    <button id="alphaToggleBtn" title="Buchstabenleiste für diesen Ordner ausblenden" class="toggle-btn active">🔤 A-Z</button>
     <span class="btn-group">
       <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
       <button id="shuffleScopeBtn" title="Ordner für Zufallswiedergabe auswählen" aria-haspopup="true">🎯</button>
@@ -192,6 +191,13 @@
       <span class="drawer-text">
         <span class="drawer-item-title">Anleitung</span>
         <span class="drawer-item-sub">Wie Goldfish funktioniert</span>
+      </span>
+    </button>
+    <button class="drawer-item" data-action="displayprefs">
+      <span class="drawer-icon">🔤</span>
+      <span class="drawer-text">
+        <span class="drawer-item-title">Anzeige</span>
+        <span class="drawer-item-sub">Buchstabenleiste, Dateinamen</span>
       </span>
     </button>
   </div>
@@ -964,6 +970,30 @@
   <h2>🏠 Startseite anpassen</h2>
   <p class="hint" id="homePrefsHint" style="margin:2px 0 0">Angehakte Bibliotheken erscheinen auf deiner Startseite, ▲▼ ändert die Reihenfolge der Streifen.</p>
   <div id="homePrefsList" style="display:flex;flex-direction:column;gap:6px;margin:12px 0"></div>
+  <div class="row">
+    <button type="button" data-close class="primary">Fertig</button>
+  </div>
+</dialog>
+
+<!-- Anzeige-Einstellungen (per-User, localStorage) -->
+<dialog id="displayPrefsDialog" class="modal">
+  <h2>🔤 Anzeige</h2>
+  <p class="hint" style="margin:2px 0 12px">Diese Einstellungen gelten nur für dich, auf diesem Gerät/Browser.</p>
+  <label class="switch-row">
+    <span>Buchstabenleiste in diesem Ordner anzeigen</span>
+    <span class="switch"><input id="displayPrefsAlphaSidebar" type="checkbox" /><span class="slider"></span></span>
+  </label>
+  <p class="hint" style="margin:2px 0 12px">Wirkt nur für den gerade geöffneten Ordner — in anderen Ordnern separat einstellbar.</p>
+  <label class="switch-row">
+    <span>Dateinamen auf Film-Kacheln anzeigen</span>
+    <span class="switch"><input id="displayPrefsFilenameMovies" type="checkbox" /><span class="slider"></span></span>
+  </label>
+  <p class="hint" style="margin:2px 0 12px">Zeigt zusätzlich zum Titel eine zweite Zeile mit dem tatsächlichen Dateinamen.</p>
+  <label class="switch-row">
+    <span>Dateinamen auf Serien-Kacheln anzeigen</span>
+    <span class="switch"><input id="displayPrefsFilenameTv" type="checkbox" /><span class="slider"></span></span>
+  </label>
+  <p class="hint" style="margin:2px 0 0">Getrennt von Filmen einstellbar.</p>
   <div class="row">
     <button type="button" data-close class="primary">Fertig</button>
   </div>
