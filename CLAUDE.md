@@ -1691,6 +1691,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `appendSearchResultCards` ist jetzt die alleinige Quelle für
   `state.lastRenderedItems` im Such-Modus, setzt es selbst aus exakt den
   Items, die es tatsächlich als Kachel rendert.
+  **🔴 Zweiter Bug, vom User beim eigenen Test gefunden:** eine ausgewählte
+  Kachel kann bereits mehrere Dateien bündeln (`groupVariants()` legt die
+  Geschwister in `it._variants` ab, `it.id` ist nur der Repräsentant).
+  `bulkMerge()` schickte bisher NUR die Repräsentanten-IDs der Auswahl — bei
+  einer bereits gruppierten ×N-Kachel bekam dadurch nur die sichtbare Datei
+  die neue gemeinsame Zuordnung, ihre bis dahin korrekt gruppierten
+  Geschwister blieben auf der ALTEN metadata_id hängen und wurden aus ihrer
+  eigenen, vorher richtigen Gruppe herausgerissen — sichtbar als "Merge
+  hat nichts bewirkt, es bleiben 2 Kacheln". Fix: `bulkMerge()` sammelt jetzt
+  alle `_variants`-IDs jeder Auswahl ein, nicht nur die des Repräsentanten.
 - **Varianten trennen (seit 2026-07-31, Admin-only):** `items.variant_split`
   nimmt ein Item aus der automatischen ×N-Gruppierung heraus, OHNE die
   metadata_id zu ändern — bleibt derselbe Film, erscheint aber als eigene

@@ -639,13 +639,29 @@ async function bulkMerge() {
     appAlert("Bitte mindestens 2 Kacheln auswählen, die zusammengeführt werden sollen.");
     return;
   }
-  if (!(await appConfirm(`${items.length} ausgewählte Einträge unter einer gemeinsamen Zuordnung zusammenführen? Der erste Eintrag mit TMDB-Zuordnung gewinnt, alle anderen übernehmen sie.`))) return;
+  // Bug gefixt 2026-09-07 (User-Report: nach dem Merge blieben trotzdem 2
+  // Kacheln stehen, eine davon weiterhin mit ×N-Badge): eine ausgewählte
+  // Kachel kann bereits mehrere Dateien bündeln (groupVariants() legt die
+  // Geschwister in `_variants` ab, `it.id` ist nur der Repräsentant). Wurden
+  // hier nur die Repräsentanten-IDs verschickt, bekam NUR die sichtbare
+  // Datei die neue gemeinsame Zuordnung — ihre bereits vorher korrekt
+  // gruppierten Geschwister blieben auf der ALTEN metadata_id hängen und
+  // wurden dadurch aus ihrer eigenen, bis dahin richtigen Gruppe
+  // herausgerissen. Jetzt werden alle `_variants`-IDs jeder Auswahl mit
+  // eingesammelt, nicht nur die des Repräsentanten.
+  const allIds = new Set();
+  for (const it of items) {
+    const variants = Array.isArray(it._variants) && it._variants.length ? it._variants : [it];
+    for (const v of variants) allIds.add(v.id);
+  }
+  const ids = Array.from(allIds);
+  if (!(await appConfirm(`${ids.length} Dateien (aus ${items.length} ausgewählten Kacheln) unter einer gemeinsamen Zuordnung zusammenführen? Der erste Eintrag mit TMDB-Zuordnung gewinnt, alle anderen übernehmen sie.`))) return;
   try {
     const res = await api("/api/items/merge", {
       method: "POST",
-      body: JSON.stringify({ ids: items.map(it => it.id) }),
+      body: JSON.stringify({ ids }),
     });
-    showToast(`${res.merged} Einträge zusammengeführt`, { kind: "success" });
+    showToast(`${res.merged} Dateien zusammengeführt`, { kind: "success" });
   } catch (e) {
     appAlert(`Zusammenführen fehlgeschlagen: ${e.message}`);
     return;
