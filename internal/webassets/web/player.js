@@ -27,6 +27,22 @@
 
 // --- Detail-View ---
 
+// resSizeHTML: Auflösung + Dateigröße als eigene Spans in der Detail-Dialog-
+// Sub-Zeile (User-Anfrage 2026-09-07: "In den Infofenstern steht nirgends die
+// Auflösung und die Dateigröße" — vorher stand die Auflösung nur außen auf der
+// Kachel, die Dateigröße nur im Varianten-Dropdown bei ≥2 Varianten). Eigene
+// Funktion (statt einfach in die generische `sub`-Liste zu pushen), weil beide
+// Werte beim Wechsel des Varianten-Dropdowns aktualisiert werden müssen —
+// braucht ein eigenes, gezielt ersetzbares Element (siehe `#detailResSize`-
+// Update im Variant-Change-Handler in `openDetail`).
+function resSizeHTML(item) {
+  if (!item) return "";
+  const parts = [];
+  if (item.width > 0 && item.height > 0) parts.push(`${item.width}×${item.height}`);
+  if (item.sizeBytes > 0) parts.push(fmtSize(item.sizeBytes));
+  return parts.map(x => `<span>${escapeHTML(x)}</span>`).join("");
+}
+
 // fileHintHTML rendert die kleine technische Info-Zeile am Fuß des Detail-
 // Dialogs: Pfad · Container · Codecs · ggf. „🪤 Interlaced"-Hinweis · Item-ID.
 function fileHintHTML(item) {
@@ -252,9 +268,7 @@ async function openDetail(item) {
     }
     overview = meta.overview || "";
   } else {
-    sub.push(`${item.width}×${item.height}`);
     if (item.releasedAt) sub.push(fmtDate(item.releasedAt));
-    sub.push(fmtSize(item.sizeBytes));
   }
 
   const watchedIcon = item.watched ? "✓ Gesehen" : "";
@@ -305,6 +319,7 @@ async function openDetail(item) {
           ${rating}
           ${fskBadge}
           ${sub.map(x => `<span>${escapeHTML(x)}</span>`).join("")}
+          <span id="detailResSize">${resSizeHTML(item)}</span>
         </div>
         <p class="overview">${escapeHTML(overview || "—")}</p>
         ${ratingRowHTML(item, state.libraries.find(l => l.id == item.libraryId))}
@@ -326,6 +341,8 @@ async function openDetail(item) {
       state.currentItem = pick;
       state.detailPrefs = null;
       $("#detailFileHint").innerHTML = fileHintHTML(pick);
+      const resSizeEl = $("#detailResSize");
+      if (resSizeEl) resSizeEl.innerHTML = resSizeHTML(pick);
       // Stream-Liste der neuen Variante frisch holen (andere Datei = andere Spuren).
       api(`/api/playback/${pick.id}`).then(pb => {
         const streamsEl = $("#detailStreams");
