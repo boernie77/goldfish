@@ -2882,6 +2882,23 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 - **Fallback ohne TMDB:** altes Split-Rendering 🎬 Filme / 📺 Serien nur mit
   den owned Treffern.
 - Sektion-Headings via `.person-section-title` (grid-column: 1/-1).
+- **🔴 Scroll-Position ging beim Rein/Raus verloren, wenn eine Serien-Kachel
+  in der Filmografie geöffnet wurde (Bug, gefixt 2026-09-08, User-Wunsch:
+  „möchte an der gleichen Stelle wieder rauskommen")**: `navKey()` (`app.js`)
+  lieferte für die Filmografie-Übersicht UND die per Show-Kachel geöffnete
+  Episoden-Unteransicht (`state.personFilterShow`, siehe
+  `renderPersonShowCard` in `cards.js`) denselben Key `"person:<tmdbId>"`.
+  Ein Klick auf eine Serie speicherte die Filmografie-Scrollposition zwar
+  korrekt unter diesem Key, der kurze Rücksprung aus der Episodenliste
+  überschrieb sie aber sofort wieder (meist mit ~0, da die Episodenliste kurz
+  ist) — man landete beim endgültigen Verlassen des Person-Filters immer
+  ganz oben. Fix: analog zu den `lib:`-Keys (die Folder/Staffel/Album-Tiefe
+  im Key kodieren) bekommt die Show-Unteransicht jetzt einen eigenen Suffix
+  (`"person:<tmdbId>:show:<libraryId>:<folder>"`), beide Ebenen landen
+  dadurch in getrennten `state.scrollPositions`-Slots. Der einfache
+  Fall (Schauspieler öffnen → direkt zurück, ohne Serien-Zwischenstopp) war
+  bereits vorher korrekt (openPersonView/clearPersonView in player.js laufen
+  beide durch den normalen `loadItems()`-Scroll-Save/Restore-Pfad).
 
 ### Bulk-Selection
 - Toolbar-Button „☑ Auswählen" aktiviert `body.selection-mode`.

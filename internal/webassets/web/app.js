@@ -1232,7 +1232,23 @@ function navKey() {
   if (state.collectionsView) return state.currentCollection ? "col:" + state.currentCollection.id : "col-root";
   if (state.playlistsView && !state.currentPlaylist) return "pl-root";
   if (state.currentPlaylist) return "pl:" + state.currentPlaylist;
-  if (state.personFilter) return "person:" + state.personFilter.tmdbId;
+  // User-Report 2026-09-08: "in der Schauspielansicht wechseln und wieder
+  // zurück, dann an der gleichen Stelle rauskommen" — bisher bekamen die
+  // Filmografie-Übersicht UND die per Show-Kachel geöffnete Episoden-
+  // Unteransicht (`state.personFilterShow`, siehe openPersonView/
+  // renderPersonShowCard) exakt denselben Key "person:<tmdbId>". Ein Klick
+  // auf eine Serie innerhalb der Filmografie speicherte deren Scroll-
+  // Position also unter demselben Key, den kurz danach der Rücksprung aus
+  // der (meist kurzen) Episodenliste wieder überschrieb — die eigentliche
+  // Filmografie-Position ging verloren. Fix: analog zu den `lib:`-Keys
+  // (Folder/Staffel/Album-Tiefe) bekommt die Show-Unteransicht ihren
+  // eigenen Suffix, beide Ebenen landen dadurch in getrennten Slots.
+  if (state.personFilter) {
+    const show = state.personFilterShow
+      ? ":show:" + state.personFilterShow.libraryId + ":" + state.personFilterShow.folder
+      : "";
+    return "person:" + state.personFilter.tmdbId + show;
+  }
   if (state.currentLibrary) {
     const f = state.currentFolder || "";
     const s = state.currentSeason != null ? ":s" + state.currentSeason : "";
