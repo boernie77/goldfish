@@ -819,6 +819,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   überhaupt auf (beide haben laut eigener CLAUDE.md-Doku „kein Admin" —
   keine Nutzerverwaltung, kein Library-Manager, kein Scan, keine Whisper-UI),
   betroffen war ausschließlich der Browser-Client.
+  **Nachtrag (LIVE 1.2.16):** die Sort-Dropdown-Wartungsfilter „Duplikate",
+  „🔀 Mehrere Versionen", „≈ Ähnliche Dateinamen", „Ohne TMDB-Zuordnung",
+  „Alle Unbestätigten", „⚠ Verdächtige Zuordnungen", „🪤 Nur Interlaced"
+  (`data-admin-only="1"` in `index.html`, Sichtbarkeits-Check in `grid.js`
+  neben dem bestehenden `data-kinds`-Filter) sind ebenfalls admin-only —
+  reine Aufräum-/Zuordnungs-Werkzeuge, kein Browsing-Feature für normale
+  User. **„♡ Nur Favoriten" bleibt bewusst sichtbar** (User-Rückfrage
+  explizit bestätigt) — liegt zwar mitten in diesem Options-Block, ist
+  aber ein normales Nutzer-Feature. Kein Backend-ACL-Fix nötig (diese
+  Ansichten sind ohnehin auf `state.currentLibrary` gescoped, für die der
+  User schon Zugriff haben muss) — rein UI-Decluttering.
 - **Admin-Dialog „Trickplay verwalten"** (Settings-Menü, admin-only):
   - Tabs mit Listen der done/failed/pending Items inkl. Fehlermeldung
   - „↻ Fehler erneut versuchen" setzt alle `failed` → `pending`, startet neu

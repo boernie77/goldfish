@@ -70,14 +70,14 @@
           <option value="rating" data-kinds="movies,tv,private">★ Bewertung</option>
           <option value="played" data-kinds="movies,tv,private,music">Zuletzt abgespielt</option>
           <option value="shuffle" data-kinds="movies,tv,private,music">🎲 Zufällig</option>
-          <option value="duplicates" data-kinds="movies,tv,private">Duplikate</option>
-          <option value="multiversion" data-kinds="movies,tv,private">🔀 Mehrere Versionen</option>
-          <option value="simnames" data-kinds="movies,tv,private">≈ Ähnliche Dateinamen</option>
+          <option value="duplicates" data-kinds="movies,tv,private" data-admin-only="1">Duplikate</option>
+          <option value="multiversion" data-kinds="movies,tv,private" data-admin-only="1">🔀 Mehrere Versionen</option>
+          <option value="simnames" data-kinds="movies,tv,private" data-admin-only="1">≈ Ähnliche Dateinamen</option>
           <option value="favorites" data-kinds="movies,tv,private,music">♡ Nur Favoriten</option>
-          <option value="unmatched" data-kinds="movies,tv,private">Ohne TMDB-Zuordnung</option>
-          <option value="unconfirmed" data-kinds="movies,tv,private" title="Items mit TMDB-Zuordnung, die noch nie über den ✅-Button bestätigt wurden — unabhängig davon, wie plausibel die Zuordnung aussieht.">Alle Unbestätigten</option>
-          <option value="suspicious" data-kinds="movies,tv,private">⚠ Verdächtige Zuordnungen</option>
-          <option value="interlaced" data-kinds="movies,tv,private">🪤 Nur Interlaced</option>
+          <option value="unmatched" data-kinds="movies,tv,private" data-admin-only="1">Ohne TMDB-Zuordnung</option>
+          <option value="unconfirmed" data-kinds="movies,tv,private" data-admin-only="1" title="Items mit TMDB-Zuordnung, die noch nie über den ✅-Button bestätigt wurden — unabhängig davon, wie plausibel die Zuordnung aussieht.">Alle Unbestätigten</option>
+          <option value="suspicious" data-kinds="movies,tv,private" data-admin-only="1">⚠ Verdächtige Zuordnungen</option>
+          <option value="interlaced" data-kinds="movies,tv,private" data-admin-only="1">🪤 Nur Interlaced</option>
         </select>
         <button id="sortDirBtn" class="sort-dir" type="button" title="Richtung umkehren">⬇</button>
       </span>

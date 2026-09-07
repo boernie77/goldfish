@@ -179,9 +179,19 @@ async function loadItemsBody() {
     const kind = lib0 ? lib0.kind : null;
     const sortSelect = $("#sortSelect");
     let selectedStillVisible = false;
+    // Wartungs-/Zuordnungs-Filter (Duplikate, Mehrere Versionen, Ähnliche
+    // Dateinamen, Ohne TMDB-Zuordnung, Alle Unbestätigten, Verdächtige
+    // Zuordnungen, Nur Interlaced — data-admin-only in index.html) sind
+    // Admin-Werkzeuge zum Aufräumen der Bibliothek, kein normales Browsing-
+    // Feature — für Non-Admins ausgeblendet (User-Vorgabe 2026-09-07,
+    // zusammen mit dem Trickplay-Status-ACL-Fix). "♡ Nur Favoriten" bleibt
+    // bewusst NICHT admin-only, das ist ein normales Nutzer-Feature.
+    const isAdmin = !!(state.me && state.me.isAdmin);
     for (const opt of sortSelect.options) {
       const kindsAttr = opt.dataset.kinds;
-      const allowed = !kindsAttr || !kind || kindsAttr.split(",").includes(kind);
+      const kindAllowed = !kindsAttr || !kind || kindsAttr.split(",").includes(kind);
+      const adminAllowed = !opt.dataset.adminOnly || isAdmin;
+      const allowed = kindAllowed && adminAllowed;
       opt.hidden = !allowed;
       if (allowed && opt.value === sortSelect.value) selectedStillVisible = true;
     }
