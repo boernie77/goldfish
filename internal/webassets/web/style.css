@@ -3236,6 +3236,14 @@ button.danger:hover { background: #991b1b; }
   gap: 12px;
   flex-wrap: wrap;
 }
+/* #detailResSize (player.js resSizeHTML) buendelt Aufloesung+Groesse in einem
+   eigenen Wrapper-Span (damit beim Varianten-Wechsel gezielt ersetzbar) --
+   der `gap` von .sub wirkt nur zwischen DIREKTEN Kindern, greift also nicht
+   auf die verschachtelten Spans darin. Gleicher Gap-Wert hier wiederholt. */
+.detail-body .sub #detailResSize {
+  display: inline-flex;
+  gap: 12px;
+}
 .detail-body .sub .rating-pill {
   color: #fbbf24;
   font-weight: 600;
