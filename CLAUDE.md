@@ -1701,6 +1701,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   eigenen, vorher richtigen Gruppe herausgerissen — sichtbar als "Merge
   hat nichts bewirkt, es bleiben 2 Kacheln". Fix: `bulkMerge()` sammelt jetzt
   alle `_variants`-IDs jeder Auswahl ein, nicht nur die des Repräsentanten.
+  **🔴 Dritter Bug, selber Fall:** nach dem korrekten Merge (3 Dateien, eine
+  davon über `variant_split=true` versteckt fehlerhaft als eigene Kachel
+  ausgeblendet — separat gefixt, s.u.) zeigte die Kachel korrekt "×3", aber
+  das Varianten-Dropdown im Detail-Dialog listete nur 2 Einträge.
+  `openDetail()` (player.js) übernahm ein vom Grid mitgegebenes
+  `item._variants` ungeprüft, sobald es `.length > 1` hatte — `groupVariants()`
+  gruppiert aber nur INNERHALB der gerade geladenen (oft bibliotheksgescopten)
+  Liste, enthält also nie Geschwister aus einer ANDEREN Bibliothek. Der
+  ×N-Badge kommt dagegen aus dem server-seitig über ALLE Bibliotheken
+  gezählten `variantCount` — beide Quellen liefen auseinander. Fix:
+  `openDetail()` holt die Varianten nicht mehr aus dem Grid-Kontext, sondern
+  IMMER frisch über `/api/items/{id}/variants` (die einzige wirklich
+  vollständige, bibliotheksübergreifende Quelle).
 - **Varianten trennen (seit 2026-07-31, Admin-only):** `items.variant_split`
   nimmt ein Item aus der automatischen ×N-Gruppierung heraus, OHNE die
   metadata_id zu ändern — bleibt derselbe Film, erscheint aber als eigene

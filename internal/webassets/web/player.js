@@ -183,18 +183,14 @@ async function openDetail(item) {
   state.detailPrefs = null;
   // Bei jedem Öffnen ein frisches Item vom Server holen — sonst zeigt das
   // Dialog die im Grid-Cache eingebetteten (alten) Metadaten, auch wenn
-  // ein Bulk-/Single-Refresh die DB längst aktualisiert hat.
-  // WICHTIG: das Frontend-Klebe-Feld `_variants` (gemerkte Geschwister-Files
-  // bei mehrfach gemappter metadata_id) NICHT verlieren — der API-Response
-  // hat das nicht, und ohne diesen Array gäbe es kein Varianten-Dropdown.
+  // ein Bulk-/Single-Refresh die DB längst aktualisiert hat. Die API-Antwort
+  // trägt kein `_variants`-Array — das wird direkt im Anschluss IMMER frisch
+  // per `/api/items/{id}/variants` nachgeladen (siehe dort, nicht mehr aus
+  // dem Grid-Kontext übernommen — der ist ggf. bibliotheksgescoped).
   if (item && item.id) {
-    const carriedVariants = Array.isArray(item._variants) ? item._variants : null;
     try {
       const fresh = await api(`/api/items/${item.id}`);
       if (fresh) {
-        if (carriedVariants && carriedVariants.length > 1) {
-          fresh._variants = carriedVariants;
-        }
         item = fresh;
         // Auch den Eintrag im aktuell gerenderten Grid patchen, damit
         // Re-Renders (z. B. nach favoriten-Toggle) frische Daten haben.
@@ -206,12 +202,19 @@ async function openDetail(item) {
     } catch (e) {
       console.warn("openDetail: konnte frisches Item nicht holen, nutze Cache-Stand", e);
     }
-    // Wenn der Aufrufer keine vorgemergten Variants mitgegeben hat (Path-
-    // Search-Dialog, Person-Filter, Direktlink, …) und das Item eine
-    // metadata_id hat, vom Server die Geschwister-Files nachladen. Erst dann
-    // erscheint im Detail-Dialog auch der Varianten-Dropdown — sonst wäre er
-    // nur sichtbar bei Klicks aus dem groupVariants-Grid.
-    if ((!item._variants || item._variants.length <= 1) && item.metadataId > 0) {
+    // Varianten-Geschwister IMMER frisch vom Server holen (nie das
+    // client-seitig mitgegebene item._variants ungeprüft übernehmen).
+    // Bug gefixt 2026-09-07 (User-Report: Kachel zeigt "×3", Dropdown im
+    // Detail-Dialog aber nur 2 Einträge): groupVariants() im Grid gruppiert
+    // nur INNERHALB der gerade geladenen Liste — beim Blättern in EINER
+    // Bibliothek enthält item._variants dadurch nie Geschwister aus einer
+    // ANDEREN Bibliothek, auch wenn die frühere Prüfung
+    // "_variants.length <= 1" das fälschlich als "schon vollständig"
+    // durchgehen ließ (2 > 1). Der ×N-Badge kommt dagegen aus dem
+    // server-seitig über ALLE Bibliotheken gezählten variantCount — beide
+    // Quellen liefen dadurch auseinander. `/api/items/{id}/variants` ist
+    // die einzige wirklich vollständige, bibliotheksübergreifende Quelle.
+    if (item.metadataId > 0) {
       try {
         const sibs = await api(`/api/items/${item.id}/variants`);
         if (Array.isArray(sibs) && sibs.length > 1) {
