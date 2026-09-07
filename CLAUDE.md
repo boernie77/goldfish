@@ -1247,8 +1247,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Auflösungs-Badge unterdrückt** (`cards.js`, `isMusicLib` → `res = ""`) —
   ein Video-Konzept, für Audio-Dateien bedeutungslos/irreführend (zeigte z. B.
   "360p" auf Musik-Kacheln).
-- **Bibliotheks-Zähler zeigt "N Titel" statt "N Videos"** für `kind=music`
-  (`views.js loadCount`, neben dem Bibliotheksnamen im Breadcrumb).
+- **Bibliotheks-Zähler zeigt "N Titel · M Alben" statt "N Videos"** für
+  `kind=music` (`views.js loadCount`, neben dem Bibliotheksnamen im
+  Breadcrumb) — Album-Anzahl seit 2026-09-07 ergänzt (User-Wunsch: "nicht
+  nur die Anzahl der Titel, auch der Alben"). Eigener Store-Query
+  `Store.CountMusicAlbums` (gleiche WHERE-Klausel wie
+  `ListMusicAlbumsFiltered`, nur ohne die Zeilen zu laden) statt
+  `folderCount` (TV/Movies) wiederzuverwenden — das zählt physische
+  Top-Level-Ordner, was bei der hybriden Musik-Album-Gruppierung
+  (`GroupMusicAlbums`) NICHT der kanonischen Album-Anzahl entspricht.
+  `GET /api/libraries/{id}/stats` liefert `albumCount` nur auf der
+  Library-Root (`folder=""`, wie `folderCount` bei TV auch) — der Query
+  ist library-weit, nicht pro Unterordner scoped.
 - **`.m4b` als Hörbuch-Extension ergänzt** (`scanner.go` `supportedExt` +
   `musicExt`) — fehlte komplett, Hörbücher (z. B. David-Baldacci-Serien, i. d.
   R. `.m4b`) wurden dadurch vom Scanner GAR NICHT erst eingelesen (User-

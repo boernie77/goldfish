@@ -302,6 +302,19 @@ func (s *Store) ListMusicAlbumsFiltered(libraryID, userID int64, genres []string
 	return out, rows.Err()
 }
 
+// CountMusicAlbums liefert die Anzahl Alben einer Musik-Bibliothek — gleiche
+// WHERE-Klausel wie ListMusicAlbumsFiltered (nur nicht-verwaiste Alben, siehe
+// dortiger Kommentar), aber ohne die Zeilen selbst zu laden. Für den
+// Bibliotheks-Zähler im Breadcrumb ("N Titel · M Alben").
+func (s *Store) CountMusicAlbums(libraryID int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM music_albums a
+		WHERE a.library_id = ?
+		  AND EXISTS(SELECT 1 FROM items i WHERE i.music_album_id = a.id)`, libraryID).Scan(&n)
+	return n, err
+}
+
 // GetMusicAlbum liefert ein einzelnes Album, nil wenn nicht gefunden.
 func (s *Store) GetMusicAlbum(id, userID int64) (*model.MusicAlbum, error) {
 	var a model.MusicAlbum

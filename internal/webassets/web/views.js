@@ -873,7 +873,12 @@ async function loadCount(el, libId, folder) {
       const epWord = n === 1 ? "Folge" : "Folgen";
       el.textContent = `(${n.toLocaleString("de-DE")} ${epWord} · ${data.folderCount.toLocaleString("de-DE")} ${showWord})`;
     } else if (isMusic) {
-      el.textContent = `(${n.toLocaleString("de-DE")} Titel)`;
+      // Album-Anzahl (User-Wunsch 2026-09-07) nur auf der Library-Root
+      // dabei — libraryStats liefert albumCount nur wenn folder="" war.
+      const albumSuffix = typeof data.albumCount === "number"
+        ? ` · ${data.albumCount.toLocaleString("de-DE")} ${data.albumCount === 1 ? "Album" : "Alben"}`
+        : "";
+      el.textContent = `(${n.toLocaleString("de-DE")} Titel${albumSuffix})`;
     } else {
       el.textContent = `(${n.toLocaleString("de-DE")} Video${n === 1 ? "" : "s"})`;
     }

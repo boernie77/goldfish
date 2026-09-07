@@ -223,6 +223,20 @@ func (s *Server) libraryStats(w http.ResponseWriter, r *http.Request) {
 			resp["folderCount"] = len(folders)
 		}
 	}
+	// Musik-Bibliotheken: auf Library-Root zusätzlich Album-Anzahl (User-
+	// Wunsch 2026-09-07 — "nicht nur die Anzahl der Titel, auch der
+	// Alben"). TopLevelFolders oben zählt physische Ordner, das entspricht
+	// bei Musik NICHT der kanonischen Album-Gruppierung (hybrid, siehe
+	// GroupMusicAlbums) — eigener, library-weiter Query statt folderCount
+	// wiederzuverwenden. Bewusst an `folder == ""` gebunden wie folderCount
+	// — CountMusicAlbums zählt library-weit, nicht pro Unterordner.
+	if folder == "" {
+		if lib, err := s.Store.GetLibrary(id); err == nil && lib != nil && lib.Kind == "music" {
+			if albumCount, err := s.Store.CountMusicAlbums(id); err == nil {
+				resp["albumCount"] = albumCount
+			}
+		}
+	}
 	writeJSON(w, 200, resp)
 }
 
