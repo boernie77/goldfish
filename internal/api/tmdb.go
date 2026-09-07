@@ -379,18 +379,18 @@ func (s *Server) mergeItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "mindestens 2 Items nötig")
 		return
 	}
+	// Bug gefixt 2026-09-07 (User-Report "A Complete Unknown" — Duplikate lagen
+	// über Filme UND Bluray verteilt): die frühere "gleiche Bibliothek"-Prüfung
+	// hatte keinen technischen Grund — Merge ändert ausschließlich metadata_id,
+	// NIE library_id/den Datei-Pfad (anders als "Verschieben", wo das
+	// tatsächlich physische Konsequenzen hätte). Zwei Duplikate derselben
+	// Zuordnung landen in der Praxis regelmäßig in unterschiedlichen
+	// Bibliotheken (z. B. ein Bluray-Rip + eine separate Filme-Kopie).
 	var canonical int64
-	var libID int64
 	for _, id := range body.IDs {
 		it, err := s.Store.GetItem(id)
 		if err != nil || it == nil {
 			continue
-		}
-		if libID == 0 {
-			libID = it.LibraryID
-		} else if libID != it.LibraryID {
-			writeError(w, 400, "Items müssen aus derselben Bibliothek stammen")
-			return
 		}
 		if canonical == 0 && it.MetadataID != 0 {
 			canonical = it.MetadataID

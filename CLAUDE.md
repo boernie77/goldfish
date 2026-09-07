@@ -1669,10 +1669,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   gelandet waren (TMDB listet manche Filme doppelt/fehlerhaft) — der
   automatische Merge (`groupVariants` im Grid) greift nur bei bereits
   identischer `metadata_id`. Funktioniert gleichermaßen für Filme UND Serien-
-  Episoden (Endpoint prüft nur "gleiche Bibliothek", kein `kind`-Unterschied).
-  Verlangt mind. 2 ausgewählte Kacheln, mindestens eine davon mit TMDB-
-  Zuordnung; alle müssen aus derselben Bibliothek stammen (Server-Validierung,
-  Fehlermeldung wird im Frontend als `appAlert` durchgereicht).
+  Episoden, **auch bibliotheksübergreifend** (die frühere "gleiche
+  Bibliothek"-Pflicht wurde noch am selben Tag wieder entfernt, siehe
+  Bugfix-Notiz unten — Duplikate derselben Zuordnung liegen in der Praxis
+  oft in unterschiedlichen Libraries, z. B. Bluray-Rip + separate Filme-
+  Kopie). Verlangt nur mind. 2 ausgewählte Kacheln, mindestens eine davon
+  mit TMDB-Zuordnung; Merge ändert ausschließlich `metadata_id`, NIE
+  `library_id`/den Datei-Pfad.
   **🔴 Bug direkt beim ersten Test gefunden (gefixt noch am selben Tag):**
   Auswahl über Suchtreffer hinweg (genau der "A Complete Unknown"-Fall, Dateien
   in zwei verschiedenen Bibliotheken Filme+Bluray) meldete "0 ausgewählt"
