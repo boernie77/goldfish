@@ -1673,6 +1673,21 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Verlangt mind. 2 ausgewählte Kacheln, mindestens eine davon mit TMDB-
   Zuordnung; alle müssen aus derselben Bibliothek stammen (Server-Validierung,
   Fehlermeldung wird im Frontend als `appAlert` durchgereicht).
+  **🔴 Bug direkt beim ersten Test gefunden (gefixt noch am selben Tag):**
+  Auswahl über Suchtreffer hinweg (genau der "A Complete Unknown"-Fall, Dateien
+  in zwei verschiedenen Bibliotheken Filme+Bluray) meldete "0 ausgewählt"
+  trotz sichtbar angehakter Kacheln — `appendSearchResultCards` gruppiert PRO
+  BIBLIOTHEK (siehe dort), aber beide Aufrufer (`renderHomeBranch` in der
+  Startseiten-Suche, der `searching`-Zweig in `loadItemsBody`) setzten
+  `state.lastRenderedItems` VORHER aus einem separaten, library-übergreifenden
+  `groupVariants(items)`-Aufruf. Hat eine Zuordnung Dateien in mehreren
+  Bibliotheken, fasst dieser äußere Aufruf sie zu WENIGER Einträgen zusammen
+  als tatsächlich als eigene Kacheln gerendert werden — `state.selection`
+  enthielt zwar die angeklickten IDs korrekt, aber `selectedItems()` filtert
+  gegen `lastRenderedItems`, das die fehlende ID nie enthielt. Fix:
+  `appendSearchResultCards` ist jetzt die alleinige Quelle für
+  `state.lastRenderedItems` im Such-Modus, setzt es selbst aus exakt den
+  Items, die es tatsächlich als Kachel rendert.
 - **Varianten trennen (seit 2026-07-31, Admin-only):** `items.variant_split`
   nimmt ein Item aus der automatischen ×N-Gruppierung heraus, OHNE die
   metadata_id zu ändern — bleibt derselbe Film, erscheint aber als eigene

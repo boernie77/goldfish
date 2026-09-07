@@ -460,9 +460,12 @@ async function loadItemsBody() {
         grid.innerHTML = `<div class="empty">Keine Treffer für „${escapeHTML(sq)}" in allen Bibliotheken.</div>`;
         return;
       }
-      state.lastRenderedItems = groupVariants(items);
       grid.innerHTML = "";
       const frag = document.createDocumentFragment();
+      // appendSearchResultCards setzt state.lastRenderedItems selbst (siehe
+      // dort — muss exakt die tatsächlich gerenderten Kacheln widerspiegeln,
+      // ein separates groupVariants(items) hier konnte bei Treffern über
+      // mehrere Bibliotheken hinweg abweichen, siehe Bugfix-Kommentar dort).
       const shown = appendSearchResultCards(frag, items);
       grid.appendChild(frag);
       renderBreadcrumb({ homeRoot: true, searchCount: shown });
@@ -1309,6 +1312,10 @@ async function loadItemsBody() {
     const folderCollator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
     folders.sort((a, b) => folderCollator.compare(folderDisplayTitle(a), folderDisplayTitle(b)));
   }
+  // Bei searching=true überschreibt appendSearchResultCards() diese
+  // Zuweisung weiter unten mit den tatsächlich gerenderten (pro Bibliothek
+  // gruppierten) Kacheln — siehe Bugfix-Kommentar dort (Bulk-Auswahl fand
+  // sonst weniger Items als sichtbare Checkboxen).
   state.lastRenderedItems = merged;
   state.lastRenderedFolders = folders || [];
   // playQueue: von musicPlayAlbum genutzt, wenn eine Musik-Kachel OHNE

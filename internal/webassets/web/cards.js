@@ -341,6 +341,20 @@ function appendSearchResultCards(frag, items) {
   };
 
   let total = 0;
+  // Bug gefixt 2026-09-07 (User-Report: \ud83d\udd17 Zusammenf\u00fchren fand nach dem
+  // Ausw\u00e4hlen "0 ausgew\u00e4hlt" trotz sichtbar angehakter Kacheln): beide
+  // Aufrufer setzten state.lastRenderedItems VORHER aus einem einzigen,
+  // library-\u00fcbergreifenden groupVariants(items)-Aufruf \u2014 diese Funktion hier
+  // gruppiert aber PRO BIBLIOTHEK (siehe Kommentar oben). Hat eine
+  // Zuordnung wie "A Complete Unknown" Dateien in ZWEI verschiedenen
+  // Bibliotheken (z. B. Filme + Bluray), fasst der \u00e4u\u00dfere, library-agnostische
+  // groupVariants()-Aufruf sie zu WENIGER Eintr\u00e4gen zusammen als hier
+  // tats\u00e4chlich als eigene Kacheln gerendert werden \u2014 state.lastRenderedItems
+  // enthielt dadurch weniger IDs als sichtbare Checkboxen, Bulk-Auswahl \u00fcber
+  // mehrere Bibliotheken hinweg griff ins Leere. Diese Funktion ist jetzt die
+  // alleinige Quelle f\u00fcr state.lastRenderedItems im Such-Modus \u2014 exakt die
+  // Items, die tats\u00e4chlich als anklickbare Kachel landen.
+  const renderedItems = [];
   const multiLib = orderedLibIDs.length > 1;
   for (const libID of orderedLibIDs) {
     const b = buckets.get(libID);
@@ -355,10 +369,11 @@ function appendSearchResultCards(frag, items) {
       h.textContent = libName(libID) + " \u00b7 " + n;
       frag.appendChild(h);
     }
-    for (const m of mergedRest) frag.appendChild(renderCard(m));
+    for (const m of mergedRest) { frag.appendChild(renderCard(m)); renderedItems.push(m); }
     for (const s of showList) frag.appendChild(renderSearchShowCard(s));
     total += n;
   }
+  state.lastRenderedItems = renderedItems;
   return total;
 }
 
