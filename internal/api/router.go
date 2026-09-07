@@ -177,7 +177,7 @@ func (s *Server) Router() http.Handler {
 
 		r.Post("/scan/{id}", requireAdmin(s.startScan))
 		r.Post("/scan/all", requireAdmin(s.startScanAll))
-		r.Get("/scan/status", s.scanStatus)
+		r.Get("/scan/status", requireAdmin(s.scanStatus))
 		r.Post("/scan/cancel", requireAdmin(s.cancelScan))
 
 		r.Get("/settings", s.getSettings)
@@ -198,7 +198,10 @@ func (s *Server) Router() http.Handler {
 		r.Put("/items/{id}/music-metadata", requireAdmin(s.updateMusicItemMetadata))
 		r.Post("/items/{id}/refresh-metadata", requireAdmin(s.refreshItemMetadata))
 		r.Post("/enrich/refresh-all-metadata", requireAdmin(s.startRefreshAllMetadata))
-		r.Get("/enrich/refresh-all-status", s.refreshAllMetadataStatus)
+		// Status enthaelt `current` (Titel des gerade aktualisierten Items,
+		// bibliotheksuebergreifend) -- gleicher ACL-Leak wie Trickplay/Scan-
+		// Status oben, selber Fix (Bug-Report 2026-09-07).
+		r.Get("/enrich/refresh-all-status", requireAdmin(s.refreshAllMetadataStatus))
 		r.Put("/metadata/{id}", requireAdmin(s.updateMetadata))
 		r.Get("/metadata/{id}/posters", requireAdmin(s.listMetadataPosters))
 		r.Post("/metadata/{id}/poster", requireAdmin(s.setMetadataPoster))
@@ -257,11 +260,19 @@ func (s *Server) Router() http.Handler {
 		r.Post("/whisper/download-model", requireAdmin(s.whisperDownloadModel))
 		r.Get("/whisper/download-status", s.whisperDownloadStatus)
 
-		// Trickplay: Aktivierung admin-only, Konsum für alle
+		// Trickplay: alles admin-only. Der globale Worker-Status enthaelt
+		// currentTitle/currentItemId (Dateiname/Item des gerade verarbeiteten
+		// Items, quer ueber ALLE Bibliotheken) — war frueher bewusst "Konsum
+		// fuer alle" (Kommentar seither veraltet), leakte dadurch aber Titel
+		// aus Bibliotheken ohne ACL-Zugriff an jeden eingeloggten Non-Admin-
+		// User (Bug-Report 2026-09-07, User-Screenshot: "Club SweetHearts..."
+		// aus der gesperrten Bibliothek "a" erschien im Statusbar-Toast eines
+		// Familienaccounts). Siehe auch handleHealth() unten (currentTitle
+		// war zusaetzlich unauthentifiziert im /api/health-Endpoint sichtbar).
 		r.Get("/libraries/{id}/trickplay", requireAdmin(s.listTrickplayFolders))
 		r.Put("/libraries/{id}/trickplay", requireAdmin(s.setTrickplayFolder))
-		r.Get("/libraries/{id}/trickplay/status", s.folderTrickplayStatus)
-		r.Get("/trickplay/status", s.trickplayWorkerStatus)
+		r.Get("/libraries/{id}/trickplay/status", requireAdmin(s.folderTrickplayStatus))
+		r.Get("/trickplay/status", requireAdmin(s.trickplayWorkerStatus))
 		r.Post("/trickplay/cancel", requireAdmin(s.cancelTrickplay))
 		r.Post("/trickplay/delete-all", requireAdmin(s.deleteAllTrickplay))
 		r.Post("/trickplay/retry-failed", requireAdmin(s.retryFailedTrickplay))
@@ -341,7 +352,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.2.14"
+const appVersion = "1.2.15"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{
@@ -364,6 +375,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 	// Trickplay-Diagnose: Worker-Zustand + Status-Verteilung. Hilfreich für
 	// Außen-Checks („läuft der Worker?", „wie viele pending?") ohne Auth.
+	// BEWUSST OHNE currentTitle/currentItemId (Bug-Fix 2026-09-07, siehe
+	// router.go-Kommentar bei "/trickplay/status"): dieser Endpoint ist
+	// komplett unauthentifiziert erreichbar — ein Dateiname/Item-Titel aus
+	// einer beliebigen (auch gesperrten/privaten) Bibliothek hätte hier
+	// jedem im Internet ohne Login offengelegen.
 	if s.Trickplay != nil {
 		st := s.Trickplay.Status()
 		counts, _ := s.Store.CountTrickplayByStatus()
@@ -374,8 +390,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 			"sessionTotal":     st.Total,
 			"sessionProcessed": st.Processed,
 			"sessionFailed":    st.Failed,
-			"currentItemId":    st.CurrentItemID,
-			"currentTitle":     st.CurrentTitle,
 			"counts":           counts, // {""/"pending"/"done"/"failed": N}
 		}
 	}

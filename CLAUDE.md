@@ -772,9 +772,53 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - UI: Eigenes kompaktes Hover-Plugin **direkt in `app.js`** (`attachTrickplayHover`,
   `parseThumbVTT`) — parst VTT, hängt Mousemove auf `progressControl`, zeigt
   Sprite-Ausschnitt via `background-position`. Kein externes JS-Plugin.
-- Worker läuft non-blocking, Status über `/api/trickplay/status`.
+- Worker läuft non-blocking, Status über `/api/trickplay/status` — **admin-only**
+  seit dem Fix unten (war vorher bewusst „Konsum für alle").
 - Trigger-Gate: `item.trickplayStatus === "done"` aus der DB — HEAD-Probing
   würde gegen 405 laufen (chi registriert HEAD nicht automatisch für GET-Routen).
+- **🔴 ACL-Leak: globaler Trickplay-Statustoast zeigte Dateinamen fremder
+  Bibliotheken an JEDEN eingeloggten User (Bug, gefixt 2026-09-07, User-
+  Report mit Screenshot: Familienaccount "Börnie" sah im Statusbar-Toast
+  einen Titel aus der gesperrten Bibliothek "a"):** `GET /api/trickplay/status`
+  war absichtlich NICHT `requireAdmin` (Kommentar „Aktivierung admin-only,
+  Konsum für alle", Design-Entscheidung aus der Trickplay-Erstversion) —
+  lieferte den kompletten Worker-Status inkl. `currentTitle`/`currentItemId`
+  (Titel des GERADE bibliotheksübergreifend verarbeiteten Items) an jeden
+  authentifizierten Request, ohne Admin- oder Library-ACL-Prüfung. Frontend
+  (`app.js boot()`) pollte diesen Endpoint für JEDEN eingeloggten User
+  automatisch alle 30s + bei laufendem Job alle 2s. **Gleiches Muster an
+  zwei weiteren Stellen gefunden und im selben Zug gefixt:** `GET
+  /api/scan/status` (`model.ScanStatus.Current` = aktueller Datei-Pfad,
+  bibliotheksübergreifend) und `GET /api/enrich/refresh-all-status`
+  (`RefreshAllStatus.Current` = Titel des gerade TMDB-aktualisierten Items)
+  — beide ebenfalls „Trigger admin-only, Status für alle", beide ebenfalls
+  ohne ACL-Bezug zum abfragenden User. **Zusätzlich war `currentTitle` ein
+  zweites Mal komplett UNAUTHENTIFIZIERT über `GET /api/health` sichtbar**
+  (Kommentar „Hilfreich für Außen-Checks … ohne Auth") — jeder im Internet
+  hätte den Dateinamen des gerade verarbeiteten Items einer beliebigen,
+  auch privaten/gesperrten Bibliothek sehen können, ganz ohne Login. Fix:
+  alle drei Status-Endpoints (`/trickplay/status`, `/scan/status`,
+  `/enrich/refresh-all-status`) jetzt `requireAdmin`; `currentTitle`/
+  `currentItemId` komplett aus der `/api/health`-Antwort entfernt (nur noch
+  aggregierte Zahlen, kein Item-Bezug); Frontend pollt alle drei Endpoints
+  in `boot()` nur noch innerhalb eines `if (state.me.isAdmin)`-Blocks.
+  Siehe [[feedback_user_isolation_before_deploy]] — wiederkehrendes Muster:
+  Hintergrund-Worker-Status wird als „harmlose Diagnose-Info" behandelt und
+  dabei die ACL-Prüfung vergessen, obwohl er Dateinamen preisgibt.
+  **Zusätzlich im selben Zug (User-Vorgabe "Benutzer dürfen gar keine
+  Toast sehen, und den Button Scan brauchen die eigentlich auch nicht"):**
+  der `⟳ Scan`-Button + Dropdown (`.scan-group` in `index.html`) war für
+  JEDEN eingeloggten User sichtbar, obwohl `POST /scan/*` schon immer
+  `requireAdmin` war — ein Klick eines Non-Admins endete also nur in einem
+  403, brachte aber nie einen Mehrwert. `renderUserMenu()` (`admin.js`)
+  blendet `.scan-group` jetzt wie die übrigen Admin-Elemente per
+  `state.me.isAdmin` aus. **Mac/iOS/tvOS-App und Android-App geprüft**
+  (User-Vorgabe "kontrollieren, dass in den 3 bzw 4 Clients sowas nicht
+  sichtbar ist") — keiner der beiden nativen Clients ruft
+  `/trickplay/status`, `/scan/status` oder `/enrich/refresh-all-status`
+  überhaupt auf (beide haben laut eigener CLAUDE.md-Doku „kein Admin" —
+  keine Nutzerverwaltung, kein Library-Manager, kein Scan, keine Whisper-UI),
+  betroffen war ausschließlich der Browser-Client.
 - **Admin-Dialog „Trickplay verwalten"** (Settings-Menü, admin-only):
   - Tabs mit Listen der done/failed/pending Items inkl. Fehlermeldung
   - „↻ Fehler erneut versuchen" setzt alle `failed` → `pending`, startet neu

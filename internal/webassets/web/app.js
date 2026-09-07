@@ -1850,15 +1850,24 @@ async function checkAuth() {
   state.currentPlaylist = null;
   $("#librarySelect").value = "";
   loadItems();
-  checkScanActive();
-  // Falls der User die Seite während eines laufenden Bulk-Refresh neu lädt,
-  // direkt Status pollen, damit der Fortschritts-Toast wieder erscheint.
-  api("/api/enrich/refresh-all-status").then(st => {
-    if (st && st.running) pollRefreshAllStatus();
-  }).catch(() => {});
-  checkTrickplayWorker();
-  setInterval(checkScanActive, 30000);
-  setInterval(checkTrickplayWorker, 30000);
+  // Scan-/Trickplay-Status sind admin-only (Server verlangt seit dem Fix
+  // unten requireAdmin) — für Non-Admins gar nicht erst pollen. Vorher
+  // liefen beide Polls für JEDEN eingeloggten User, wodurch der globale
+  // Trickplay-Statustoast Dateinamen aus Bibliotheken zeigte, auf die der
+  // User gar keinen ACL-Zugriff hatte (Bug-Report 2026-09-07, Screenshot
+  // eines Familienaccounts mit Titel aus der gesperrten Bibliothek "a").
+  if (state.me && state.me.isAdmin) {
+    checkScanActive();
+    checkTrickplayWorker();
+    setInterval(checkScanActive, 30000);
+    setInterval(checkTrickplayWorker, 30000);
+    // Falls der Admin die Seite während eines laufenden Bulk-Refresh neu
+    // lädt, direkt Status pollen, damit der Fortschritts-Toast wieder
+    // erscheint.
+    api("/api/enrich/refresh-all-status").then(st => {
+      if (st && st.running) pollRefreshAllStatus();
+    }).catch(() => {});
+  }
   renderUserMenu();
   if (typeof initBell === "function") initBell();
   if (typeof startWhisperGlobalPoll === "function") startWhisperGlobalPoll();

@@ -41,6 +41,11 @@ function renderUserMenu() {
   $("#settingsMenuPathSearch").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuMissing").classList.toggle("hidden", !state.me.isAdmin);
   $("#settingsMenuRefreshAllMeta").classList.toggle("hidden", !state.me.isAdmin);
+  // Scan-Button (+Dropdown) ist admin-only — Non-Admins können ohnehin
+  // keinen Scan auslösen (Server: POST /scan/* ist requireAdmin), der
+  // Button brachte ihnen also nie etwas außer einem 403 (Bug-Report
+  // 2026-09-07, im selben Zug wie der Trickplay-Status-ACL-Leak gefixt).
+  { const el = document.querySelector(".scan-group"); if (el) el.classList.toggle("hidden", !state.me.isAdmin); }
   // Das Zahnrad-Menü ist für ALLE Benutzer sichtbar. Nicht-Admins sehen nur
   // die Sektion „Mein Konto" (Startseite anpassen, Passwort ändern) — die
   // administrativen Sektionen (`.drawer-admin`) werden für sie ausgeblendet.
