@@ -1862,6 +1862,14 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   und `openPlayer` reicht sie an den Player durch: Tonspur → `&audio=` (nur
   wenn vom Standard abweichend), Untertitel → `#subSelect` wird vor
   `applySubtitleChoice` vorbelegt → Player startet direkt mit der Wahl.
+  **Auflösung + Dateigröße in der Sub-Zeile** (seit 2026-09-07, User-Report:
+  "In den Infofenstern steht nirgends die Auflösung und die Dateigröße"):
+  eigenes `#detailResSize`-Element (`resSizeHTML()` in `player.js`) — vorher
+  standen beide Werte NUR bei Items ohne TMDB-Zuordnung im Detail-Dialog
+  (Auflösung war sonst nur außen auf der Kachel sichtbar, Dateigröße nur im
+  Varianten-Dropdown ab 2 Varianten). Wird beim Wechsel im Varianten-Dropdown
+  mit aktualisiert (die übrige Sub-Zeile — Jahr/Genres/Rating — bleibt
+  unverändert, das sind Metadaten der Show/des Films, nicht der Einzeldatei).
 - **Datei-/Pfad-Suche (admin)** im Zahnrad-Menü unter „🔍 Datei/Ordner suchen":
   Diagnose-Dialog (`#pathSearchDialog`), ruft `GET /api/items/search-path?q=`,
   matcht auf rel_path + path + title, zeigt aktuelle TMDB-Zuordnung. Klick
