@@ -75,6 +75,21 @@ func suspicTokens(s string) map[string]struct{} {
 // wahrscheinlich falsch ist: es gibt weder Token-Überlappung zwischen
 // Ordnername und Metadata-Titel noch eine Jahresübereinstimmung.
 //
+// Bekannte Grenze (User-Report 2026-09-07, "Aus der Mitte entspringt ein
+// Fluß" vs. tatsächlich "Alarmstufe Rot"/Under Siege im Ordner — beide
+// Filme sind zufällig von 1992): ein Versuch, den Jahres-Escape ganz zu
+// entfernen, wurde WIEDER VERWORFEN — Live-Test gegen die echte DB zeigte
+// hunderte Fehlalarme (z. B. "oceans11" vs. "Eleven" als Zahl/Wort-
+// Mismatch, komplett zusammengeklebte Ordnernamen ohne Trenner,
+// Sprach-Mismatches Ordner-Englisch/Metadata-Deutsch), weil der
+// Jahresvergleich in der übergroßen Mehrheit der Fälle echte, nötige
+// Arbeit leistet. Der gemeldete Fall bleibt eine bekannte, sehr seltene
+// Lücke (zwei unterschiedliche Filme im selben Jahr, Ordner nutzt eine
+// komplett andere Sprache/Titel als beide TMDB-Titel-Felder) — kein
+// generischer Fix ohne echtes Risiko neuer Fehlalarme in Sicht. Vor einem
+// erneuten Versuch: erst gegen einen echten DB-Snapshot testen (siehe
+// Memory feedback_sqlite_debug_technique), nicht nur gegen Einzelfälle.
+//
 // Datei-Dateinamen (basename) werden NICHT als Hinweis genutzt — der User hat
 // klargemacht, dass der Ordnername Priorität hat (der ist meistens der
 // verlässliche Signaltyp bei Release-Gruppen-Inhalten).
