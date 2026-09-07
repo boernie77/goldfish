@@ -57,7 +57,10 @@ type AudioStream struct {
 //	2 = Audio konsequent AAC (7c6aaf8) + diese Invalidierung
 //	3 = h264 mit 10-Bit / 4:2:2 / 4:4:4 wird re-encodet statt kopiert
 //	4 = Audio IMMER AAC-LC Stereo (-ac 2); AAC-5.1-mit-unknown-layout war stumm
-const convVersion = 4
+//	5 = "-map 0:V:0" statt "0:v:0" — schließt attached_pic-Streams (Cover-
+//	    Thumbnails) vom Video-Mapping aus, sonst wurde bei Dateien mit
+//	    eingebettetem Cover (z. B. WMV) nur das Cover-Standbild kopiert
+const convVersion = 5
 
 // h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
 // diesem Pixelformat hardware-dekodieren kann (nur 8-Bit 4:2:0). Alles andere
@@ -442,7 +445,11 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioS
 		"-analyzeduration", "200M", "-probesize", "200M",
 		"-err_detect", "ignore_err", "-fflags", "+genpts",
 	)
-	args = append(args, "-i", sourcePath, "-map", "0:v:0")
+	// Großbuchstabe V = ffmpeg-Stream-Specifier "video ohne attached
+	// pictures/Thumbnails/Cover-Art" — siehe identischer Kommentar in
+	// playback/ffmpeg.go (Bug-Fix 2026-09-07, WMV-Dateien mit eingebettetem
+	// Cover spielten ein 1-Frame-Standbild statt des echten Films ab).
+	args = append(args, "-i", sourcePath, "-map", "0:V:0")
 
 	if len(audioStreams) == 0 {
 		// Kein Audiostream gefunden — lieber irgendeinen Ton mitnehmen als gar keinen.

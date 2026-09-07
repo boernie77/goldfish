@@ -2329,6 +2329,39 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 ### Playback
 - **Direct Play**: mp4/mov mit h264/aac → Originaldatei per HTTP-Range.
 - **Transcode** (auto bei inkompatiblen Formaten): HLS, H.264/AAC.
+- **🔴 Dateien mit eingebettetem Cover-Bild spielten nur ein 1-Frame-
+  Standbild statt des echten Films (Bug, gefixt 2026-09-07, User-Report
+  "Immer Ärger mit 40"/"Vielleicht lieber morgen" — WMV-Dateien mit
+  eingebettetem `mjpeg`-Thumbnail, `disposition.attached_pic=1`):**
+  `internal/playback/ffmpeg.go` (Transcode) UND `internal/download/prepare.go`
+  (Compat-Download) bauten den ffmpeg-Befehl mit `-map "0:v:0"`
+  (klein-`v`) — ffmpegs Stream-Specifier `v` zählt EINFACH alle
+  Video-Streams durch, ein vorangestellter Cover-Thumbnail-Stream (z. B.
+  Index 0 = mjpeg 320×180 attached_pic) gilt dabei als "Video-Stream 0"
+  und wurde statt des echten Films (z. B. Index 2 = `wmv1` 1280×720)
+  transcodiert/kopiert. Fix: Großbuchstabe `-map "0:V:0"` — ffmpegs
+  Stream-Specifier `V` bedeutet explizit "Video, OHNE attached
+  pictures/Thumbnails/Cover-Art". `internal/scanner/scanner.go` hatte
+  dieselbe Ausnahme für die Metadaten-Erkennung (VideoCodec/Width/Height)
+  schon seit dem Musik-Cover-Art-Fix vom 2026-09-04 (`disposition
+  .attached_pic == 1 → continue`), aber NUR dort — beim tatsächlichen
+  Transcode/Download-ffmpeg-Aufruf fehlte die gleiche Ausnahme bisher.
+  Erklärt auch die **falsche Auflösungs-Anzeige (z. B. "180p" statt
+  "720p")** bei betroffenen Dateien — reines Datenproblem aus der Scan-
+  Zeit VOR dem 2026-09-04-Fix, kein separater Bug: `Store.UpsertItem`
+  überschreibt `width`/`height` nur bei einem erneuten (Force-)Scan, ein
+  inkrementeller Scan probet unveränderte Dateien nie erneut. Betroffene
+  Bibliotheken brauchen einmal **`?force=true`**, damit der Scanner
+  Video-Codec/Auflösung mit der schon länger korrekten Logik neu ermittelt.
+  `download/prepare.go`s `convVersion` (Cache-Invalidierung für
+  Compat-Downloads) auf **5** erhöht, damit eine vor diesem Fix erzeugte
+  (kaputte, nur-Cover-Bild-)Download-Kopie verworfen und neu erzeugt wird.
+  **Nicht betroffen:** Trickplay-Sprite-Generierung und die
+  Thumbnail-Extraktion beim Scan — beide rufen ffmpeg ohne explizites
+  `-map` auf, ffmpegs automatische Stream-Auswahl ohne `-map` wählt den
+  Video-Stream nach einer Auflösungs/Bitrate-Heuristik, nicht nach
+  Reihenfolge, und griff dadurch schon vorher korrekt zum echten Film statt
+  zum kleinen Thumbnail.
 - **HLS-Playlist: `#EXT-X-PLAYLIST-TYPE:EVENT`** (via ffmpeg-Flag
   `-hls_playlist_type event`). Verhindert, dass Video.js/VHS die wachsende
   Playlist als Live-Stream erkennt und bei Play nach Pause zur Live-Edge

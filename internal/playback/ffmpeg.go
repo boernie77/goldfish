@@ -417,8 +417,18 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 		}
 	}
 
-	// Stream-Mapping: erstes Video + ausgewählter Audio-Stream
-	args = append(args, "-map", "0:v:0")
+	// Stream-Mapping: erstes ECHTES Video (Großbuchstabe V = ffmpeg-
+	// Stream-Specifier "video, ohne attached pictures/Thumbnails/Cover-Art")
+	// + ausgewählter Audio-Stream. Mit kleinem "v" hätte ein eingebettetes
+	// Cover-Bild (disposition.attached_pic=1, z. B. ein mjpeg-Thumbnail in
+	// WMV-Dateien) als "erster Video-Stream" gegolten und wäre statt des
+	// echten Films transcodiert worden — Wiedergabe faktisch kaputt (Bug,
+	// gefixt 2026-09-07, User-Report "Immer Ärger mit 40"/"Vielleicht
+	// lieber morgen" spielen nicht ab + falsche 180p-Auflösung). Der
+	// Scanner überspringt attached_pic-Streams bei der Metadaten-Erkennung
+	// schon länger (siehe scanner.go); dieselbe Ausnahme fehlte hier beim
+	// tatsächlichen Transcode-Mapping.
+	args = append(args, "-map", "0:V:0")
 	if audioIdx >= 0 {
 		args = append(args, "-map", fmt.Sprintf("0:%d", audioIdx))
 	} else {
