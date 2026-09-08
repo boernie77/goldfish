@@ -1385,18 +1385,25 @@ function wire() {
     loadItems();
   });
   $("#seasonViewBtn").addEventListener("click", () => {
-    // Toggle je nach Kontext:
-    //  - In Show-Ordner: per-Folder-Override setzen (0/1), explizit
-    //  - In Library-Root: library-weiter Default
+    // User-Frage 2026-09-08: "gilt der Button global für alle Serien, wenn
+    // er an ist?" — bisher NICHT konsequent: ein Klick INNERHALB einer
+    // geöffneten Serie setzte nur eine Pro-Serie-Ausnahme statt den
+    // Bibliotheks-Standard zu ändern (ursprünglich als kontextsensitiver
+    // Feinschliff gedacht, siehe DECISIONS.md-Historie). Jetzt, wo der
+    // Button im "Anzeige"-Menü sitzt statt kontextnah in der Topbar, erwartet
+    // man dort einen einzigen globalen Schalter — schreibt daher IMMER den
+    // Bibliotheks-weiten Default, unabhängig vom aktuellen Ordner.
+    // WICHTIG: die automatische Pro-Ordner-Ausnahme für Serien ohne echte
+    // TMDB-Staffel-Struktur (z. B. Tatort, siehe grid.js "Automatischer
+    // Fallback bei fehlenden Staffel-Daten") ist ein SEPARATER Mechanismus
+    // (eigener Schreib-Pfad) und bleibt von dieser Änderung unberührt —
+    // seasonViewEffective() liest weiterhin zuerst eine evtl. vorhandene
+    // Pro-Ordner-Ausnahme, das ist bewusst so und kein Widerspruch zu
+    // "global": eine Serie ohne Staffel-Daten kann so oder so keine
+    // Staffel-Kacheln zeigen, unabhängig vom globalen Standard.
     const next = !seasonViewEffective();
     try {
-      if (state.currentFolder) {
-        // pro-Serie-Override: explizit "1" oder "0" (nicht entfernen —
-        // sonst greift wieder der Library-Default)
-        localStorage.setItem(`seasonView:${state.currentLibrary || 0}:${state.currentFolder}`, next ? "1" : "0");
-      } else {
-        localStorage.setItem(`seasonView:lib:${state.currentLibrary || 0}`, next ? "1" : "0");
-      }
+      localStorage.setItem(`seasonView:lib:${state.currentLibrary || 0}`, next ? "1" : "0");
     } catch {}
     state.seasonView = next;
     state.currentSeason = null;
