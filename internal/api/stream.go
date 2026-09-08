@@ -411,12 +411,13 @@ func (s *Server) transcodeProgress(w http.ResponseWriter, r *http.Request) {
 	// auch während der Player pausiert ist (kein Gate auf vjs.paused() in
 	// player.js). Ohne Touch hier hält NICHTS die Session während einer
 	// Pause am Leben — nur transcodeSegment touched, und bei Pause kommen
-	// keine Segment-Requests mehr rein. Nach 5 Min Pause killt der GC-Loop
-	// dann die ffmpeg-Session; beim Fortsetzen spielt der Client noch den
-	// Restbuffer, dann 404 auf ein nicht mehr existierendes Segment →
-	// Wiedergabe bricht ab. Mit Touch hier bleibt eine offene Player-Session
-	// beliebig lange am Leben (GC greift erst wieder, wenn der Player-Dialog
-	// geschlossen wird und stopTranscodeProgress() den Poll-Timer stoppt).
+	// keine Segment-Requests mehr rein. Nach playback.sessionIdleTimeout
+	// (siehe dort — 30 Min, war früher 5 Min) killt der GC-Loop dann die
+	// ffmpeg-Session; beim Fortsetzen spielt der Client noch den Restbuffer,
+	// dann 404 auf ein nicht mehr existierendes Segment → Wiedergabe bricht
+	// ab. Mit Touch hier bleibt eine offene Player-Session beliebig lange am
+	// Leben (GC greift erst wieder, wenn der Player-Dialog geschlossen wird
+	// und stopTranscodeProgress() den Poll-Timer stoppt).
 	sess.Touch()
 	pos, err := sess.Position()
 	if err != nil {
@@ -480,13 +481,14 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(sess.Dir, seg)
 	w.Header().Set("Content-Type", "video/mp2t")
 	// Einmal geschriebene Segmente ändern sich für die Lebensdauer der Session
-	// nicht mehr — der Browser darf sie cachen. max-age deckt sich mit dem
-	// GC-Idle-Timeout (5 min, siehe gcLoop in playback/ffmpeg.go): ein Segment
-	// kann in diesem Fenster garantiert noch von derselben Session bedient
-	// werden. Ermöglicht das Pause-Prefetching in player.js — der Browser
-	// lädt bereits transkodierte, aber noch nicht abgespielte Segmente
-	// während der Pause vor, ohne bei Resume erneut über die Leitung zu müssen.
-	w.Header().Set("Cache-Control", "private, max-age=300")
+	// nicht mehr — der Browser darf sie cachen. max-age deckt sich mit
+	// playback.sessionIdleTimeout (30 min, siehe gcLoop in playback/ffmpeg.go,
+	// war früher 5 min): ein Segment kann in diesem Fenster garantiert noch
+	// von derselben Session bedient werden. Ermöglicht das Pause-Prefetching
+	// in player.js — der Browser lädt bereits transkodierte, aber noch nicht
+	// abgespielte Segmente während der Pause vor, ohne bei Resume erneut über
+	// die Leitung zu müssen.
+	w.Header().Set("Cache-Control", "private, max-age=1800")
 	http.ServeFile(w, r, path)
 }
 

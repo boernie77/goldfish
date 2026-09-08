@@ -105,6 +105,24 @@ func (m *Manager) SetHWAccel(hw HWAccel) {
 	m.mu.Unlock()
 }
 
+// sessionIdleTimeout: wie lange eine Transcode-Session ohne jeden Touch()
+// (Segment-Fetch, Playlist-Reload oder /progress-Poll) am Leben bleibt, bevor
+// der GC sie killt. War historisch 5 Minuten (siehe [[project_fix_pause_resume_gc]]
+// im Repo-Gedächtnis) — reichte für den Browser (VHS pollt /progress
+// unbedingt auch während Pause weiter), brach aber auf dem Apple-TV-Client
+// nach einer nur ~5-minütigen Pause ab (User-Report 2026-09-08): AVPlayer
+// pollt die EVENT-Playlist bei einer echten Nutzer-Pause offenbar NICHT
+// weiter (im Gegensatz zu VHS im Browser) — ohne jeden Touch() während der
+// Pause killte der GC die ffmpeg-Session nach 5 Min, der Client spielte
+// danach nur noch seinen lokalen Restpuffer (~60s, passend zur konfigurierten
+// Bufferlänge) und brach dann mit 404 auf ein nicht mehr existierendes
+// Segment ab. Auf 30 Minuten angehoben — deckt realistische Pausen (Anruf,
+// Tür, Pipi-Pause) clientunabhängig ab, ohne auf ein bestimmtes Polling-
+// Verhalten einzelner Clients angewiesen zu sein. Verwaiste Sessions kosten
+// nur Cache-Platz (unter /config/cache/{sessionID}/) bis zum nächsten
+// GC-Lauf, kein laufendes ffmpeg mehr nach Ablauf.
+const sessionIdleTimeout = 30 * time.Minute
+
 func (m *Manager) gcLoop() {
 	t := time.NewTicker(60 * time.Second)
 	defer t.Stop()
@@ -114,7 +132,7 @@ func (m *Manager) gcLoop() {
 			s.mu.Lock()
 			idle := time.Since(s.lastUsed)
 			s.mu.Unlock()
-			if idle > 5*time.Minute {
+			if idle > sessionIdleTimeout {
 				log.Printf("[transcode] session %s idle %v → stop", id, idle)
 				s.Stop()
 				delete(m.sessions, id)
