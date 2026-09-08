@@ -282,7 +282,8 @@ body.skin-glass .lib-nav-btn.is-active {
 body.skin-glass .topbar button,
 body.skin-glass .topbar select,
 body.skin-glass .topbar input,
-body.skin-glass .lib-nav-btn {
+body.skin-glass .lib-nav-btn,
+body.skin-glass #resDropdownBtn {
   border-radius: 999px;
 }
 /* 🔴→✅ Bug (User-Report: "die oberen Felder sind noch schwarz, die
@@ -294,11 +295,31 @@ body.skin-glass .lib-nav-btn {
    applyUiSkin() per Helligkeits-Berechnung der Glas-Tönung gesetzt —
    automatisch Weiß oder Schwarz, je nachdem was besser lesbar ist). */
 body.skin-glass .topbar select,
-body.skin-glass .topbar input,
-body.skin-glass .topbar button {
+body.skin-glass .topbar input {
   background: color-mix(in srgb, #fff 8%, transparent);
   border-color: rgba(255, 255, 255, 0.14);
   color: var(--ui-glass-text);
+}
+/* 🔴→✅ Bug (User-Report: "Auflösungsfeld vergessen"): #resDropdownBtn hat
+   eine eigene ID-Regel mit `background: var(--bg-2)` weiter oben im File
+   (Kompaktes Auflösungs-Dropdown) — eine ID schlägt jede Klassen-Kombination,
+   auch wenn diese hier im Dokument SPÄTER steht. Deshalb eigene ID+Klassen-
+   Regel zum Überschreiben. #genreDropdownBtn hatte gar keine eigene Regel
+   und war ohnehin schon vom generischen `.topbar button` unten erfasst.
+   Buttons (Flach/Auswählen/Zufall/Scan/Auflösung/Genre) bekommen zusätzlich
+   User-Wunsch 2026-09-08 "immer gleiche Farbe, aber blasser, damit man sie
+   besser sieht" — deutlich mehr Weißanteil als Selects/Inputs, damit sie
+   sich als eigenständige, klar erkennbare Fläche von der Bar abheben,
+   bleiben aber im selben Farbton (nur heller gemischt, keine Fremdfarbe). */
+body.skin-glass .topbar button,
+body.skin-glass #resDropdownBtn {
+  background: color-mix(in srgb, #fff 24%, transparent);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--ui-glass-text);
+}
+body.skin-glass .topbar button:hover,
+body.skin-glass #resDropdownBtn:hover {
+  background: color-mix(in srgb, #fff 34%, transparent);
 }
 body.skin-glass .topbar select option { color: #000; }
 body.skin-glass .topbar ::placeholder { color: var(--ui-glass-text); opacity: 0.55; }
