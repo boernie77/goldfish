@@ -28,6 +28,14 @@ const state = {
   // Default an (Verhalten unverändert gegenüber vorher, wo card-filename immer lief).
   showFilenameMovies: (() => { try { return localStorage.getItem("showFilenameMovies") !== "0"; } catch { return true; } })(),
   showFilenameTv: (() => { try { return localStorage.getItem("showFilenameTv") !== "0"; } catch { return true; } })(),
+  // Oberflächen-Stil (Topbar/Bibliotheks-Leiste/Hintergrund) + Player-Steuerleiste,
+  // beide rein optisch, per-User/-Browser via localStorage — siehe applyUiSkin()
+  // und player.js applyPlayerSkin(). User-Wunsch 2026-09-08 nach Vorschau-Artifact
+  // mit 3 Shell-Varianten ("Glass" gewählt) + Player-Varianten ("Pill" gewählt).
+  uiSkin: (() => { try { return localStorage.getItem("uiSkin") || "standard"; } catch { return "standard"; } })(),
+  uiGlassTint: (() => { try { return localStorage.getItem("uiGlassTint") || "#1a202c"; } catch { return "#1a202c"; } })(),
+  uiGlowColor: (() => { try { return localStorage.getItem("uiGlowColor") || "#3b82f6"; } catch { return "#3b82f6"; } })(),
+  playerSkin: (() => { try { return localStorage.getItem("playerSkin") || "standard"; } catch { return "standard"; } })(),
   personFilterBackup: null, // zwischengespeicherter Lib/Folder-Kontext
   personFilterShow: null,   // {folder, libraryId, episodes} wenn innerhalb einer Serie im Person-Filter
   transcodePollTimer: null, // setInterval-Handle für Transcode-Progress-Polling
@@ -1849,6 +1857,18 @@ async function checkAuth() {
   }
 }
 
+// applyUiSkin — schaltet body.skin-glass an/aus + setzt die zwei per Color-
+// Picker wählbaren CSS-Variablen (--ui-glass-tint/--ui-glow-color), die die
+// eigentliche Optik in style.css (.ui-glow, body.skin-glass .topbar/.lib-nav)
+// treiben. Rein clientseitig, kein Server-Roundtrip (gleiche Konvention wie
+// showFilenameMovies/Tv), aufgerufen einmal in boot() + bei jeder Änderung
+// im Anzeige-Dialog (views.js openDisplayPrefsDialog).
+function applyUiSkin() {
+  document.body.classList.toggle("skin-glass", state.uiSkin === "glass");
+  document.documentElement.style.setProperty("--ui-glass-tint", state.uiGlassTint);
+  document.documentElement.style.setProperty("--ui-glow-color", state.uiGlowColor);
+}
+
 (async function boot() {
   if (!await checkAuth()) return;
   // Bulk-Download-Button: Erlaubnis ändert sich waehrend einer Session nicht,
@@ -1864,6 +1884,7 @@ async function checkAuth() {
     if (raw) state.shuffleFolders = JSON.parse(raw) || [];
   } catch {}
   wire();
+  applyUiSkin();
   updateShuffleScopeIndicator();
   initMiniPlayer();
   // Alphabet-Leiste automatisch nach jedem Grid-Render aktualisieren.

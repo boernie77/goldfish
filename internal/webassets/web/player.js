@@ -879,6 +879,18 @@ function markWatchedNow(item) {
 }
 
 
+// applyPlayerSkin — schaltet die "Pill"-Steuerleiste (Zahnrad-Menü → Anzeige,
+// state.playerSkin) per CSS-Klasse auf dem Video.js-Root um. Reine Optik,
+// keine Buttons/Funktionen ändern sich (siehe .video-js.player-skin-pill in
+// style.css). Wird bei jedem applyPlayback()-Aufruf neu angewendet (auch bei
+// wiederverwendeter Instanz), damit ein Wechsel im Menü ohne Reload greift.
+function applyPlayerSkin(vjs) {
+  if (!vjs || typeof vjs.el !== "function") return;
+  const root = vjs.el();
+  if (!root || !root.classList) return;
+  root.classList.toggle("player-skin-pill", state.playerSkin === "pill");
+}
+
 async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   const params = new URLSearchParams();
   if (mode) params.set("mode", mode);
@@ -1228,6 +1240,12 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       positionBufferOverlay(vjs);
     });
   }
+
+  // Player-Steuerleisten-Stil ("Pill" vs. Standard, Zahnrad-Menü → Anzeige) —
+  // reine CSS-Klasse auf dem Video.js-Root, gleiche Buttons/Funktionen
+  // dahinter unverändert. Bei jedem Öffnen neu angewendet (auch bei
+  // Instanz-Reuse), damit eine Änderung im Menü ohne Reload wirkt.
+  applyPlayerSkin(vjs);
 
   // Overlay-Sichtbarkeit wird per CSS an die Video.js-Klassen
   // `.vjs-user-active` / `.vjs-user-inactive.vjs-playing` gekoppelt (fadet

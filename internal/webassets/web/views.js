@@ -338,6 +338,41 @@ function openDisplayPrefsDialog() {
   moviesBox.checked = state.showFilenameMovies;
   tvBox.checked = state.showFilenameTv;
 
+  // Oberflächen-Stil (Glass) + Player-Steuerleiste (Pill) — siehe
+  // applyUiSkin() in app.js und .video-js.player-skin-pill in style.css.
+  const uiSkinSel = $("#displayPrefsUiSkin");
+  const glassColorsBox = $("#displayPrefsGlassColors");
+  const glassTintInput = $("#displayPrefsGlassTint");
+  const glowColorInput = $("#displayPrefsGlowColor");
+  const playerSkinSel = $("#displayPrefsPlayerSkin");
+
+  uiSkinSel.value = state.uiSkin;
+  glassTintInput.value = state.uiGlassTint;
+  glowColorInput.value = state.uiGlowColor;
+  playerSkinSel.value = state.playerSkin;
+  glassColorsBox.classList.toggle("hidden", state.uiSkin !== "glass");
+
+  uiSkinSel.onchange = () => {
+    state.uiSkin = uiSkinSel.value;
+    try { localStorage.setItem("uiSkin", state.uiSkin); } catch {}
+    glassColorsBox.classList.toggle("hidden", state.uiSkin !== "glass");
+    applyUiSkin();
+  };
+  glassTintInput.oninput = () => {
+    state.uiGlassTint = glassTintInput.value;
+    try { localStorage.setItem("uiGlassTint", state.uiGlassTint); } catch {}
+    applyUiSkin();
+  };
+  glowColorInput.oninput = () => {
+    state.uiGlowColor = glowColorInput.value;
+    try { localStorage.setItem("uiGlowColor", state.uiGlowColor); } catch {}
+    applyUiSkin();
+  };
+  playerSkinSel.onchange = () => {
+    state.playerSkin = playerSkinSel.value;
+    try { localStorage.setItem("playerSkin", state.playerSkin); } catch {}
+  };
+
   alphaBox.onchange = () => {
     const key = alphaSidebarStorageKey();
     if (!key) return;

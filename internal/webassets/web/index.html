@@ -45,6 +45,12 @@
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
 </head>
 <body>
+<!-- Ambient-Hintergrundglühen für den "Glass"-Oberflächenstil (siehe
+     applyUiSkin() in app.js + .ui-glow/body.skin-glass in style.css).
+     position:fixed + z-index:-1 (siehe CSS) hält es zuverlässig hinter dem
+     Grid, egal wo im DOM es steht — reine Konvention, hier oben platziert.
+     Bei Standard-Skin per CSS unsichtbar (opacity:0), kostet also nichts. -->
+<div id="uiGlow" class="ui-glow" aria-hidden="true"></div>
 <header class="topbar">
   <div class="brand">
     <img src="/favicon.svg" class="brand-icon" alt="" />
@@ -994,6 +1000,40 @@
     <span class="switch"><input id="displayPrefsFilenameTv" type="checkbox" /><span class="slider"></span></span>
   </label>
   <p class="hint" style="margin:2px 0 0">Getrennt von Filmen einstellbar.</p>
+
+  <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
+
+  <label class="switch-row">
+    <span>Oberflächen-Stil</span>
+    <select id="displayPrefsUiSkin" style="min-width:140px">
+      <option value="standard">Standard</option>
+      <option value="glass">Glass</option>
+    </select>
+  </label>
+  <p class="hint" style="margin:2px 0 12px">Betrifft Topbar, Bibliotheks-Leiste und den Hintergrund hinter den Kacheln — nicht die Steuerleiste im Player.</p>
+  <div id="displayPrefsGlassColors" class="hidden">
+    <label class="switch-row">
+      <span>Glas-Tönung</span>
+      <input id="displayPrefsGlassTint" type="color" value="#1a202c">
+    </label>
+    <label class="switch-row">
+      <span>Hintergrund-Glühen</span>
+      <input id="displayPrefsGlowColor" type="color" value="#3b82f6">
+    </label>
+    <p class="hint" style="margin:2px 0 12px">Die Farbe des Glühens hinter dem Grid und der Umrandung des aktiven Reiters.</p>
+  </div>
+
+  <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
+
+  <label class="switch-row">
+    <span>Player-Steuerleiste</span>
+    <select id="displayPrefsPlayerSkin" style="min-width:140px">
+      <option value="standard">Standard</option>
+      <option value="pill">Pill</option>
+    </select>
+  </label>
+  <p class="hint" style="margin:2px 0 0">Gleiche Buttons und Funktionen, nur eine schwebende, abgerundete Kapsel statt der vollen Leiste. Wirkt ab dem nächsten Öffnen eines Videos.</p>
+
   <div class="row">
     <button type="button" data-close class="primary">Fertig</button>
   </div>

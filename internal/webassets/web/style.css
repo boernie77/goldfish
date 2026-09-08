@@ -203,6 +203,52 @@ button.primary:hover { background: var(--accent-hover); }
 }
 .hidden-select { display: none !important; }
 
+/* ---- Oberflächen-Stil "Glass" (Zahnrad-Menü → Anzeige, User-Wunsch
+   2026-09-08) — schaltbare Alternative zur Standard-Optik. Nur .topbar/
+   .lib-nav + Hintergrund-Glühen betroffen, KEIN Server-Roundtrip (reine
+   CSS-Variablen + body-Klasse, siehe applyUiSkin() in app.js). Die zwei
+   Farben (--ui-glass-tint/--ui-glow-color) sind per Color-Picker wählbar,
+   Defaults spiegeln die bestehenden --bg-2/--accent-Werte. color-mix() für
+   die Transparenzmischung statt manueller RGB-Kanal-Aufspaltung in JS. ---- */
+:root {
+  --ui-glass-tint: #1a202c;
+  --ui-glow-color: #3b82f6;
+}
+.ui-glow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s;
+}
+body.skin-glass .ui-glow {
+  opacity: 1;
+  background:
+    radial-gradient(38% 46% at 14% 8%, color-mix(in srgb, var(--ui-glow-color) 16%, transparent) 0%, transparent 70%),
+    radial-gradient(34% 40% at 88% 4%, color-mix(in srgb, var(--ui-glow-color) 10%, transparent) 0%, transparent 70%);
+}
+body.skin-glass .topbar,
+body.skin-glass .lib-nav {
+  background: color-mix(in srgb, var(--ui-glass-tint) 55%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+body.skin-glass .topbar { box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
+body.skin-glass .lib-nav-btn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+body.skin-glass .lib-nav-btn.is-active {
+  background: color-mix(in srgb, var(--ui-glow-color) 16%, transparent);
+  border-color: var(--ui-glow-color);
+  color: #fff;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ui-glow-color) 30%, transparent),
+    0 4px 14px color-mix(in srgb, var(--ui-glow-color) 25%, transparent);
+}
+
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -2059,6 +2105,48 @@ body.has-mini-player { padding-bottom: 68px; }
    das <video>-Element ein `webkitplaybacktargetavailabilitychanged`-Event
    mit `available` feuert. Andernfalls bleibt der Button hidden. */
 .video-js .vjs-airplay-button .vjs-icon-placeholder::before { content: "📡"; }
+
+/* ---- Player-Steuerleiste "Pill" (Zahnrad-Menü → Anzeige, User-Wunsch
+   2026-09-08, nach Vorschau-Artifact) — schwebende, abgerundete Glas-Kapsel
+   statt der vollen Standard-Leiste. GLEICHE Buttons/Funktionen, rein visuell
+   (Klasse .player-skin-pill wird in player.js applyPlayerSkin() auf das
+   Video.js-Root-Element gesetzt/entfernt, je nach state.playerSkin).
+   Video.js' Default-Bar ist 3em hoch, Buttons 4em breit (aus dem gebündelten
+   video-js.min.css, Version siehe Dockerfile VIDEOJS_VERSION) — also NICHT
+   quadratisch. Für echte Kreise wird die Button-Breite hier explizit auf
+   die Bar-Höhe gesetzt (3.6em beide), sonst würden runde Ecken zu Ovalen. --- */
+.video-js.player-skin-pill .vjs-control-bar {
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  width: auto;
+  height: 3.6em;
+  border-radius: 999px;
+  background: rgba(20, 22, 30, .55);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  padding: 0 8px;
+}
+.video-js.player-skin-pill .vjs-control-bar .vjs-control {
+  width: 3.6em;
+  border-radius: 50%;
+  transition: background .15s;
+}
+.video-js.player-skin-pill .vjs-control-bar .vjs-control:hover {
+  background: rgba(255, 255, 255, .14);
+}
+.video-js.player-skin-pill .vjs-play-control {
+  background: #fff;
+  color: #10141c;
+}
+.video-js.player-skin-pill .vjs-play-control:hover { background: #fff; }
+.video-js.player-skin-pill .vjs-progress-control { margin: 0 6px; }
+.video-js.player-skin-pill .vjs-progress-holder { border-radius: 999px; overflow: hidden; }
+.video-js.player-skin-pill .vjs-load-progress,
+.video-js.player-skin-pill .vjs-load-progress div,
+.video-js.player-skin-pill .vjs-play-progress { border-radius: inherit; }
 
 details.hint summary { cursor: pointer; color: var(--text); font-weight: 500; }
 details.hint[open] { color: var(--text-dim); }
