@@ -2272,23 +2272,24 @@ body.has-mini-player { padding-bottom: 68px; }
 .video-js.player-skin-pill .vjs-play-control { margin: 0 3px; }
 /* 🔴→✅ Bug (User-Report mit Screenshot, "immer noch nicht richtig!!!"):
    Play sah in der normalen (Nicht-Zufalls-)Wiedergabe weiterhin "allein
-   links" aus — die order-Umsortierung oben griff zwar korrekt, aber
-   ShufflePrev/Next sind AUSSERHALB des Zufallsmodus per player.js
-   updatePlayerButtons() komplett `.hide()`t (vjs-hidden → display:none),
-   nicht nur deaktiviert — das ist bestehendes, bewusstes Verhalten
-   (Buttons sind ohne aktive Zufallswiedergabe semantisch bedeutungslos)
-   und unabhängig vom Pill-Skin. Für den Pill-Skin (der die beiden Pfeile
-   als feste Rahmung um Play zeigen soll, analog zum Vorschau-Artifact)
-   wird das .vjs-hidden hier NUR optisch aufgehoben — sichtbar, aber
-   sichtbar deaktiviert (reduzierte Deckkraft + kein Klick), keine
-   Funktionsänderung. Sobald echte Zufallswiedergabe läuft, übernehmen
-   die normalen state.shuffleMode-Regeln (volle Deckkraft, klickbar). */
-.video-js.player-skin-pill .vjs-shuffle-prev.vjs-hidden,
-.video-js.player-skin-pill .vjs-shuffle-next.vjs-hidden {
-  display: flex !important;
-  opacity: 0.35;
-  pointer-events: none;
-}
+   links" aus — damals gab es noch keine eigene order-Position für
+   Skip15Back/Skip30Forward (siehe Historie oben), ShufflePrev/Next wurden
+   deshalb per .vjs-hidden-Override künstlich sichtbar+abgedimmt gehalten,
+   damit wenigstens IRGENDETWAS Play einrahmt.
+   🔴→✅ ÜBERHOLT (User-Report 2026-09-08 21:01, mit Foto): seit
+   Skip15Back/Skip30Forward jetzt eigene order-Plätze direkt neben Play
+   haben (siehe oben), ist Play in normaler Wiedergabe schon durch die
+   beiden ECHTEN, funktionierenden Skip-Buttons eingerahmt — der
+   Dimm-Override hier war dadurch nicht mehr nötig, zeigte aber weiterhin
+   zwei funktionslose (nicht klickbare) Pfeile in nahezu voller Deckkraft
+   neben den echten Buttons an, was optisch nicht mehr von echter
+   Zufallswiedergabe zu unterscheiden und damit verwirrend war ("sieht
+   nicht gut aus"). Fix: der Override ist komplett entfernt — außerhalb des
+   Zufallsmodus gilt wieder das normale `.vjs-hidden{display:none!important}`
+   aus video-js.min.css, ShufflePrev/Next verschwinden also ganz. In
+   normaler Wiedergabe bleiben dadurch nur 3 Buttons übrig (Skip-back, Play,
+   Skip-fwd), im Zufallsmodus weiterhin alle 5 (ShufflePrev/Next zeigen
+   sich dann per player.js updatePlayerButtons() ganz normal mit .show()). */
 /* 🔴→✅ Bug (User-Report: "Minuten/Sekundenanzeige ist zu nah an der
    Abspielgeschwindigkeit"): Zeitanzeige (Restzeit) und der "1x"-Button
    saßen ohne jeden Abstand direkt nebeneinander. */
