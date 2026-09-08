@@ -322,6 +322,36 @@ async function openHomePrefsDialog() {
 // localStorage-basiert, siehe cards.js renderCard). Alle drei Werte gelten
 // nur lokal für diesen Browser, kein Server-Roundtrip nötig — im Gegensatz zu
 // openHomePrefsDialog() also ein reiner Sync von/zu localStorage.
+// wireColorHexPair — verbindet einen <input type="color"> mit einem
+// danebenliegenden Hex-Textfeld bidirektional: Picker ändern → Hexfeld
+// aktualisiert sich; Hex eintippen/einfügen (nur bei gültigem 6-stelligem
+// Code) → Picker + onApply() aktualisieren sich. Gemeinsamer Helfer für
+// alle drei Glass-Farbwähler in openDisplayPrefsDialog(), siehe dort.
+function wireColorHexPair(colorEl, hexEl, initialHex, onApply) {
+  colorEl.value = initialHex;
+  hexEl.value = (initialHex || "").toUpperCase();
+  colorEl.oninput = () => {
+    hexEl.value = colorEl.value.toUpperCase();
+    onApply(colorEl.value);
+  };
+  const applyFromHex = () => {
+    const v = hexEl.value.trim();
+    const normalized = v.startsWith("#") ? v : `#${v}`;
+    if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+      colorEl.value = normalized;
+      hexEl.value = normalized.toUpperCase();
+      onApply(normalized);
+    } else {
+      // Ungültige Eingabe: zurück auf den zuletzt gültigen Picker-Wert.
+      hexEl.value = colorEl.value.toUpperCase();
+    }
+  };
+  hexEl.addEventListener("change", applyFromHex);
+  hexEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") applyFromHex();
+  });
+}
+
 function openDisplayPrefsDialog() {
   const dlg = $("#displayPrefsDialog");
   const alphaBox = $("#displayPrefsAlphaSidebar");
@@ -342,15 +372,9 @@ function openDisplayPrefsDialog() {
   // applyUiSkin() in app.js und .video-js.player-skin-pill in style.css.
   const uiSkinSel = $("#displayPrefsUiSkin");
   const glassColorsBox = $("#displayPrefsGlassColors");
-  const glassTintInput = $("#displayPrefsGlassTint");
-  const gridBgInput = $("#displayPrefsGridBg");
-  const glowColorInput = $("#displayPrefsGlowColor");
   const playerSkinSel = $("#displayPrefsPlayerSkin");
 
   uiSkinSel.value = state.uiSkin;
-  glassTintInput.value = state.uiGlassTint;
-  gridBgInput.value = state.uiGridBg;
-  glowColorInput.value = state.uiGlowColor;
   playerSkinSel.value = state.playerSkin;
   glassColorsBox.classList.toggle("hidden", state.uiSkin !== "glass");
 
@@ -360,21 +384,27 @@ function openDisplayPrefsDialog() {
     glassColorsBox.classList.toggle("hidden", state.uiSkin !== "glass");
     applyUiSkin();
   };
-  glassTintInput.oninput = () => {
-    state.uiGlassTint = glassTintInput.value;
-    try { localStorage.setItem("uiGlassTint", state.uiGlassTint); } catch {}
+  // User-Wunsch 2026-09-08: "bei der Farbwahl soll bitte immer der aktuelle
+  // Hexcode angezeigt werden, damit man diesen auch auf andere Geräte
+  // übertragen kann" — jeder Color-Picker bekommt ein danebenliegendes
+  // Textfeld, das den Hex-Wert live mitführt UND selbst editierbar ist
+  // (Hex eintippen/einfügen aktualisiert den Picker + wendet ihn an).
+  // wireColorHexPair() ist der gemeinsame Helfer für alle drei Paare.
+  wireColorHexPair($("#displayPrefsGlassTint"), $("#displayPrefsGlassTintHex"), state.uiGlassTint, (hex) => {
+    state.uiGlassTint = hex;
+    try { localStorage.setItem("uiGlassTint", hex); } catch {}
     applyUiSkin();
-  };
-  gridBgInput.oninput = () => {
-    state.uiGridBg = gridBgInput.value;
-    try { localStorage.setItem("uiGridBg", state.uiGridBg); } catch {}
+  });
+  wireColorHexPair($("#displayPrefsGridBg"), $("#displayPrefsGridBgHex"), state.uiGridBg, (hex) => {
+    state.uiGridBg = hex;
+    try { localStorage.setItem("uiGridBg", hex); } catch {}
     applyUiSkin();
-  };
-  glowColorInput.oninput = () => {
-    state.uiGlowColor = glowColorInput.value;
-    try { localStorage.setItem("uiGlowColor", state.uiGlowColor); } catch {}
+  });
+  wireColorHexPair($("#displayPrefsGlowColor"), $("#displayPrefsGlowColorHex"), state.uiGlowColor, (hex) => {
+    state.uiGlowColor = hex;
+    try { localStorage.setItem("uiGlowColor", hex); } catch {}
     applyUiSkin();
-  };
+  });
   playerSkinSel.onchange = () => {
     state.playerSkin = playerSkinSel.value;
     try { localStorage.setItem("playerSkin", state.playerSkin); } catch {}
