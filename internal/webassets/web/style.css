@@ -2243,11 +2243,33 @@ body.has-mini-player { padding-bottom: 68px; }
    die Progress-Bar raus") anzufassen, reicht eine rein visuelle Umsortierung
    per Flex-`order` — NUR für den Pill-Skin. .vjs-control-bar ist bereits
    display:flex (Video.js-Default), negative order-Werte reichen, um die
-   drei Buttons klein genug zu sortieren, dass sie vor allen unveränderten
-   (order:0) Buttons landen — ShufflePrev < Play < ShuffleNext. */
-.video-js.player-skin-pill .vjs-shuffle-prev { order: -3; }
-.video-js.player-skin-pill .vjs-play-control { order: -2; }
+   Buttons klein genug zu sortieren, dass sie vor allen unveränderten
+   (order:0) Buttons landen.
+   🔴→✅ Zweiter Bug (User-Report mit Foto, 2026-09-08 20:42): "Playbutton
+   verdeckt den nächstes-Video-Pfeil" — trat NUR in normaler (Nicht-Zufalls-)
+   Wiedergabe auf, nicht bei aktivem Zufallsmodus. Ursache: Skip15Back/
+   Skip30Forward (die 15s-zurück/30s-vor-Buttons) werden von player.js
+   IMMER direkt hinter PlayToggle in die DOM eingefügt (siehe dort,
+   "Skip-Buttons direkt nach PlayToggle einsortieren") — hatten hier aber
+   KEINEN eigenen order-Wert und blieben bei order:0. In der normalen
+   Wiedergabe ist ShuffleNext (order:-1) unsichtbar (vjs-hidden, komplett
+   aus dem Flex-Fluss draußen) — dadurch rückte Skip15Back ohne jeden Puffer
+   direkt an Play heran (nur der Video.js-Basis-Gap von 1px), was bei der
+   satten weißen Play-Kreisfläche wie ein Überlappen aussah. Im Zufallsmodus
+   wirkte ShuffleNext (sichtbar, order:-1) zufällig als Abstandshalter
+   dazwischen — daher "sah dort richtig aus", war aber Zufall, kein
+   Design. Fix: Skip15Back/Skip30Forward bekommen jetzt eigene, feste
+   order-Plätze direkt links/rechts von Play (symmetrisch zu Prev/Next
+   außen) — die Reihenfolge ist jetzt IMMER
+   ShufflePrev < Skip15Back < Play < Skip30Forward < ShuffleNext,
+   unabhängig davon, welche der beiden äußeren Zufalls-Buttons gerade
+   sichtbar sind. */
+.video-js.player-skin-pill .vjs-shuffle-prev { order: -5; }
+.video-js.player-skin-pill .vjs-skip-backward-10 { order: -4; }
+.video-js.player-skin-pill .vjs-play-control { order: -3; }
+.video-js.player-skin-pill .vjs-skip-forward-30 { order: -2; }
 .video-js.player-skin-pill .vjs-shuffle-next { order: -1; }
+.video-js.player-skin-pill .vjs-play-control { margin: 0 3px; }
 /* 🔴→✅ Bug (User-Report mit Screenshot, "immer noch nicht richtig!!!"):
    Play sah in der normalen (Nicht-Zufalls-)Wiedergabe weiterhin "allein
    links" aus — die order-Umsortierung oben griff zwar korrekt, aber
