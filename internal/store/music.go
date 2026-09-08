@@ -477,19 +477,29 @@ func (s *Store) PendingMusicAlbums(limit int) ([]model.MusicAlbum, error) {
 // MusicBrainz-Metadaten-Lookup versucht wurde (metadata_fetched_at IS NULL)
 // UND denen Genre oder Jahr fehlt — Alben, die aus den eingebetteten Tags
 // bereits beides haben, tauchen hier nie auf (Tags bleiben laut CLAUDE.md
-// die primäre Quelle, MusicBrainz ist NUR Fallback). Gleicher
-// `artist != album`-Ausschluss wie PendingMusicAlbums (Ordner-Fallback-Fall
-// ohne echte Tags wäre eine zu unzuverlässige Suchanfrage). Eigenständiger
+// die primäre Quelle, MusicBrainz ist NUR Fallback). Eigenständiger
 // Gate-Mechanismus von der Cover-Suche (`cover_source`) — die meisten Alben
 // haben ihr Cover schon lokal per eingebettetem Bild (Scanner
 // extractAlbumCovers), MusicBrainz wird für die Cover-Suche dadurch oft nie
 // aufgerufen, obwohl Genre/Jahr trotzdem fehlen können.
+//
+// 🔴→✅ Bug gefixt 2026-09-08 (User-Report "läuft die Erkennung noch?", Live-
+// Diagnose fand 69 dauerhaft übersprungene Alben): bis hierhin trug diese
+// Funktion denselben `artist != album`-Ausschluss wie `PendingMusicAlbums`
+// (Cover-Suche) — dort sinnvoll, weil `artist == album` DORT ein Signal für
+// "kein echtes Album-Tag, Ordnername als Notlösung übernommen" ist (unzuverlässige
+// Suchanfrage). Für Genre/Jahr ist `artist == album` aber ein ganz normaler,
+// häufiger Fall bei selbstbetitelten Alben ("Aerosmith" von Aerosmith, "Bon
+// Jovi" von Bon Jovi, "Audioslave" von Audioslave, …) — der 1:1 übernommene
+// Ausschluss hat diese Alben dauerhaft von der MusicBrainz-Suche ausgeschlossen
+// (kein Log-Eintrag, kein Retry, für immer NULL). Der Ausschluss bleibt bewusst
+// NUR in `PendingMusicAlbums` (Cover-Suche) bestehen, hier entfernt.
 func (s *Store) PendingMusicMetadataAlbums(limit int) ([]model.MusicAlbum, error) {
 	rows, err := s.db.Query(`
 		SELECT id, library_id, artist, album, year, genre, cover_source
 		FROM music_albums
 		WHERE metadata_fetched_at IS NULL
-		  AND artist != '' AND album != '' AND artist != album
+		  AND artist != '' AND album != ''
 		  AND (genre = '' OR year = 0)
 		LIMIT ?`, limit)
 	if err != nil {

@@ -1165,6 +1165,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   MusicBrainz verlangt einen aussagekräftigen `User-Agent` + max. 1 req/s
   (eigener Rate-Limiter, NICHT den TMDB-Limiter mitbenutzen). Läuft nur für
   Alben, deren `cover_source` nach der Scanner-Extraktion noch leer ist.
+- **🔴→✅ Selbstbetitelte Alben blieben dauerhaft ohne Genre/Jahr (gefixt
+  2026-09-08, LIVE 1.2.29, User-Frage "läuft die Erkennung noch?"):**
+  `Store.PendingMusicMetadataAlbums` trug denselben `artist != album`-
+  Ausschluss wie die Cover-Suche (`PendingMusicAlbums`) — dort sinnvoll
+  (dort bedeutet `artist == album` "kein echtes Album-Tag, Ordnername als
+  Notlösung"), für Genre/Jahr aber falsch: selbstbetitelte Alben ("Aerosmith"
+  von Aerosmith, "Bon Jovi" von Bon Jovi, "Audioslave" von Audioslave, …) sind
+  ein normaler, häufiger Fall und wurden dadurch dauerhaft (kein Log, kein
+  Retry) von der MusicBrainz-Suche ausgeschlossen. Live-Diagnose (DB-Kopie +
+  Go/modernc.org-sqlite lokal ausgewertet, siehe `feedback_sqlite_debug_technique`)
+  fand 69 betroffene Alben, `metadata_fetched_at` seit 2026-09-06 unverändert.
+  Ausschluss bleibt bewusst NUR in `PendingMusicAlbums` (Cover-Suche).
 - **Genre/Jahr-Backfill (seit 2026-09-06, LIVE 1.2.1, User-Wunsch: "Viele
   Titel haben zum Beispiel kein Genre"):** zweite, unabhängige Worker-Phase
   `runMetadataPhase` (`internal/enrich/music_worker.go`) NEBEN der
