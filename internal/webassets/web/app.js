@@ -1872,6 +1872,24 @@ function applyUiSkin() {
   document.documentElement.style.setProperty("--ui-glass-tint", state.uiGlassTint);
   document.documentElement.style.setProperty("--ui-grid-bg", state.uiGridBg);
   document.documentElement.style.setProperty("--ui-glow-color", state.uiGlowColor);
+  document.documentElement.style.setProperty("--ui-glass-text", glassTextColor(state.uiGlassTint));
+}
+
+// glassTextColor — WCAG-Relativhelligkeit der Glas-Tönung bestimmt, ob Text
+// darauf schwarz oder weiß besser lesbar ist (User-Report 2026-09-08: "die
+// oberen Felder sind noch schwarz ... Schriftfarbe je nach besserem Kontrast
+// dann weiß oder schwarz"). Reine Helligkeitsformel (kein voller WCAG-
+// Kontrast-Ratio-Vergleich nötig — bei einer einfarbigen Fläche reicht das).
+function glassTextColor(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
+  if (!m) return "#fff";
+  const chan = (h) => {
+    const c = parseInt(h, 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const r = chan(m[1]), g = chan(m[2]), b = chan(m[3]);
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.5 ? "#000" : "#fff";
 }
 
 (async function boot() {

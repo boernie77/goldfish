@@ -234,6 +234,10 @@ button.primary:hover { background: var(--accent-hover); }
   --ui-glass-tint: #1a202c;
   --ui-grid-bg: #10141c;
   --ui-glow-color: #3b82f6;
+  /* Kontrast-Textfarbe für Elemente auf der Glas-Tönung — applyUiSkin()
+     (app.js) berechnet das per WCAG-Helligkeitsformel aus --ui-glass-tint
+     und setzt hier Weiß oder Schwarz, je nachdem was besser lesbar ist. */
+  --ui-glass-text: #fff;
 }
 body.skin-glass {
   --bg: var(--ui-grid-bg);
@@ -246,7 +250,13 @@ body.skin-glass {
 }
 body.skin-glass .topbar,
 body.skin-glass .lib-nav {
-  background: color-mix(in srgb, var(--ui-glass-tint) 42%, transparent);
+  /* 🔴→✅ Bug (User-Report mit Screenshot: "oben ist es nicht gelb, da
+     scheint die Kachelhintergrundfarbe mit"): bei nur 42% Deckkraft
+     dominierte die (oft ganz andere) --ui-grid-bg-Farbe dahinter den
+     optischen Eindruck, aus Gelb wurde Lachs-Orange. Auf 80% angehoben —
+     lässt gerade noch genug vom Hintergrund/Glühen durchscheinen für den
+     Glas-Effekt, aber die gewählte Tönung bleibt klar erkennbar. */
+  background: color-mix(in srgb, var(--ui-glass-tint) 80%, transparent);
   backdrop-filter: blur(18px) saturate(120%);
   -webkit-backdrop-filter: blur(18px) saturate(120%);
   border-color: rgba(255, 255, 255, 0.08);
@@ -255,6 +265,7 @@ body.skin-glass .topbar { box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 body.skin-glass .lib-nav-btn {
   background: transparent;
   border-color: rgba(255, 255, 255, 0.1);
+  color: var(--ui-glass-text);
 }
 body.skin-glass .lib-nav-btn.is-active {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -273,6 +284,28 @@ body.skin-glass .topbar select,
 body.skin-glass .topbar input,
 body.skin-glass .lib-nav-btn {
   border-radius: 999px;
+}
+/* 🔴→✅ Bug (User-Report: "die oberen Felder sind noch schwarz, die
+   sollten genauso sein wie die Bibliotheksbuttons"): Suchfeld + Selects
+   (Sortierung/Gesehen/Bewertung/Auflösung/Genre) behielten ihren normalen
+   var(--card)-Hintergrund — nur die Form (Radius) wurde vorher angepasst,
+   nicht die Füllung. Jetzt wie .lib-nav-btn transparent auf der getönten
+   Bar + dieselbe kontrastabhängige Textfarbe (--ui-glass-text, in
+   applyUiSkin() per Helligkeits-Berechnung der Glas-Tönung gesetzt —
+   automatisch Weiß oder Schwarz, je nachdem was besser lesbar ist). */
+body.skin-glass .topbar select,
+body.skin-glass .topbar input,
+body.skin-glass .topbar button {
+  background: color-mix(in srgb, #fff 8%, transparent);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--ui-glass-text);
+}
+body.skin-glass .topbar select option { color: #000; }
+body.skin-glass .topbar ::placeholder { color: var(--ui-glass-text); opacity: 0.55; }
+body.skin-glass .topbar .field-label { color: var(--ui-glass-text); opacity: 0.75; }
+body.skin-glass .topbar .user-menu,
+body.skin-glass .topbar .user-menu strong {
+  color: var(--ui-glass-text);
 }
 
 .breadcrumb {
