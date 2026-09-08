@@ -220,6 +220,11 @@ oben gelten weiterhin immer.
 > auf Poster-Kacheln (überlappte den Titeltext, jetzt per Abstand entschärft,
 > der Rahmen selbst ist weiterhin nicht abschaltbar) — vor einem erneuten
 > Versuch das Memory lesen, nicht dieselben vier Ansätze wiederholen.
+> **Seit 2026-09-08 ergänzt:** eigener Suche-Tab (statt Toolbar-Button,
+> library-gescoped über `LastLibraryContext`), Serien-/Staffelansicht +
+> Besetzungsleiste dort komplett vergrößert und die Besetzung jetzt klickbar
+> (behob nebenbei einen Sprung-zu-Staffel-1-Fokus-Bug), `.focusSection()`
+> zwischen Besetzungsleiste und Staffel-Grid.
 
 ## Architektur-Kurzfassung
 - macOS: App Sandbox AUS (`GoldfishMac.entitlements` = `<dict/>`, nach jedem
