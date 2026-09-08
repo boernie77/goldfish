@@ -45,12 +45,6 @@
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
 </head>
 <body>
-<!-- Ambient-Hintergrundglühen für den "Glass"-Oberflächenstil (siehe
-     applyUiSkin() in app.js + .ui-glow/body.skin-glass in style.css).
-     position:fixed + z-index:-1 (siehe CSS) hält es zuverlässig hinter dem
-     Grid, egal wo im DOM es steht — reine Konvention, hier oben platziert.
-     Bei Standard-Skin per CSS unsichtbar (opacity:0), kostet also nichts. -->
-<div id="uiGlow" class="ui-glow" aria-hidden="true"></div>
 <header class="topbar">
   <div class="brand">
     <img src="/favicon.svg" class="brand-icon" alt="" />
@@ -1017,10 +1011,14 @@
       <input id="displayPrefsGlassTint" type="color" value="#1a202c">
     </label>
     <label class="switch-row">
-      <span>Hintergrund-Glühen</span>
+      <span>Kachelhintergrund</span>
+      <input id="displayPrefsGridBg" type="color" value="#10141c">
+    </label>
+    <label class="switch-row">
+      <span>Akzentfarbe</span>
       <input id="displayPrefsGlowColor" type="color" value="#3b82f6">
     </label>
-    <p class="hint" style="margin:2px 0 12px">Die Farbe des Glühens hinter dem Grid und der Umrandung des aktiven Reiters.</p>
+    <p class="hint" style="margin:2px 0 12px">Akzentfarbe steuert das Glühen hinter dem Grid, den aktiven Reiter und alle sonst blau eingefärbten Buttons/Häkchen — konsequent überall dieselbe Farbe.</p>
   </div>
 
   <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">

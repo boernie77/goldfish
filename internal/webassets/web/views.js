@@ -343,11 +343,13 @@ function openDisplayPrefsDialog() {
   const uiSkinSel = $("#displayPrefsUiSkin");
   const glassColorsBox = $("#displayPrefsGlassColors");
   const glassTintInput = $("#displayPrefsGlassTint");
+  const gridBgInput = $("#displayPrefsGridBg");
   const glowColorInput = $("#displayPrefsGlowColor");
   const playerSkinSel = $("#displayPrefsPlayerSkin");
 
   uiSkinSel.value = state.uiSkin;
   glassTintInput.value = state.uiGlassTint;
+  gridBgInput.value = state.uiGridBg;
   glowColorInput.value = state.uiGlowColor;
   playerSkinSel.value = state.playerSkin;
   glassColorsBox.classList.toggle("hidden", state.uiSkin !== "glass");
@@ -361,6 +363,11 @@ function openDisplayPrefsDialog() {
   glassTintInput.oninput = () => {
     state.uiGlassTint = glassTintInput.value;
     try { localStorage.setItem("uiGlassTint", state.uiGlassTint); } catch {}
+    applyUiSkin();
+  };
+  gridBgInput.oninput = () => {
+    state.uiGridBg = gridBgInput.value;
+    try { localStorage.setItem("uiGridBg", state.uiGridBg); } catch {}
     applyUiSkin();
   };
   glowColorInput.oninput = () => {

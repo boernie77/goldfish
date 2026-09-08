@@ -34,6 +34,7 @@ const state = {
   // mit 3 Shell-Varianten ("Glass" gewählt) + Player-Varianten ("Pill" gewählt).
   uiSkin: (() => { try { return localStorage.getItem("uiSkin") || "standard"; } catch { return "standard"; } })(),
   uiGlassTint: (() => { try { return localStorage.getItem("uiGlassTint") || "#1a202c"; } catch { return "#1a202c"; } })(),
+  uiGridBg: (() => { try { return localStorage.getItem("uiGridBg") || "#10141c"; } catch { return "#10141c"; } })(),
   uiGlowColor: (() => { try { return localStorage.getItem("uiGlowColor") || "#3b82f6"; } catch { return "#3b82f6"; } })(),
   playerSkin: (() => { try { return localStorage.getItem("playerSkin") || "standard"; } catch { return "standard"; } })(),
   personFilterBackup: null, // zwischengespeicherter Lib/Folder-Kontext
@@ -1857,15 +1858,19 @@ async function checkAuth() {
   }
 }
 
-// applyUiSkin — schaltet body.skin-glass an/aus + setzt die zwei per Color-
-// Picker wählbaren CSS-Variablen (--ui-glass-tint/--ui-glow-color), die die
-// eigentliche Optik in style.css (.ui-glow, body.skin-glass .topbar/.lib-nav)
-// treiben. Rein clientseitig, kein Server-Roundtrip (gleiche Konvention wie
+// applyUiSkin — schaltet body.skin-glass an/aus + setzt die drei per Color-
+// Picker wählbaren CSS-Variablen (--ui-glass-tint/--ui-grid-bg/--ui-glow-color),
+// die die eigentliche Optik in style.css treiben (body.skin-glass{...} —
+// überschreibt dort auch --bg + --accent global, damit WIRKLICH jedes
+// akzentfarbene Element im Standard-CSS konsequent mitzieht statt nur Topbar/
+// Lib-Nav, siehe Bug-Report 2026-09-08 "Buttons nicht konsequent, oben blau").
+// Rein clientseitig, kein Server-Roundtrip (gleiche Konvention wie
 // showFilenameMovies/Tv), aufgerufen einmal in boot() + bei jeder Änderung
 // im Anzeige-Dialog (views.js openDisplayPrefsDialog).
 function applyUiSkin() {
   document.body.classList.toggle("skin-glass", state.uiSkin === "glass");
   document.documentElement.style.setProperty("--ui-glass-tint", state.uiGlassTint);
+  document.documentElement.style.setProperty("--ui-grid-bg", state.uiGridBg);
   document.documentElement.style.setProperty("--ui-glow-color", state.uiGlowColor);
 }
 

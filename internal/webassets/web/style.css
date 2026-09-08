@@ -204,35 +204,51 @@ button.primary:hover { background: var(--accent-hover); }
 .hidden-select { display: none !important; }
 
 /* ---- Oberflächen-Stil "Glass" (Zahnrad-Menü → Anzeige, User-Wunsch
-   2026-09-08) — schaltbare Alternative zur Standard-Optik. Nur .topbar/
-   .lib-nav + Hintergrund-Glühen betroffen, KEIN Server-Roundtrip (reine
-   CSS-Variablen + body-Klasse, siehe applyUiSkin() in app.js). Die zwei
-   Farben (--ui-glass-tint/--ui-glow-color) sind per Color-Picker wählbar,
-   Defaults spiegeln die bestehenden --bg-2/--accent-Werte. color-mix() für
-   die Transparenzmischung statt manueller RGB-Kanal-Aufspaltung in JS. ---- */
+   2026-09-08) — schaltbare Alternative zur Standard-Optik. KEIN Server-
+   Roundtrip (reine CSS-Variablen + body-Klasse, siehe applyUiSkin() in
+   app.js). Drei Farben per Color-Picker wählbar: --ui-glass-tint (Topbar/
+   Lib-Nav-Tönung), --ui-grid-bg (Fläche hinter den Kacheln, überschreibt
+   --bg), --ui-glow-color (Akzentfarbe — überschreibt --accent GLOBAL).
+
+   🔴→✅ Zwei reale Bugs beim ersten Anlauf (User-Report mit Screenshot,
+   noch am selben Tag live per claude-in-chrome gegen den echten Server
+   diagnostiziert + verifiziert):
+   1. Ein separates fixed+z-index:-1-Element für das Hintergrund-Glühen
+      wurde von der HTML/BODY-Canvas-Hintergrund-Sonderregel (beide haben
+      hier `background: var(--bg)`) komplett verschluckt — negativer
+      z-index half NICHTS, auch ein hartes `background:red` blieb
+      unsichtbar (elementFromPoint bestätigte den Knoten existiert und ist
+      korrekt gestylt, nur eben nie gemalt). Fix: kein separates Element
+      mehr — das Glühen ist jetzt eine zusätzliche background-image-Ebene
+      direkt auf body SELBST (background-attachment:fixed hält es beim
+      Scrollen viewport-fest), malt garantiert VOR dem eigenen Content,
+      keine Stacking-Context-Fallstricke möglich.
+   2. Nur .lib-nav-btn.is-active + Topbar/Lib-Nav-Hintergrund reagierten auf
+      die gewählte Akzentfarbe — alle anderen `var(--accent)`-Stellen im
+      Rest des Stylesheets (dutzende, Buttons/Badges/Fokus-Ringe/Checkboxen)
+      blieben stur blau. Fix: `body.skin-glass` überschreibt jetzt einfach
+      GLOBAL `--accent`/`--accent-hover` — jede bestehende `var(--accent)`-
+      Regel im ganzen Stylesheet zieht dadurch automatisch mit, ohne dass
+      jede einzelne Stelle angefasst werden musste. ---- */
 :root {
   --ui-glass-tint: #1a202c;
+  --ui-grid-bg: #10141c;
   --ui-glow-color: #3b82f6;
 }
-.ui-glow {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity .2s;
-}
-body.skin-glass .ui-glow {
-  opacity: 1;
-  background:
-    radial-gradient(38% 46% at 14% 8%, color-mix(in srgb, var(--ui-glow-color) 16%, transparent) 0%, transparent 70%),
-    radial-gradient(34% 40% at 88% 4%, color-mix(in srgb, var(--ui-glow-color) 10%, transparent) 0%, transparent 70%);
+body.skin-glass {
+  --bg: var(--ui-grid-bg);
+  --accent: var(--ui-glow-color);
+  --accent-hover: color-mix(in srgb, var(--ui-glow-color) 82%, black);
+  background-image:
+    radial-gradient(60% 55% at 18% 26%, color-mix(in srgb, var(--ui-glow-color) 15%, transparent) 0%, transparent 72%),
+    radial-gradient(55% 55% at 85% 62%, color-mix(in srgb, var(--ui-glow-color) 11%, transparent) 0%, transparent 72%);
+  background-attachment: fixed, fixed;
 }
 body.skin-glass .topbar,
 body.skin-glass .lib-nav {
-  background: color-mix(in srgb, var(--ui-glass-tint) 55%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: color-mix(in srgb, var(--ui-glass-tint) 42%, transparent);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
   border-color: rgba(255, 255, 255, 0.08);
 }
 body.skin-glass .topbar { box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
@@ -241,12 +257,22 @@ body.skin-glass .lib-nav-btn {
   border-color: rgba(255, 255, 255, 0.1);
 }
 body.skin-glass .lib-nav-btn.is-active {
-  background: color-mix(in srgb, var(--ui-glow-color) 16%, transparent);
-  border-color: var(--ui-glow-color);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
   color: #fff;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--ui-glow-color) 30%, transparent),
-    0 4px 14px color-mix(in srgb, var(--ui-glow-color) 25%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+/* Button-/Eingabe-Form für Glass: volle Pill-Form statt der scharfkantigen
+   6px-Standardrundung — User-Wunsch, passend zum Milchglas-Look. Zielt nur
+   auf Topbar/Lib-Nav (nicht global/Dialoge), .btn-group-Regeln (first-/
+   last-child-Eckenkappung) greifen unverändert weiter darüber. */
+body.skin-glass .topbar button,
+body.skin-glass .topbar select,
+body.skin-glass .topbar input,
+body.skin-glass .lib-nav-btn {
+  border-radius: 999px;
 }
 
 .breadcrumb {
@@ -2147,6 +2173,27 @@ body.has-mini-player { padding-bottom: 68px; }
 .video-js.player-skin-pill .vjs-load-progress,
 .video-js.player-skin-pill .vjs-load-progress div,
 .video-js.player-skin-pill .vjs-play-progress { border-radius: inherit; }
+/* 🔴→✅ Bug (User-Report mit Screenshot, live per claude-in-chrome
+   diagnostiziert): PIP- und Vollbild-Icon saßen sichtbar höher als die
+   eigenen Emoji-Icons (Favorit/Playlist/Cast) daneben. Ursache: Video.js
+   zentriert seine NATIVEN Icon-Font-Glyphen (`.vjs-icon-placeholder:before`)
+   über `position:absolute;top:0;height:100%` + `line-height:1.67` — bei
+   Video.js' Standard-Button-Höhe (3em) trifft das zufällig fast exakt,
+   bricht aber, sobald die Button-Höhe (hier 3.6em für echte Kreise)
+   abweicht: line-height (~30px) < Box-Höhe (~34px) lässt den Glyph nach
+   oben rutschen. Goldfishs EIGENE Emoji-Icons (siehe weiter oben,
+   .vjs-favorite/.vjs-addplaylist/…) haben genau dieses Problem 2026-08-13
+   schon mit `display:flex;align-items:center` auf dem ::before gelöst —
+   gilt aber nur für die dort gelisteten Selektoren, nicht für Video.js'
+   eigene Icons (PIP, Fullscreen, Mute, …). Live verifiziert (computed
+   style zeigte `display:block` bei PIP vs. `display:flex` bei Favorit) —
+   Fix hier deckt ALLE Icons in der Pill-Bar einheitlich ab, unabhängig
+   von der Icon-Quelle. */
+.video-js.player-skin-pill .vjs-control-bar .vjs-icon-placeholder::before {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 details.hint summary { cursor: pointer; color: var(--text); font-weight: 500; }
 details.hint[open] { color: var(--text-dim); }
