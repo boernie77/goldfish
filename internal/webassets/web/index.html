@@ -122,8 +122,6 @@
         </div>
       </span>
     </label>
-    <button id="flatViewBtn" title="Flache Ansicht ohne Ordner" class="toggle-btn">📂 Flach</button>
-    <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
     <button id="musicListViewBtn" title="Listenansicht statt Album-Kacheln" class="toggle-btn hidden">☰ Liste</button>
     <button id="musicAllTracksBtn" title="Alle Titel dieser Bibliothek in einer Liste" class="toggle-btn hidden">🎵 Alle Titel</button>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
@@ -979,6 +977,25 @@
 <dialog id="displayPrefsDialog" class="modal">
   <h2>🔤 Anzeige</h2>
   <p class="hint" style="margin:2px 0 12px">Diese Einstellungen gelten nur für dich, auf diesem Gerät/Browser.</p>
+  <!-- Aus der Topbar hierher verschoben (User-Wunsch 2026-09-08: "braucht
+       man so selten, die nehmen nur Platz weg") — dieselben Button-Elemente
+       (gleiche ID, gleiche Klassen), nur an anderer Stelle im DOM. Die
+       bestehende Klick-/Sichtbarkeits-Logik in app.js (wire()) bzw.
+       grid.js (Eligibility-Check pro loadItems()) arbeitet weiterhin rein
+       über die IDs #flatViewBtn/#seasonViewBtn und musste NICHT angefasst
+       werden. #seasonViewBtn bleibt weiterhin nur bei TV-Bibliotheken
+       sichtbar (grid.js togglet .hidden), sonst blendet dieser Menüpunkt
+       sich einfach selbst aus. -->
+  <div class="switch-row">
+    <span>Ordner-Navigation ausblenden (flache Ansicht)</span>
+    <button id="flatViewBtn" title="Flache Ansicht ohne Ordner" class="toggle-btn">📂 Flach</button>
+  </div>
+  <div class="switch-row">
+    <span>Serien nach Staffeln gruppieren</span>
+    <button id="seasonViewBtn" title="Nach Staffeln gruppieren (mit fehlenden Folgen)" class="toggle-btn hidden">📺 Staffeln</button>
+  </div>
+  <p class="hint" style="margin:2px 0 12px">Nur „Staffeln" ist nicht bei jeder Bibliothek verfügbar (nur Serien).</p>
+  <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
   <label class="switch-row">
     <span>Buchstabenleiste in diesem Ordner anzeigen</span>
     <span class="switch"><input id="displayPrefsAlphaSidebar" type="checkbox" /><span class="slider"></span></span>

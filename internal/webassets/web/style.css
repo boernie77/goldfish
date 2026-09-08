@@ -293,30 +293,27 @@ body.skin-glass #resDropdownBtn {
    nicht die Füllung. Jetzt wie .lib-nav-btn transparent auf der getönten
    Bar + dieselbe kontrastabhängige Textfarbe (--ui-glass-text, in
    applyUiSkin() per Helligkeits-Berechnung der Glas-Tönung gesetzt —
-   automatisch Weiß oder Schwarz, je nachdem was besser lesbar ist). */
-body.skin-glass .topbar select,
-body.skin-glass .topbar input {
-  background: color-mix(in srgb, #fff 8%, transparent);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: var(--ui-glass-text);
-}
-/* 🔴→✅ Bug (User-Report: "Auflösungsfeld vergessen"): #resDropdownBtn hat
+   automatisch Weiß oder Schwarz, je nachdem was besser lesbar ist).
+   🔴→✅ Bug (User-Report: "Auflösungsfeld vergessen"): #resDropdownBtn hat
    eine eigene ID-Regel mit `background: var(--bg-2)` weiter oben im File
    (Kompaktes Auflösungs-Dropdown) — eine ID schlägt jede Klassen-Kombination,
    auch wenn diese hier im Dokument SPÄTER steht. Deshalb eigene ID+Klassen-
    Regel zum Überschreiben. #genreDropdownBtn hatte gar keine eigene Regel
    und war ohnehin schon vom generischen `.topbar button` unten erfasst.
-   Buttons (Flach/Auswählen/Zufall/Scan/Auflösung/Genre) bekommen zusätzlich
-   User-Wunsch 2026-09-08 "immer gleiche Farbe, aber blasser, damit man sie
-   besser sieht" — deutlich mehr Weißanteil als Selects/Inputs, damit sie
-   sich als eigenständige, klar erkennbare Fläche von der Bar abheben,
-   bleiben aber im selben Farbton (nur heller gemischt, keine Fremdfarbe). */
+   User-Wunsch 2026-09-08 (zweite Runde): "das was für die Buttons gilt
+   soll auch für die Suchfelder gelten, auch die leicht heller" — Selects/
+   Input jetzt auf denselben Weißanteil wie Buttons vereinheitlicht (vorher
+   8% vs. 24%, dadurch inkonsequent unterschiedlich hell). */
+body.skin-glass .topbar select,
+body.skin-glass .topbar input,
 body.skin-glass .topbar button,
 body.skin-glass #resDropdownBtn {
   background: color-mix(in srgb, #fff 24%, transparent);
   border-color: rgba(255, 255, 255, 0.22);
   color: var(--ui-glass-text);
 }
+body.skin-glass .topbar select:hover,
+body.skin-glass .topbar input:hover,
 body.skin-glass .topbar button:hover,
 body.skin-glass #resDropdownBtn:hover {
   background: color-mix(in srgb, #fff 34%, transparent);
@@ -2236,6 +2233,35 @@ body.has-mini-player { padding-bottom: 68px; }
 .video-js.player-skin-pill .vjs-shuffle-prev { order: -3; }
 .video-js.player-skin-pill .vjs-play-control { order: -2; }
 .video-js.player-skin-pill .vjs-shuffle-next { order: -1; }
+/* 🔴→✅ Bug (User-Report mit Screenshot, "immer noch nicht richtig!!!"):
+   Play sah in der normalen (Nicht-Zufalls-)Wiedergabe weiterhin "allein
+   links" aus — die order-Umsortierung oben griff zwar korrekt, aber
+   ShufflePrev/Next sind AUSSERHALB des Zufallsmodus per player.js
+   updatePlayerButtons() komplett `.hide()`t (vjs-hidden → display:none),
+   nicht nur deaktiviert — das ist bestehendes, bewusstes Verhalten
+   (Buttons sind ohne aktive Zufallswiedergabe semantisch bedeutungslos)
+   und unabhängig vom Pill-Skin. Für den Pill-Skin (der die beiden Pfeile
+   als feste Rahmung um Play zeigen soll, analog zum Vorschau-Artifact)
+   wird das .vjs-hidden hier NUR optisch aufgehoben — sichtbar, aber
+   sichtbar deaktiviert (reduzierte Deckkraft + kein Klick), keine
+   Funktionsänderung. Sobald echte Zufallswiedergabe läuft, übernehmen
+   die normalen state.shuffleMode-Regeln (volle Deckkraft, klickbar). */
+.video-js.player-skin-pill .vjs-shuffle-prev.vjs-hidden,
+.video-js.player-skin-pill .vjs-shuffle-next.vjs-hidden {
+  display: flex !important;
+  opacity: 0.35;
+  pointer-events: none;
+}
+/* 🔴→✅ Bug (User-Report: "Minuten/Sekundenanzeige ist zu nah an der
+   Abspielgeschwindigkeit"): Zeitanzeige (Restzeit) und der "1x"-Button
+   saßen ohne jeden Abstand direkt nebeneinander. */
+.video-js.player-skin-pill .vjs-remaining-time,
+.video-js.player-skin-pill .vjs-time-control {
+  margin-right: 6px;
+}
+.video-js.player-skin-pill .vjs-playback-rate {
+  margin-right: 4px;
+}
 .video-js.player-skin-pill .vjs-progress-control { margin: 0 6px; }
 .video-js.player-skin-pill .vjs-progress-holder { border-radius: 999px; overflow: hidden; }
 .video-js.player-skin-pill .vjs-load-progress,
