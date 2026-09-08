@@ -2341,13 +2341,22 @@ body.has-mini-player { padding-bottom: 68px; }
   -webkit-mask-position: center;
   mask-position: center;
 }
+/* 🔴→✅ Bug (User-Frage: "der Pfeil rechts von Play zeigt nach links —
+   soll das wirklich 'nächstes Video' sein, nicht zurück?"): berechtigt —
+   beide Pfeile zeigten bisher nach INNEN (zu Play hin), 1:1 aus dem
+   Vorschau-Artifact übernommen, ohne die Richtung gegen die eigentliche
+   Bedeutung zu prüfen. Konvention (YouTube/Spotify/…): Zurück = Pfeil
+   nach links, Weiter = Pfeil nach rechts, unabhängig von der Position.
+   Fix: die beiden SVG-Pfade einfach getauscht (sie sind Spiegelbilder
+   voneinander) — ShufflePrev (links von Play) zeigt jetzt nach links,
+   ShuffleNext (rechts von Play) nach rechts. */
 .video-js.player-skin-pill .vjs-shuffle-prev .vjs-icon-placeholder::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 4 21 8l-4 4M21 8H8.5C5.5 8 3 10.5 3 13.5S5.5 19 8.5 19H12'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 4 21 8l-4 4M21 8H8.5C5.5 8 3 10.5 3 13.5S5.5 19 8.5 19H12'/%3E%3C/svg%3E");
-}
-.video-js.player-skin-pill .vjs-shuffle-next .vjs-icon-placeholder::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4 3 8l4 4M3 8h12.5c3 0 5.5 2.5 5.5 5.5S18.5 19 15.5 19H12'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4 3 8l4 4M3 8h12.5c3 0 5.5 2.5 5.5 5.5S18.5 19 15.5 19H12'/%3E%3C/svg%3E");
+}
+.video-js.player-skin-pill .vjs-shuffle-next .vjs-icon-placeholder::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 4 21 8l-4 4M21 8H8.5C5.5 8 3 10.5 3 13.5S5.5 19 8.5 19H12'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 4 21 8l-4 4M21 8H8.5C5.5 8 3 10.5 3 13.5S5.5 19 8.5 19H12'/%3E%3C/svg%3E");
 }
 .video-js.player-skin-pill .vjs-favorite .vjs-icon-placeholder::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 20.5s-7.5-4.6-9.8-9.1C.6 8 2 4.5 5.6 4c2-.3 3.8.6 4.9 2.2C11.6 4.6 13.4 3.7 15.4 4c3.6.5 5 4 3.4 7.4C16.5 15.9 12 20.5 12 20.5Z'/%3E%3C/svg%3E");
