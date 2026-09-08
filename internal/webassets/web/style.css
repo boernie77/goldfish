@@ -2168,6 +2168,20 @@ body.has-mini-player { padding-bottom: 68px; }
   color: #10141c;
 }
 .video-js.player-skin-pill .vjs-play-control:hover { background: #fff; }
+/* 🔴→✅ Bug (User-Report: "Playbutton war zwischen den beiden Pfeilen"):
+   ShufflePrev/ShuffleNext werden vom JS (player.js applyPlayback) ganz
+   ans Ende der ControlBar eingefügt (neben Favorit/Playlist/…, siehe dort),
+   nicht neben Play — die DOM-Reihenfolge entsprach dadurch nicht dem
+   Vorschau-Artifact. Statt die JS-Einfügelogik (bewusst so gebaut, siehe
+   Kommentar dort: "Custom-Buttons am Ende, sonst quetscht frühes Einfügen
+   die Progress-Bar raus") anzufassen, reicht eine rein visuelle Umsortierung
+   per Flex-`order` — NUR für den Pill-Skin. .vjs-control-bar ist bereits
+   display:flex (Video.js-Default), negative order-Werte reichen, um die
+   drei Buttons klein genug zu sortieren, dass sie vor allen unveränderten
+   (order:0) Buttons landen — ShufflePrev < Play < ShuffleNext. */
+.video-js.player-skin-pill .vjs-shuffle-prev { order: -3; }
+.video-js.player-skin-pill .vjs-play-control { order: -2; }
+.video-js.player-skin-pill .vjs-shuffle-next { order: -1; }
 .video-js.player-skin-pill .vjs-progress-control { margin: 0 6px; }
 .video-js.player-skin-pill .vjs-progress-holder { border-radius: 999px; overflow: hidden; }
 .video-js.player-skin-pill .vjs-load-progress,
