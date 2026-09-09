@@ -548,8 +548,8 @@
 
 <!-- Scan-Ausschlüsse (Ordner nie scannen) -->
 <dialog id="scanExcludeDialog" class="modal">
-  <h2>🚫 Ordner vom Scan ausschließen</h2>
-  <p class="hint">Ausgeschlossene Ordner werden von JEDEM Scan dieser Bibliothek übersprungen — egal ob per Zeitplan (Auto-Scan) oder manuell per ⟳-Button. Nützlich z. B. für externe Platten, die nicht dauerhaft angeschlossen sind: ohne Ausschluss würde ein Scan bei fehlender Platte die zugehörigen Einträge fälschlich als „verschwunden" aus der Datenbank entfernen. Änderungen wirken sofort, kein „Übernehmen"-Schritt nötig.</p>
+  <h2>🚫 Ordner vom Auto-Scan ausschließen</h2>
+  <p class="hint">Ausgeschlossene Ordner werden NUR vom zeitgesteuerten Auto-Scan übersprungen. Ein manueller Scan (⟳-Button) scannt immer alles, unabhängig von dieser Liste — du löst ihn ja bewusst aus und weißt selbst, ob z. B. eine externe Platte gerade angeschlossen ist. Nützlich für Ordner, die nicht dauerhaft verfügbar sind: ohne Ausschluss würde der unbeaufsichtigte Auto-Scan bei Abwesenheit die zugehörigen Einträge fälschlich als „verschwunden" aus der Datenbank entfernen. Änderungen wirken sofort, kein „Übernehmen"-Schritt nötig.</p>
   <label>Bibliothek
     <select id="scanExcludeLibrarySelect"></select>
   </label>
@@ -1277,7 +1277,7 @@
   <div id="autoScanTaskList" style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;padding-right:4px"></div>
   <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
     <button id="autoScanAddBtn" style="font-size:.85em;padding:5px 12px;border-radius:6px;border:1px dashed var(--border);background:none;color:var(--muted);cursor:pointer">+ Aufgabe hinzufügen</button>
-    <button id="autoScanExcludeBtn" type="button" style="font-size:.85em;padding:5px 12px;border-radius:6px;border:1px dashed var(--border);background:none;color:var(--muted);cursor:pointer">🚫 Ordner ausschließen…</button>
+    <button id="autoScanExcludeBtn" type="button" style="font-size:.85em;padding:5px 12px;border-radius:6px;border:1px dashed var(--border);background:none;color:var(--muted);cursor:pointer">🚫 Ordner vom Auto-Scan ausschließen…</button>
   </div>
   <div class="modal-actions" style="margin-top:14px">
     <button id="autoScanSaveBtn" class="btn-primary">Speichern</button>

@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-// listScanExcludes liefert alle vom Scan ausgeschlossenen Ordner einer
+// listScanExcludes liefert alle vom Auto-Scan ausgeschlossenen Ordner einer
 // Bibliothek. Admin-only.
 func (s *Server) listScanExcludes(w http.ResponseWriter, r *http.Request) {
 	libID, err := pathInt(r, "id")
@@ -24,12 +24,15 @@ func (s *Server) listScanExcludes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, folders)
 }
 
-// setScanExclude aktiviert/deaktiviert den Scan-Ausschluss für einen Ordner.
-// Wirkt auf JEDEN künftigen Scan der Bibliothek (Auto-Scan UND manueller
-// ⟳-Button) — der Ordner wird beim Walk übersprungen und seine bereits in
-// der DB stehenden Items sind vor dem Orphan-Cleanup geschützt (siehe
-// internal/scanner/scanner.go). folder="" schließt die gesamte Bibliothek
-// aus. Admin-only.
+// setScanExclude aktiviert/deaktiviert den Auto-Scan-Ausschluss für einen
+// Ordner. Wirkt NUR auf den zeitgesteuerten Auto-Scan (Scanner.Start mit
+// respectScanExcludes=true) — ein manueller Scan (⟳-Button) ignoriert diese
+// Liste bewusst und scannt immer alles (User-Vorgabe 2026-09-09: manuell
+// ausgelöste Scans sollen unabhängig davon sein, wo/wie ein Ordner gerade
+// gemountet ist). Der Ordner wird im Auto-Scan-Fall beim Walk übersprungen
+// und seine bereits in der DB stehenden Items sind vor dem Orphan-Cleanup
+// geschützt (siehe internal/scanner/scanner.go). folder="" schließt die
+// gesamte Bibliothek aus. Admin-only.
 func (s *Server) setScanExclude(w http.ResponseWriter, r *http.Request) {
 	libID, err := pathInt(r, "id")
 	if err != nil {

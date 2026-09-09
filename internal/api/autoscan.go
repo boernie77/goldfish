@@ -172,7 +172,7 @@ func (s *Server) runAutoScanTask(task AutoScanTask) {
 
 func runLibScan(s *Server, lib model.Library, force bool) {
 	log.Printf("[autoscan] Starte Scan Library %d (%s) force=%v", lib.ID, lib.Name, force)
-	if err := s.Scanner.Start(lib, force, ""); err != nil {
+	if err := s.Scanner.Start(lib, force, "", true); err != nil {
 		log.Printf("[autoscan] Scan Library %d: %v", lib.ID, err)
 		return
 	}

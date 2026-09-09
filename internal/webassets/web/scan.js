@@ -406,12 +406,15 @@ function renderScanStatus(st) {
 }
 
 
-// --- Scan-Ausschlüsse (Ordner nie scannen, seit 2026-09-09) ---
+// --- Scan-Ausschlüsse (Ordner vom Auto-Scan ausschließen, seit 2026-09-09) ---
 //
-// Wirkt auf JEDEN Scan der gewählten Bibliothek — Auto-Scan UND manueller
-// ⟳-Button (Server: internal/scanner/scanner.go überspringt den Ordner
-// komplett beim Walk UND schützt seine Bestands-Items vor dem
-// Orphan-Cleanup). Zeilen-Existenz = ausgeschlossen, PUT sofort bei Klick
+// Wirkt NUR auf den zeitgesteuerten Auto-Scan der gewählten Bibliothek —
+// ein manueller ⟳-Scan ignoriert diese Liste bewusst und scannt immer alles
+// (User-Vorgabe: manuell ausgelöste Scans sollen unabhängig davon sein, wo/
+// wie ein Ordner gerade gemountet ist; siehe internal/scanner/scanner.go
+// respectScanExcludes-Parameter). Server überspringt den Ordner beim
+// Auto-Scan-Walk komplett UND schützt seine Bestands-Items dabei vor dem
+// Orphan-Cleanup. Zeilen-Existenz = ausgeschlossen, PUT sofort bei Klick
 // (kein "Übernehmen"-Schritt, gleiche Konvention wie der Introskip-Dialog).
 // Baum-Rendering ist eine Kopie des Musters aus playlists.js
 // (openShuffleScopeDialog/renderShuffleScopeTree) — lazy pro Ebene über

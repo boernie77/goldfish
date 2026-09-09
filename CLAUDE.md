@@ -569,9 +569,11 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Code-Änderung im bestehenden Pfad-Browser + der `/media`-Security-Prüfung
   landen (Docker erlaubt verschachtelte Bind-Mounts problemlos). **Achtung:**
   Laufwerke hier sind typischerweise NICHT dauerhaft angeschlossen — für
-  Bibliotheken darauf unbedingt „🚫 Ordner ausschließen…" im Auto-Scan-Dialog
-  nutzen (siehe „Scan-Ausschlüsse" unten), sonst löscht ein Scan bei fehlender
-  Platte die Einträge fälschlich als verwaist aus der DB.
+  Bibliotheken darauf unbedingt „🚫 Ordner vom Auto-Scan ausschließen…" im
+  Auto-Scan-Dialog nutzen (siehe „Scan-Ausschlüsse" unten), sonst löscht der
+  ZEITGESTEUERTE Auto-Scan bei fehlender Platte die Einträge fälschlich als
+  verwaist aus der DB. Ein manueller ⟳-Scan ist davon bewusst NICHT betroffen
+  (User-Vorgabe) — nur unbeaufsichtigt laufende Scans respektieren die Liste.
 - `/config` (rw) → SQLite-DB, Thumbnails, TMDB-Poster-Cache, Transcode-Cache
 
 ### DB-Schema (wichtigste Tabellen)
@@ -676,49 +678,80 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   unabhängig; feuert pro Aufgaben-ID max. einmal pro Minute.
 - **Menü-Subtitle** zeigt „✓ N aktive Aufgabe(n)" wenn mindestens eine aktiv.
 
-### Scan-Ausschlüsse (seit 2026-09-09, LIVE 1.2.47)
+### Scan-Ausschlüsse — NUR Auto-Scan (seit 2026-09-09, LIVE 1.2.47, korrigiert 1.2.48)
 - User-Anlass: Unassigned-Devices-Laufwerke (externe Platten, gemountet
   unter `/mnt/disks`/`/mnt/remotes` auf dem Unraid-Host, seit diesem Datum
   zusätzlich in den Live-Stack unter `/media/UD-Disks`/`/media/UD-Remotes`
   gemountet, siehe „Volumes" oben) sind nicht dauerhaft angeschlossen — ein
-  Scan (Auto-Scan ODER manueller ⟳-Klick) bei fehlender Platte würde die
-  zugehörigen Items sonst als „verschwunden" werten und aus der DB löschen
-  (Dateien selbst bleiben unangetastet, aber Goldfish „vergisst" sie).
-- **Wirkt auf JEDEN Scan der Bibliothek, nicht nur Auto-Scan** — bewusste
-  Entscheidung: ein manueller Scan bei nicht eingesteckter Platte hätte
-  sonst dieselbe Lösch-Konsequenz gehabt, "nur Auto-Scan ausschließen" hätte
-  das eigentliche Problem nicht vollständig gelöst.
+  unbeaufsichtigter Auto-Scan bei fehlender Platte würde die zugehörigen
+  Items sonst als „verschwunden" werten und aus der DB löschen (Dateien
+  selbst bleiben unangetastet, aber Goldfish „vergisst" sie).
+- **🔴 Erste Version (1.2.47) wirkte auf JEDEN Scan (Auto-Scan UND manuell)
+  — von der ursprünglichen Design-Annahme her bewusst so gebaut, aber vom
+  User explizit korrigiert (2026-09-09):** „bei einem manuellen Scan aber
+  mit dabei sind, egal wo sie gemountet oder gespeichert sind". Hintergrund:
+  ein manueller ⟳-Scan wird bewusst vom Admin ausgelöst, der zu diesem
+  Zeitpunkt selbst weiß, ob die Platte angeschlossen ist — die Schutzlogik
+  ist nur für den UNBEAUFSICHTIGTEN Auto-Scan nötig/gewollt. **Fix (LIVE
+  1.2.48):** `Scanner.Start`/`run` bekamen einen neuen Parameter
+  `respectScanExcludes bool`. `RunAutoScan` (`internal/api/autoscan.go`)
+  übergibt `true`; `startScan`/`startScanAll` (`internal/api/scan.go`,
+  manueller ⟳-Button UND „Alle Bibliotheken scannen") übergeben `false` —
+  bei `false` bleibt `excludedFolders` im Scanner leer, wodurch der
+  Walk-Skip UND der Orphan-Schutz weiter unten automatisch zu No-Ops werden
+  (keine eigene Verzweigung nötig).
+- **Bekannte Grenze bei Multi-Path-Namenskollisionen:** der Ausschluss
+  wirkt auf den aggregierten Ordner-NAMEN (`rel_path`-Top-Segment), nicht
+  auf „welche physische Quelle". Wird ein Ordner als eigene zusätzliche
+  Multi-Path-Wurzel zu einer Library hinzugefügt (statt als Unterordner
+  einer bereits vorhandenen Wurzel), tragen Dateien DIREKT in dieser neuen
+  Wurzel gar keinen Ordnernamen im `rel_path` (Multi-Path-Wurzeln liefern
+  `filepath.Rel(root, path)`, der Wurzel-eigene Name verschwindet dabei) —
+  ein Ausschluss kann sie strukturell nicht treffen. Trägt der neue Wurzel-
+  Ordnername zusätzlich denselben Namen wie ein bereits existierender
+  Unterordner der PRIMÄREN Library-Quelle, kollidieren beide beim
+  Ausschließen. Sauberer Workaround: externe Laufwerke als **eigene,
+  separate Bibliothek** anlegen (dann greift der `folder=""`-„gesamte
+  Bibliothek ausschließen"-Fall kollisionsfrei) — war hier für den
+  konkreten User-Fall keine Option (Ordnerinhalte sollen dauerhaft
+  weiterhin unter der bestehenden Library "a" geführt werden), daher blieb
+  es bei der Multi-Path-Konstruktion mit der oben beschriebenen Grenze.
 - **Neue Tabelle `scan_excluded_folders(library_id, folder)`** — Zeilen-
   Existenz = ausgeschlossen (gleiche Konvention wie `trickplay_folders`/
-  `intro_skip_folders`). `folder=""` schließt die GESAMTE Bibliothek aus.
+  `intro_skip_folders`). `folder=""` schließt die GESAMTE Bibliothek aus
+  (nur vom Auto-Scan, siehe oben).
   Store: `internal/store/scan_excludes.go` — `SetScanExcludedFolder`,
   `ListScanExcludedFolders`, `IsRelPathExcluded` (Präfix-Check mit `/`-Grenze,
   damit z.B. "Foo2" nicht fälschlich unter ausgeschlossenem "Foo" fällt),
   `ItemPathsUnderFolders` (liefert `items.path`, nicht `rel_path` — direkt
   fürs Scanner-`keep`-Set gedacht).
 - **Scanner-Integration** (`internal/scanner/scanner.go run()`): lädt die
-  Ausschlussliste einmal am Anfang. (1) Im `filepath.WalkDir`-Callback wird
-  ein ausgeschlossener Ordner komplett übersprungen (`filepath.SkipDir`,
-  gleicher Mechanismus wie der bestehende Sample-Ordner-Skip). (2) VOR dem
-  Orphan-Cleanup werden die Disk-Pfade aller bereits in der DB stehenden
-  Items unter ausgeschlossenen Ordnern per `ItemPathsUnderFolders` ins
-  `keep`-Set aufgenommen — **essentiell**, sonst würde Punkt (1) diese Items
-  erst gar nicht ins `keep`-Set bringen und das Orphan-Cleanup direkt danach
-  würde sie löschen, obwohl sie nur "ausgeschlossen" und nicht wirklich weg
-  sind. Beide Schritte zusammen sind nötig, keiner reicht allein.
+  Ausschlussliste nur wenn `respectScanExcludes=true` (Auto-Scan). (1) Im
+  `filepath.WalkDir`-Callback wird ein ausgeschlossener Ordner komplett
+  übersprungen (`filepath.SkipDir`, gleicher Mechanismus wie der bestehende
+  Sample-Ordner-Skip). (2) VOR dem Orphan-Cleanup werden die Disk-Pfade
+  aller bereits in der DB stehenden Items unter ausgeschlossenen Ordnern
+  per `ItemPathsUnderFolders` ins `keep`-Set aufgenommen — **essentiell**,
+  sonst würde Punkt (1) diese Items erst gar nicht ins `keep`-Set bringen
+  und das Orphan-Cleanup direkt danach würde sie löschen, obwohl sie nur
+  "ausgeschlossen" und nicht wirklich weg sind. Beide Schritte zusammen
+  sind nötig, keiner reicht allein — beide laufen aber nur, wenn
+  `respectScanExcludes=true` war.
 - **API** (admin-only): `GET/PUT /api/libraries/{id}/scan-excludes`
   (`internal/api/scan_excludes.go`) — PUT nimmt `{folder, excluded}`, PUT
   wirkt sofort (kein „Übernehmen"-Schritt, wie beim Introskip-Dialog).
-- **UI:** Button „🚫 Ordner ausschließen…" im „🕐 Auto-Scan"-Dialog öffnet
-  `#scanExcludeDialog` (`scan.js`, Code-Kopie des Baum-Musters aus
-  `playlists.js` `openShuffleScopeDialog`/`renderShuffleScopeTree` — lazy
-  pro Ebene über `GET /api/libraries/{id}/folders?parent=`, aber
-  Single-Library statt library-übergreifend, da Ausschlüsse pro Bibliothek
-  gespeichert werden). Checkbox-Klick ruft sofort PUT auf, kein Speichern-
-  Button nötig. Reachable über den Auto-Scan-Dialog, wirkt aber wie oben
-  beschrieben auch auf manuelle Scans — Text im Dialog weist explizit
-  darauf hin.
-- Tests: `internal/store/scan_excludes_test.go`.
+- **UI:** Button „🚫 Ordner vom Auto-Scan ausschließen…" im
+  „🕐 Auto-Scan"-Dialog öffnet `#scanExcludeDialog` (`scan.js`, Code-Kopie
+  des Baum-Musters aus `playlists.js` `openShuffleScopeDialog`/
+  `renderShuffleScopeTree` — lazy pro Ebene über
+  `GET /api/libraries/{id}/folders?parent=`, aber Single-Library statt
+  library-übergreifend, da Ausschlüsse pro Bibliothek gespeichert werden).
+  Checkbox-Klick ruft sofort PUT auf, kein Speichern-Button nötig. Dialog-
+  Text weist explizit darauf hin, dass NUR Auto-Scan betroffen ist.
+- Tests: `internal/store/scan_excludes_test.go` (Store-Ebene: Toggle,
+  `IsRelPathExcluded`-Matching, `ItemPathsUnderFolders` — die
+  `respectScanExcludes`-Verzweigung selbst ist reines Scanner-Wiring ohne
+  externe Abhängigkeit auf DB-Ebene, kein Test nötig darüber hinaus).
 
 ### Scanner & Metadaten
 - ffprobe liefert Container/Codec/Auflösung/Laufzeit/Bitrate.

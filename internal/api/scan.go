@@ -23,7 +23,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 	}
 	force := r.URL.Query().Get("force") == "true"
 	folder := r.URL.Query().Get("folder")
-	if err := s.Scanner.Start(*lib, force, folder); err != nil {
+	if err := s.Scanner.Start(*lib, force, folder, false); err != nil {
 		writeError(w, 409, err.Error())
 		return
 	}
@@ -58,7 +58,7 @@ func (s *Server) startScanAll(w http.ResponseWriter, r *http.Request) {
 	}
 	go func() {
 		for _, l := range libs {
-			if err := s.Scanner.Start(l, force, ""); err != nil {
+			if err := s.Scanner.Start(l, force, "", false); err != nil {
 				// Scanner gibt Fehler zurück wenn bereits läuft — kurz warten
 				continue
 			}

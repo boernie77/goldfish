@@ -151,7 +151,15 @@ func (sc *Scanner) Cancel() {
 // Start startet einen Scan. folder="" bedeutet komplette Library; sonst wird nur der
 // angegebene rel_path-Unterbaum gescannt und Orphan-Delete bleibt auf diesen Ordner
 // beschränkt.
-func (sc *Scanner) Start(lib model.Library, force bool, folder string) error {
+// respectScanExcludes: nur Auto-Scan (unbeaufsichtigt, per Zeitplan) übergibt
+// true — ein manueller Scan wird immer bewusst vom User ausgelöst, der weiß,
+// ob z.B. eine externe Platte gerade angeschlossen ist, und soll deshalb
+// IMMER alles scannen, unabhängig von scan_excluded_folders (User-Vorgabe
+// 2026-09-09: "bei einem manuellen Scan aber mit dabei sind, egal wo sie
+// gemountet oder gespeichert sind"). Auto-Scan respektiert die Liste, weil er
+// unbeaufsichtigt läuft und bei fehlender Platte sonst Items faelschlich als
+// verwaist löschen würde.
+func (sc *Scanner) Start(lib model.Library, force bool, folder string, respectScanExcludes bool) error {
 	sc.mu.Lock()
 	if sc.status.Running {
 		sc.mu.Unlock()
@@ -199,7 +207,7 @@ func (sc *Scanner) Start(lib model.Library, force bool, folder string) error {
 				cb()
 			}
 		}()
-		if err := sc.run(ctx, lib, force, folder); err != nil {
+		if err := sc.run(ctx, lib, force, folder, respectScanExcludes); err != nil {
 			log.Printf("[scan] lib=%d folder=%q error: %v", lib.ID, folder, err)
 			sc.mu.Lock()
 			sc.status.LastError = err.Error()
@@ -209,7 +217,7 @@ func (sc *Scanner) Start(lib model.Library, force bool, folder string) error {
 	return nil
 }
 
-func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folder string) error {
+func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folder string, respectScanExcludes bool) error {
 	// Alle Quellordner der Bibliothek abfragen. Jede Datei trägt rel_path relativ
 	// zum jeweiligen Quellpfad — dadurch tauchen gleichnamige Unterordner aus
 	// verschiedenen Quellen als EIN "Ordner" in der UI auf (Multi-Path-Aggregation).
@@ -221,9 +229,17 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 		paths = []string{lib.Path}
 	}
 
-	excludedFolders, err := sc.store.ListScanExcludedFolders(lib.ID)
-	if err != nil {
-		return err
+	// Nur Auto-Scan respektiert die Ausschlussliste (siehe Doku-Kommentar an
+	// Start). Bei einem manuellen Scan bleibt excludedFolders bewusst leer —
+	// dieselben Walk-/Orphan-Codepfade unten werden dadurch automatisch zu
+	// No-Ops, ohne eigene Verzweigung an jeder Stelle nötig zu machen.
+	var excludedFolders []string
+	if respectScanExcludes {
+		var err error
+		excludedFolders, err = sc.store.ListScanExcludedFolders(lib.ID)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Phase 1: Dateien sammeln (mit Info, aus welchem Root sie kommen)
