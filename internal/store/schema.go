@@ -103,6 +103,18 @@ func (s *Store) migrate() error {
 			UNIQUE(item_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS ocr_sub_jobs_status_idx ON ocr_sub_jobs(status)`,
+		// scan_excluded_folders: Opt-out-Set — Zeilen-Existenz = ausgeschlossen.
+		// Gilt für JEDEN Scan der Bibliothek (Auto-Scan UND manueller ⟳-Button),
+		// nicht nur Auto-Scan — sonst würde ein manueller Scan bei nicht
+		// eingesteckter externer Platte trotzdem die DB-Einträge als "verwaist"
+		// löschen. folder ist rekursiv: schließt den Ordner UND alle
+		// Unterordner vom Walk UND vom Orphan-Cleanup aus (siehe scanner.go
+		// isPathExcluded + Store.ItemPathsUnderFolders).
+		`CREATE TABLE IF NOT EXISTS scan_excluded_folders (
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			PRIMARY KEY (library_id, folder)
+		)`,
 		`CREATE TABLE IF NOT EXISTS folder_nav (
 			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
 			folder TEXT NOT NULL,

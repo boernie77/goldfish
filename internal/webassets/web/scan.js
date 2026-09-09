@@ -405,3 +405,150 @@ function renderScanStatus(st) {
   `;
 }
 
+
+// --- Scan-Ausschlüsse (Ordner nie scannen, seit 2026-09-09) ---
+//
+// Wirkt auf JEDEN Scan der gewählten Bibliothek — Auto-Scan UND manueller
+// ⟳-Button (Server: internal/scanner/scanner.go überspringt den Ordner
+// komplett beim Walk UND schützt seine Bestands-Items vor dem
+// Orphan-Cleanup). Zeilen-Existenz = ausgeschlossen, PUT sofort bei Klick
+// (kein "Übernehmen"-Schritt, gleiche Konvention wie der Introskip-Dialog).
+// Baum-Rendering ist eine Kopie des Musters aus playlists.js
+// (openShuffleScopeDialog/renderShuffleScopeTree) — lazy pro Ebene über
+// GET /api/libraries/{id}/folders?parent=…, aber Single-Library statt
+// library-übergreifend (Ausschlüsse sind pro Bibliothek gespeichert).
+
+let scanExcludeTreeCache = {};      // `${libId}:${parent}` → Folder[]
+let scanExcludeTreeExpanded = new Set(); // Set von `${libId}:${path}`
+let scanExcludeCurrent = [];        // ausgeschlossene Ordner der aktuell gewählten Library
+
+async function openScanExcludeDialog() {
+  if (!state.libraries || !state.libraries.length) {
+    appAlert("Keine Bibliothek verfügbar.");
+    return;
+  }
+  scanExcludeTreeCache = {};
+  scanExcludeTreeExpanded = new Set();
+  const sel = $("#scanExcludeLibrarySelect");
+  sel.innerHTML = state.libraries.map(l => `<option value="${l.id}">${escapeHTML(l.name)}</option>`).join("");
+  const preferred = (state.currentLibrary && state.libraries.some(l => l.id == state.currentLibrary))
+    ? state.currentLibrary : state.libraries[0].id;
+  sel.value = preferred;
+  if (!sel.dataset.wired) {
+    sel.dataset.wired = "1";
+    sel.addEventListener("change", async () => {
+      scanExcludeTreeCache = {};
+      scanExcludeTreeExpanded = new Set();
+      await loadScanExcludeCurrent();
+      await renderScanExcludeTree();
+    });
+  }
+  await loadScanExcludeCurrent();
+  await renderScanExcludeTree();
+  $("#scanExcludeDialog").showModal();
+}
+
+async function loadScanExcludeCurrent() {
+  const libId = Number($("#scanExcludeLibrarySelect").value);
+  try {
+    scanExcludeCurrent = await api(`/api/libraries/${libId}/scan-excludes`);
+  } catch {
+    scanExcludeCurrent = [];
+  }
+}
+
+async function fetchScanExcludeTreeChildren(libId, parent) {
+  const key = `${libId}:${parent}`;
+  if (scanExcludeTreeCache[key]) return scanExcludeTreeCache[key];
+  try {
+    const folders = await api(`/api/libraries/${libId}/folders?parent=${encodeURIComponent(parent)}`);
+    scanExcludeTreeCache[key] = folders || [];
+  } catch {
+    scanExcludeTreeCache[key] = [];
+  }
+  return scanExcludeTreeCache[key];
+}
+
+async function renderScanExcludeTreeLevel(libId, parent) {
+  const folders = await fetchScanExcludeTreeChildren(libId, parent);
+  if (!folders.length) return "";
+  const rows = await Promise.all(folders.map(async (f) => {
+    const path = f.name;
+    const checked = scanExcludeCurrent.includes(path);
+    const key = `${libId}:${path}`;
+    const expanded = scanExcludeTreeExpanded.has(key);
+    const label = path.split("/").pop();
+    const childrenHtml = expanded
+      ? `<ul class="move-tree-list">${await renderScanExcludeTreeLevel(libId, path)}</ul>`
+      : "";
+    return `
+      <li class="move-tree-item">
+        <div class="move-tree-row ${checked ? "is-checked" : ""}" data-path="${escapeHTML(path)}">
+          <button type="button" class="move-tree-toggle ${expanded ? "is-open" : ""}" data-toggle="${escapeHTML(path)}">▸</button>
+          <label class="move-tree-label"><input type="checkbox" data-path="${escapeHTML(path)}" ${checked ? "checked" : ""}> 📁 ${escapeHTML(label)}</label>
+        </div>
+        ${childrenHtml}
+      </li>`;
+  }));
+  return rows.join("");
+}
+
+async function renderScanExcludeTree() {
+  const libId = Number($("#scanExcludeLibrarySelect").value);
+  const container = $("#scanExcludeTree");
+  const rootChecked = scanExcludeCurrent.includes("");
+  const childrenHtml = await renderScanExcludeTreeLevel(libId, "");
+  const rootRow = `
+    <div class="move-tree-row ${rootChecked ? "is-checked" : ""}" data-path="">
+      <button type="button" class="move-tree-toggle move-tree-toggle--leaf"></button>
+      <label class="move-tree-label"><input type="checkbox" data-path="" ${rootChecked ? "checked" : ""}> 🏠 (gesamte Bibliothek ausschließen)</label>
+    </div>`;
+  container.innerHTML = childrenHtml
+    ? `${rootRow}<ul class="move-tree-list">${childrenHtml}</ul>`
+    : `${rootRow}<div class="move-tree-empty">Keine Unterordner in dieser Bibliothek.</div>`;
+  if (!container.dataset.wired) {
+    container.dataset.wired = "1";
+    container.addEventListener("click", handleScanExcludeTreeToggle);
+    container.addEventListener("change", handleScanExcludeTreeCheck);
+  }
+}
+
+async function handleScanExcludeTreeToggle(e) {
+  const toggle = e.target.closest("[data-toggle]");
+  if (!toggle) return;
+  e.stopPropagation();
+  const libId = Number($("#scanExcludeLibrarySelect").value);
+  const path = toggle.dataset.toggle;
+  const key = `${libId}:${path}`;
+  if (scanExcludeTreeExpanded.has(key)) scanExcludeTreeExpanded.delete(key);
+  else scanExcludeTreeExpanded.add(key);
+  await renderScanExcludeTree();
+}
+
+async function handleScanExcludeTreeCheck(e) {
+  const cb = e.target.closest('input[type="checkbox"]');
+  if (!cb) return;
+  const libId = Number($("#scanExcludeLibrarySelect").value);
+  const path = cb.dataset.path;
+  const excluded = cb.checked;
+  const row = cb.closest(".move-tree-row");
+  cb.disabled = true;
+  try {
+    await api(`/api/libraries/${libId}/scan-excludes`, {
+      method: "PUT",
+      body: JSON.stringify({ folder: path, excluded }),
+    });
+    if (excluded) {
+      if (!scanExcludeCurrent.includes(path)) scanExcludeCurrent.push(path);
+    } else {
+      scanExcludeCurrent = scanExcludeCurrent.filter(p => p !== path);
+    }
+    if (row) row.classList.toggle("is-checked", excluded);
+    showToast(excluded ? "Ordner vom Scan ausgeschlossen" : "Ausschluss aufgehoben", { kind: "success" });
+  } catch (err) {
+    cb.checked = !excluded; // Rollback bei Fehler
+    appAlert("Fehler: " + err.message);
+  } finally {
+    cb.disabled = false;
+  }
+}

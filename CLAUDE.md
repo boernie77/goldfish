@@ -561,6 +561,17 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (Detail-Dialog 🗑, Dubletten-Aufräumen über „≈ Ähnliche Dateinamen"). Der Kommentar in
   `internal/api/delete_download.go` über „ist /media read-only gemountet?" ist
   entsprechend meist gegenstandslos.
+- **`/media/UD-Disks` → `/mnt/disks`, `/media/UD-Remotes` → `/mnt/remotes`
+  (seit 2026-09-09, read-write, User-Wunsch):** Unraid-Unassigned-Devices
+  (externe Platten bzw. UD-Netzwerkfreigaben) — komplett andere Host-Pfade
+  als `/mnt/user`, daher zwei zusätzliche Mounts, bewusst als Unterordner
+  von `/media` (nicht als eigener Top-Level-Mount), damit sie ohne
+  Code-Änderung im bestehenden Pfad-Browser + der `/media`-Security-Prüfung
+  landen (Docker erlaubt verschachtelte Bind-Mounts problemlos). **Achtung:**
+  Laufwerke hier sind typischerweise NICHT dauerhaft angeschlossen — für
+  Bibliotheken darauf unbedingt „🚫 Ordner ausschließen…" im Auto-Scan-Dialog
+  nutzen (siehe „Scan-Ausschlüsse" unten), sonst löscht ein Scan bei fehlender
+  Platte die Einträge fälschlich als verwaist aus der DB.
 - `/config` (rw) → SQLite-DB, Thumbnails, TMDB-Poster-Cache, Transcode-Cache
 
 ### DB-Schema (wichtigste Tabellen)
@@ -664,6 +675,50 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - **Server:** `RunAutoScan`-Goroutine prüft jede Minute alle aktiven Aufgaben
   unabhängig; feuert pro Aufgaben-ID max. einmal pro Minute.
 - **Menü-Subtitle** zeigt „✓ N aktive Aufgabe(n)" wenn mindestens eine aktiv.
+
+### Scan-Ausschlüsse (seit 2026-09-09, LIVE 1.2.47)
+- User-Anlass: Unassigned-Devices-Laufwerke (externe Platten, gemountet
+  unter `/mnt/disks`/`/mnt/remotes` auf dem Unraid-Host, seit diesem Datum
+  zusätzlich in den Live-Stack unter `/media/UD-Disks`/`/media/UD-Remotes`
+  gemountet, siehe „Volumes" oben) sind nicht dauerhaft angeschlossen — ein
+  Scan (Auto-Scan ODER manueller ⟳-Klick) bei fehlender Platte würde die
+  zugehörigen Items sonst als „verschwunden" werten und aus der DB löschen
+  (Dateien selbst bleiben unangetastet, aber Goldfish „vergisst" sie).
+- **Wirkt auf JEDEN Scan der Bibliothek, nicht nur Auto-Scan** — bewusste
+  Entscheidung: ein manueller Scan bei nicht eingesteckter Platte hätte
+  sonst dieselbe Lösch-Konsequenz gehabt, "nur Auto-Scan ausschließen" hätte
+  das eigentliche Problem nicht vollständig gelöst.
+- **Neue Tabelle `scan_excluded_folders(library_id, folder)`** — Zeilen-
+  Existenz = ausgeschlossen (gleiche Konvention wie `trickplay_folders`/
+  `intro_skip_folders`). `folder=""` schließt die GESAMTE Bibliothek aus.
+  Store: `internal/store/scan_excludes.go` — `SetScanExcludedFolder`,
+  `ListScanExcludedFolders`, `IsRelPathExcluded` (Präfix-Check mit `/`-Grenze,
+  damit z.B. "Foo2" nicht fälschlich unter ausgeschlossenem "Foo" fällt),
+  `ItemPathsUnderFolders` (liefert `items.path`, nicht `rel_path` — direkt
+  fürs Scanner-`keep`-Set gedacht).
+- **Scanner-Integration** (`internal/scanner/scanner.go run()`): lädt die
+  Ausschlussliste einmal am Anfang. (1) Im `filepath.WalkDir`-Callback wird
+  ein ausgeschlossener Ordner komplett übersprungen (`filepath.SkipDir`,
+  gleicher Mechanismus wie der bestehende Sample-Ordner-Skip). (2) VOR dem
+  Orphan-Cleanup werden die Disk-Pfade aller bereits in der DB stehenden
+  Items unter ausgeschlossenen Ordnern per `ItemPathsUnderFolders` ins
+  `keep`-Set aufgenommen — **essentiell**, sonst würde Punkt (1) diese Items
+  erst gar nicht ins `keep`-Set bringen und das Orphan-Cleanup direkt danach
+  würde sie löschen, obwohl sie nur "ausgeschlossen" und nicht wirklich weg
+  sind. Beide Schritte zusammen sind nötig, keiner reicht allein.
+- **API** (admin-only): `GET/PUT /api/libraries/{id}/scan-excludes`
+  (`internal/api/scan_excludes.go`) — PUT nimmt `{folder, excluded}`, PUT
+  wirkt sofort (kein „Übernehmen"-Schritt, wie beim Introskip-Dialog).
+- **UI:** Button „🚫 Ordner ausschließen…" im „🕐 Auto-Scan"-Dialog öffnet
+  `#scanExcludeDialog` (`scan.js`, Code-Kopie des Baum-Musters aus
+  `playlists.js` `openShuffleScopeDialog`/`renderShuffleScopeTree` — lazy
+  pro Ebene über `GET /api/libraries/{id}/folders?parent=`, aber
+  Single-Library statt library-übergreifend, da Ausschlüsse pro Bibliothek
+  gespeichert werden). Checkbox-Klick ruft sofort PUT auf, kein Speichern-
+  Button nötig. Reachable über den Auto-Scan-Dialog, wirkt aber wie oben
+  beschrieben auch auf manuelle Scans — Text im Dialog weist explizit
+  darauf hin.
+- Tests: `internal/store/scan_excludes_test.go`.
 
 ### Scanner & Metadaten
 - ffprobe liefert Container/Codec/Auflösung/Laufzeit/Bitrate.

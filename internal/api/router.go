@@ -180,6 +180,8 @@ func (s *Server) Router() http.Handler {
 		r.Post("/scan/all", requireAdmin(s.startScanAll))
 		r.Get("/scan/status", requireAdmin(s.scanStatus))
 		r.Post("/scan/cancel", requireAdmin(s.cancelScan))
+		r.Get("/libraries/{id}/scan-excludes", requireAdmin(s.listScanExcludes))
+		r.Put("/libraries/{id}/scan-excludes", requireAdmin(s.setScanExclude))
 
 		r.Get("/settings", s.getSettings)
 		r.Put("/settings", requireAdmin(s.putSettings))
@@ -353,7 +355,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.2.46"
+const appVersion = "1.2.47"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

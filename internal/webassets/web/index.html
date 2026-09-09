@@ -546,6 +546,19 @@
   </div>
 </dialog>
 
+<!-- Scan-Ausschlüsse (Ordner nie scannen) -->
+<dialog id="scanExcludeDialog" class="modal">
+  <h2>🚫 Ordner vom Scan ausschließen</h2>
+  <p class="hint">Ausgeschlossene Ordner werden von JEDEM Scan dieser Bibliothek übersprungen — egal ob per Zeitplan (Auto-Scan) oder manuell per ⟳-Button. Nützlich z. B. für externe Platten, die nicht dauerhaft angeschlossen sind: ohne Ausschluss würde ein Scan bei fehlender Platte die zugehörigen Einträge fälschlich als „verschwunden" aus der Datenbank entfernen. Änderungen wirken sofort, kein „Übernehmen"-Schritt nötig.</p>
+  <label>Bibliothek
+    <select id="scanExcludeLibrarySelect"></select>
+  </label>
+  <div id="scanExcludeTree" class="move-tree"></div>
+  <div class="row">
+    <button type="button" data-close class="primary">Fertig</button>
+  </div>
+</dialog>
+
 <!-- Path browser -->
 <dialog id="browseDialog" class="modal">
   <h2>Ordner wählen</h2>
@@ -1262,8 +1275,9 @@
   <h3>🕐 Auto-Scan</h3>
   <p style="margin:0 0 12px;color:var(--muted)">Mehrere unabhängige Scan-Aufgaben — jede mit eigenem Zeitplan, Bibliothek und Scan-Typ.</p>
   <div id="autoScanTaskList" style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;padding-right:4px"></div>
-  <div style="margin-top:10px">
+  <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
     <button id="autoScanAddBtn" style="font-size:.85em;padding:5px 12px;border-radius:6px;border:1px dashed var(--border);background:none;color:var(--muted);cursor:pointer">+ Aufgabe hinzufügen</button>
+    <button id="autoScanExcludeBtn" type="button" style="font-size:.85em;padding:5px 12px;border-radius:6px;border:1px dashed var(--border);background:none;color:var(--muted);cursor:pointer">🚫 Ordner ausschließen…</button>
   </div>
   <div class="modal-actions" style="margin-top:14px">
     <button id="autoScanSaveBtn" class="btn-primary">Speichern</button>

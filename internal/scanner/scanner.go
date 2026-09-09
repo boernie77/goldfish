@@ -221,6 +221,11 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 		paths = []string{lib.Path}
 	}
 
+	excludedFolders, err := sc.store.ListScanExcludedFolders(lib.ID)
+	if err != nil {
+		return err
+	}
+
 	// Phase 1: Dateien sammeln (mit Info, aus welchem Root sie kommen)
 	type fileRef struct {
 		path string
@@ -254,6 +259,16 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 				// Library-Liste.
 				if strings.EqualFold(d.Name(), "Sample") || strings.EqualFold(d.Name(), "Samples") {
 					return filepath.SkipDir
+				}
+				// Admin-Ausschluss (z.B. eine nicht immer angeschlossene externe
+				// Platte) — komplett vom Walk ausnehmen. Die zugehörigen
+				// Bestands-Items werden weiter unten separat vor dem
+				// Orphan-Cleanup geschützt (store.ItemPathsUnderFolders).
+				if len(excludedFolders) > 0 {
+					rel := strings.TrimPrefix(strings.TrimPrefix(path, root), "/")
+					if store.IsRelPathExcluded(rel, excludedFolders) {
+						return filepath.SkipDir
+					}
 				}
 				return nil
 			}
@@ -339,6 +354,22 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 			sc.newPaths = append(sc.newPaths, item.RelPath)
 		}
 		sc.mu.Unlock()
+	}
+
+	// Ausgeschlossene Ordner werden nie gewalkt — ihre Items landen deshalb
+	// nie in `keep`. Ohne diesen Schutz würde das Orphan-Cleanup gleich
+	// darunter sie fälschlich als verschwunden werten und aus der DB
+	// löschen (die Dateien selbst blieben unangetastet, aber Goldfish würde
+	// sie "vergessen"). Betrifft typischerweise externe Platten, die nicht
+	// dauerhaft eingesteckt sind.
+	if len(excludedFolders) > 0 {
+		protected, err := sc.store.ItemPathsUnderFolders(lib.ID, excludedFolders)
+		if err != nil {
+			log.Printf("[scan] lib=%d: ItemPathsUnderFolders: %v", lib.ID, err)
+		}
+		for _, p := range protected {
+			keep[p] = struct{}{}
+		}
 	}
 
 	// Orphan-Cleanup. Per-Folder-Removed + Detail-Liste brauchen wir VOR

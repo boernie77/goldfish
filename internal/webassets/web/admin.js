@@ -1234,6 +1234,7 @@ async function openAutoScan() {
     dlg._asWired = true;
     $("#autoScanAddBtn").addEventListener("click", autoScanAddTask);
     $("#autoScanSaveBtn").addEventListener("click", saveAutoScan);
+    $("#autoScanExcludeBtn").addEventListener("click", openScanExcludeDialog);
   }
 
   if (!dlg.open) dlg.showModal();
