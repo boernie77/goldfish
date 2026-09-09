@@ -518,6 +518,10 @@
     </label>
     <div id="moveFolderTree" class="move-tree"></div>
     <p class="hint">Ordner muss nicht existieren — wird bei Bedarf angelegt (z. B. neuen Namen oben eintippen). Klick auf einen Ordner im Baum übernimmt ihn ins Feld. Bestehende Namenskonflikte am Ziel werden automatisch mit " (2)", " (3)", … aufgelöst.</p>
+    <div id="moveProgress" class="hidden" style="margin-top:10px;">
+      <div class="move-progress-bar"><div id="moveProgressFill" class="move-progress-fill"></div></div>
+      <p class="hint" id="moveProgressText"></p>
+    </div>
     <div class="row">
       <button type="submit" class="primary">Verschieben</button>
       <button type="button" data-close>Abbrechen</button>

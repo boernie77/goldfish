@@ -140,6 +140,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/admin/rename-all-confirmed", requireAdmin(s.renameAllConfirmed))
 		r.Post("/items/{id}/move", requireAdmin(s.moveItem))
 		r.Post("/items/move", requireAdmin(s.moveItemsBulk))
+		r.Get("/items/move/status", requireAdmin(s.moveBulkStatus))
 		r.Get("/libraries/{id}/all-folders", requireAdmin(s.listAllFolders))
 
 		r.Get("/admin/activity-log", requireAdmin(s.activityLogList))
@@ -352,7 +353,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.2.44"
+const appVersion = "1.2.45"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

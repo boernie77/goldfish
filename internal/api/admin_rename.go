@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -403,9 +405,54 @@ func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder
 	return histID, newPath, "", 0
 }
 
+// moveBulkJob trackt den Fortschritt eines laufenden Bulk-Moves. Package-
+// weites Singleton (analog download.prepRegistry) — es gibt nur einen
+// Goldfish-Prozess, ein zweiter gleichzeitig gestarteter Bulk-Move ist ein
+// seltener Admin-Edge-Case und überschreibt einfach den vorherigen Status.
+type moveBulkJob struct {
+	mu        sync.Mutex
+	running   bool
+	total     int
+	done      int
+	moved     int
+	failed    int
+	current   string
+	startedAt time.Time
+	finished  bool
+	failures  []string
+}
+
+// moveBulkJobStatus ist die JSON-Momentaufnahme für GET /api/items/move/status.
+type moveBulkJobStatus struct {
+	Running  bool     `json:"running"`
+	Total    int      `json:"total"`
+	Done     int      `json:"done"`
+	Moved    int      `json:"moved"`
+	Failed   int      `json:"failed"`
+	Current  string   `json:"current,omitempty"`
+	Finished bool     `json:"finished"`
+	Failures []string `json:"failures,omitempty"`
+}
+
+func (j *moveBulkJob) snapshot() moveBulkJobStatus {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return moveBulkJobStatus{
+		Running: j.running, Total: j.total, Done: j.done, Moved: j.moved,
+		Failed: j.failed, Current: j.current, Finished: j.finished, Failures: j.failures,
+	}
+}
+
+var currentMoveJob = &moveBulkJob{}
+
 // moveItemsBulk verschiebt mehrere Items auf einmal in denselben Zielordner.
-// Admin-only. Fehler pro Item werden gesammelt, ein einzelner Fehlschlag
-// bricht die restlichen Items nicht ab (analog Bulk-Delete/-Favorite im Frontend).
+// Admin-only. Läuft asynchron in einer Goroutine (Verschieben über
+// physische Grenzen kann bei vielen/großen Dateien lange dauern — ein
+// blockierender HTTP-Request hätte dafür keine sinnvolle Timeout-Antwort
+// und der Client hätte während der Laufzeit keinerlei Fortschrittsanzeige).
+// Fehler pro Item werden gesammelt, ein einzelner Fehlschlag bricht die
+// restlichen Items nicht ab (analog Bulk-Delete/-Favorite im Frontend).
+// Fortschritt via GET /api/items/move/status pollbar.
 func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		IDs             []int64 `json:"ids"`
@@ -416,38 +463,63 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "ungültiger Body")
 		return
 	}
+	if len(body.IDs) == 0 {
+		writeError(w, 400, "keine Items ausgewählt")
+		return
+	}
 	if body.TargetLibraryID > 0 {
 		if !s.requireLibAccess(w, r, body.TargetLibraryID) {
 			return
 		}
 	}
-	stats := struct {
-		Total    int      `json:"total"`
-		Moved    int      `json:"moved"`
-		Failed   int      `json:"failed"`
-		Failures []string `json:"failures,omitempty"`
-	}{Total: len(body.IDs)}
-	for _, id := range body.IDs {
-		it, err := s.Store.GetItem(id)
-		if err != nil || it == nil {
-			stats.Failed++
-			continue
-		}
-		_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move")
-		if code != 0 {
-			stats.Failed++
-			if len(stats.Failures) < 20 {
-				stats.Failures = append(stats.Failures, fmt.Sprintf("[%d] %s: %s", it.ID, filepath.Base(it.Path), msg))
+	me := currentUser(r)
+	job := &moveBulkJob{running: true, total: len(body.IDs), startedAt: time.Now()}
+	currentMoveJob = job
+	go func() {
+		for _, id := range body.IDs {
+			it, err := s.Store.GetItem(id)
+			job.mu.Lock()
+			if it != nil {
+				job.current = filepath.Base(it.Path)
 			}
-			continue
+			job.mu.Unlock()
+			if err != nil || it == nil {
+				job.mu.Lock()
+				job.done++
+				job.failed++
+				job.mu.Unlock()
+				continue
+			}
+			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move")
+			job.mu.Lock()
+			job.done++
+			if code != 0 {
+				job.failed++
+				if len(job.failures) < 20 {
+					job.failures = append(job.failures, fmt.Sprintf("[%d] %s: %s", it.ID, filepath.Base(it.Path), msg))
+				}
+			} else {
+				job.moved++
+			}
+			job.mu.Unlock()
 		}
-		stats.Moved++
-	}
-	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_move_bulk",
-			fmt.Sprintf("%d verschoben, %d fehlgeschlagen (von %d) → %q", stats.Moved, stats.Failed, stats.Total, body.TargetFolder))
-	}
-	writeJSON(w, 200, stats)
+		job.mu.Lock()
+		job.running = false
+		job.finished = true
+		job.current = ""
+		moved, failed, total := job.moved, job.failed, job.total
+		job.mu.Unlock()
+		if me != nil {
+			_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_move_bulk",
+				fmt.Sprintf("%d verschoben, %d fehlgeschlagen (von %d) → %q", moved, failed, total, body.TargetFolder))
+		}
+	}()
+	writeJSON(w, 202, map[string]any{"total": len(body.IDs)})
+}
+
+// moveBulkStatus liefert den Fortschritt des zuletzt gestarteten Bulk-Moves.
+func (s *Server) moveBulkStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, currentMoveJob.snapshot())
 }
 
 // listAllFolders: alle Ordnerpfade (jede Ebene) einer Bibliothek, für die

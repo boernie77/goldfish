@@ -790,16 +790,19 @@ async function handleMoveSubmit(e) {
       invalidateItemsCache();
       loadItems();
     } else {
-      const res = await api(`/api/items/move`, {
+      showToast(`Verschieben von ${ctx.ids.length} Datei${ctx.ids.length === 1 ? "" : "en"} gestartet…`, { kind: "info" });
+      await api(`/api/items/move`, {
         method: "POST",
         body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId }),
       });
+      // Server verschiebt asynchron im Hintergrund (kann bei vielen/großen
+      // Dateien lange dauern) — Dialog bleibt offen und pollt den Fortschritt,
+      // bis der Job fertig ist. So sieht der Admin live "X von Y verschoben"
+      // statt eines scheinbar hängenden, unbestätigten Requests.
+      $("#moveProgress").classList.remove("hidden");
+      submitBtn.textContent = "Läuft…";
+      await pollMoveProgress();
       $("#moveDialog").close();
-      if (res.failed > 0) {
-        showToast(`${res.moved} verschoben, ${res.failed} fehlgeschlagen`, { kind: res.moved ? "info" : "error" });
-      } else {
-        showToast(`${res.moved} verschoben`, { kind: "success" });
-      }
       setSelectionMode(false);
       invalidateItemsCache();
       loadItems();
@@ -808,6 +811,38 @@ async function handleMoveSubmit(e) {
     appAlert("Verschieben fehlgeschlagen: " + err.message);
   } finally {
     submitBtn.disabled = false;
+    submitBtn.textContent = "Verschieben";
+    $("#moveProgress").classList.add("hidden");
+  }
+}
+
+// pollMoveProgress fragt GET /api/items/move/status im 1s-Takt ab, bis der
+// zuletzt gestartete Bulk-Move fertig ist, und aktualisiert dabei die
+// Fortschrittsleiste im Move-Dialog live.
+async function pollMoveProgress() {
+  const fill = $("#moveProgressFill");
+  const text = $("#moveProgressText");
+  for (;;) {
+    let status;
+    try {
+      status = await api("/api/items/move/status");
+    } catch {
+      break;
+    }
+    const pct = status.total > 0 ? Math.round((status.done / status.total) * 100) : 0;
+    fill.style.width = `${pct}%`;
+    text.textContent = status.current
+      ? `${status.done} von ${status.total} verschoben … ${status.current}`
+      : `${status.done} von ${status.total} verschoben`;
+    if (status.finished || !status.running) {
+      if (status.failed > 0) {
+        showToast(`${status.moved} verschoben, ${status.failed} fehlgeschlagen`, { kind: status.moved ? "info" : "error" });
+      } else {
+        showToast(`${status.moved} verschoben`, { kind: "success" });
+      }
+      return;
+    }
+    await new Promise(r => setTimeout(r, 1000));
   }
 }
 
