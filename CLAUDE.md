@@ -3484,6 +3484,22 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   QUELL-Library-Auswahl mit Fehlermeldung ab (Ordnerpfad ist relativ zu genau
   einem Root) — Frontend prüft das VOR dem Öffnen des Dialogs. Ziel-Library
   darf natürlich abweichen.
+- **Asynchron + Fortschrittsanzeige (seit 2026-09-09, LIVE 1.2.45):**
+  `moveItemsBulk` lief bis dahin als EIN blockierender HTTP-Request, der erst
+  nach der letzten Datei antwortete — bei vielen/großen Dateien (v. a.
+  Cross-Disk-Moves, wo Unraids `shfs` einen echten Byte-Copy statt eines
+  reinen `rename()` macht) sah der Admin nur einen scheinbar hängenden
+  Dialog ohne jedes Feedback, ohne Log-Zeile, ohne DB-Spur bis zum Ende.
+  Jetzt: Route gibt sofort `202` zurück, der eigentliche Move läuft in einer
+  Goroutine; Fortschritt in einem package-weiten Singleton
+  `currentMoveJob *moveBulkJob` (analog `download.prepRegistry`), abrufbar
+  über `GET /api/items/move/status` (admin). Frontend (`handleMoveSubmit`/
+  `pollMoveProgress` in `admin.js`) zeigt sofort einen "Verschieben
+  gestartet…"-Toast, pollt danach 1×/s und rendert eine Fortschrittsleiste +
+  aktuellen Dateinamen im `#moveDialog` (`#moveProgress`/`#moveProgressFill`/
+  `#moveProgressText`). Bei nur einem gleichzeitigen Bulk-Move gedacht — ein
+  zweiter, parallel gestarteter Job überschreibt einfach den vorherigen
+  Status (kein Queueing, seltener Admin-Edge-Case).
 - **Thumbnails/Trickplay unberührt:** beide sind item-ID-keyed unter
   `/config/...`, nicht pfad-abhängig — ein Move invalidiert sie nicht.
 - Code: `internal/api/admin_rename.go` (`moveItem`, `moveItemsBulk`,
