@@ -748,6 +748,16 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   library-übergreifend, da Ausschlüsse pro Bibliothek gespeichert werden).
   Checkbox-Klick ruft sofort PUT auf, kein Speichern-Button nötig. Dialog-
   Text weist explizit darauf hin, dass NUR Auto-Scan betroffen ist.
+- **Kompakte Zusammenfassung im Auto-Scan-Dialog selbst** (seit 1.2.50,
+  User-Wunsch "würde ich gerne sofort sehen"): `#autoScanExcludeSummary`
+  (`scan.js renderAutoScanExcludeSummary`) — ein Call pro Bibliothek gegen
+  denselben `GET .../scan-excludes`-Endpoint (kein neuer Server-Code, bei
+  der überschaubaren Bibliotheks-Anzahl unproblematisch), zeigt
+  "🚫 Ausgeschlossen: **Lib**: Ordner, Ordner · **Lib2**: …" oder einen
+  "keine Ausschlüsse"-Hinweis. Wird beim Öffnen von `openAutoScan()` UND
+  nach jedem Checkbox-Toggle im `#scanExcludeDialog` neu gerufen (der liegt
+  beim Öffnen ÜBER dem Auto-Scan-Dialog, nicht als Ersatz dafür) — so bleibt
+  die Summary live aktuell, auch während der Sub-Dialog noch offen ist.
 - **🚫-Badge auf der Ordner-Kachel (seit 1.2.49, User-Feedback "sieht man auf
   der Übersichtsseite nicht"):** `store.Folder` bekam ein `Excluded bool`-
   Feld, gesetzt in `annotateDrilldown` (`internal/store/folder_nav.go`,

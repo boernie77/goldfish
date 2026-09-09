@@ -548,10 +548,47 @@ async function handleScanExcludeTreeCheck(e) {
     }
     if (row) row.classList.toggle("is-checked", excluded);
     showToast(excluded ? "Ordner vom Scan ausgeschlossen" : "Ausschluss aufgehoben", { kind: "success" });
+    // Der Auto-Scan-Dialog liegt bei geöffnetem Sub-Dialog dahinter — Summary
+    // dort live mitziehen, sonst zeigt sie beim Zurückkommen einen veralteten Stand.
+    renderAutoScanExcludeSummary();
   } catch (err) {
     cb.checked = !excluded; // Rollback bei Fehler
     appAlert("Fehler: " + err.message);
   } finally {
     cb.disabled = false;
+  }
+}
+
+// renderAutoScanExcludeSummary: kompakte Übersicht der aktuell ausgeschlossenen
+// Ordner direkt im Auto-Scan-Dialog (User-Wunsch 2026-09-09: "sofort sehen",
+// ohne extra den Sub-Dialog öffnen zu müssen). Holt die Liste pro Bibliothek
+// über denselben GET-Endpoint wie der Baum-Dialog (kein neuer Server-Code
+// nötig — bei der überschaubaren Anzahl Bibliotheken ist ein Call pro Lib
+// unproblematisch). Wird beim Öffnen von #autoScanDialog UND nach jedem
+// Toggle im Sub-Dialog neu gerufen, damit sie live bleibt.
+async function renderAutoScanExcludeSummary() {
+  const el = $("#autoScanExcludeSummary");
+  if (!el) return;
+  if (!state.libraries || !state.libraries.length) {
+    el.textContent = "";
+    return;
+  }
+  try {
+    const results = await Promise.all(state.libraries.map(async (l) => {
+      let folders = [];
+      try { folders = await api(`/api/libraries/${l.id}/scan-excludes`); } catch { /* Lib evtl. ohne Zugriff */ }
+      return { lib: l, folders: folders || [] };
+    }));
+    const withExcludes = results.filter(r => r.folders.length > 0);
+    if (!withExcludes.length) {
+      el.textContent = "🚫 Aktuell keine Ordner vom Auto-Scan ausgeschlossen.";
+      return;
+    }
+    el.innerHTML = "🚫 Ausgeschlossen: " + withExcludes.map(r => {
+      const names = r.folders.map(f => f === "" ? "(ganze Bibliothek)" : f);
+      return `<strong>${escapeHTML(r.lib.name)}</strong>: ${names.map(escapeHTML).join(", ")}`;
+    }).join(" &nbsp;·&nbsp; ");
+  } catch {
+    el.textContent = "";
   }
 }

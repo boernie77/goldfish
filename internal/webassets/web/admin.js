@@ -1228,6 +1228,7 @@ async function openAutoScan() {
   } catch { autoScanTasks = []; }
 
   autoScanRenderTasks();
+  renderAutoScanExcludeSummary();
 
   // Event-Listener einmalig verdrahten
   if (!dlg._asWired) {
