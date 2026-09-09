@@ -3500,6 +3500,26 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   `#moveProgressText`). Bei nur einem gleichzeitigen Bulk-Move gedacht — ein
   zweiter, parallel gestarteter Job überschreibt einfach den vorherigen
   Status (kein Queueing, seltener Admin-Edge-Case).
+  **🔴 Eigentlicher Root Cause, gefunden beim ersten Live-Test (LIVE 1.2.46):**
+  Verschieben tat schon VOR diesem Async-Umbau nichts — nicht "langsam",
+  sondern ein stiller `TypeError` ganz am Funktionsanfang von
+  `handleMoveSubmit`. `const submitBtn = e.target.querySelector('button[type="submit"]')`
+  fand den Button nicht mehr, seit `normalizeModalLayout` (siehe „Dialoge
+  (.modal) haben seit 2026-09-01 einen fixen Kopf + Fuß" oben) ihn beim
+  ersten `showModal()` strukturell aus dem `<form>` heraus in einen
+  separaten Footer verschiebt (bleibt nur über `form="moveForm"` verknüpft,
+  submitted zwar weiterhin dasselbe Formular, ist aber kein Kind mehr davon).
+  `submitBtn` war dadurch `null`, `submitBtn.disabled = true` warf sofort —
+  die Funktion brach ab, BEVOR der `fetch()` je losging. Erklärt auch,
+  warum die Server-Diagnose beim User-Report keinerlei Spur fand (weder
+  CPU/IO noch `rename_history` noch `activity_log`): der Request wurde nie
+  abgeschickt. Fix: `#moveSubmitBtn`-ID auf dem Button, Lookup per
+  `$("#moveSubmitBtn")` statt `e.target.querySelector(...)` — unabhängig
+  von der DOM-Restrukturierung. **Bekanntes Muster für JEDEN künftigen
+  `.modal-flex`-Dialog:** ein Button-Lookup relativ zu `e.target`/`form`
+  bricht, sobald `normalizeModalLayout` ihn aus dem Formular herauslöst —
+  IMMER per ID/`document`-Lookup referenzieren, nie per
+  `formElement.querySelector(...)`.
 - **Thumbnails/Trickplay unberührt:** beide sind item-ID-keyed unter
   `/config/...`, nicht pfad-abhängig — ein Move invalidiert sie nicht.
 - Code: `internal/api/admin_rename.go` (`moveItem`, `moveItemsBulk`,

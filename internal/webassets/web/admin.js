@@ -776,7 +776,13 @@ async function handleMoveSubmit(e) {
   if (!ctx) return;
   const targetFolder = $("#moveFolderInput").value.trim();
   const targetLibraryId = Number($("#moveLibrarySelect").value);
-  const submitBtn = e.target.querySelector('button[type="submit"]');
+  // NICHT e.target.querySelector(...) — normalizeModalLayout (helpers.js)
+  // löst den Submit-Button beim ersten showModal() strukturell aus dem
+  // <form> heraus in einen separaten Footer (bleibt nur über form="moveForm"
+  // verknüpft), er ist danach kein Kind des Formulars mehr. Fester ID-Lookup
+  // ist unabhängig von dieser Restrukturierung. (War davor ein stiller
+  // TypeError ganz am Funktionsanfang — Verschieben tat scheinbar nichts.)
+  const submitBtn = $("#moveSubmitBtn");
   submitBtn.disabled = true;
   try {
     if (ctx.mode === "single") {
