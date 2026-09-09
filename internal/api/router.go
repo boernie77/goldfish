@@ -257,11 +257,11 @@ func (s *Server) Router() http.Handler {
 		r.Delete("/items/{id}/subtitle/{lang}", requireAdmin(s.deleteSubtitle))
 		r.Get("/generated-subtitle/{id}/{lang}.vtt", s.serveGeneratedSubtitle)
 		r.Get("/ocr-subtitle/{id}/{lang}.vtt", s.serveOCRSubtitle)
-		r.Get("/whisper/status", s.whisperStatus)
+		r.Get("/whisper/status", requireAdmin(s.whisperStatus))
 		r.Get("/whisper/settings", requireAdmin(s.whisperGetSettings))
 		r.Put("/whisper/settings", requireAdmin(s.whisperSaveSettings))
 		r.Post("/whisper/download-model", requireAdmin(s.whisperDownloadModel))
-		r.Get("/whisper/download-status", s.whisperDownloadStatus)
+		r.Get("/whisper/download-status", requireAdmin(s.whisperDownloadStatus))
 
 		// Trickplay: alles admin-only. Der globale Worker-Status enthaelt
 		// currentTitle/currentItemId (Dateiname/Item des gerade verarbeiteten
@@ -294,7 +294,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/libraries/{id}/introskip-auto-new", requireAdmin(s.getIntroSkipAutoNew))
 		r.Put("/libraries/{id}/introskip-auto-new", requireAdmin(s.setIntroSkipAutoNew))
 		r.Get("/libraries/{id}/introskip/episodes", requireAdmin(s.introSkipFolderEpisodes))
-		r.Get("/introskip/status", s.introSkipWorkerStatus)
+		r.Get("/introskip/status", requireAdmin(s.introSkipWorkerStatus))
 		r.Get("/introskip/log", requireAdmin(s.introSkipLog))
 		r.Post("/introskip/folders/{id}/retry", requireAdmin(s.retryIntroSkipFolder))
 		r.Post("/introskip/retry-failed", requireAdmin(s.retryFailedIntroSkip))
@@ -355,7 +355,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.2.50"
+const appVersion = "1.2.51"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

@@ -956,6 +956,42 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   aber ein normales Nutzer-Feature. Kein Backend-ACL-Fix nötig (diese
   Ansichten sind ohnehin auf `state.currentLibrary` gescoped, für die der
   User schon Zugriff haben muss) — rein UI-Decluttering.
+  **🔴→✅ Nachtrag (LIVE 1.2.51, 2026-09-09, User-Auftrag "nochmal genau
+  prüfen, dass Benutzer strikt getrennt sind"):** exakt dasselbe Muster war
+  bei ZWEI weiteren Worker-Status-Endpoints übersehen worden, die beim
+  ursprünglichen Fix (1.2.x oben) nicht mit durchgegangen waren —
+  `GET /api/whisper/status` (liefert `currentTitle`/`currentItemId` des
+  gerade per Whisper transkribierten Items) und `GET /api/introskip/status`
+  (liefert `currentLibraryId`/`currentFolder` des gerade analysierten
+  Serien-Ordners) waren beide OHNE `requireAdmin` erreichbar — jeder
+  eingeloggte Non-Admin bekam dadurch über die globale
+  `#whisperStatus`-Statusleiste UND über Toast/Glocke
+  (`checkWhisperJobCompletions` in `whisper.js`) den Titel eines Items
+  angezeigt, das gerade von einem ADMIN per Whisper transkribiert wurde —
+  unabhängig von der eigenen Library-ACL. Whisper-Generierung selbst war
+  schon immer `requireAdmin` (`POST /items/{id}/generate-subtitle`), nur
+  der KONSUM-Status nicht — exakt das „Aktivierung admin-only, Konsum für
+  alle"-Muster von oben. Fix: beide Endpoints (+ `/api/whisper/download-status`,
+  gleiche Klasse, nur aus der admin-only Whisper-Settings-Dialog heraus
+  aufgerufen) jetzt `requireAdmin`; `startWhisperGlobalPoll()` in `app.js`
+  läuft nur noch innerhalb desselben `if (state.me.isAdmin)`-Blocks wie
+  `checkScanActive`/`checkTrickplayWorker` (vorher unconditional für jeden
+  eingeloggten User gestartet). `introSkipWorkerStatus` hatte noch gar
+  keinen Frontend-Consumer (totes, aber erreichbares Leck) — trotzdem
+  gefixt. Gefunden durch systematisches Durchgehen ALLER
+  `setInterval`/Polling-Stellen in `internal/webassets/web/*.js` gegen die
+  zugehörigen Server-Handler (Muster: grep nach `currentTitle`/
+  `currentItemId`/`currentFolder`-Feldern in Go-Structs, dann prüfen ob der
+  Endpoint `requireAdmin` trägt UND ob der Frontend-Call innerhalb eines
+  `isAdmin`-Gates liegt — beide Seiten separat prüfen, ein admin-gated
+  Endpoint mit ungated Frontend-Poll ist nur eine Fehlermeldung in der
+  Konsole wert, aber ein ungated Endpoint mit „nur im Admin-UI sichtbar"
+  ist der eigentliche Leak, weil jeder die URL direkt aufrufen kann).
+  Item-/Library-scoped Endpoints (`/transcode/{id}/progress`,
+  `/download/{id}/compat-status`, `/items/{id}/subtitle-jobs`,
+  `/items/move/status`) im selben Zug gegengeprüft — alle bereits korrekt
+  per `requireLibAccess`/`requireAdmin` abgesichert, kein weiterer Fund.
+  Siehe [[feedback_user_isolation_before_deploy]].
 - **Admin-Dialog „Trickplay verwalten"** (Settings-Menü, admin-only):
   - Tabs mit Listen der done/failed/pending Items inkl. Fehlermeldung
   - „↻ Fehler erneut versuchen" setzt alle `failed` → `pending`, startet neu

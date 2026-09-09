@@ -1974,10 +1974,15 @@ function glassTextColor(hex) {
     api("/api/enrich/refresh-all-status").then(st => {
       if (st && st.running) pollRefreshAllStatus();
     }).catch(() => {});
+    // Gleiche Bug-Klasse wie oben (2026-09-07) — /api/whisper/status lieferte
+    // currentTitle/currentItemId bisher an JEDEN eingeloggten User, unabhängig
+    // von Library-ACL. Server verlangt seit dem Fix requireAdmin, Frontend
+    // pollt entsprechend nur noch für Admins (gefunden 2026-09-09 bei
+    // erneuter Durchsicht aller Worker-Status-Endpoints auf User-Isolation).
+    if (typeof startWhisperGlobalPoll === "function") startWhisperGlobalPoll();
   }
   renderUserMenu();
   if (typeof initBell === "function") initBell();
-  if (typeof startWhisperGlobalPoll === "function") startWhisperGlobalPoll();
   // Google-Cast SDK initialisieren — registriert sich beim Cast-Framework
   // sobald `cast_sender.js` geladen ist und der Receiver-Discovery startet.
   initCastFramework();
