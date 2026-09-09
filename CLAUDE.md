@@ -748,10 +748,27 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   library-übergreifend, da Ausschlüsse pro Bibliothek gespeichert werden).
   Checkbox-Klick ruft sofort PUT auf, kein Speichern-Button nötig. Dialog-
   Text weist explizit darauf hin, dass NUR Auto-Scan betroffen ist.
+- **🚫-Badge auf der Ordner-Kachel (seit 1.2.49, User-Feedback "sieht man auf
+  der Übersichtsseite nicht"):** `store.Folder` bekam ein `Excluded bool`-
+  Feld, gesetzt in `annotateDrilldown` (`internal/store/folder_nav.go`,
+  gemeinsamer Endpunkt für BEIDE `SubfoldersAtFiltered`-Zweige — Library-
+  Root über `topLevelFolders` UND tiefere Ebenen — daher der richtige Ort
+  für eine Annotation, die überall gelten soll). `IsRelPathExcluded` prüft
+  dabei auch Vorfahren (ein Unterordner eines ausgeschlossenen Ordners zeigt
+  das Badge ebenfalls). **Derselbe Endpoint (`GET /api/libraries/{id}/folders`)
+  füttert sowohl den Scan-Exclude-Dialog-Baum ALS AUCH die normale
+  Bibliotheks-Übersicht** (`grid.js` lädt Ordner-Kacheln darüber) — die
+  Annotation kam dadurch ohne separaten Endpoint automatisch in beide
+  Ansichten. Frontend: `cards.js renderFolderCard` — `.folder-excluded`
+  (Position `top:34 left:6`, unter `.folder-merged` gestapelt, beide sind
+  seltene Fälle), nur für Admins sichtbar (`state.me.isAdmin`, reines Admin-
+  Konzept), Tooltip stellt klar, dass ein manueller Scan davon NICHT
+  betroffen ist (sonst missverständlich als "wird nie gescannt" lesbar).
 - Tests: `internal/store/scan_excludes_test.go` (Store-Ebene: Toggle,
-  `IsRelPathExcluded`-Matching, `ItemPathsUnderFolders` — die
+  `IsRelPathExcluded`-Matching, `ItemPathsUnderFolders`,
+  `SubfoldersAtFilteredMarksExcluded` fürs Badge — die
   `respectScanExcludes`-Verzweigung selbst ist reines Scanner-Wiring ohne
-  externe Abhängigkeit auf DB-Ebene, kein Test nötig darüber hinaus).
+  externe Abhängigkeit auf DB-Ebene, kein weiterer Test nötig).
 
 ### Scanner & Metadaten
 - ffprobe liefert Container/Codec/Auflösung/Laufzeit/Bitrate.

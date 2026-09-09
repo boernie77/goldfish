@@ -143,14 +143,24 @@ func (s *Store) SubfoldersAtFiltered(libraryID int64, parent string, onlyUnmatch
 	return s.annotateDrilldown(libraryID, out)
 }
 
-// annotateDrilldown ergänzt Drilldown-Flag und optional Folder-Metadata.
+// annotateDrilldown ergänzt Drilldown-Flag, Scan-Ausschluss-Badge und optional
+// Folder-Metadata. Gemeinsamer Endpunkt für BEIDE SubfoldersAtFiltered-Zweige
+// (Library-Root über topLevelFolders UND tiefere Ebenen), daher der richtige
+// Ort für jede Annotation, die für Ordner-Kacheln überall gelten soll.
 func (s *Store) annotateDrilldown(libraryID int64, folders []Folder) ([]Folder, error) {
 	dd, err := s.drilldownMap(libraryID)
 	if err != nil {
 		return folders, err
 	}
+	excluded, err := s.ListScanExcludedFolders(libraryID)
+	if err != nil {
+		return folders, err
+	}
 	for i := range folders {
 		folders[i].Drilldown = dd[folders[i].Name]
+		if len(excluded) > 0 {
+			folders[i].Excluded = IsRelPathExcluded(folders[i].Name, excluded)
+		}
 	}
 	return folders, nil
 }

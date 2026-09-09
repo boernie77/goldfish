@@ -540,6 +540,13 @@ function renderFolderCard(f) {
   const mergedIcon = Array.isArray(f.mergedFolders) && f.mergedFolders.length
     ? `<span class="folder-merged" title="Zusammengeführt mit: ${escapeHTML(f.mergedFolders.join(", "))}">🔗</span>`
     : "";
+  // Vom Auto-Scan ausgeschlossen (siehe "🚫 Ordner vom Auto-Scan
+  // ausschließen…" im Auto-Scan-Dialog) — nur für Admins sichtbar, ist ein
+  // reines Admin-Konzept. Manuelle Scans sind davon NICHT betroffen, daher
+  // der erklärende Tooltip statt eines missverständlichen "wird nie gescannt".
+  const excludedIcon = f.excluded && state.me && state.me.isAdmin
+    ? `<span class="folder-excluded" title="Vom Auto-Scan ausgeschlossen (manueller Scan erfasst diesen Ordner trotzdem)">🚫</span>`
+    : "";
 
   el.innerHTML = `
     <div class="thumb">
@@ -547,6 +554,7 @@ function renderFolderCard(f) {
       ${rating}
       ${drilldownIcon}
       ${mergedIcon}
+      ${excludedIcon}
       ${adminGear}
       <span class="folder-count">${f.itemCount} Video${f.itemCount === 1 ? "" : "s"}</span>
     </div>

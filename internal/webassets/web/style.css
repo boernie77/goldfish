@@ -933,6 +933,17 @@ body.skin-glass .topbar .user-menu strong {
   font-size: 12px;
   line-height: 1;
 }
+.card.folder .folder-excluded {
+  position: absolute;
+  top: 34px;
+  left: 6px;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+}
 .card.folder .drilldown-indicator {
   position: absolute;
   bottom: 6px;

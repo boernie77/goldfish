@@ -135,6 +135,11 @@ type Folder struct {
 	MetadataID  int64           `json:"metadataId,omitempty"`
 	Metadata    *model.Metadata `json:"metadata,omitempty"`
 	Drilldown   bool            `json:"drilldown"` // true = Klick zeigt Subfolder statt flacher Liste
+	// Excluded: dieser Ordner (oder ein Vorfahre davon) steht in
+	// scan_excluded_folders — der Auto-Scan überspringt ihn (manuelle Scans
+	// NICHT, siehe „Scan-Ausschlüsse" in CLAUDE.md). Rein informativ fürs
+	// Frontend (🚫-Badge auf der Ordner-Kachel), ändert kein Scan-Verhalten.
+	Excluded bool `json:"excluded,omitempty"`
 	// AddedAt = MAX(items.added_at) aller Items in diesem Ordner (rekursiv wäre teurer,
 	// Top-Level-Items reichen als Näherung). Ermöglicht Clients, Show-/Ordner-Kacheln nach
 	// "Hinzugefügt" zu sortieren — der Browser sortiert Kacheln bisher immer nur alphabetisch

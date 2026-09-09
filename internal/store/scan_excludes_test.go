@@ -106,3 +106,43 @@ func TestItemPathsUnderFolders(t *testing.T) {
 		t.Fatalf("erwartete keine geschützten Pfade ohne Ausschlüsse, bekam %v", none)
 	}
 }
+
+// TestSubfoldersAtFilteredMarksExcluded sichert die Sichtbarkeit im Frontend
+// ab (User-Feedback 2026-09-09: "sieht man auf der Übersichtsseite nicht") —
+// eine ausgeschlossene Ordner-Kachel muss über denselben Endpoint erkennbar
+// sein, den auch die normale Bibliotheks-Übersicht nutzt
+// (GET /api/libraries/{id}/folders → SubfoldersAtFiltered → annotateDrilldown).
+func TestSubfoldersAtFilteredMarksExcluded(t *testing.T) {
+	s := newTestStore(t)
+	libID, err := s.CreateLibrary("Filme", t.TempDir(), model.KindMovies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addItem := func(rel string) {
+		it := &model.Item{LibraryID: libID, Path: filepath.Join("/media", rel), RelPath: rel, Title: rel}
+		if err := s.UpsertItem(it); err != nil {
+			t.Fatal(err)
+		}
+	}
+	addItem("USB-Platte/Film A.mkv")
+	addItem("Andere/Film B.mkv")
+
+	if err := s.SetScanExcludedFolder(libID, "USB-Platte", true); err != nil {
+		t.Fatal(err)
+	}
+
+	folders, err := s.SubfoldersAtFiltered(libID, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]Folder{}
+	for _, f := range folders {
+		byName[f.Name] = f
+	}
+	if !byName["USB-Platte"].Excluded {
+		t.Errorf("USB-Platte sollte Excluded=true tragen, bekam %+v", byName["USB-Platte"])
+	}
+	if byName["Andere"].Excluded {
+		t.Errorf("Andere sollte NICHT ausgeschlossen sein, bekam %+v", byName["Andere"])
+	}
+}
