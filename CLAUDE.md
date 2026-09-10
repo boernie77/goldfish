@@ -234,6 +234,19 @@ oben gelten weiterhin immer.
 > Umschaltung im Player nutzt jetzt `.confirmationDialog` statt `Menu`
 > (war dort unzuverlässig), Auto-Hide-Timer der Steuerleiste resettet
 > jetzt auch bei reiner Fokus-Bewegung.
+> **Seit 2026-09-10 (iOS v1.2, Build 189, eingereicht):** die "🎞
+> Qualität"-Auswahl im Info-Dialog (oben, ursprünglich nur tvOS) gibt es
+> jetzt auch auf iOS (`#if os(tvOS) || os(iOS)`) — Laden/Durchreichen der
+> Profile lief schon immer plattformübergreifend, nur die UI fehlte.
+> Zweiter, unabhängiger Fund beim ersten echten iPhone-Test: die App
+> konfigurierte nirgends eine `AVAudioSession` — Ton blieb je nach
+> Systemzustand (u. a. Stumm-Schalter) komplett aus, da iOS ohne
+> `.playback`-Kategorie auf `.soloAmbient` zurückfällt. Fix im `init()`
+> von `GoldfishApp.swift`, `#if os(iOS)`-gated. Betraf vermutlich auch die
+> bereits live stehende 1.1/187-Version (gleicher, unveränderter Code).
+> Details + Export-Compliance-Fallstrick (Frankreich als Vertriebsland
+> musste entfernt werden, um eine Dokumenten-Upload-Pflicht zu vermeiden):
+> Memory `feedback_apple_versioning.md`.
 
 ## Architektur-Kurzfassung
 - macOS: App Sandbox AUS (`GoldfishMac.entitlements` = `<dict/>`, nach jedem
