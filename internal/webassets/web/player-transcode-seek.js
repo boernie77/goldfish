@@ -42,17 +42,39 @@ function syncTranscodeDisplays(vjs) {
     // wachsende EVENT-Playlist-/Live-Dauer statt der forcierten Filmlaenge.
     // Parallel setzt unser RAF-Loop unten dieselbe Breite auf den korrekten
     // (absoluten) Wert → die beiden schreiben abwechselnd unterschiedliche
-    // Positionen → Fortschrittsbalken flackert waehrend der Wiedergabe. Im
-    // Transcode-Modus deshalb Video.js' SeekBar-Update aussetzen, unser RAF
-    // uebernimmt; Direct Play laeuft unveraendert ueber Video.js.
+    // Positionen → Fortschrittsbalken flackert/springt waehrend der
+    // Wiedergabe. Im Transcode-Modus deshalb Video.js' SeekBar-Update
+    // aussetzen, unser RAF uebernimmt; Direct Play laeuft unveraendert ueber
+    // Video.js.
+    //
+    // 🔴 Der urspruengliche Fix-Versuch (reines `sb.update = wrapperFn`)
+    // wirkte NICHT zuverlaessig: Video.js' SeekBar registriert ihre
+    // update-Methode bereits im KONSTRUKTOR direkt als Event-Listener
+    // (`this.on(player, ["timeupdate","durationchange"], this.update)`) —
+    // das passiert synchron beim Bau der ControlBar, also BEVOR
+    // syncTranscodeDisplays() ueberhaupt laeuft. Ein `on(target, event, fn)`
+    // haelt die Funktions-REFERENZ zum Bindungszeitpunkt fest, keinen
+    // dynamischen Property-Lookup — ein spaeteres `sb.update = ...` aendert
+    // an diesem bereits registrierten Listener nichts. Der native Handler
+    // feuerte dadurch bei JEDEM timeupdate (mehrmals pro Sekunde) weiter
+    // unveraendert und schrieb die falsche (relative) Breite, im Wechsel mit
+    // unserem RAF-Loop → das beobachtete Flackern/Springen bei Transcode,
+    // Direct Play war nie betroffen (dort ist gar kein Override aktiv).
+    // Fix: den ORIGINAL-Listener explizit per `off()` entfernen (identische
+    // Funktionsreferenz, `off` matched wie `on` per strikter Gleichheit) und
+    // durch einen eigenen, modusabhaengigen Listener ersetzen — der ruft im
+    // Transcode-Modus gar nichts auf, sonst 1:1 die Original-Logik.
     const pc = cb.getChild("progressControl");
     const sb = pc && pc.getChild("seekBar");
     if (sb && typeof sb.update === "function" && !sb._patchedForTranscode) {
-      const origUpdate = sb.update.bind(sb);
-      sb.update = () => {
+      const origUpdate = sb.update;
+      try { vjs.off(["timeupdate", "durationchange"], origUpdate); } catch (e) { /* ignore */ }
+      const guardedUpdate = (...args) => {
         if (state.playback && state.playback.mode === "transcode") return;
-        return origUpdate();
+        return origUpdate.apply(sb, args);
       };
+      sb.update = guardedUpdate;
+      vjs.on(["timeupdate", "durationchange"], guardedUpdate);
       sb._patchedForTranscode = true;
     }
   }

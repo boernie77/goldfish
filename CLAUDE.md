@@ -2825,6 +2825,39 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Playlist-/Live-Dauer statt der forcierten Filmlänge → der Fortschrittsbalken
   flackert während der Wiedergabe (nicht im Pausenzustand). Direct Play
   unverändert (RAF-Loop ist dort inaktiv, Video.js steuert den Balken).
+  **🔴→✅ Der ursprüngliche No-Op-Patch wirkte NICHT zuverlässig (User-Report
+  2026-09-10, "flackert/springt bei transcodierten Videos, bei Direct Play
+  nicht" — LIVE 1.2.52):** reines `sb.update = wrapperFn` reicht nicht.
+  Video.js' `SeekBar` (verifiziert gegen den exakten gepinnten Build
+  `video.js@8.17.3`) registriert ihre `update`-Methode bereits im
+  KONSTRUKTOR direkt als Event-Listener
+  (`this.on(player, ["timeupdate","durationchange"], this.update)`) —
+  synchron beim Bau der ControlBar, also BEVOR `syncTranscodeDisplays()`
+  überhaupt läuft. `on(target, event, fn)` hält die Funktions-REFERENZ zum
+  Bindungszeitpunkt fest, keinen dynamischen Property-Lookup — ein
+  späteres `sb.update = ...` ändert an diesem bereits registrierten
+  Listener nichts. Der native Handler feuerte dadurch bei JEDEM
+  `timeupdate` (mehrmals pro Sekunde) unverändert weiter und schrieb die
+  falsche (relative) Breite, im Wechsel mit dem RAF-Loop — exakt das
+  beobachtete Flackern. Fix (`player-transcode-seek.js`): den
+  ORIGINAL-Listener explizit per `vjs.off(["timeupdate","durationchange"],
+  origUpdate)` entfernen (identische Funktionsreferenz, `off` matched wie
+  `on` per strikter Gleichheit) und durch einen eigenen, modusabhängigen
+  Listener ersetzen (`vjs.on([...], guardedUpdate)`), der im Transcode-Modus
+  gar nichts aufruft, sonst 1:1 `origUpdate.apply(sb, args)`. **Nicht live
+  im Browser verifizierbar in dieser Session** (bekannte
+  claude-in-chrome-Einschränkung, `document.visibilityState` bleibt im
+  MCP-Tab „hidden", `<video>` lädt dadurch nie echt — siehe „GoldfishTV"-
+  Abschnitt) — Fix basiert auf Analyse des tatsächlichen gepinnten
+  Video.js-Bundles (per curl heruntergeladen, `SeekBar`-Konstruktor +
+  `enableInterval_`/`this.setInterval(this.update,30)` durchgelesen), nicht
+  nur Vermutung. **Sollte vom User im echten Browser gegengeprüft werden**
+  — falls das Flackern weiterhin auftritt, als nächstes prüfen, ob
+  `vjs.off()` den Listener tatsächlich entfernt (z.B. `console.log` der
+  Listener-Anzahl vor/nach, oder ob Video.js' `on(target,type,fn)`-Overload
+  die Funktion intern nochmal wrapped statt der rohen Referenz — dann
+  müsste der Original-Listener stattdessen über die SeekBar-Komponente
+  selbst `sb.off(vjs, [...], origUpdate)` entfernt werden statt über `vjs`).
 - **Wichtig — HLS-Segment-URLs:** Der Playlist-Handler schreibt die m3u8
   on-the-fly um und hängt die Query-Parameter (`profile`/`start`/`audio`) an
   jede `seg*.ts`-Zeile. Ohne das verlieren Segment-Requests ihre Parameter
