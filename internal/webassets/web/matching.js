@@ -683,11 +683,16 @@ async function handleEditMetaSubmit(e) {
       await api(`/api/items/${it.id}/music-metadata`, { method: "PUT", body: JSON.stringify(body) });
       $("#editMetaDialog").close();
       invalidateItemsCache();
-      try {
-        const fresh = await api(`/api/items/${it.id}`);
-        state.currentItem = fresh;
-        openDetail(fresh);
-      } catch {}
+      // Bug gefixt 2026-09-10 (User-Report "speichert, aber der Dialog
+      // schließt nicht"): hier stand bis dahin dasselbe openDetail(fresh)
+      // wie im Film/Serien-Zweig unten. openDetail() öffnet #detailDialog
+      // (Poster/Plot/Cast-Layout) — für Musik-Tracks gibt es dafür gar
+      // keinen passenden Inhalt UND die Konvention im ganzen Frontend ist
+      // ausdrücklich "ein Klick auf eine Musik-Kachel/-Zeile ruft NIE
+      // openDetail() auf" (siehe music.js/cards.js). Der zweite Dialog
+      // öffnete sich optisch direkt über dem gerade geschlossenen
+      // editMetaDialog — wirkte für den User wie "schließt nicht". Für
+      // Musik reicht: schließen, Cache invalidieren, Grid neu laden.
       loadItems();
       showToast("Metadaten gespeichert", { kind: "success" });
     } catch (err) {

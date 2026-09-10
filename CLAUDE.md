@@ -1746,6 +1746,29 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Kachel-Overlay-Klasse ist `position:absolute`) — `.track-row-edit.edit-
   toggle` setzt das analog zu `.track-row-fav.fav-toggle` explizit auf
   normalen Inline-Fluss zurück.
+  **🔴→✅ "Speichern" schien nichts zu tun — nur "Abbrechen" ging (Bug,
+  gefixt 2026-09-10, LIVE 1.3.5, User-Report "ich kann nur Abbrechen
+  klicken", präzisiert im Gespräch zu "er speichert das Jahr, nur der
+  Dialog schließt nicht"):** der Wert wurde korrekt gespeichert (PUT-Call
+  lief durch), aber der Musik-Zweig von `handleEditMetaSubmit` rief danach
+  exakt denselben `openDetail(fresh)`-Aufruf wie der Film/Serien-Zweig
+  auf — kopiert, ohne die eigene Konvention zu beachten. `openDetail()`
+  öffnet `#detailDialog` (Poster/Plot/Cast-Layout), für das ein Musik-
+  Track keine sinnvollen Daten hat, UND die App hält sich sonst überall
+  strikt an "ein Klick auf eine Musik-Kachel/-Zeile ruft NIE openDetail()
+  auf" (siehe „Persistenter Mini-Player" oben). Der zweite Dialog öffnete
+  sich optisch direkt über dem gerade per `.close()` geschlossenen
+  `editMetaDialog` — für den User nicht von "schließt nicht" zu
+  unterscheiden. Fix: Musik-Zweig ruft nach dem Speichern nur noch
+  `loadItems()` + Toast auf, kein `openDetail()` mehr.
+  **Album-Bearbeitung ist bewusst NICHT vorgesehen** (User-Nachfrage im
+  selben Gespräch "ein Album kann ich gar nicht bearbeiten"): es gibt
+  keinen ✏-Button auf der Album-Kachel selbst — Alben sind kein eigenes
+  `items`-Objekt, sondern ein aus den zugehörigen Tracks aggregierter
+  Wert (`GroupMusicAlbums`/`canonicalAlbumFields`). Bearbeitung läuft
+  ausschließlich pro Track; ein geänderter Artist/Album-Wert auf einem
+  Track löst automatisch eine Neu-Gruppierung aus, die auch das
+  Album-Genre/-Jahr neu berechnet.
 - **🔴 IMDb-Zuordnung schlug bei obfuskierten Dateinamen fehl (Bug, gefixt
   2026-09-06, User-Report mit Screenshot: Datei „gb-100jamamoihwage-1080p",
   Fehler „Konnte Staffel/Episode aus Dateiname nicht ermitteln")**:
