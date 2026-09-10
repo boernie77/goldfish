@@ -802,6 +802,9 @@ async function handleMatchImdb(e) {
         method: "POST",
         body: JSON.stringify({ folder: tgt.folder, imdbId }),
       });
+      // Siehe applyMatch() — persistierter "keine Staffel-Struktur"-Override
+      // dieses Ordners darf eine frische Zuordnung nicht überdauern.
+      try { localStorage.removeItem(`seasonView:${tgt.libraryId}:${tgt.folder}`); } catch {}
     } else {
       // Item: IMDb-Typ ("movie" oder "episode" anhand Lib-Kind + Dateiname)
       const lib = state.libraries.find(l => l.id == state.matchTarget.libraryKind ? state.matchTarget.libraryKind : null) || null;
@@ -911,6 +914,13 @@ async function applyMatch(result, type) {
         method: "POST",
         body: JSON.stringify({ folder: tgt.folder, tmdbId: result.id }),
       });
+      // Ein früherer Besuch dieses Ordners (z.B. vor der Zuordnung, als er
+      // noch keine TMDB-Show hatte) kann hier "keine Staffel-Struktur" für
+      // GENAU diesen Ordner persistiert haben (siehe grid.js Sackgassen-
+      // Fallback). Nach einer frischen Zuordnung ist das nicht mehr gültig —
+      // sonst bleibt die Staffel-Ansicht dauerhaft deaktiviert, obwohl der
+      // Server jetzt echte Staffeldaten liefern würde.
+      try { localStorage.removeItem(`seasonView:${tgt.libraryId}:${tgt.folder}`); } catch {}
     } else {
       // Item: für Filme direkt zuordnen; für Episoden braucht's Season/Episode aus dem Dateinamen.
       if (type === "movie") {

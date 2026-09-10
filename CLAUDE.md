@@ -2352,6 +2352,31 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   unabhängig von jeder TMDB-Zuordnung. Der „Serie zuordnen…"-Button bleibt
   über `renderBreadcrumb` unverändert erreichbar (kommt für `kind=tv`
   automatisch, unabhängig vom Staffel-Modus).
+  **🔴→✅ Nach manueller Serien-Zuordnung blieb die Staffel-Ansicht
+  dauerhaft deaktiviert (Bug, gefixt 2026-09-10, LIVE 1.3.2, User-Report
+  „Wenn ich eine Serie manuell zuordne, werden die Folgen danach nicht zu
+  Staffeln gruppiert"):** hatte der User denselben Ordner VOR der Zuordnung
+  schon mal geöffnet (typisch: Ordner ohne TMDB-Match anklicken → obiger
+  Fallback greift → `seasonView:<libID>:<folder>="0"` wird persistiert),
+  blieb dieser Per-Ordner-Override nach der manuellen Zuordnung über den
+  Matching-Dialog unverändert stehen — `applyMatch()`/`handleMatchImdb()`
+  (`matching.js`) riefen nach erfolgreichem Folder-Match zwar `loadItems()`
+  neu auf, löschten aber nie den alten „keine Staffeln"-Eintrag.
+  `seasonViewEffective()` (`app.js`) las weiterhin `false` für diesen
+  Ordner, obwohl der Server inzwischen (nach dem serverseitigen
+  Episode-Matching) echte Staffeldaten geliefert hätte — Ergebnis: flache
+  Dateiliste statt Staffel-Kacheln, dauerhaft, bis der User manuell im
+  „🔤 Anzeige"-Menü o.ä. nachhilft. Fix: beide Folder-Match-Zweige
+  (`tgt.type === "folder"` in `applyMatch`/`handleMatchImdb`) löschen den
+  `seasonView:<libID>:<folder>`-Key per `localStorage.removeItem` direkt
+  nach erfolgreichem `POST .../folders/metadata`, bevor `loadItems()`
+  läuft — kein neuer Scan nötig (Season/Episode werden ohnehin live aus dem
+  Dateinamen geparst, siehe `matchItem` in `internal/enrich/matching.go`).
+  **Bekannte Restlücke:** Dateien, deren Name kein SxxExx-Muster hergibt,
+  bleiben unabhängig davon ungruppiert (weder der synchrone
+  `UnmatchedEpisodeFiles`-Fallback in `internal/api/series.go` noch das
+  asynchrone Matching in `matchItem` können ohne erkennbares Muster eine
+  Episode zuordnen) — das ist ein Namensschema-Problem, kein Bug dieses Fixes.
   **Bleibender Info-Header im Fallback (seit 2026-09-06, User-Wunsch: „bei
   nicht zugeordneten Serien soll auch so ein Infofenster aufgehen, mit den
   gleichen Buttons"):** der Toast allein verschwindet nach wenigen Sekunden
