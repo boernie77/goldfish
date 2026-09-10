@@ -372,6 +372,30 @@ async function loadItemsBody() {
     } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
     const hasSeasons = !!(data.seasons && data.seasons.length > 0);
+    // Selbstheilung eines veralteten "keine Staffeln"-Merkers (Bug, gefixt
+    // 2026-09-10, User-Report "Wenn ich eine Serie manuell zuordne, werden
+    // die Folgen nicht zu Staffeln gruppiert"): der Sackgassen-Fallback
+    // unten schreibt `seasonView:<lib>:<folder>="0"` dauerhaft in
+    // localStorage — bis dahin gab es KEINEN automatischen Weg, diesen
+    // Merker wieder loszuwerden, wenn der Ordner NACHTRÄGLICH (z.B. durch
+    // eine manuelle Zuordnung) doch echte Staffeldaten bekam. matching.js
+    // räumt den Key seit diesem Fix zwar bei einer NEUEN Zuordnung auf, aber
+    // bereits VOR dem Fix gesetzte Merker (wie bei diesem User) blieben
+    // ohne manuellen Browser-Console-Eingriff für immer hängen. Hier statt
+    // nur schreibseitig auch LESESEITIG reagieren: liefert die Seasons-API
+    // jetzt tatsächlich Staffeln, aber der Pro-Ordner-Merker steht noch auf
+    // "0", ist der Merker offensichtlich veraltet (er wird an KEINER
+    // anderen Stelle im Code auf "0" gesetzt außer genau hier im
+    // Sackgassen-Fallback) — Key entfernen und effektiven Zustand neu
+    // berechnen (fällt auf den Library-Default zurück, respektiert also
+    // eine bewusst library-weit ausgeschaltete Staffel-Ansicht weiterhin).
+    if (state.currentSeason == null && hasSeasons) {
+      const staleKey = `seasonView:${state.currentLibrary || 0}:${state.currentFolder}`;
+      if (localStorage.getItem(staleKey) === "0") {
+        try { localStorage.removeItem(staleKey); } catch {}
+        state.seasonView = seasonViewEffective();
+      }
+    }
     // Sackgassen-Vermeidung (User-Report 2026-09-05, "Tatort" mit Kommissar-
     // Unterordnern statt TMDB-Staffeln): wenn die Seasons-API auf oberster
     // Ebene (kein Staffel-Klick, currentSeason===null) NICHTS liefert — Ordner

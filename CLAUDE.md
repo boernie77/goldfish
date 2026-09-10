@@ -2377,6 +2377,25 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `UnmatchedEpisodeFiles`-Fallback in `internal/api/series.go` noch das
   asynchrone Matching in `matchItem` können ohne erkennbares Muster eine
   Episode zuordnen) — das ist ein Namensschema-Problem, kein Bug dieses Fixes.
+  **🔴→✅ Nachkorrektur (LIVE 1.3.3, noch am selben Tag):** obiger Fix reicht
+  nur für NEUE Zuordnungen ab diesem Zeitpunkt — bereits VOR dem Fix
+  entstandene `seasonView:<libID>:<folder>="0"`-Merker (der Sackgassen-
+  Fallback selbst ist seit Monaten live, betrifft potenziell jede Serie, die
+  jemals in diese Sackgasse gelaufen ist) blieben weiterhin für immer hängen,
+  weil `matching.js` sie nur schreibseitig bei einer neuen Aktion aufräumt.
+  User-Report bestätigte das direkt: zwei bereits vor dem Fix zugeordnete
+  Serien blieben trotz korrekt gesetzter `season`/`episode` in der DB
+  weiterhin ungruppiert. Fix: `grid.js` (im selben Block, der `hasSeasons`
+  aus der Seasons-API berechnet) räumt den Merker jetzt zusätzlich
+  LESESEITIG auf — liefert die API tatsächlich Staffeln, aber der
+  Pro-Ordner-Merker steht noch auf `"0"`, wird er als veraltet erkannt
+  (er wird an KEINER anderen Stelle im Code je auf `"0"` gesetzt außer im
+  Sackgassen-Fallback selbst) und entfernt; `state.seasonView` wird danach
+  über `seasonViewEffective()` neu berechnet (fällt auf den Library-Default
+  zurück, überschreibt also nicht eine bewusst library-weit ausgeschaltete
+  Staffel-Ansicht). Heilt sich dadurch für JEDE betroffene Bestandsserie
+  automatisch beim nächsten Öffnen — kein manueller Browser-Console-Eingriff
+  oder `localStorage.clear()` nötig.
   **Bleibender Info-Header im Fallback (seit 2026-09-06, User-Wunsch: „bei
   nicht zugeordneten Serien soll auch so ein Infofenster aufgehen, mit den
   gleichen Buttons"):** der Toast allein verschwindet nach wenigen Sekunden
