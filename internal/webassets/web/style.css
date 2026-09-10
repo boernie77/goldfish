@@ -2324,10 +2324,37 @@ body.has-mini-player { padding-bottom: 68px; }
   margin-right: 4px;
 }
 .video-js.player-skin-pill .vjs-progress-control { margin: 0 6px; }
-.video-js.player-skin-pill .vjs-progress-holder { border-radius: 999px; overflow: hidden; }
+.video-js.player-skin-pill .vjs-progress-holder { border-radius: 999px; }
 .video-js.player-skin-pill .vjs-load-progress,
 .video-js.player-skin-pill .vjs-load-progress div,
 .video-js.player-skin-pill .vjs-play-progress { border-radius: inherit; }
+/* Kein overflow:hidden auf .vjs-progress-holder — die runde Pillenform kommt
+   bereits von border-radius:inherit auf .vjs-load-progress/.vjs-play-progress
+   selbst (Zeile oben), overflow:hidden war nur nötig gedacht, um die
+   rechteckigen Kanten der Balken abzurunden. Nebenwirkung (User-Wunsch
+   2026-09-10, "ein kleiner Punkt die aktuelle Stelle anzeigt"): Video.js'
+   eingebauter Scrubber-Punkt (.vjs-play-progress:before bzw. der
+   .vjs-svg-icon-Kind-Knoten im SVG-Icon-Modus, per Default-CSS mit
+   right:-.4em/-.5em leicht über den Balkenrand hinaus positioniert) wurde
+   dadurch am rechten Bildrand des gefüllten Bereichs abgeschnitten und war
+   praktisch unsichtbar — betraf nur den Pill-Skin, der Standard-Skin hat
+   nie ein overflow:hidden auf dem Holder gesetzt. */
+.video-js.player-skin-pill .vjs-play-progress:before {
+  color: transparent; /* verbirgt den Font-Icon-Glyphen ("\f116"), nur der Kreis unten bleibt */
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, .6);
+}
+.video-js.player-skin-pill .vjs-play-progress .vjs-svg-icon {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, .6);
+}
+.video-js.player-skin-pill .vjs-play-progress .vjs-svg-icon svg { display: none; }
 /* 🔴→✅ Bug (User-Report mit Screenshot, live per claude-in-chrome
    diagnostiziert): PIP- und Vollbild-Icon saßen sichtbar höher als die
    eigenen Emoji-Icons (Favorit/Playlist/Cast) daneben. Ursache: Video.js

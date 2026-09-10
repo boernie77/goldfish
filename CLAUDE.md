@@ -2858,6 +2858,25 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   die Funktion intern nochmal wrapped statt der rohen Referenz — dann
   müsste der Original-Listener stattdessen über die SeekBar-Komponente
   selbst `sb.off(vjs, [...], origUpdate)` entfernt werden statt über `vjs`).
+  **User-Bestätigung (2026-09-10): Flackern behoben.** Direkter
+  Folgewunsch danach: „ein kleiner Punkt zeigt die aktuelle Stelle" — im
+  **Pill-Skin** (`style.css`) verschluckte `overflow: hidden` auf
+  `.vjs-progress-holder` (nur dort für die runde Pillenform gesetzt,
+  eigentlich unnötig, da `.vjs-load-progress`/`.vjs-play-progress` bereits
+  `border-radius: inherit` selbst tragen) Video.js' eingebauten
+  Scrubber-Punkt (`.vjs-play-progress:before`, per Default-CSS mit
+  `right:-.5em` leicht über den Balkenrand hinaus positioniert — im
+  SVG-Icon-Modus stattdessen ein `.vjs-svg-icon`-Kindknoten). Fix (LIVE
+  1.2.53): `overflow: hidden` vom Holder entfernt (Pillenform bleibt über
+  die Kind-Elemente erhalten) + der Punkt selbst als expliziter weißer
+  Kreis mit Schatten gestylt (`color: transparent` verbirgt den
+  ursprünglichen Font-Icon-Glyphen, `.vjs-svg-icon svg { display: none }`
+  im SVG-Modus), statt sich auf den dezenten Video.js-Default zu
+  verlassen. Betraf **nur den Pill-Skin** — der Standard-Skin setzte nie
+  `overflow:hidden` auf den Holder. Keine JS-Änderung nötig: der Punkt
+  hängt per CSS am rechten Rand von `.vjs-play-progress` selbst, dessen
+  Breite sowohl Direct Play (nativ) als auch Transcode (unser RAF-Loop
+  oben) bereits korrekt setzen.
 - **Wichtig — HLS-Segment-URLs:** Der Playlist-Handler schreibt die m3u8
   on-the-fly um und hängt die Query-Parameter (`profile`/`start`/`audio`) an
   jede `seg*.ts`-Zeile. Ohne das verlieren Segment-Requests ihre Parameter
