@@ -816,15 +816,28 @@ function renderCard(it, opts = {}) {
     </div>
   `;
   el.addEventListener("click", (ev) => {
-    // Im Auswahl-Modus: Click togglet Selektion statt Detail zu öffnen
+    // Im Auswahl-Modus: Click togglet Selektion statt Detail zu öffnen.
+    // Shift-Klick waehlt stattdessen den ganzen Bereich seit dem letzten
+    // normalen Klick aus (Reihenfolge: state.lastRenderedItems, also genau
+    // die zeilenweise links-nach-rechts gerenderte Grid-Reihenfolge).
     if (state.selectionMode) {
-      toggleSelection(it);
+      if (ev.shiftKey && state.selectionAnchorId != null) {
+        ev.preventDefault();
+        selectRange(state.selectionAnchorId, it.id);
+      } else {
+        toggleSelection(it);
+      }
       return;
     }
     // Click auf die Checkbox togglet immer (auch außerhalb des Modus → aktiviert ihn)
     if (ev.target && ev.target.closest("[data-select]")) {
       if (!state.selectionMode) setSelectionMode(true);
-      toggleSelection(it);
+      if (ev.shiftKey && state.selectionAnchorId != null) {
+        ev.preventDefault();
+        selectRange(state.selectionAnchorId, it.id);
+      } else {
+        toggleSelection(it);
+      }
       return;
     }
     // Click auf den Watched-Haken: Status togglen, Detail NICHT öffnen.

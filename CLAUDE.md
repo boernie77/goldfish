@@ -12,8 +12,11 @@ angezeigt im Zahnrad-Menü-Fuß (`#drawerVersion`). (Die App-Repos zählen davon
 unabhängig weiter, siehe `feedback_apple_versioning` / Android-Block.)
 **Einmalige Ausnahme (User-Vorgabe 2026-09-06):** der Deploy nach 1.0.94
 sprang bewusst auf **1.2.0** (explizit vom User so gewünscht, kein Tippfehler
-und keine Fortsetzung der 1.0.x-Zählung) — ab da läuft die normale
+und keine Fortsetzung der 1.0.x-Zählung) — ab da lief die normale
 +0.0.1-Patch-Regel auf Basis von 1.2.0 weiter (1.2.1 → 1.2.2 → …).
+**Zweite Ausnahme (User-Vorgabe 2026-09-10):** der Deploy nach 1.2.53
+sprang bewusst auf **1.3.0** (explizit so gewünscht) — ab da läuft die
+normale +0.0.1-Patch-Regel auf Basis von 1.3.0 weiter (1.3.1 → 1.3.2 → …).
 
 ---
 
@@ -1937,6 +1940,24 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   mit 400 ms Abstand (Browser-Popup-Blocker).
 - `state.lastRenderedItems` speichert die gerade gerenderte Liste — „Alle
   auswählen" arbeitet darauf.
+- **Shift-Klick-Bereichsauswahl** (seit 1.3.0, User-Wunsch 2026-09-10):
+  im Auswahl-Modus eine Kachel normal anklicken, dann eine spätere Kachel
+  mit gehaltener Shift-Taste anklicken → alle dazwischen liegenden Kacheln
+  werden mit ausgewählt (Finder/Explorer-Konvention). Reihenfolge kommt aus
+  `state.lastRenderedItems` — exakt die zeilenweise links-nach-rechts
+  gerenderte Grid-Reihenfolge, dieselbe Quelle wie „Alle auswählen".
+  `state.selectionAnchorId` merkt sich die letzte NORMAL (nicht per Shift)
+  angeklickte Kachel als Ausgangspunkt; bleibt über mehrere Shift-Klicks
+  hinweg stehen, wird nur von einem normalen Klick (`toggleSelection`) neu
+  gesetzt und bei `setSelectionMode(false)`/„Keine" zurückgesetzt.
+  `selectRange(anchorId, targetId)` (`app.js`) sucht beide Indizes in
+  `lastRenderedItems`, markiert den gesamten Bereich dazwischen (inklusive,
+  Richtung egal) als ausgewählt. Fallback auf normales Einzel-Toggle, falls
+  der Anker nach einem Such-/Filterwechsel nicht mehr in der aktuellen
+  Liste steckt. Click-Handler in `cards.js` (gemeinsamer `data-item-id`-Pfad
+  wie der normale Bulk-Toggle) — bewusst nur für die Kachel-Grid-Ansicht,
+  nicht für die Musik-Listenzeilen (`.track-row`) mitgebaut, da nicht
+  angefragt.
 
 ### UI
 - **Dialoge (`.modal`) haben seit 2026-09-01 einen fixen Kopf + Fuß**

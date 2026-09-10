@@ -43,6 +43,7 @@ const state = {
   flatView: false,          // wenn true: loadItems überspringt Ordner-Navigation
   selectionMode: false,     // Bulk-Auswahl aktiv
   selection: new Set(),     // Set von item-IDs in der aktuellen Auswahl
+  selectionAnchorId: null,  // letzte NICHT-Shift-angeklickte Kachel — Ausgangspunkt für Shift-Klick-Bereichsauswahl
   lastRenderedItems: [],    // Referenz auf zuletzt gerenderte Items (für „Alle auswählen")
   loadSeq: 0,               // Sequenz-Zähler für loadItems — verhindert, dass veraltete async-Responses das Grid überschreiben
   sortDir: "",              // "asc" | "desc" | "" (Default) — Richtungs-Override
@@ -518,6 +519,7 @@ function setSelectionMode(on) {
   $("#selectModeBtn").classList.toggle("active", on);
   if (!on) {
     state.selection.clear();
+    state.selectionAnchorId = null;
     updateBulkBar();
     // Kartenstyling zurücksetzen (Kacheln UND Musik-Listenzeilen)
     document.querySelectorAll(".card.selected, .track-row.selected").forEach(c => c.classList.remove("selected"));
@@ -533,6 +535,11 @@ function toggleSelection(item) {
   } else {
     state.selection.add(item.id);
   }
+  // Jeder normale (nicht per Shift ausgelöste) Klick wird zum neuen
+  // Ausgangspunkt für die nächste Shift-Klick-Bereichsauswahl — gleiche
+  // Konvention wie Finder/Explorer: der Anker bleibt über mehrere
+  // Shift-Klicks hinweg stehen, bis wieder normal geklickt wird.
+  state.selectionAnchorId = item.id;
   // Sowohl Kacheln (.card) als auch Musik-Listenzeilen (.track-row) tragen
   // data-item-id — gemeinsamer Selektor, damit Bulk-Auswahl in BEIDEN
   // Ansichten dieselbe Checkbox-Optik bekommt (fehlte für .track-row bisher
@@ -544,6 +551,43 @@ function toggleSelection(item) {
     el.classList.toggle("selected", on);
     const box = el.querySelector(".card-select, .track-row-select");
     if (box) box.textContent = on ? "✓" : "";
+  }
+  updateBulkBar();
+}
+
+// selectRange: Shift-Klick-Bereichsauswahl (User-Wunsch 2026-09-10) — erste
+// Kachel klicken, dann Shift-Klick auf eine spätere Kachel wählt alle
+// dazwischen liegenden mit aus. Reihenfolge kommt aus state.lastRenderedItems
+// (exakt die Liste, die das Grid gerade zeilenweise links-nach-rechts
+// gerendert hat — selectAllVisible nutzt dieselbe Quelle). anchorId bleibt
+// über mehrere Shift-Klicks hinweg stehen (Finder/Explorer-Konvention),
+// nur ein normaler Klick (toggleSelection) setzt ihn neu.
+function selectRange(anchorId, targetId) {
+  const items = state.lastRenderedItems || [];
+  const ai = items.findIndex(it => it && it.id === anchorId);
+  const ti = items.findIndex(it => it && it.id === targetId);
+  if (ai === -1 || ti === -1) {
+    // Anker nicht (mehr) in der aktuell gerenderten Liste (z. B. nach
+    // Such-/Filterwechsel) — Fallback auf normales Einzel-Toggle statt
+    // gar nichts zu tun.
+    const it = items[ti] || items.find(x => x && x.id === targetId);
+    if (it) toggleSelection(it);
+    return;
+  }
+  const [start, end] = ai < ti ? [ai, ti] : [ti, ai];
+  for (let i = start; i <= end; i++) {
+    const it = items[i];
+    if (it && it.id != null) state.selection.add(it.id);
+  }
+  for (let i = start; i <= end; i++) {
+    const it = items[i];
+    if (!it) continue;
+    const el = document.querySelector(`.card[data-item-id="${it.id}"], .track-row[data-item-id="${it.id}"]`);
+    if (el) {
+      el.classList.add("selected");
+      const box = el.querySelector(".card-select, .track-row-select");
+      if (box) box.textContent = "✓";
+    }
   }
   updateBulkBar();
 }
