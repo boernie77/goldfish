@@ -99,6 +99,9 @@ under its own license. Redistribution must follow those licenses.
 - `whisper.cpp` (built from source, `WHISPER_TAG` pinned in `Dockerfile`,
   KI-Untertitel) — MIT, <https://github.com/ggerganov/whisper.cpp>
 - `libopenblas0`/`libopenblas-dev` (whisper.cpp's BLAS backend) — BSD-3-Clause
+- `yt-dlp` (PyPI, extracts a downloadable stream URL from a public YouTube
+  trailer for the native Apple apps, which have no WebKit on tvOS) —
+  Unlicense (public domain), <https://github.com/yt-dlp/yt-dlp>
 
 When redistributing the Docker image, the GPL-2.0+ components (ffmpeg's
 GPL-licensed encoders, `libx264`/`libx265`, `mkvtoolnix`) require that you

@@ -1,14 +1,30 @@
 # Goldfish 🐠
 
 A lean, single-binary, Jellyfin-style streaming server for home labs.
-Written in Go, runs in a ~150 MB Docker image, no external dependencies.
+Written in Go, runs in a ~150 MB Docker image, no external database or
+media-server dependencies beyond `ffmpeg`.
 
 - **Direct Play** over HTTP Range for browser-compatible files
-- **On-the-fly HLS transcoding** with Intel VAAPI hardware acceleration
-  (software fallback when no iGPU is present)
-- **TMDB-powered metadata**, posters, cast, collections
-- **Multi-user** with per-user libraries, watched/favorite state, playlists
-- **Embedded Video.js** player with trickplay hover previews
+- **On-the-fly HLS transcoding** with Intel VAAPI / NVIDIA NVENC hardware
+  acceleration (software fallback when no GPU is present)
+- **TMDB-powered metadata** — posters, cast, collections, trailers
+- **Movie, TV, music and "private" (YouTube/home-video style) libraries**,
+  with automatic album/artist grouping and MusicBrainz metadata fallback
+  for music
+- **AI-generated subtitles** (Whisper, optional translation via DeepL/
+  LibreTranslate) and **OCR for bitmap subtitles** (PGS/VOBSUB → text)
+- **Automatic intro-skip detection** via audio+video fingerprint matching
+  across episodes — no manual marking needed
+- **Multi-user** with per-user libraries, watched/favorite state, personal
+  ratings, playlists, a customizable home screen, and optional OIDC SSO
+  (Authentik/Keycloak/Authelia/Zitadel) alongside username/password
+- **Scheduled auto-scan** with per-folder exclusions, automatic database
+  backups, and an admin activity log
+- **Native apps** for iOS, iPadOS, macOS, Apple TV and Android, in addition
+  to the built-in web UI
+- **Embedded Video.js** player with trickplay hover previews, shuffle play,
+  and bulk file operations (move, delete, download) with a shift-click
+  range-select UI
 - **Full-text search** by title or actor name
 
 ## Quickstart
@@ -16,7 +32,7 @@ Written in Go, runs in a ~150 MB Docker image, no external dependencies.
 ### Easiest: interactive installer
 
 ```bash
-wget https://raw.githubusercontent.com/<your-fork>/goldfish/main/install.sh
+wget https://raw.githubusercontent.com/boernie77/goldfish/main/install.sh
 chmod +x install.sh
 ./install.sh
 ```
@@ -29,7 +45,7 @@ warm Docker cache.
 ### Manual
 
 ```bash
-git clone https://github.com/<your-fork>/goldfish
+git clone https://github.com/boernie77/goldfish
 cd goldfish
 cp .env.example .env       # adjust RENDER_GID + MEDIA_ROOT to your host
 docker compose up -d --build
@@ -94,16 +110,24 @@ environment variables are required beyond the defaults.
 ## Architecture at a glance
 
 ```
-cmd/goldfish/main.go          HTTP server, wiring
-internal/api/                 chi routes + handlers
-internal/auth/                bcrypt sessions, library-ACL middleware
-internal/store/sqlite.go      schema, migrations, all queries
-internal/scanner/             recursive walk + ffprobe + thumbnail
-internal/playback/            decider + VAAPI ffmpeg runner + HW detection
-internal/enrich/              TMDB background worker
-internal/tmdb/, internal/omdb/  API clients with rate limiting
-internal/trickplay/           sprite-sheet generator
-internal/webassets/web/       embedded SPA (index.html, app.js, style.css)
+cmd/goldfish/main.go           HTTP server, wiring, background-worker startup
+internal/api/                  chi routes + handlers (incl. bcrypt sessions,
+                                library-ACL middleware, OIDC)
+internal/store/                schema, migrations, all SQL queries
+internal/scanner/               recursive walk + ffprobe + thumbnail
+internal/playback/              decider + VAAPI/NVENC ffmpeg runner + HW detection
+internal/enrich/                TMDB background matching worker
+internal/tmdb/, internal/omdb/, internal/musicbrainz/   API clients with rate limiting
+internal/trickplay/             hover-preview sprite-sheet generator
+internal/introskip/             audio+video fingerprint intro-skip detection
+internal/whisper/               AI subtitle generation worker
+internal/ocrsub/                bitmap-subtitle OCR worker (PGS/VOBSUB → text)
+internal/rename/                 auto-rename + move-between-libraries
+internal/download/               on-demand format-compatibility transcode for downloads
+internal/nfo/                    Kodi/Jellyfin/Plex-compatible .nfo sidecar writer
+internal/ytdlp/                  trailer extraction for the WebKit-less tvOS app
+internal/nameparser/             filename → title/season/episode parsing
+internal/webassets/web/          embedded SPA (index.html, modular JS, style.css)
 ```
 
 ## Building
