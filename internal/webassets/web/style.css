@@ -2339,20 +2339,43 @@ body.has-mini-player { padding-bottom: 68px; }
    dadurch am rechten Bildrand des gefüllten Bereichs abgeschnitten und war
    praktisch unsichtbar — betraf nur den Pill-Skin, der Standard-Skin hat
    nie ein overflow:hidden auf dem Holder gesetzt. */
+/* User-Korrektur 2026-09-10: erster Versuch saß "unter der Leiste, nur
+   tangential" und war zu groß. Ursache: `width`/`height` auf einem
+   `:before`-Pseudo-Element ohne `display:block` bewirken bei Inline-Boxen
+   GAR NICHTS (Browser ignorieren width/height bei nicht-ersetzten Inline-
+   Elementen) — der sichtbare Kreis kam dadurch nur aus dem unveränderten
+   Glyphen-Kasten des Original-Font-Icons (Zeilenhöhe/Baseline-Positionierung
+   des Video.js-Defaults), nicht aus meiner width/height-Angabe. Fix: Punkt
+   komplett selbst positionieren (position:absolute + top:50%/right:0 +
+   transform zum echten Zentrieren auf dem Balkenende) statt sich auf die
+   für einen Text-Glyphen gedachte Default-Positionierung zu verlassen, dazu
+   `display:block` und kleiner (8px statt 11px). */
 .video-js.player-skin-pill .vjs-play-progress:before {
-  color: transparent; /* verbirgt den Font-Icon-Glyphen ("\f116"), nur der Kreis unten bleibt */
-  width: 11px;
-  height: 11px;
+  content: "";
+  display: block;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+  width: 8px;
+  height: 8px;
+  line-height: normal;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 2px rgba(0, 0, 0, .6);
+  pointer-events: none;
 }
 .video-js.player-skin-pill .vjs-play-progress .vjs-svg-icon {
-  width: 11px;
-  height: 11px;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 2px rgba(0, 0, 0, .6);
+  pointer-events: none;
 }
 .video-js.player-skin-pill .vjs-play-progress .vjs-svg-icon svg { display: none; }
 /* 🔴→✅ Bug (User-Report mit Screenshot, live per claude-in-chrome

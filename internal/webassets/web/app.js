@@ -597,7 +597,13 @@ function updateBulkBar() {
   if (!bar) return;
   if (!state.selectionMode) { bar.classList.add("hidden"); return; }
   bar.classList.remove("hidden");
-  $("#bulkCount").textContent = `${state.selection.size} ausgewählt`;
+  // Gesamtgröße neben der Anzahl (User-Wunsch 2026-09-10) — Summe über
+  // sizeBytes der ausgewählten Items. Nutzt dieselbe Quelle wie die
+  // Bulk-Aktionen selbst (state.lastRenderedItems), daher konsistent mit
+  // dem, was z.B. Bulk-Download/-Löschen tatsächlich verarbeiten würden.
+  const totalBytes = selectedItems().reduce((sum, it) => sum + (it.sizeBytes || 0), 0);
+  const sizeLabel = totalBytes > 0 ? ` · ${fmtSize(totalBytes)}` : "";
+  $("#bulkCount").textContent = `${state.selection.size} ausgewählt${sizeLabel}`;
 }
 
 function selectAllVisible() {

@@ -1938,6 +1938,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - Sticky Action-Bar: `Alle · Keine · ♡ Favorit · ✓ Gesehen · 📋 Playlist ·
   ⬇ Download · 🗑 Löschen`. Bulk-Download triggert `<a download>`-Clicks
   mit 400 ms Abstand (Browser-Popup-Blocker).
+- **Gesamtgröße neben der Anzahl** (seit 1.3.1, User-Wunsch 2026-09-10):
+  `#bulkCount` zeigt „N ausgewählt · 12,4 GB" statt nur „N ausgewählt" —
+  Summe über `sizeBytes` der `selectedItems()` (dieselbe Quelle, die auch
+  die Bulk-Aktionen selbst nutzen, also konsistent mit dem, was z. B.
+  Bulk-Download tatsächlich überträgt), formatiert mit dem bestehenden
+  `fmtSize()`-Helper. Kein Größen-Suffix, wenn Summe 0 ist (Musik-Items o.
+  ä. ohne `sizeBytes`).
 - `state.lastRenderedItems` speichert die gerade gerenderte Liste — „Alle
   auswählen" arbeitet darauf.
 - **Shift-Klick-Bereichsauswahl** (seit 1.3.0, User-Wunsch 2026-09-10):
@@ -2898,6 +2905,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   hängt per CSS am rechten Rand von `.vjs-play-progress` selbst, dessen
   Breite sowohl Direct Play (nativ) als auch Transcode (unser RAF-Loop
   oben) bereits korrekt setzen.
+  **🔴→✅ Nachkorrektur (User-Report 2026-09-10: "nicht auf der Zeitleiste,
+  sondern schneidet ihn tangenzial. Der Punkt ist unter der Leiste. Und er
+  ist mir zu groß", LIVE 1.3.1):** `width`/`height` auf einem
+  `:before`-Pseudo-Element OHNE `display:block` bewirken bei Browsern
+  schlicht gar nichts — `:before`/`:after` sind standardmäßig `inline`,
+  und Inline-Boxen (nicht ersetzte Elemente) ignorieren explizite
+  Breiten-/Höhenangaben komplett. Der sichtbare Kreis kam beim ersten
+  Versuch dadurch weiterhin nur aus dem UNVERÄNDERTEN Glyphen-Kasten des
+  Original-Font-Icons (Video.js' eigene `line-height:.35em`-Positionierung,
+  für einen Text-Glyphen gedacht, nicht für einen zentrierten Punkt) — mein
+  `width:11px;height:11px` griff nie. Fix: `content:""` (kein Glyph mehr),
+  `display:block`, komplett eigene Positionierung
+  (`position:absolute;top:50%;right:0;transform:translate(50%,-50%)` —
+  zentriert den Punkt exakt AUF dem Balkenende statt daneben/darunter),
+  kleiner (8px statt 11px). Gleiches Prinzip für den `.vjs-svg-icon`-
+  Kindknoten im SVG-Icon-Modus.
 - **Wichtig — HLS-Segment-URLs:** Der Playlist-Handler schreibt die m3u8
   on-the-fly um und hängt die Query-Parameter (`profile`/`start`/`audio`) an
   jede `seg*.ts`-Zeile. Ohne das verlieren Segment-Requests ihre Parameter
