@@ -58,8 +58,20 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "folder nötig")
 		return
 	}
+	// Virtuelles Multi-Folder-Browsing (seit 2026-09-10, User-Wunsch "Two and
+	// a Half Men" S01/S02 in getrennten physischen Ordnern): liegt dieselbe
+	// Show noch in einem oder mehreren weiteren Top-Level-Ordnern (gleiche
+	// folder_metadata.metadata_id, siehe „Serienübersicht — Auto-Merge
+	// doppelter Serien-Ordner"), werden deren Episoden hier MIT eingelesen —
+	// rein lesend, keine Datei wird verschoben. Normalfall (keine Geschwister)
+	// bleibt exakt das bisherige Single-Folder-Verhalten (folders hat dann
+	// nur ein Element).
+	folders := []string{folder}
+	if siblings, err := s.Store.MergedFolderNames(libID, folder); err == nil {
+		folders = append(folders, siblings...)
+	}
 
-	owned, _, err := s.Store.SeriesOwnedEpisodes(libID, folder)
+	owned, _, err := s.Store.SeriesOwnedEpisodes(libID, folders)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -150,7 +162,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	// Season 0 liegen und daher kein Episoden-Match haben. Pfad parsen, S/E
 	// extrahieren, in ownedLookup eintragen — der Bonus-Slots-Pass weiter unten
 	// hängt sie dann als zusätzliche Slots an die passende Staffel.
-	if unmatched, err := s.Store.UnmatchedEpisodeFiles(libID, folder); err == nil {
+	if unmatched, err := s.Store.UnmatchedEpisodeFiles(libID, folders); err == nil {
 		for _, u := range unmatched {
 			p := nameparser.ParseEpisodeFile(u.RelPath)
 			if !p.IsEpisode || p.Season == 0 || p.Episode == 0 {
@@ -315,7 +327,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 	// Watched-Map fuer diesen Folder + User vorbereiten. Wird beim Bauen
 	// jedes Episode-Outputs konsultiert. Bei Fehler: keine watched-Flags
 	// (= alle false), Response bleibt funktional.
-	watchedIDs, werr := s.Store.WatchedItemIDsInFolder(me.ID, libID, folder)
+	watchedIDs, werr := s.Store.WatchedItemIDsInFolder(me.ID, libID, folders)
 	if werr != nil || watchedIDs == nil {
 		watchedIDs = map[int64]bool{}
 	}

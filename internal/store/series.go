@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // SeriesOwnedEpisode: einzelne Episode eines Show-Ordners, die auf Disk liegt.
@@ -18,11 +19,32 @@ type SeriesOwnedEpisode struct {
 	DurationSec float64
 }
 
-// SeriesOwnedEpisodes liefert alle Episoden-Items eines Top-Level-Ordners
-// einer TV-Library, inklusive season/episode-Index und der TMDB-ID der Show.
-// Episoden ohne Metadata-Match werden ausgelassen (die können wir eh nicht
-// in der Staffel-Ansicht einordnen).
-func (s *Store) SeriesOwnedEpisodes(libraryID int64, folder string) ([]SeriesOwnedEpisode, int64, error) {
+// folderScopeClause baut eine OR-verknüpfte LIKE-Bedingung für einen oder
+// mehrere Top-Level-Ordner (Multi-Folder-Browsing für virtuell zusammengeführte
+// Serien-Ordner, siehe MergedFolderNames). `column` ist der volle
+// SQL-Spaltenausdruck (z.B. "i.rel_path" oder "rel_path", je nach Alias der
+// jeweiligen Query). Mit genau einem Ordner (der Normalfall) verhält sich das
+// exakt wie die frühere Single-Folder-Variante.
+func folderScopeClause(column string, folders []string) (string, []any) {
+	if len(folders) == 0 {
+		return "0", nil
+	}
+	parts := make([]string, 0, len(folders))
+	args := make([]any, 0, len(folders))
+	for _, f := range folders {
+		parts = append(parts, column+" LIKE ? ESCAPE '\\'")
+		args = append(args, escapeLike(f)+"/%")
+	}
+	return "(" + strings.Join(parts, " OR ") + ")", args
+}
+
+// SeriesOwnedEpisodes liefert alle Episoden-Items eines oder mehrerer
+// Top-Level-Ordner einer TV-Library (mehrere Ordner = virtuell zusammengeführte
+// Serie, siehe MergedFolderNames), inklusive season/episode-Index und der
+// TMDB-ID der Show. Episoden ohne Metadata-Match werden ausgelassen (die
+// können wir eh nicht in der Staffel-Ansicht einordnen).
+func (s *Store) SeriesOwnedEpisodes(libraryID int64, folders []string) ([]SeriesOwnedEpisode, int64, error) {
+	where, args := folderScopeClause("i.rel_path", folders)
 	rows, err := s.db.Query(`
 		SELECT i.id, COALESCE(m.season,0), COALESCE(m.episode,0),
 		       COALESCE(i.episode_end, 0),
@@ -32,9 +54,9 @@ func (s *Store) SeriesOwnedEpisodes(libraryID int64, folder string) ([]SeriesOwn
 		JOIN metadata m ON m.id = i.metadata_id AND m.tmdb_type = 'episode'
 		LEFT JOIN metadata parent ON parent.id = m.parent_id
 		WHERE i.library_id = ?
-		  AND i.rel_path LIKE ? ESCAPE '\'
+		  AND `+where+`
 		ORDER BY m.season, m.episode
-	`, libraryID, escapeLike(folder)+"/%")
+	`, append([]any{libraryID}, args...)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -55,18 +77,19 @@ func (s *Store) SeriesOwnedEpisodes(libraryID int64, folder string) ([]SeriesOwn
 }
 
 // WatchedItemIDsInFolder liefert die Menge aller item-IDs, die der gegebene
-// User in einem Show-Folder als "gesehen" markiert hat. Wird vom Season-
-// Handler genutzt, damit jede Episode im Response ihren watched-Status
-// mitbekommt (per-User, nicht das Legacy-`items.watched`).
-func (s *Store) WatchedItemIDsInFolder(userID, libraryID int64, folder string) (map[int64]bool, error) {
+// User in einem oder mehreren Show-Folder(n) als "gesehen" markiert hat.
+// Wird vom Season-Handler genutzt, damit jede Episode im Response ihren
+// watched-Status mitbekommt (per-User, nicht das Legacy-`items.watched`).
+func (s *Store) WatchedItemIDsInFolder(userID, libraryID int64, folders []string) (map[int64]bool, error) {
+	where, args := folderScopeClause("i.rel_path", folders)
 	rows, err := s.db.Query(`
 		SELECT us.item_id
 		FROM user_item_state us
 		JOIN items i ON i.id = us.item_id
 		WHERE us.user_id = ? AND us.watched = 1
 		  AND i.library_id = ?
-		  AND i.rel_path LIKE ? ESCAPE '\'
-	`, userID, libraryID, escapeLike(folder)+"/%")
+		  AND `+where+`
+	`, append([]any{userID, libraryID}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -82,9 +105,9 @@ func (s *Store) WatchedItemIDsInFolder(userID, libraryID int64, folder string) (
 	return out, rows.Err()
 }
 
-// UnmatchedEpisodeFiles liefert alle Items eines Top-Level-Ordners ohne
-// TMDB-Metadata (metadata_id IS NULL) mit ihrem Pfad — der Caller parst
-// daraus on-the-fly Season/Episode aus dem Dateinamen. Wird vom
+// UnmatchedEpisodeFiles liefert alle Items eines oder mehrerer Top-Level-
+// Ordner ohne TMDB-Metadata (metadata_id IS NULL) mit ihrem Pfad — der
+// Caller parst daraus on-the-fly Season/Episode aus dem Dateinamen. Wird vom
 // Staffel-View-Handler genutzt, damit z. B. deutsche Hallmark-Specials,
 // die als S04E11/E12 nummeriert sind aber bei TMDB nur unter Season 0
 // liegen, trotzdem als Owned-Slots in der Staffel erscheinen.
@@ -93,13 +116,14 @@ type UnmatchedEpisodeFile struct {
 	RelPath string
 }
 
-func (s *Store) UnmatchedEpisodeFiles(libraryID int64, folder string) ([]UnmatchedEpisodeFile, error) {
+func (s *Store) UnmatchedEpisodeFiles(libraryID int64, folders []string) ([]UnmatchedEpisodeFile, error) {
+	where, args := folderScopeClause("rel_path", folders)
 	rows, err := s.db.Query(`
 		SELECT id, rel_path FROM items
 		WHERE library_id = ?
 		  AND metadata_id IS NULL
-		  AND rel_path LIKE ? ESCAPE '\'
-	`, libraryID, escapeLike(folder)+"/%")
+		  AND `+where+`
+	`, append([]any{libraryID}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +203,41 @@ func (s *Store) ShowMetadataIDForFolder(libraryID int64, folder string) (int64, 
 		return 0, nil
 	}
 	return metaID, err
+}
+
+// MergedFolderNames liefert die Namen anderer Top-Level-Ordner derselben
+// Library, deren folder_metadata.metadata_id mit dem von `folder` übereinstimmt
+// (also dieselbe Show, nur physisch in einem zweiten Ordner, z.B. getrennte
+// "Show S01"/"Show S02"-Ordner) — für virtuelles Multi-Folder-Browsing in der
+// Staffel-Ansicht, OHNE Dateien zu verschieben (siehe „Serienübersicht —
+// Auto-Merge doppelter Serien-Ordner" in CLAUDE.md, dort bisher nur die
+// Kachel-Ebene betroffen; dies erweitert es auf den tatsächlichen Episoden-
+// Zugriff). Symmetrisch: funktioniert unabhängig davon, ob `folder` der von
+// mergeFoldersBySameShow gewählte "Repräsentant" ist oder einer der anderen
+// Geschwister-Ordner — beide liefern dieselbe Geschwister-Menge.
+func (s *Store) MergedFolderNames(libraryID int64, folder string) ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT fm2.folder
+		FROM folder_metadata fm1
+		JOIN folder_metadata fm2
+		  ON fm2.library_id = fm1.library_id
+		 AND fm2.metadata_id = fm1.metadata_id
+		 AND fm2.folder != fm1.folder
+		WHERE fm1.library_id = ? AND fm1.folder = ? AND fm1.metadata_id IS NOT NULL
+	`, libraryID, folder)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var f string
+		if err := rows.Scan(&f); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
 }
 
 // ItemByShowSeasonEpisode findet das Item, das zu einer konkreten Folge einer

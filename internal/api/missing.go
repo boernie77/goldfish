@@ -86,10 +86,29 @@ func (s *Server) missingEpisodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	folders, err := s.Store.ListTVFoldersForLibrary(libID)
+	allFolders, err := s.Store.ListTVFoldersForLibrary(libID)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	// Virtuell zusammengeführte Geschwister-Ordner (siehe MergedFolderNames)
+	// dedupen — collectMissingEpisodesForFolder liest jetzt bei EINEM Aufruf
+	// bereits alle Episoden der ganzen Merge-Gruppe. Ohne diesen Schritt würde
+	// z.B. "Show S01" UND "Show S02" separat verarbeitet und dieselben
+	// fehlenden Folgen doppelt (einmal pro Ordnername) im Export auftauchen.
+	seen := map[string]bool{}
+	folders := make([]string, 0, len(allFolders))
+	for _, f := range allFolders {
+		if seen[f] {
+			continue
+		}
+		folders = append(folders, f)
+		seen[f] = true
+		if siblings, err := s.Store.MergedFolderNames(libID, f); err == nil {
+			for _, sib := range siblings {
+				seen[sib] = true
+			}
+		}
 	}
 	client := s.Enrich.Client()
 
@@ -147,7 +166,11 @@ func (s *Server) missingEpisodes(w http.ResponseWriter, r *http.Request) {
 // laden und alle nicht-owned Folgen bis zum Cap als „fehlt" zurückgeben.
 func collectMissingEpisodesForFolder(ctx context.Context, st *store.Store, client *tmdb.Client,
 	libID int64, folder string) []missingEpisodesEntry {
-	owned, _, err := st.SeriesOwnedEpisodes(libID, folder)
+	folders := []string{folder}
+	if siblings, err := st.MergedFolderNames(libID, folder); err == nil {
+		folders = append(folders, siblings...)
+	}
+	owned, _, err := st.SeriesOwnedEpisodes(libID, folders)
 	if err != nil || len(owned) == 0 {
 		return nil
 	}

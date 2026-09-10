@@ -2291,13 +2291,45 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   gemergten Ordnern vor, würde sie doppelt gezählt (kein bekannter
   Praxisfall bisher). Test:
   `internal/store/folders_merge_test.go TestTopLevelFoldersItemCountDedupesVariants`.
-- **Löst NICHT den allgemeineren Fall**, dass zwei Ordner mit jeweils
-  ECHTEM, unterschiedlichem Episoden-Inhalt zur selben Show gehören (z. B.
-  wenn jemand die Staffeln einer Serie versehentlich auf zwei verschieden
-  benannte Ordner verteilt hat) — dafür bräuchte es echtes Multi-Folder-
-  Browsing quer durch `SeriesOwnedEpisodes`/`ListItems` (beide strikt
-  `folder string`-basiert, keine Listen), was eine deutlich größere,
-  bewusst zurückgestellte Änderung wäre.
+- **✅ Multi-Folder-Browsing für Staffel-Ansicht + Fehlende-Folgen-Export
+  (seit 2026-09-10, LIVE 1.3.4, User-Report "Two and a Half Men" zeigte
+  ×48 auf der Kachel, aber nur 24 Folgen beim Öffnen):** löst jetzt den
+  Fall, dass zwei Ordner mit jeweils ECHTEM, unterschiedlichem
+  Episoden-Inhalt zur selben Show gehören (Staffel 1 und Staffel 2 als
+  zwei getrennte Download-Ordner statt einem gemeinsamen Serien-Ordner) —
+  vorher öffnete die 🔗-Kachel weiterhin nur den EINEN Repräsentanten-
+  Ordner (Klick auf "Two and a Half Men" zeigte trotz "×48"-Badge nur die
+  24 Folgen von S01, S02 war unerreichbar). **User-Vorgabe explizit
+  bestätigt: KEINE Dateien werden verschoben** — reines virtuelles
+  Zusammenlesen beim Anzeigen, das Dateisystem bleibt unangetastet
+  (Alternative "Dateien physisch in einen Ordner verschieben" wurde
+  zunächst angefangen, dann auf Wunsch des Users verworfen).
+  `Store.MergedFolderNames(libID, folder)` (`internal/store/series.go`)
+  findet symmetrisch alle Geschwister-Ordner mit identischer
+  `folder_metadata.metadata_id` (funktioniert unabhängig davon, ob `folder`
+  der von `mergeFoldersBySameShow` gewählte Repräsentant ist oder einer der
+  anderen). `SeriesOwnedEpisodes`/`UnmatchedEpisodeFiles`/
+  `WatchedItemIDsInFolder` nehmen jetzt `folders []string` statt `folder
+  string` (via `folderScopeClause`-Helper, OR-verknüpfte LIKE-Bedingungen —
+  bei genau einem Ordner identisch zum alten Single-Folder-Verhalten,
+  **keine Frontend-Änderung nötig**, der Browser schickt weiterhin nur den
+  einen `folder=`-Parameter, den Rest löst `seriesSeasons`
+  (`internal/api/series.go`) serverseitig auf: `folders := append([]string{
+  folder}, siblings...)`). `collectMissingEpisodesForFolder`
+  (`internal/api/missing.go`, Export „fehlende Folgen") ebenfalls
+  merge-aware gemacht — dabei musste der übergeordnete `missingEpisodes`-
+  Handler zusätzlich die Geschwister-Ordner aus der Iterationsliste
+  DEDUPEN (sonst hätte er dieselbe fehlende Folge zweimal gemeldet, einmal
+  pro Ordnername in der Merge-Gruppe). `ShowTMDBForFolder`/
+  `ShowMetadataIDForFolder`/`GetFolderMetadataID` bleiben bewusst
+  Single-Folder (Metadaten/Poster hängen nur am jeweils angefragten
+  Ordner, beide Geschwister-Ordner haben aber ohnehin dieselbe
+  `metadata_id`, liefern also dasselbe Ergebnis). `internal/introskip`
+  (Intro-Erkennung, eigene Pro-Ordner-Aktivierung) bleibt bewusst
+  Single-Folder — dort ist der exakte physische Ordner Teil der Konfiguration,
+  keine Merge-Semantik gewünscht. Tests:
+  `internal/store/series_multifolder_test.go` (Multi-Folder-Episodenliste,
+  Symmetrie von `MergedFolderNames`, Single-Folder-Fall bleibt unverändert).
 - **Bekannte Grenze bei unsauberen Bibliotheken:** die Serien-Zuordnung
   selbst ist ordnergebunden, nicht dateibasiert — `matchItem`
   (`internal/enrich/worker.go`) bestimmt die Show ausschließlich über
@@ -2308,10 +2340,7 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   wild gemischten Folgen verschiedener Serien würde also ALLE davon
   fälschlich der einen erkannten Show zuschlagen — kein Bug dieser Änderung,
   sondern eine bestehende Design-Grenze, die dem User bei dieser Gelegenheit
-  erklärt wurde. Ein manuelles „zwei Ordner zusammenführen"-Feature (Dateien
-  physisch verschieben, à la Jellyfin) wäre die eigentliche Lösung dafür —
-  aktuell NICHT gebaut, siehe Move/`rename_history`-Infrastruktur weiter
-  unten als möglicher Ausgangspunkt, falls das mal gebraucht wird.
+  erklärt wurde.
 
 ### Staffel-Ansicht für Serien
 - **Auflösungsfilter weicht auf die normale flache Ordner-Liste zurück**
@@ -4251,20 +4280,21 @@ Splits, aber falls man weitere Aufteilung braucht):
   echte Namen/E-Mails/interne IPs/Secrets enthalten (nicht mehr nur
   theoretisch relevant, sondern sofort für jeden sichtbar).
 
-- [ ] **Manuelles "Ordner zusammenführen" für Serien (à la Jellyfin)**
-  — User-Wunsch 2026-09-05, explizit als nachzurüsten markiert ("will ich
-  noch nachrüsten"). Hintergrund: der Auto-Merge der Serien-Kacheln (siehe
-  „Serienübersicht — Auto-Merge doppelter Serien-Ordner" oben) löst nur den
-  Anzeige-Fall (zwei Ordner, gleiche TMDB-Show, einer davon quasi leer).
-  Bei einer unsauberen Bibliothek mit ECHTEM Episoden-Inhalt in beiden
-  Ordnern bräuchte es eine Funktion, mit der man gezielt auswählt, welche
-  Ordner zu welcher Serie zusammengehören, und die Dateien dann tatsächlich
-  physisch zusammenführt (Verschieben in einen Zielordner) — analog zu
-  Jellyfins manuellem Merge. Ausgangspunkt: bestehende Move/`rename_history`-
-  Infrastruktur (`internal/api/admin_rename.go`, `POST /api/items/move`)
-  ließe sich dafür wiederverwenden, statt komplett neu zu bauen. Noch nicht
-  begonnen — nur der Bedarf ist festgehalten. Details/Kontext:
-  Memory `project_feature_show_folder_merge.md`.
+- [x] **✅ Echte Folgen-Zusammenführung für Serien in getrennten Ordnern**
+  (LIVE 1.3.4, 2026-09-10) — User-Wunsch 2026-09-05 aufgegriffen, aber
+  anders gelöst als ursprünglich skizziert: statt Dateien physisch zu
+  verschieben (Jellyfin-Stil, hätte die Move-Infrastruktur wiederverwendet)
+  wollte der User **ausdrücklich KEIN Verschieben auf Disk** — stattdessen
+  virtuelles Multi-Folder-Browsing, siehe „Serienübersicht — Auto-Merge
+  doppelter Serien-Ordner" oben (`MergedFolderNames`,
+  `SeriesOwnedEpisodes(folders []string)`). Löst den konkreten
+  Auslöser-Fall ("Two and a Half Men" mit S01/S02 in zwei physischen
+  Ordnern) vollständig, ohne Dateisystem-Änderung. Ein UI zum manuellen
+  "diese zwei Ordner gehören zusammen"-Markieren (für Fälle, die NICHT
+  bereits über `folder_metadata.metadata_id` automatisch erkannt werden)
+  ist damit weiterhin nicht gebaut — bisher kein konkreter Bedarf dafür,
+  da die automatische Erkennung über die gemeinsame TMDB-Zuordnung den
+  praktischen Fall abdeckt.
 
 ## Entwicklungsworkflow
 

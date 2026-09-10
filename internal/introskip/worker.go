@@ -282,7 +282,7 @@ type episodeFingerprint struct {
 // Job nicht scheitern (diese Episode bleibt "nicht analysiert" und wird
 // beim nächsten EnqueueStaleFolders-Lauf erneut versucht).
 func (w *Worker) processShow(ctx context.Context, job store.IntroSkipJob) (total, matched int, err error) {
-	episodes, _, err := w.store.SeriesOwnedEpisodes(job.LibraryID, job.Folder)
+	episodes, _, err := w.store.SeriesOwnedEpisodes(job.LibraryID, []string{job.Folder})
 	if err != nil {
 		return 0, 0, fmt.Errorf("episoden laden: %w", err)
 	}
