@@ -1682,9 +1682,22 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   die Reihenfolge nicht nur das CSS-Raster betrifft, sondern auch welcher
   Inhalt in welcher Zellen-Position im HTML steht (`renderMusicTrackRow`
   baut die Zeile in `columns`-Array-Reihenfolge). Album-Übersicht als Liste
-  (`track-row--album`, Cover+Album+Artist+Trackzahl+Fav) ist NICHT
-  betroffen — User-Wunsch bezog sich erkennbar auf die Track-Listen
+  (`track-row--album`, Cover+Album+Artist+Trackzahl+Fav) war anfangs NICHT
+  betroffen — User-Wunsch bezog sich zunächst erkennbar auf die Track-Listen
   ("Titel, Künstler, Dauer"), nicht die Album-Kacheln/-Zeilen selbst.
+  **✅ Nachgezogen (2026-09-11, LIVE 1.3.7, User-Report: "Hier fehlen die
+  Überschriften der Spalten und die Spalten sind nicht verschiebbar, so wie
+  bei den Titeln"):** eigener vierter Kontext `overview` in
+  `MUSIC_LIST_CONTEXTS` (Spalten Album/Künstler/Genre/Titelzahl,
+  `musicColumns:overview` in localStorage) + eigener Zeilen-Renderer
+  `renderAlbumRow(a, columns)` (analog `renderMusicTrackRow`, aber mit
+  Album-eigenen Feldern statt Track-Feldern — kein `trackNo`/Dauer). Nutzt
+  dieselbe `renderMusicColumnHeader`/`wireMusicColumnHeader`/
+  `applyMusicGridTemplate`/`musicColumnHeaderRefreshers`-Infrastruktur wie
+  die beiden Track-Listen, keine Server-Änderung nötig. Header-Element
+  bekommt zusätzlich die Klasse `.track-row--album`, damit das bestehende
+  CSS-Fallback-Grid-Template (`40px 2fr 1fr 1fr 80px 32px`) auch für die
+  Kopfzeile vor dem ersten JS-Zugriff greift.
   **🔴 Vergrößern (Resize) funktionierte zunächst nicht, Verschieben (Reorder)
   schon (Bug, gefixt noch am selben Tag):** zwei unabhängige Ursachen.
   (1) Der Resize-Handle war `position:absolute; right:-6px` — ragte damit in

@@ -313,28 +313,22 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     grid.classList.add("track-list-grid");
     const list = document.createElement("div");
     list.className = "track-list";
-    for (const a of albums) {
-      const cover = a.coverSource ? `/api/poster/album/${a.id}` : "/placeholder.svg";
-      const row = document.createElement("div");
-      row.className = "track-row track-row--album";
-      row.tabIndex = 0;
-      row.setAttribute("role", "button");
-      row.innerHTML = `
-        <img class="track-row-cover" loading="lazy" decoding="async" alt="" src="${cover}">
-        <span class="track-row-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</span>
-        <span class="track-row-artist">${escapeHTML(a.artist || "")}</span>
-        <span class="track-row-genre">${escapeHTML(a.genre || "")}</span>
-        <span class="track-row-count">${a.trackCount || 0} Titel</span>
-        <button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>
-      `;
-      row.addEventListener("click", (ev) => {
-        const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
-        if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
-        openMusicAlbum(a.id);
-      });
-      row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
-      list.appendChild(row);
-    }
+    // Kopfzeile + Resize/Reorder seit 2026-09-11 (User-Report: "Hier fehlen
+    // die Überschriften der Spalten und die Spalten sind nicht verschiebbar,
+    // so wie bei den Titeln") — dieselbe Infrastruktur wie die Track-Listen
+    // (Album-Detail/"Alle Titel"), nur mit eigenem Kontext "overview" und
+    // eigenem Zeilen-Renderer (renderAlbumRow), weil Alben andere Felder
+    // haben als Tracks (kein trackNo/Dauer, dafür Titelzahl).
+    const rerenderRows = () => {
+      list.innerHTML = "";
+      const head = renderMusicColumnHeader("overview", list);
+      head.classList.add("track-row--album"); // CSS-Fallback-Grid-Template teilen
+      const columns = musicEffectiveColumns("overview");
+      for (const a of albums) list.appendChild(renderAlbumRow(a, columns));
+      applyMusicGridTemplate(list, "overview");
+    };
+    musicColumnHeaderRefreshers.set(list, rerenderRows);
+    rerenderRows();
     grid.appendChild(list);
     state.lastRenderedItems = [];
     return;
@@ -391,6 +385,49 @@ async function toggleAlbumFavorite(album, btn) {
   } finally {
     btn.disabled = false;
   }
+}
+
+// renderAlbumRow: Zeilen-Renderer für die Album-Übersicht als Liste
+// (analog renderMusicTrackRow für Track-Listen, aber mit Album-eigenen
+// Feldern — kein trackNo/Dauer, dafür Titelzahl). `columns` kommt aus
+// musicEffectiveColumns("overview") und steuert Inhalt + Reihenfolge.
+function renderAlbumRow(a, columns) {
+  const cover = a.coverSource ? `/api/poster/album/${a.id}` : "/placeholder.svg";
+  const row = document.createElement("div");
+  row.className = "track-row track-row--album";
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  let html = "";
+  for (const col of columns) {
+    switch (col) {
+      case "cover":
+        html += `<img class="track-row-cover" loading="lazy" decoding="async" alt="" src="${cover}">`;
+        break;
+      case "title":
+        html += `<span class="track-row-title" title="${escapeHTML(a.album || "")}">${escapeHTML(a.album || "(Unbekanntes Album)")}</span>`;
+        break;
+      case "artist":
+        html += `<span class="track-row-artist">${escapeHTML(a.artist || "")}</span>`;
+        break;
+      case "genre":
+        html += `<span class="track-row-genre">${escapeHTML(a.genre || "")}</span>`;
+        break;
+      case "count":
+        html += `<span class="track-row-count">${a.trackCount || 0} Titel</span>`;
+        break;
+      case "fav":
+        html += `<button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>`;
+        break;
+    }
+  }
+  row.innerHTML = html;
+  row.addEventListener("click", (ev) => {
+    const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
+    if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+    openMusicAlbum(a.id);
+  });
+  row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
+  return row;
 }
 
 // openMusicAlbum: öffnet ein Album aus der Übersicht (Kachel- oder
@@ -529,6 +566,18 @@ function renderAllTracksList(grid, tracks) {
 // internes Zwischenlager für GroupMusicAlbums — jetzt exportiert +
 // ListItems SELECTed es).
 const MUSIC_LIST_CONTEXTS = {
+  // Album-Übersicht als Liste (Cover+Album+Künstler+Genre+Titelzahl+Fav) —
+  // seit 2026-09-11 ergänzt (User-Report: fehlte bisher komplett, im
+  // Gegensatz zu den beiden Track-Listen unten).
+  overview: {
+    fixedLeading: ["cover"],
+    reorderable: ["title", "artist", "genre", "count"],
+    fixedTrailing: ["fav"],
+    labels: { title: "Album", artist: "Künstler", genre: "Genre", count: "Titel" },
+    defaultWidths: { title: 260, artist: 160, genre: 120, count: 90 },
+    minWidths: { title: 100, artist: 80, genre: 70, count: 60 },
+    fixedWidths: { cover: 40, fav: 32 },
+  },
   album: {
     fixedLeading: ["track"],
     reorderable: ["title", "artist", "genre", "year", "duration"],
