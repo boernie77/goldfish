@@ -88,10 +88,12 @@ func TestPlanProfileCachePaths(t *testing.T) {
 }
 
 // TestClampProfileToSource — Regressionstest für den "größer statt kleiner"-
-// Bug (User-Report 2026-09-11): eine Downscale-Zielbitrate darf NIE über der
-// bekannten Quell-Bitrate liegen.
+// Bug (User-Report 2026-09-11, ZWEI Runden): eine Downscale-Zielbitrate darf
+// NIE über der bekannten Quell-GESAMTbitrate liegen (Video+Audio zusammen —
+// `itemBitrateKbps` ist ffprobes `format.bit_rate`, keine reine
+// Video-Bitrate, siehe Funktionskommentar).
 func TestClampProfileToSource(t *testing.T) {
-	p480hq := playback.ProfileByID("480p-hq") // 2000 kbps Katalogwert
+	p480hq := playback.ProfileByID("480p-hq") // VideoKbps=2000, AudioKbps=128
 
 	cases := []struct {
 		name            string
@@ -99,8 +101,10 @@ func TestClampProfileToSource(t *testing.T) {
 		wantVideoKbps   int
 	}{
 		{"Quelle unbekannt (0) -> Katalogwert bleibt", 0, 2000},
-		{"Quelle effizienter als Katalogwert -> geklemmt", 1900, 1900},
+		{"Quelle effizienter als Katalogwert -> geklemmt (Audio-Anteil abgezogen)", 1900, 1900 - 128},
+		{"realer Bug-Fall: 1,94 Mbps Quelle", 1940, 1940 - 128},
 		{"Quelle über Katalogwert -> Katalogwert bleibt (kein Hochsetzen)", 5000, 2000},
+		{"sehr niedrige Quelle -> Sicherheits-Untergrenze greift", 250, 200},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -110,6 +114,11 @@ func TestClampProfileToSource(t *testing.T) {
 			}
 			if got.AudioKbps != p480hq.AudioKbps {
 				t.Errorf("AudioKbps sollte unverändert bleiben, got %d want %d", got.AudioKbps, p480hq.AudioKbps)
+			}
+			// Kernversprechen: Video+Audio zusammen nie über der Quelle (außer
+			// bei der Sicherheits-Untergrenze, die bewusst nicht weiter runter darf).
+			if c.itemBitrateKbps >= 400 && got.VideoKbps+got.AudioKbps > c.itemBitrateKbps {
+				t.Errorf("Video+Audio (%d) liegt über der Quell-Bitrate (%d)", got.VideoKbps+got.AudioKbps, c.itemBitrateKbps)
 			}
 		})
 	}

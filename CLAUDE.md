@@ -3647,6 +3647,17 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   tatsächliche Encode-Bitrate, NICHT die `needsDownscale`-Entscheidung
   selbst, und NICHT der Cache-Dateiname — der bleibt beim gewählten
   Profil-ID). Test: `TestClampProfileToSource`.
+  **🔴→✅ Zweite Runde, noch am selben Tag (convVersion 7, User meldete beim
+  erneuten Test immer noch eine zu große Datei: 273 MB Original → 293 statt
+  < 273 MB):** der erste Fix klemmte `profile.VideoKbps` direkt auf
+  `itemBitrateKbps` — aber `it.BitrateKbps` (`Item.BitrateKbps`) kommt aus
+  ffprobes `format.bit_rate` (`internal/scanner/scanner.go`), das ist die
+  GESAMTE Container-Bitrate (Video **+** Audio), keine reine Video-Bitrate.
+  Die neue, per Profil zugeteilte Audiospur kam dadurch oben drauf und hob
+  die Summe wieder über die Quelle. Fix: `clampProfileToSource` zieht jetzt
+  erst `profile.AudioKbps` von der Quell-Gesamtbitrate ab, bevor der Rest
+  als Video-Zieldeckel dient (Sicherheits-Untergrenze 200 kbps gegen ein
+  degeneriertes Ziel bei sehr niedriger Quell-Bitrate).
 - **`?compat=1`** (seit 2026-08-27, `internal/download`): server-seitige
   Kompatibilitätsprüfung + einmalige, dauerhaft gecachte Remux-/Transcode-Kopie
   VOR dem Ausliefern — analog zu Jellyfins Geräteprofil-Direct-Play-Entscheidung.

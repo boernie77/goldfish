@@ -69,7 +69,14 @@ type AudioStream struct {
 //	    (`<itemID>-<profileID>.mp4`) betroffen, reine Compat-Fix-Kopien
 //	    (`<itemID>.mp4`) unverändert — die Invalidierung trifft sie trotzdem
 //	    mit, harmlos (identisches Ergebnis, nur einmal neu erzeugt).
-const convVersion = 6
+//	7 = `clampProfileToSource` zog von der Quell-GESAMTbitrate bisher NICHT den
+//	    Audio-Anteil ab, bevor sie als Video-Zieldeckel diente — `itemBitrateKbps`
+//	    ist ffprobes `format.bit_rate` (Video+Audio kombiniert, siehe scanner.go),
+//	    keine reine Video-Bitrate. Die neue Audiospur kam dadurch OBEN DRAUF und
+//	    hob die Summe wieder über die Quelle (User meldete beim erneuten Test
+//	    immer noch eine zu große Datei, 273 MB Original → 293 statt < 273 MB).
+//	    Fix zieht `profile.AudioKbps` vorher ab.
+const convVersion = 7
 
 // h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
 // diesem Pixelformat hardware-dekodieren kann (nur 8-Bit 4:2:0). Alles andere
@@ -218,16 +225,35 @@ func needsDownscale(profile playback.Profile, itemHeight, itemBitrateKbps int) b
 // auf den ERSTEN Katalog-Eintrag "480p-hq · 2 Mbps" traf, siehe drei Stufen
 // pro Auflösung in `playback.Profiles` — mit einem Zieldeckel von 2 Mbps neu
 // encodet: Auflösung sank, aber die Zielbitrate lag ÜBER der Quelle, die
-// Datei wurde größer statt kleiner). `needsDownscale` entscheidet nur, OB
-// überhaupt runtergerechnet wird (Höhe oder Bitrate über dem Cap) — hier wird
-// zusätzlich die tatsächlich für den Encode verwendete Ziel-Bitrate nie höher
-// als die der Quelle gewählt. Nur die VideoKbps werden gekappt (AudioKbps
-// bleiben unverändert, die sind ohnehin klein) und nur, wenn die Quell-
-// Bitrate bekannt ist (`itemBitrateKbps > 0`) UND niedriger als der
-// Katalog-Wert — sonst bleibt `profile` unverändert.
+// Datei wurde größer statt kleiner).
+//
+// 🔴→✅ Erster Anlauf (noch am selben Tag) klemmte `profile.VideoKbps`
+// direkt auf `itemBitrateKbps` — das reichte NICHT (User meldete beim
+// erneuten Test immer noch eine größere Datei, 273 statt 293 MB): `it.
+// BitrateKbps` kommt aus ffprobes `format.bit_rate` (siehe scanner.go) —
+// das ist die GESAMTE Container-Bitrate (Video **+** Audio), keine reine
+// Video-Bitrate. Ein direktes Klemmen von `VideoKbps` darauf ließ die NEUE
+// Audiospur (`profile.AudioKbps`, on top) die Summe wieder über die
+// Quelle heben. Fix: erst den Audio-Anteil von der Quell-Gesamtbitrate
+// abziehen, DANN als Video-Zieldeckel verwenden — Video+Audio zusammen
+// liegen dadurch garantiert nie über der bekannten Quell-Bitrate.
+// `needsDownscale` entscheidet weiterhin nur, OB überhaupt runtergerechnet
+// wird (Höhe oder Bitrate über dem Cap) — hier wird nur die tatsächlich
+// für den Encode verwendete Ziel-Bitrate begrenzt.
 func clampProfileToSource(profile playback.Profile, itemBitrateKbps int) playback.Profile {
-	if itemBitrateKbps > 0 && profile.VideoKbps > 0 && itemBitrateKbps < profile.VideoKbps {
-		profile.VideoKbps = itemBitrateKbps
+	if itemBitrateKbps <= 0 || profile.VideoKbps <= 0 {
+		return profile
+	}
+	audioKbps := profile.AudioKbps
+	if audioKbps <= 0 {
+		audioKbps = 128 // konservativer Fallback, falls das Profil selbst keine Audio-Bitrate nennt
+	}
+	maxVideoKbps := itemBitrateKbps - audioKbps
+	if maxVideoKbps < 200 {
+		maxVideoKbps = 200 // Sicherheits-Untergrenze gegen ein degeneriertes Ziel bei sehr niedriger Quell-Bitrate
+	}
+	if maxVideoKbps < profile.VideoKbps {
+		profile.VideoKbps = maxVideoKbps
 	}
 	return profile
 }
