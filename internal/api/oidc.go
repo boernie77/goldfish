@@ -247,7 +247,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		redirectFail("Session-Erstellung fehlgeschlagen")
 		return
 	}
-	_ = s.Store.LogActivity(user.ID, user.Username, "auth", "login", "SSO")
+	_ = s.Store.LogActivity(user.ID, user.Username, "auth", "login", "SSO", deviceLabel(r))
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sess.Token,

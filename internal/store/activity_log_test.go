@@ -5,13 +5,13 @@ import "testing"
 func TestActivityLog(t *testing.T) {
 	s := newTestStore(t)
 
-	if err := s.LogActivity(1, "admin", "auth", "login", ""); err != nil {
+	if err := s.LogActivity(1, "admin", "auth", "login", "", "Chrome · macOS"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.LogActivity(0, "unknown", "auth", "login_failed", "Anmeldung fehlgeschlagen"); err != nil {
+	if err := s.LogActivity(0, "unknown", "auth", "login_failed", "Anmeldung fehlgeschlagen", "Safari · iOS"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.LogActivity(1, "admin", "job", "scan_run", `"Filme", gesamte Bibliothek`); err != nil {
+	if err := s.LogActivity(1, "admin", "job", "scan_run", `"Filme", gesamte Bibliothek`, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -25,6 +25,14 @@ func TestActivityLog(t *testing.T) {
 	// Neueste zuerst.
 	if all[0].Action != "scan_run" {
 		t.Errorf("expected newest first (scan_run), got %s", all[0].Action)
+	}
+	// System-getriggerte Events (kein *http.Request) bleiben ohne Device.
+	if all[0].Device != "" {
+		t.Errorf("expected empty device for scan_run, got %q", all[0].Device)
+	}
+	loginEntry := all[2] // älteste = zuerst eingefügt = login
+	if loginEntry.Device != "Chrome · macOS" {
+		t.Errorf("expected device %q, got %q", "Chrome · macOS", loginEntry.Device)
 	}
 
 	authOnly, err := s.ListActivityLog(ActivityLogFilter{Category: "auth"})

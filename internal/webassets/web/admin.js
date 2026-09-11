@@ -1069,6 +1069,10 @@ const activityLogState = { beforeId: 0, done: false };
 const ACTIVITY_LOG_LABELS = {
   login: "Anmeldung", login_failed: "Anmeldung fehlgeschlagen", logout: "Abmeldung",
   play: "Wiedergabe gestartet",
+  // Seit 2026-09-11 (User-Wunsch: "nicht nur Wiedergabe gestartet, sondern
+  // auch beendet" + Fehler-Protokollierung) — siehe stream.go playbackStop/
+  // playbackError.
+  stop: "Wiedergabe beendet", error: "Wiedergabe-Fehler",
   settings_change: "Einstellungen geändert",
   library_create: "Bibliothek angelegt", library_delete: "Bibliothek gelöscht",
   user_create: "Benutzer angelegt", user_delete: "Benutzer gelöscht",
@@ -1143,6 +1147,7 @@ async function refreshActivityLog(reset) {
         <td style="font-size:12px">${escapeHTML(e.username || "—")}</td>
         <td style="font-size:12px">${escapeHTML(label)}</td>
         <td style="font-size:12px">${escapeHTML(e.detail || "")}</td>
+        <td style="font-size:12px;color:#94a3b8">${escapeHTML(e.device || "—")}</td>
       </tr>`;
   }).join("");
   const table = `
@@ -1153,6 +1158,7 @@ async function refreshActivityLog(reset) {
           <th style="padding:6px 4px">Benutzer</th>
           <th style="padding:6px 4px">Aktion</th>
           <th style="padding:6px 4px">Details</th>
+          <th style="padding:6px 4px">Gerät</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>

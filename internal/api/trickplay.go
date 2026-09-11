@@ -31,7 +31,7 @@ func (s *Server) retryFailedTrickplay(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Trickplay.Trigger()
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "trickplay_retry_failed", fmt.Sprintf("%d Fehler zurückgesetzt", n))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "trickplay_retry_failed", fmt.Sprintf("%d Fehler zurückgesetzt", n), deviceLabel(r))
 	}
 	writeJSON(w, 200, map[string]any{"reset": n})
 }
@@ -84,7 +84,7 @@ func (s *Server) deleteAllTrickplay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "trickplay_delete_all", "")
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "trickplay_delete_all", "", deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }

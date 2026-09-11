@@ -66,7 +66,7 @@ func (s *Server) ocrSubSetEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_enabled_toggle", fmt.Sprintf("global aktiv: %v", body.Enabled))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_enabled_toggle", fmt.Sprintf("global aktiv: %v", body.Enabled), deviceLabel(r))
 	}
 	writeJSON(w, 200, map[string]any{"enabled": body.Enabled})
 }
@@ -124,7 +124,7 @@ func (s *Server) ocrSubSetFolder(w http.ResponseWriter, r *http.Request) {
 		if lib != nil {
 			name = lib.Name
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_folder_toggle", fmt.Sprintf("%q → aktiv: %v", name, body.Enabled))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_folder_toggle", fmt.Sprintf("%q → aktiv: %v", name, body.Enabled), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -155,7 +155,7 @@ func (s *Server) ocrSubRunAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_run_all", fmt.Sprintf("%d eingereiht", n))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_run_all", fmt.Sprintf("%d eingereiht", n), deviceLabel(r))
 	}
 	writeJSON(w, 200, map[string]any{"queued": n})
 }
@@ -173,7 +173,7 @@ func (s *Server) ocrSubRetryFailed(w http.ResponseWriter, r *http.Request) {
 		s.OCRSub.Trigger()
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_retry_failed", fmt.Sprintf("%d erneut versucht, %d bereinigt", n, purged))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "ocr_retry_failed", fmt.Sprintf("%d erneut versucht, %d bereinigt", n, purged), deviceLabel(r))
 	}
 	writeJSON(w, 200, map[string]any{"retried": n, "purged": purged})
 }

@@ -36,7 +36,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		if force {
 			forceNote = " (force)"
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("%q, %s%s", lib.Name, scope, forceNote))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("%q, %s%s", lib.Name, scope, forceNote), deviceLabel(r))
 	}
 	writeJSON(w, 202, map[string]any{"status": "started", "force": force, "folder": folder})
 }
@@ -54,7 +54,7 @@ func (s *Server) startScanAll(w http.ResponseWriter, r *http.Request) {
 		if force {
 			forceNote = " (force)"
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("alle %d Bibliotheken%s", len(libs), forceNote))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("alle %d Bibliotheken%s", len(libs), forceNote), deviceLabel(r))
 	}
 	go func() {
 		for _, l := range libs {

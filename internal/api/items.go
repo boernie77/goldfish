@@ -302,7 +302,7 @@ func (s *Server) confirmItemMetadata(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_confirm", fmt.Sprintf("%q → bestätigt: %v", it.Title, body.Confirmed))
+	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_confirm", fmt.Sprintf("%q → bestätigt: %v", it.Title, body.Confirmed), deviceLabel(r))
 	w.WriteHeader(204)
 }
 

@@ -42,7 +42,7 @@ func (s *Server) createUserAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	u, _ := s.Store.GetUser(id)
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_create", fmt.Sprintf("%q (Admin: %v)", body.Username, body.IsAdmin))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_create", fmt.Sprintf("%q (Admin: %v)", body.Username, body.IsAdmin), deviceLabel(r))
 	}
 	writeJSON(w, 201, u)
 }
@@ -64,7 +64,7 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me != nil && target != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_delete", fmt.Sprintf("%q", target.Username))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_delete", fmt.Sprintf("%q", target.Username), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -96,7 +96,7 @@ func (s *Server) resetUserPassword(w http.ResponseWriter, r *http.Request) {
 		if target != nil {
 			name = target.Username
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_password_reset", fmt.Sprintf("%q", name))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_password_reset", fmt.Sprintf("%q", name), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -129,7 +129,7 @@ func (s *Server) setUserAdmin(w http.ResponseWriter, r *http.Request) {
 		if target != nil {
 			name = target.Username
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_admin_toggle", fmt.Sprintf("%q → Admin: %v", name, body.IsAdmin))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_admin_toggle", fmt.Sprintf("%q → Admin: %v", name, body.IsAdmin), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -189,7 +189,7 @@ func (s *Server) setUserCanDownload(w http.ResponseWriter, r *http.Request) {
 		if target != nil {
 			name = target.Username
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_can_download_toggle", fmt.Sprintf("%q → Downloads erlaubt: %v", name, body.CanDownload))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_can_download_toggle", fmt.Sprintf("%q → Downloads erlaubt: %v", name, body.CanDownload), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -236,7 +236,7 @@ func (s *Server) setUserLibraries(w http.ResponseWriter, r *http.Request) {
 		if target != nil {
 			name = target.Username
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_acl_change", fmt.Sprintf("%q → %d Bibliothek(en)", name, len(body.LibraryIDs)))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "user_acl_change", fmt.Sprintf("%q → %d Bibliothek(en)", name, len(body.LibraryIDs)), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }

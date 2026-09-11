@@ -86,7 +86,7 @@ func (s *Server) createLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	lib, _ := s.Store.GetLibrary(id)
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "library_create", fmt.Sprintf("%q (%s, %s)", body.Name, kind, body.Path))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "library_create", fmt.Sprintf("%q (%s, %s)", body.Name, kind, body.Path), deviceLabel(r))
 	}
 	writeJSON(w, 201, lib)
 }
@@ -283,7 +283,7 @@ func (s *Server) deleteLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil && lib != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "library_delete", fmt.Sprintf("%q", lib.Name))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "library_delete", fmt.Sprintf("%q", lib.Name), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }

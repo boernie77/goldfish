@@ -138,7 +138,7 @@ func (s *Server) setIntroSkipFolder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "job", "introskip_folder_toggle", fmt.Sprintf("%q → aktiv: %v", body.Folder, body.Enabled))
+		_ = s.Store.LogActivity(me.ID, me.Username, "job", "introskip_folder_toggle", fmt.Sprintf("%q → aktiv: %v", body.Folder, body.Enabled), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -177,7 +177,7 @@ func (s *Server) setIntroSkipAutoNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "introskip_auto_new", fmt.Sprintf("lib %d → %v", libID, body.Enabled))
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "introskip_auto_new", fmt.Sprintf("lib %d → %v", libID, body.Enabled), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }

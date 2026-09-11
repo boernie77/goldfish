@@ -622,6 +622,13 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "intro_skip_auto_new", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Aktivitäts-Protokoll: Gerät/Client (User-Wunsch 2026-09-11, "ich würde
+	// gerne sehen, auf welchem Gerät etwas passiert ist") — siehe deviceLabel()
+	// in internal/api/helpers.go. '' = unbekannt (alte Einträge vor dieser
+	// Migration, oder ein Aufrufer ohne *http.Request, z. B. Auto-Scan/-Backup).
+	if err := addCol("activity_log", "device", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
 	if _, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS intro_skip_seen_folders (
 			library_id INTEGER NOT NULL,

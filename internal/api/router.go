@@ -172,6 +172,10 @@ func (s *Server) Router() http.Handler {
 		r.Get("/thumb/{id}", s.getThumb)
 
 		r.Get("/playback/{id}", s.playbackInfo)
+		// Protokoll-Ergänzung 2026-09-11 ("nicht nur Wiedergabe gestartet,
+		// sondern auch beendet" + Fehler) — siehe Doc-Kommentare in stream.go.
+		r.Post("/playback/{id}/stop", s.playbackStop)
+		r.Post("/playback/{id}/error", s.playbackError)
 		r.Get("/stream/{id}", s.streamDirect)
 		r.Get("/transcode/{id}/index.m3u8", s.transcodePlaylist)
 		r.Get("/transcode/{id}/progress", s.transcodeProgress)
@@ -356,7 +360,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.3.13"
+const appVersion = "1.3.14"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

@@ -19,17 +19,25 @@ type ActivityEntry struct {
 	Category string    `json:"category"` // "auth" | "playback" | "admin" | "job"
 	Action   string    `json:"action"`
 	Detail   string    `json:"detail"`
+	// Device — seit 2026-09-11, User-Wunsch "auf welchem Gerät etwas
+	// passiert ist". Ein kurzes, menschenlesbares Label (siehe
+	// `deviceLabel()` in internal/api/helpers.go), z.B. "Chrome · macOS",
+	// "Goldfish-Mac", "Goldfish-iOS". Leer bei Einträgen von vor dieser
+	// Migration oder ohne zugehörigen HTTP-Request (Auto-Scan/-Backup).
+	Device string `json:"device,omitempty"`
 }
 
 // LogActivity schreibt einen Protokoll-Eintrag. userID=0/username="" für
 // System-/nicht zugeordnete Events (z.B. fehlgeschlagener Login mit
 // unbekanntem Benutzernamen — dann steht der versuchte Name im Detail-Text).
+// `device` — siehe ActivityEntry.Device-Kommentar; leer ("") für
+// System-getriggerte Events ohne HTTP-Request (Auto-Scan/-Backup).
 // Fehler beim Schreiben werden vom Aufrufer bewusst nur geloggt, nie als
 // Blocker behandelt (Protokoll ist Komfort-/Diagnose-Feature, analog NFO-Write).
-func (s *Store) LogActivity(userID int64, username, category, action, detail string) error {
+func (s *Store) LogActivity(userID int64, username, category, action, detail, device string) error {
 	_, err := s.db.Exec(
-		`INSERT INTO activity_log (user_id, username, category, action, detail) VALUES (?, ?, ?, ?, ?)`,
-		nullIfZero(userID), username, category, action, detail,
+		`INSERT INTO activity_log (user_id, username, category, action, detail, device) VALUES (?, ?, ?, ?, ?, ?)`,
+		nullIfZero(userID), username, category, action, detail, device,
 	)
 	// Günstige, seltene Aufräumaktion statt eigenem Hintergrund-Worker:
 	// ~1 von 200 Schreibvorgängen räumt Einträge älter als 180 Tage weg.
@@ -62,7 +70,7 @@ func (s *Store) ListActivityLog(f ActivityLogFilter) ([]ActivityEntry, error) {
 	if limit > 500 {
 		limit = 500
 	}
-	q := `SELECT id, at, user_id, username, category, action, detail FROM activity_log WHERE 1=1`
+	q := `SELECT id, at, user_id, username, category, action, detail, device FROM activity_log WHERE 1=1`
 	var args []any
 	if f.Category != "" {
 		q += ` AND category = ?`
@@ -89,7 +97,7 @@ func (s *Store) ListActivityLog(f ActivityLogFilter) ([]ActivityEntry, error) {
 	for rows.Next() {
 		var e ActivityEntry
 		var uid sql.NullInt64
-		if err := rows.Scan(&e.ID, &e.At, &uid, &e.Username, &e.Category, &e.Action, &e.Detail); err != nil {
+		if err := rows.Scan(&e.ID, &e.At, &uid, &e.Username, &e.Category, &e.Action, &e.Detail, &e.Device); err != nil {
 			return nil, err
 		}
 		e.UserID = uid.Int64

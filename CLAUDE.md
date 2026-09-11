@@ -3829,6 +3829,51 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   „Daten & Sicherheit" → „📜 Protokoll". Zwei Filter-Dropdowns (Kategorie +
   Benutzer, User-Wunsch 2026-09-02 nachträglich ergänzt). `ACTIVITY_LOG_LABELS`
   übersetzt die internen Action-Codes in lesbare deutsche Labels für die Tabelle.
+- **Gerät + Wiedergabe-Ende/-Fehler (seit 2026-09-11, User-Wunsch: "ich
+  würde gerne sehen, auf welchem Gerät etwas passiert ist, und nicht nur
+  Wiedergabe gestartet, sondern auch beendet. Kann man auch Fehlermeldungen
+  ... ins Protokoll nehmen"):**
+  - Neue Spalte `activity_log.device` (Migration, `addCol`) + `ActivityEntry.
+    Device`, in JEDEN der 41 `LogActivity`-Aufrufstellen mit durchgereicht.
+    `deviceLabel(r *http.Request)` (`internal/api/helpers.go`): erst der
+    eigene `X-Goldfish-Client`-Header (freiwillig, von den nativen Apps
+    gesetzt, z. B. "Goldfish-Mac/209" — zuverlässig, weil selbst gesetzt,
+    anders als der praktisch nicht unterscheidbare CFNetwork/Darwin-
+    Default-User-Agent von URLSession/OkHttp auf Mac/iOS/tvOS), sonst eine
+    einfache `User-Agent`-Heuristik für Browser (Chrome/Firefox/Safari/
+    Edge/Opera × Windows/macOS/iOS/Android/Linux, z. B. "Chrome · macOS").
+    Bei den beiden Auto-Backup-Aufrufstellen (`autobackup.go`, kein
+    `*http.Request` vorhanden, Ticker-getriggert) bleibt `device=""`.
+  - **Wiedergabe-ENDE**: `POST /api/playback/{id}/stop` (`stream.go
+    playbackStop`, Body `{reason: "ended"|"closed", positionSec,
+    durationSec}`) — Gegenstück zum bestehenden "play"-Log beim Öffnen.
+    Der Server kann ein Wiedergabe-Ende nicht selbst erkennen (HTTP ist
+    zustandslos, ein Transcode-Session-Timeout heißt nur "5 Minuten kein
+    Request", nicht "User hat bewusst gestoppt") — der Client meldet es
+    aktiv. Browser: `reportPlaybackStop(reason)` in `player.js`, aufgerufen
+    aus `vjs.on("ended")` (reason "ended") UND `closePlayer()` (reason
+    "closed", VOR `disposePlayer()`) — `state.playback.stopReported`-Flag
+    (gesetzt in `applyPlayback`, pro Session zurückgesetzt) verhindert einen
+    doppelten Report, wenn beide Pfade in derselben Session greifen.
+    Bewusste Grenze: ein abstürzender/offline gehender Client meldet nie
+    einen Stop (kein Ersatz für eine Heartbeat-Architektur).
+  - **Wiedergabe-FEHLER**: `POST /api/playback/{id}/error` (`stream.go
+    playbackError`, Body `{message}`, serverseitig auf 300 Zeichen
+    gekappt). Browser: `player.js` hatte bisher **gar keinen**
+    `vjs.on("error", ...)`-Handler — neu ergänzt, liest `vjs.error()`
+    (MediaError-artiges Objekt) aus und meldet `.message`/Code.
+  - Neue Protokoll-Zeilen: `stop` → "Wiedergabe beendet", `error` →
+    "Wiedergabe-Fehler" (`ACTIVITY_LOG_LABELS`). Detail-Text bei `stop`
+    z. B. "Titel (12:34 von 45:00, zu Ende)"/"…, geschlossen"
+    (`fmtClock()`-Helper in stream.go).
+  - Protokoll-Tabelle hat eine neue "Gerät"-Spalte.
+  - **Noch offen (nächster Schritt):** GoldfishApple (Mac/iOS/tvOS) und
+    GoldfishAndroid senden bisher keinen `X-Goldfish-Client`-Header und
+    rufen die neuen Stop-/Error-Endpoints noch nicht auf — läuft dort also
+    vorerst nur mit generischem Device-Label und ohne Stop/Error-Logging,
+    bis die Client-Seite nachgezogen ist.
+  - Tests: `internal/api/helpers_test.go` (`TestDeviceLabel`),
+    `internal/store/activity_log_test.go` (Device-Feld-Roundtrip).
 - **Backup:** `Store.BackupToFile` (`internal/store/backup.go`) nutzt SQLites
   eingebautes `VACUUM INTO` — checkpointed den WAL automatisch, liefert eine
   einzelne konsistente Datei OHNE die riskante manuelle

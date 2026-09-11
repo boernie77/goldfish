@@ -35,7 +35,7 @@ func (s *Server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, tmpPath)
 
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_download", "Datenbank-Backup heruntergeladen")
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_download", "Datenbank-Backup heruntergeladen", deviceLabel(r))
 	}
 }
 
@@ -79,7 +79,7 @@ func (s *Server) uploadRestore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_restore", "Datenbank-Restore gestartet — Server startet danach neu")
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_restore", "Datenbank-Restore gestartet — Server startet danach neu", deviceLabel(r))
 	}
 
 	safetyPath, err := s.Store.RestoreFromFile(incomingPath)
@@ -129,7 +129,7 @@ func (s *Server) putAutoBackupSettings(w http.ResponseWriter, r *http.Request) {
 	saved := loadAutoBackupSettings(s.Store)
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "auto_backup_settings",
-			fmt.Sprintf("aktiv: %v, Zeitplan: %s, Aufbewahrung: %d", saved.Enabled, saved.Schedule, saved.Retention))
+			fmt.Sprintf("aktiv: %v, Zeitplan: %s, Aufbewahrung: %d", saved.Enabled, saved.Schedule, saved.Retention), deviceLabel(r))
 	}
 	writeJSON(w, 200, saved)
 }
@@ -180,7 +180,7 @@ func (s *Server) downloadAutoBackupFile(w http.ResponseWriter, r *http.Request) 
 	http.ServeFile(w, r, path)
 
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_download", "automatisches Backup heruntergeladen: "+name)
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_download", "automatisches Backup heruntergeladen: "+name, deviceLabel(r))
 	}
 }
 
@@ -197,7 +197,7 @@ func (s *Server) deleteAutoBackupFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_delete", "automatisches Backup gelöscht: "+name)
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "backup_delete", "automatisches Backup gelöscht: "+name, deviceLabel(r))
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
 }

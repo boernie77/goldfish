@@ -1,6 +1,8 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -54,7 +56,7 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", it.Title)
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", it.Title, deviceLabel(r))
 	}
 
 	q := r.URL.Query()
@@ -162,6 +164,117 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 		resp["url"] = u
 	}
 	writeJSON(w, 200, resp)
+}
+
+// fmtClock formatiert Sekunden als "mm:ss" bzw. "h:mm:ss" für Protokoll-Texte.
+func fmtClock(sec float64) string {
+	if sec < 0 || sec != sec { // NaN-Guard
+		sec = 0
+	}
+	total := int(sec + 0.5)
+	h, rem := total/3600, total%3600
+	m, s := rem/60, rem%60
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
+}
+
+type playbackStopRequest struct {
+	// "ended" = natürliches Ende (Video zu Ende gelaufen), "closed" = User hat
+	// den Player manuell geschlossen/verlassen, bevor es zu Ende war.
+	Reason      string  `json:"reason"`
+	PositionSec float64 `json:"positionSec"`
+	DurationSec float64 `json:"durationSec"`
+}
+
+// playbackStop: POST /api/playback/{id}/stop — Gegenstück zu playbackInfo's
+// "play"-Log-Eintrag (User-Wunsch 2026-09-11: "nicht nur Wiedergabe
+// gestartet, sondern auch beendet"). Der Server kann das Ende einer
+// Wiedergabe nicht selbst erkennen (HTTP ist zustandslos, ein Transcode-
+// Session-Timeout sagt nur "5 Minuten kein Request mehr", nicht "der User
+// hat bewusst gestoppt") — die Clients (Browser/Apple-App) melden es aktiv,
+// wenn `ended` feuert oder der Player geschlossen wird. Best-effort: ein
+// Client, der abstürzt oder die Verbindung verliert, meldet nie einen Stop —
+// das ist eine bewusste Grenze (kein Ersatz für eine Session-Heartbeat-
+// Architektur), reicht aber für den Protokoll-Zweck ("wer hat wann womit
+// aufgehört zu schauen") deutlich weiter als reines "play"-Logging.
+func (s *Server) playbackStop(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	var body playbackStopRequest
+	_ = json.NewDecoder(r.Body).Decode(&body) // best-effort, leerer Body ist ok
+	reasonLabel := "geschlossen"
+	if body.Reason == "ended" {
+		reasonLabel = "zu Ende"
+	}
+	detail := it.Title
+	if body.DurationSec > 0 {
+		detail = fmt.Sprintf("%s (%s von %s, %s)", it.Title, fmtClock(body.PositionSec), fmtClock(body.DurationSec), reasonLabel)
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "stop", detail, deviceLabel(r))
+	}
+	w.WriteHeader(204)
+}
+
+type playbackErrorRequest struct {
+	Message string `json:"message"`
+}
+
+// playbackError: POST /api/playback/{id}/error — protokolliert einen
+// Wiedergabe-Fehler vom Client aus (User-Wunsch 2026-09-11: "wenn zum
+// Beispiel ein Video abbricht"). Der Server sieht viele Fehlerklassen selbst
+// nie (z. B. ein Netzwerkabbruch beim Client, ein Decode-Fehler im Browser-
+// `<video>`-Element) — nur der Client weiß zuverlässig, dass die Wiedergabe
+// gerade fehlgeschlagen ist.
+func (s *Server) playbackError(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	var body playbackErrorRequest
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	msg := strings.TrimSpace(body.Message)
+	if len(msg) > 300 {
+		msg = msg[:300] + "…"
+	}
+	detail := it.Title
+	if msg != "" {
+		detail = fmt.Sprintf("%s — %s", it.Title, msg)
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "error", detail, deviceLabel(r))
+	}
+	w.WriteHeader(204)
 }
 
 // streamDirect serves the raw file with HTTP range support.

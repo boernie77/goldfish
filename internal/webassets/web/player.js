@@ -906,6 +906,11 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   state.playback = info;
   // virtualOffset: bei initialem Load 0; nach Seek-Restart auf den neuen Startpunkt gesetzt.
   state.playback.virtualOffset = 0;
+  // Protokoll-Ergänzung 2026-09-11 ("nicht nur Wiedergabe gestartet, sondern
+  // auch beendet") — genau EIN Stop-Report pro Wiedergabe-Session, egal ob
+  // sie über "ended" oder manuelles Schließen endet. Bei jedem frischen
+  // `applyPlayback`-Aufruf (neuer Titel, ⏭/⏮, Playlist-Auto-Next) zurückgesetzt.
+  state.playback.stopReported = false;
   state.playback.audioIdx = audioIdx;
   // deinterlace im state, damit Progress-Poll dieselben Session-Keys hat wie
   // die Playback-Session (sonst spawnt der Server eine zweite ffmpeg-Instanz).
@@ -1183,6 +1188,7 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       maybeToggleIntroSkip(vjs);
     });
     vjs.on("ended", () => {
+      reportPlaybackStop("ended");
       // Wiedergabe durchgespielt → Resume-Marker löschen + als gesehen markieren.
       // Letzteres ist Sicherheitsnetz: maybeMarkWatched feuert idealerweise
       // schon bei 90 %, aber falls timeupdate-Events kurz vor Ende ausgelassen
@@ -1195,6 +1201,16 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
         markWatchedNow(state.currentItem);
       }
       if (state.currentPlaylist) playNextInQueue();
+    });
+    // Protokoll-Ergänzung 2026-09-11 ("wenn zum Beispiel ein Video abbricht")
+    // — Video.js' eigenes "error"-Event feuert bei Netzwerk-/Decode-Fehlern
+    // des <video>-Elements; bisher gab es dafür GAR KEINEN Handler (weder
+    // UI-Feedback noch Protokoll). `vjs.error()` liefert ein MediaError-
+    // artiges Objekt mit `.message`/`.code`.
+    vjs.on("error", () => {
+      const err = vjs.error && vjs.error();
+      const msg = (err && (err.message || `Code ${err.code}`)) || "unbekannter Player-Fehler";
+      reportPlaybackError(msg);
     });
     // Resume-Position regelmäßig speichern (throttled auf 10s-Takt) + bei Pause.
     let lastSaved = 0;
@@ -1506,7 +1522,40 @@ function disposePlayer() {
 
 
 
+// reportPlaybackStop meldet das Ende einer Wiedergabe-Session ans Protokoll
+// (User-Wunsch 2026-09-11: "nicht nur Wiedergabe gestartet, sondern auch
+// beendet") — genau EIN Report pro Session (siehe `stopReported`-Flag,
+// gesetzt in `applyPlayback`), egal ob über "ended" oder manuelles Schließen
+// ausgelöst. Muss VOR `disposePlayer()`/state-Reset aufgerufen werden, sonst
+// sind `state.vjs`/`state.currentItem` schon weg. Fire-and-forget — ein
+// Netzwerkfehler hier darf das Schließen des Players nie blockieren.
+function reportPlaybackStop(reason) {
+  if (!state.currentItem || !state.vjs) return;
+  if (state.playback && state.playback.stopReported) return;
+  if (state.playback) state.playback.stopReported = true;
+  const offset = (state.playback && state.playback.virtualOffset) || 0;
+  let positionSec = 0;
+  try { positionSec = (state.vjs.currentTime() || 0) + offset; } catch {}
+  const durationSec = state.currentItem.durationSec || 0;
+  api(`/api/playback/${state.currentItem.id}/stop`, {
+    method: "POST",
+    body: JSON.stringify({ reason, positionSec, durationSec }),
+  }).catch(() => {});
+}
+
+// reportPlaybackError meldet einen Wiedergabe-Fehler ans Protokoll (User-
+// Wunsch 2026-09-11: "wenn zum Beispiel ein Video abbricht"). Wie
+// reportPlaybackStop fire-and-forget, blockiert die UI nie.
+function reportPlaybackError(message) {
+  if (!state.currentItem) return;
+  api(`/api/playback/${state.currentItem.id}/error`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  }).catch(() => {});
+}
+
 function closePlayer() {
+  reportPlaybackStop("closed");
   disposePlayer();
   $("#playerDialog").close();
 }

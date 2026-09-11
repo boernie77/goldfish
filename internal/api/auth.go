@@ -166,7 +166,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if u == nil || !store.VerifyPassword(hash, body.Password) {
 		// Konstant 401 um User-Enumeration zu verhindern
-		_ = s.Store.LogActivity(0, body.Username, "auth", "login_failed", "Anmeldung fehlgeschlagen")
+		_ = s.Store.LogActivity(0, body.Username, "auth", "login_failed", "Anmeldung fehlgeschlagen", deviceLabel(r))
 		writeError(w, 401, "ungültige Anmeldedaten")
 		return
 	}
@@ -175,7 +175,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	_ = s.Store.LogActivity(u.ID, u.Username, "auth", "login", "")
+	_ = s.Store.LogActivity(u.ID, u.Username, "auth", "login", "", deviceLabel(r))
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sess.Token,
@@ -193,7 +193,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "auth", "logout", "")
+		_ = s.Store.LogActivity(me.ID, me.Username, "auth", "logout", "", deviceLabel(r))
 	}
 	if c, err := r.Cookie(sessionCookieName); err == nil {
 		_ = s.Store.DeleteSession(c.Value)

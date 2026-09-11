@@ -124,7 +124,7 @@ func (s *Server) performAutoBackup(retention int) {
 	dest := filepath.Join(dir, fmt.Sprintf("%s%s%s", autoBackupFilePrefix, time.Now().Format("2006-01-02_150405"), autoBackupFileSuffix))
 	if err := s.Store.BackupToFile(dest); err != nil {
 		log.Printf("[autobackup] Backup fehlgeschlagen: %v", err)
-		_ = s.Store.LogActivity(0, "", "job", "backup_auto", "fehlgeschlagen: "+err.Error())
+		_ = s.Store.LogActivity(0, "", "job", "backup_auto", "fehlgeschlagen: "+err.Error(), "")
 		return
 	}
 	removed := pruneAutoBackups(dir, retention)
@@ -135,7 +135,7 @@ func (s *Server) performAutoBackup(retention int) {
 	}
 	log.Printf("[autobackup] Backup erstellt: %s (%d Bytes), %d alte entfernt", filepath.Base(dest), size, removed)
 	_ = s.Store.LogActivity(0, "", "job", "backup_auto",
-		fmt.Sprintf("%s erstellt (%s)%s", filepath.Base(dest), fmtBytes(size), removedSuffix(removed)))
+		fmt.Sprintf("%s erstellt (%s)%s", filepath.Base(dest), fmtBytes(size), removedSuffix(removed)), "")
 }
 
 func removedSuffix(n int) string {

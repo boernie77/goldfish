@@ -60,7 +60,7 @@ func (s *Server) setScanExclude(w http.ResponseWriter, r *http.Request) {
 		if label == "" {
 			label = "(gesamte Bibliothek)"
 		}
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", action, label)
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", action, label, deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }

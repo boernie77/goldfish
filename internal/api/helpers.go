@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/boernie77/goldfish/internal/store"
 	"github.com/go-chi/chi/v5"
@@ -22,6 +23,65 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func pathInt(r *http.Request, key string) (int64, error) {
 	return strconv.ParseInt(chi.URLParam(r, key), 10, 64)
+}
+
+// deviceLabel liefert ein kurzes, menschenlesbares Gerätekennzeichen für den
+// Aufrufer eines Requests — fürs Aktivitäts-Protokoll (User-Wunsch
+// 2026-09-11: "ich würde gerne sehen, auf welchem Gerät etwas passiert
+// ist"). Zwei Quellen, in Priorität:
+//  1. `X-Goldfish-Client` — ein eigener, freiwilliger Header, den die
+//     nativen Apps (GoldfishApple: Mac/iOS/tvOS, GoldfishAndroid) ab jetzt
+//     mitschicken (z. B. "Goldfish-Mac/209"). Zuverlässig, weil selbst
+//     gesetzt — anders als die Default-`User-Agent`-Strings von
+//     URLSession/OkHttp, die Plattformen kaum unterscheidbar machen
+//     (CFNetwork/Darwin sieht auf Mac/iOS/tvOS fast identisch aus).
+//  2. Fallback: einfache `User-Agent`-Heuristik für Browser (Chrome/Firefox/
+//     Safari/Edge/Opera) + OS (Windows/macOS/iOS/Android/Linux) — deckt
+//     Browser-Requests ab, die den eigenen Header naturgemäß nicht senden.
+//
+// Bewusst KEINE vollständige UA-Parsing-Bibliothek — reicht für "welches
+// Gerät ungefähr", nicht für exakte Versions-/Geräte-Erkennung.
+func deviceLabel(r *http.Request) string {
+	if custom := strings.TrimSpace(r.Header.Get("X-Goldfish-Client")); custom != "" {
+		return custom
+	}
+	ua := r.Header.Get("User-Agent")
+	if ua == "" {
+		return ""
+	}
+
+	browser := "Browser"
+	switch {
+	case strings.Contains(ua, "Edg/"):
+		browser = "Edge"
+	case strings.Contains(ua, "OPR/") || strings.Contains(ua, "Opera"):
+		browser = "Opera"
+	case strings.Contains(ua, "CriOS/") || strings.Contains(ua, "Chrome/"):
+		browser = "Chrome"
+	case strings.Contains(ua, "FxiOS/") || strings.Contains(ua, "Firefox/"):
+		browser = "Firefox"
+	case strings.Contains(ua, "Safari/"):
+		browser = "Safari"
+	}
+
+	os := ""
+	switch {
+	case strings.Contains(ua, "Windows NT"):
+		os = "Windows"
+	case strings.Contains(ua, "iPhone") || strings.Contains(ua, "iPad") || strings.Contains(ua, "iOS"):
+		os = "iOS"
+	case strings.Contains(ua, "Mac OS X"):
+		os = "macOS"
+	case strings.Contains(ua, "Android"):
+		os = "Android"
+	case strings.Contains(ua, "Linux"):
+		os = "Linux"
+	}
+
+	if os == "" {
+		return browser
+	}
+	return browser + " · " + os
 }
 
 // verifyPasswordHash ist ein dünner Wrapper um bcrypt-Vergleich (über store).
