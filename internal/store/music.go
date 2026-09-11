@@ -92,10 +92,12 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 			return err
 		}
 		var albumID int64
+		var albumYear int
+		var albumGenre string
 		if err := s.db.QueryRow(
-			`SELECT id FROM music_albums WHERE library_id = ? AND artist = ? AND album = ?`,
+			`SELECT id, year, genre FROM music_albums WHERE library_id = ? AND artist = ? AND album = ?`,
 			libraryID, artist, album,
-		).Scan(&albumID); err != nil {
+		).Scan(&albumID, &albumYear, &albumGenre); err != nil {
 			return err
 		}
 		placeholders := make([]string, len(g))
@@ -110,6 +112,34 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 			args...,
 		); err != nil {
 			return err
+		}
+		// Album-Jahr/-Genre auf Tracks OHNE eigenes Tag propagieren
+		// (User-Report 2026-09-11: "N Sync UK Version" zeigte beim Album
+		// ein Jahr, beim einzelnen Song "Tearin' Up My Heart" aber keins —
+		// items.year/genre kommen NUR aus dem eigenen Dateitag des Tracks,
+		// das Album-Jahr/-Genre ist ein reines Aggregat aus der Gruppe
+		// [canonicalAlbumFields] bzw. per MusicBrainz-Fallback
+		// [ApplyMusicBrainzMetadata] — wurde bisher nie auf Geschwister-
+		// Tracks zurückgeschrieben, die selbst kein Tag hatten. Läuft bei
+		// JEDEM GroupMusicAlbums-Aufruf (jeder Scan), holt sich absichtlich
+		// den AKTUELLEN Album-Wert (nicht nur den aus dieser Gruppe frisch
+		// berechneten) — deckt so auch ein nachträglich per MusicBrainz
+		// oder manuellem Album-Edit gesetztes Jahr/Genre ab.
+		if albumYear != 0 {
+			if _, err := s.db.Exec(
+				fmt.Sprintf(`UPDATE items SET year = ? WHERE year = 0 AND id IN (%s)`, strings.Join(placeholders, ",")),
+				append([]any{albumYear}, args[1:]...)...,
+			); err != nil {
+				return err
+			}
+		}
+		if albumGenre != "" {
+			if _, err := s.db.Exec(
+				fmt.Sprintf(`UPDATE items SET genre = ? WHERE genre = '' AND id IN (%s)`, strings.Join(placeholders, ",")),
+				append([]any{albumGenre}, args[1:]...)...,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	// Verwaiste Alben-Zeilen aufräumen (kein Item zeigt mehr drauf) — jeder

@@ -1843,6 +1843,29 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Entry-Point auf der Album-Kachel/-Übersichtszeile (bewusst nur EIN
   Einstiegspunkt, der Album-Detail-Header ist ohnehin bei jedem Album
   erreichbar).
+  **🔴→✅ Album zeigte ein Jahr/Genre, einzelne Tracks daraus blieben aber
+  leer (Bug, gefixt 2026-09-11, LIVE 1.3.9, User-Report "N Sync UK Version"
+  → Song "Tearin' Up My Heart" ohne Jahr, obwohl das Album eins zeigt)**:
+  `items.year`/`items.genre` kommen AUSSCHLIESSLICH aus dem eigenen
+  Datei-Tag des jeweiligen Tracks — das Album-Jahr/-Genre ist dagegen ein
+  reines Aggregat der ganzen Ordner-Gruppe (`canonicalAlbumFields`: erster
+  nicht-leerer Wert gewinnt) bzw. kommt vom MusicBrainz-Fallback
+  (`ApplyMusicBrainzMetadata`). Dieser Aggregat-Wert wurde bisher NIE auf
+  Geschwister-Tracks zurückgeschrieben, die selbst kein eigenes Tag hatten
+  — ein Track ohne Jahr-Tag im selben Album wie ein Track MIT Jahr-Tag
+  zeigte deshalb dauerhaft "—", obwohl der Album-Header korrekt ein Jahr
+  anzeigte. (Genre hatte dieses Problem in der Praxis seltener, weil
+  `ApplyMusicBrainzMetadata` es bereits separat propagierte — aber NUR für
+  den MusicBrainz-Pfad, nicht für aus Tags aggregierte Album-Werte.) Fix:
+  `GroupMusicAlbums` (`internal/store/music.go`) liest nach dem
+  Upsert-Schritt pro Gruppe den AKTUELLEN Album-Jahr-/Genre-Wert (nicht nur
+  den aus dieser Gruppe frisch berechneten — deckt so auch ein
+  nachträglich per MusicBrainz oder manuellem Album-Edit gesetztes
+  Jahr/Genre ab) und schreibt ihn auf alle Tracks der Gruppe mit
+  `year = 0`/`genre = ''`. Läuft bei JEDEM `GroupMusicAlbums`-Aufruf, also
+  bei jedem (auch inkrementellen) Scan der Musik-Bibliothek — kein
+  `force=true`-Rescan nötig, reine SQL-Nachbereitung auf bereits in der DB
+  stehenden Werten, kein erneutes Tag-Lesen erforderlich.
 - **🔴 IMDb-Zuordnung schlug bei obfuskierten Dateinamen fehl (Bug, gefixt
   2026-09-06, User-Report mit Screenshot: Datei „gb-100jamamoihwage-1080p",
   Fehler „Konnte Staffel/Episode aus Dateiname nicht ermitteln")**:
