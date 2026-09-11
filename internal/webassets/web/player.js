@@ -903,6 +903,16 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   const deiVal = deinterlace || $("#deinterlaceSelect").value || "auto";
   if (deiVal && deiVal !== "auto") params.set("deinterlace", deiVal);
   const info = await api(`/api/playback/${item.id}?${params}`);
+  // 🔴→✅ Bug-Fix 2026-09-11 (User-Report: "Jetzt habe ich aber 2x
+  // Wiedergabe gestartet im Protokoll stehen!"): der Server loggte "play"
+  // früher automatisch bei JEDEM `GET /api/playback/{id}` — aber dieser
+  // Endpoint wird AUCH vom reinen Stream-Info-Prefetch für den Detail-
+  // Dialog aufgerufen (Ton/Untertitel/Qualität-Dropdowns), nicht nur von
+  // hier (dem tatsächlichen Play-Auslöser). Ein Öffnen des Detail-Dialogs
+  // allein erzeugte dadurch schon einen Eintrag, tatsächliches Abspielen
+  // direkt danach einen zweiten. Jetzt explizit NUR hier (`applyPlayback`,
+  // der echte Play-Pfad) melden, per eigenem POST-Endpoint.
+  api(`/api/playback/${item.id}/start`, { method: "POST" }).catch(() => {});
   state.playback = info;
   // virtualOffset: bei initialem Load 0; nach Seek-Restart auf den neuen Startpunkt gesetzt.
   state.playback.virtualOffset = 0;

@@ -55,9 +55,19 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgeAllowed(w, r, it.MetadataID) {
 		return
 	}
-	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", it.Title, deviceLabel(r))
-	}
+	// 🔴→✅ Kein automatisches "play"-Log mehr HIER (Bug, gefixt 2026-09-11,
+	// User-Report: "Jetzt habe ich aber 2x Wiedergabe gestartet im
+	// Protokoll stehen!"): dieser Endpoint dient ZWEI Zwecken — der
+	// tatsächliche Wiedergabe-Start (`player.js applyPlayback`/`PlayerView
+	// .setUp`) UND das reine Vorab-Laden der Stream-Liste fürs Detail-
+	// Dialog-Dropdown (Ton/Untertitel/Qualität, `ItemDetailView.loadStreams`
+	// bzw. Browser-Äquivalent) — BEIDE riefen denselben `GET /api/playback/
+	// {id}` auf, ein Öffnen des Detail-Dialogs (ohne je auf Play zu tippen)
+	// erzeugte dadurch schon einen "Wiedergabe gestartet"-Eintrag, und ein
+	// tatsächliches Abspielen direkt danach einen zweiten. Das Logging ist
+	// jetzt client-getriggert (siehe `playbackStart` unten) — symmetrisch
+	// zu `playbackStop`/`playbackError`, die aus demselben Grund schon
+	// eigene Endpoints sind statt am GET mitzuhängen.
 
 	q := r.URL.Query()
 	profile := q.Get("profile")
@@ -180,6 +190,36 @@ func fmtClock(sec float64) string {
 	return fmt.Sprintf("%d:%02d", m, s)
 }
 
+// playbackStart: POST /api/playback/{id}/start — client-getriggertes "play"-
+// Log (Bug-Fix 2026-09-11, siehe Kommentar in `playbackInfo`: der GET-
+// Endpoint dort wird auch vom reinen Detail-Dialog-Metadaten-Prefetch
+// aufgerufen, ein automatisches Log dort erzeugte Duplikate). Wird NUR vom
+// tatsächlichen Play-Auslöser aufgerufen (`player.js applyPlayback`,
+// `PlayerView.setUp`, `MusicPlayerEngine`), nie vom reinen Stream-Info-Fetch.
+func (s *Server) playbackStart(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", it.Title, deviceLabel(r))
+	}
+	w.WriteHeader(204)
+}
+
 type playbackStopRequest struct {
 	// "ended" = natürliches Ende (Video zu Ende gelaufen), "closed" = User hat
 	// den Player manuell geschlossen/verlassen, bevor es zu Ende war.
@@ -188,7 +228,7 @@ type playbackStopRequest struct {
 	DurationSec float64 `json:"durationSec"`
 }
 
-// playbackStop: POST /api/playback/{id}/stop — Gegenstück zu playbackInfo's
+// playbackStop: POST /api/playback/{id}/stop — Gegenstück zu playbackStart's
 // "play"-Log-Eintrag (User-Wunsch 2026-09-11: "nicht nur Wiedergabe
 // gestartet, sondern auch beendet"). Der Server kann das Ende einer
 // Wiedergabe nicht selbst erkennen (HTTP ist zustandslos, ein Transcode-

@@ -3844,9 +3844,22 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
     Edge/Opera × Windows/macOS/iOS/Android/Linux, z. B. "Chrome · macOS").
     Bei den beiden Auto-Backup-Aufrufstellen (`autobackup.go`, kein
     `*http.Request` vorhanden, Ticker-getriggert) bleibt `device=""`.
+  - **🔴→✅ "play" wurde anfangs doppelt geloggt (Bug, gefixt noch am
+    selben Tag, User-Report: "Jetzt habe ich aber 2x Wiedergabe gestartet
+    im Protokoll stehen!"):** `GET /api/playback/{id}` dient ZWEI Zwecken —
+    tatsächlicher Wiedergabe-Start UND reines Vorab-Laden der Stream-Liste
+    fürs Detail-Dialog-Dropdown (Ton/Untertitel/Qualität). Ein automatisches
+    Log direkt im GET-Handler feuerte für BEIDE Fälle — allein das Öffnen
+    des Detail-Dialogs erzeugte schon einen Eintrag, tatsächliches
+    Abspielen direkt danach einen zweiten. Fix: kein Auto-Log mehr im GET;
+    stattdessen client-getriggertes `POST /api/playback/{id}/start`
+    (`stream.go playbackStart`, exakt symmetrisch zu `stop`/`error`) — nur
+    von den tatsächlichen Play-Auslösern aufgerufen (`player.js
+    applyPlayback`, `music.js` Track-Start, `PlayerView.setUp`), NIE vom
+    reinen Stream-Info-Prefetch.
   - **Wiedergabe-ENDE**: `POST /api/playback/{id}/stop` (`stream.go
     playbackStop`, Body `{reason: "ended"|"closed", positionSec,
-    durationSec}`) — Gegenstück zum bestehenden "play"-Log beim Öffnen.
+    durationSec}`) — Gegenstück zum "play"-Log beim Start.
     Der Server kann ein Wiedergabe-Ende nicht selbst erkennen (HTTP ist
     zustandslos, ein Transcode-Session-Timeout heißt nur "5 Minuten kein
     Request", nicht "User hat bewusst gestoppt") — der Client meldet es

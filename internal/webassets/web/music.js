@@ -129,6 +129,11 @@ async function musicPlayCurrent() {
     return;
   }
   if (seq !== musicState.playSeq) return; // stale — ein neuerer Track wurde inzwischen angefordert
+  // Protokoll-Start-Log (Bug-Fix 2026-09-11, siehe player.js applyPlayback-
+  // Kommentar) — Musik hatte vorher GAR kein explizites Start-Log (der
+  // frühere automatische Log am GET-Endpoint traf zufällig auch hier zu,
+  // ist aber jetzt entfernt).
+  api(`/api/playback/${t.id}/start`, { method: "POST" }).catch(() => {});
   // 🔴 Fund 2026-09-04 (User-Screenshot: "The media could not be loaded …
   // because the format is not supported"): Direct-Play-Tracks wurden IMMER
   // mit type="video/mp4" an Video.js übergeben — kopiert vom Hauptplayer
