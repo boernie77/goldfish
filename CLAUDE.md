@@ -3602,6 +3602,36 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
 ### Download & Löschen
 - **Download** (`GET /api/download/{id}`): liefert standardmäßig weiterhin die
   Original-Datei mit `Content-Disposition: attachment`, kein Transcode.
+- **"Optimierte Downloads" (seit 2026-09-11, User-Wunsch, Plex-Vorbild
+  "Optimierte Versionen"):** optionaler `&profile=`-Parameter auf
+  `?compat=1`-Downloads, gleicher `playback.Profiles`-Katalog wie beim
+  Streaming (Auflösungs-/Bitrate-Stufen). Wirkt NUR als echter Cap, wenn
+  das Item ihn tatsächlich überschreitet (`internal/download.needsDownscale`,
+  identische Logik wie `playback.DecideWithCap`) — "Automatisch" (kein
+  Parameter, oder `orig`) lädt unverändert das Original/die reine
+  Codec-Fix-Kopie, KEIN automatischer Cap ("Es macht auf dem iPhone
+  keinen Sinn 80GB eines 4K Filmes zu laden" war der Auslöser, aber der
+  User wollte explizit KEINEN erzwungenen Cap im Automatisch-Fall).
+  Muss das Item wirklich runter, wird das Video IMMER neu encodet
+  (unabhängig vom Quell-Codec — Auflösung ändert sich ja) und bekommt
+  einen EIGENEN, profilspezifischen Cache-Pfad
+  (`<itemID>-<profileID>.mp4` statt `<itemID>.mp4`) — mehrere
+  Qualitätsstufen desselben Films können also gleichzeitig im
+  Download-Cache liegen. Skalierung+Encode nutzt dasselbe CPU-Scale-
+  +hwupload-Muster wie der Streaming-Transcode
+  (`internal/playback/ffmpeg.go Manager.buildArgs`) — VAAPI/NVENC/
+  Software, mit Software-Fallback bei HW-Fehlschlag (bestehender
+  `runPrep`-Retry-Mechanismus, griff automatisch mit ohne Änderung dort).
+  Audio-Bitrate wird beim Downscale zusätzlich auf `profile.AudioKbps`
+  gedeckelt (256k Stereo bliebe bei z. B. 480p/600kbps unverhältnismäßig
+  groß). **Client-seitig (GoldfishApple):** nutzt dieselbe Qualitäts-
+  Auswahl, die im Info-Dialog fürs Streaming gilt — kein separater
+  Download-Qualitäts-Schalter (User-Entscheidung bei der Diskussion).
+  `GET /api/download/{id}/compat-status` nimmt denselben `profile`-
+  Parameter, MUSS ihn identisch zum eigentlichen Download-Call auflösen
+  (sonst prüft die Status-Abfrage einen anderen Cache-Pfad als der
+  spätere Download anfordert). Tests: `internal/download/prepare_test.go`
+  (`needsDownscale`-Wahrheitstabelle, `plan()`-Cache-Pfad-Verzweigung).
 - **`?compat=1`** (seit 2026-08-27, `internal/download`): server-seitige
   Kompatibilitätsprüfung + einmalige, dauerhaft gecachte Remux-/Transcode-Kopie
   VOR dem Ausliefern — analog zu Jellyfins Geräteprofil-Direct-Play-Entscheidung.

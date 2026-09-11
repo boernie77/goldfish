@@ -191,12 +191,36 @@ func (r *prepRegistry) lookup(key string) *prepJob {
 
 var prepReg = &prepRegistry{jobs: map[string]*prepJob{}, recent: map[string]*prepJob{}}
 
+// needsDownscale prüft — mit denselben DB-bekannten Feldern wie
+// `playback.DecideWithCap` beim Streaming — ob `profile` für dieses Item
+// tatsächlich einen Downscale erzwingt. `profile.ID == "orig"` (oder eines
+// der beiden Nullwerte) bedeutet immer false: "Automatisch" lädt weiterhin
+// das Original, kein Cap (User-Vorgabe 2026-09-11 beim "optimierte
+// Downloads"-Feature — siehe CLAUDE.md "Download & Löschen").
+func needsDownscale(profile playback.Profile, itemHeight, itemBitrateKbps int) bool {
+	exceedsH := profile.MaxHeight > 0 && itemHeight > profile.MaxHeight
+	exceedsB := profile.VideoKbps > 0 && itemBitrateKbps > profile.VideoKbps
+	return exceedsH || exceedsB
+}
+
 // plan entscheidet, ob überhaupt eine Formatanpassung nötig ist, und liefert die
 // Cache-Pfade. needsPrep=false → die Originaldatei kann direkt ausgeliefert
 // werden. `container`/`videoCodecHint`/`audioCodecHint` kommen aus den beim Scan
 // ermittelten DB-Feldern — reicht für die häufige "ist eh schon passend"-
 // Kurzentscheidung ohne zusätzlichen ffprobe-Call.
-func plan(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) (needsPrep bool, outPath, metaPath string, info os.FileInfo, err error) {
+//
+// `profile`/`itemHeight`/`itemBitrateKbps` — "optimierte Downloads" (User-
+// Wunsch 2026-09-11, Plex-Vorbild "Optimierte Versionen"): dieselbe
+// Qualitäts-Auswahl, die im Detail-Dialog fürs Streaming gilt, wirkt jetzt
+// auch beim Download als echter Auflösungs-/Bitrate-Cap, nicht nur als
+// Codec-/Container-Fix. Erfordert das Profil KEINEN Downscale (Item liegt
+// schon darunter, oder Profil ist "orig"), verhält sich `plan()` exakt wie
+// vorher (gleicher Cache-Pfad `<itemID>.mp4`, gleiche Fast-Path-Prüfung) —
+// nur wenn wirklich runtergerechnet werden muss, bekommt die Kopie einen
+// eigenen, profilspezifischen Cache-Pfad (`<itemID>-<profileID>.mp4`) UND
+// wird bedingungslos neu erzeugt (auch wenn die Quelle technisch schon
+// mp4/h264/aac wäre — die Auflösung muss ja trotzdem runter).
+func plan(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string, profile playback.Profile, itemHeight, itemBitrateKbps int) (needsPrep bool, outPath, metaPath string, info os.FileInfo, err error) {
 	info, err = os.Stat(sourcePath)
 	if err != nil {
 		return false, "", "", nil, err
@@ -220,14 +244,29 @@ func plan(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, 
 	if videoCodecHint == "" {
 		return false, "", "", info, nil
 	}
-	containerOK := container == "mp4" || container == "mov" || container == "m4v"
-	if containerOK && videoCodecHint == "h264" && audioCodecHint == "aac" {
-		return false, "", "", info, nil
+	downscale := needsDownscale(profile, itemHeight, itemBitrateKbps)
+	if !downscale {
+		// Kein Cap nötig (Profil "orig" ODER Item liegt schon darunter) —
+		// exakt das bisherige Verhalten, EIN gemeinsamer Cache-Pfad
+		// unabhängig vom angefragten Profil.
+		containerOK := container == "mp4" || container == "mov" || container == "m4v"
+		if containerOK && videoCodecHint == "h264" && audioCodecHint == "aac" {
+			return false, "", "", info, nil
+		}
+		if err = os.MkdirAll(cacheDir, 0o755); err != nil {
+			return false, "", "", info, err
+		}
+		outPath = filepath.Join(cacheDir, fmt.Sprintf("%d.mp4", itemID))
+		metaPath = outPath + ".json"
+		return true, outPath, metaPath, info, nil
 	}
+	// Downscale nötig — eigener, profilspezifischer Cache-Pfad, IMMER neu
+	// erzeugen lassen (kein "ist eh schon kompatibel"-Fast-Path, die
+	// Auflösung muss so oder so runter).
 	if err = os.MkdirAll(cacheDir, 0o755); err != nil {
 		return false, "", "", info, err
 	}
-	outPath = filepath.Join(cacheDir, fmt.Sprintf("%d.mp4", itemID))
+	outPath = filepath.Join(cacheDir, fmt.Sprintf("%d-%s.mp4", itemID, profile.ID))
 	metaPath = outPath + ".json"
 	return true, outPath, metaPath, info, nil
 }
@@ -241,8 +280,8 @@ func plan(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, 
 // eigentliche ffmpeg-Lauf hängt bewusst NICHT am Request-Context: bricht die
 // Apple-App wegen ihres Read-Timeouts ab, läuft die Konvertierung entkoppelt
 // zu Ende und füllt den Cache.
-func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) (string, error) {
-	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint)
+func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string, profile playback.Profile, itemHeight, itemBitrateKbps int) (string, error) {
+	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint, profile, itemHeight, itemBitrateKbps)
 	if err != nil {
 		return "", err
 	}
@@ -254,7 +293,7 @@ func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string,
 	}
 
 	job := prepReg.start(outPath, func(j *prepJob) (string, error) {
-		return runPrep(j, hw, outPath, metaPath, sourcePath, info)
+		return runPrep(j, hw, outPath, metaPath, sourcePath, info, profile, needsDownscale(profile, itemHeight, itemBitrateKbps))
 	})
 	select {
 	case <-ctx.Done():
@@ -266,8 +305,8 @@ func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string,
 
 // Status liefert nicht-blockierend den aktuellen Zustand der Formatanpassung.
 // "idle" heißt: nötig, aber noch nicht angestoßen (Aufrufer soll StartPrep rufen).
-func Status(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) Progress {
-	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint)
+func Status(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string, profile playback.Profile, itemHeight, itemBitrateKbps int) Progress {
+	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint, profile, itemHeight, itemBitrateKbps)
 	if err != nil {
 		return Progress{State: "error", Message: err.Error()}
 	}
@@ -290,8 +329,8 @@ func Status(cacheDir string, itemID int64, sourcePath, container, videoCodecHint
 }
 
 // StartPrep stößt die Formatanpassung an (idempotent) und kehrt SOFORT zurück.
-func StartPrep(hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string) Progress {
-	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint)
+func StartPrep(hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, container, videoCodecHint, audioCodecHint string, profile playback.Profile, itemHeight, itemBitrateKbps int) Progress {
+	needsPrep, outPath, metaPath, info, err := plan(cacheDir, itemID, sourcePath, container, videoCodecHint, audioCodecHint, profile, itemHeight, itemBitrateKbps)
 	if err != nil {
 		return Progress{State: "error", Message: err.Error()}
 	}
@@ -299,7 +338,7 @@ func StartPrep(hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, c
 		return Progress{State: "ready", Percent: 100}
 	}
 	prepReg.start(outPath, func(j *prepJob) (string, error) {
-		return runPrep(j, hw, outPath, metaPath, sourcePath, info)
+		return runPrep(j, hw, outPath, metaPath, sourcePath, info, profile, needsDownscale(profile, itemHeight, itemBitrateKbps))
 	})
 	return Progress{State: "preparing", Percent: 0}
 }
@@ -325,7 +364,10 @@ func cachedCopyValid(outPath, metaPath string, srcInfo os.FileInfo) bool {
 
 // runPrep führt genau einen Konvertierungslauf aus. Läuft in einer eigenen
 // Goroutine (siehe prepRegistry.start) und ist damit vom Request entkoppelt.
-func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.FileInfo) (string, error) {
+// `profile`/`downscale` — siehe `plan()`: ist `downscale` true, wird das
+// Video IMMER neu encodet und auf `profile.MaxHeight`/`profile.VideoKbps`
+// begrenzt, unabhängig vom Quell-Codec.
+func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath string, info os.FileInfo, profile playback.Profile, downscale bool) (string, error) {
 	if cachedCopyValid(outPath, metaPath, info) {
 		return outPath, nil
 	}
@@ -372,7 +414,7 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	tmp := outPath + ".tmp." + strconv.FormatInt(time.Now().UnixNano(), 10) + ".mp4"
 	defer func() { _ = os.Remove(tmp) }()
 
-	needsReencode := videoNeedsReencode(videoCodec, videoPixFmt)
+	needsReencode := videoNeedsReencode(videoCodec, videoPixFmt) || downscale
 
 	// `+faststart` schreibt die FERTIGE Datei nochmal um (moov-Atom nach vorn).
 	// IMMER setzen: ohne moov am Anfang spielt AVFoundation die Datei je nach
@@ -381,12 +423,12 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	// durch die „Wird vorbereitet … %"-Anzeige im Client abgedeckt.
 	faststart := true
 
-	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, false, faststart)
+	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, false, faststart, profile, downscale)
 	out, runErr := runFFmpeg(ctx, j, args)
 	if runErr != nil && needsReencode && hw.Selected != playback.BackendSoftware {
 		_ = os.Remove(tmp)
 		j.doneMS.Store(0) // Fortschritt startet für den Fallback-Lauf neu
-		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, true, faststart)
+		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, true, faststart, profile, downscale)
 		out, runErr = runFFmpeg(ctx, j, args)
 	}
 	if runErr != nil {
@@ -444,16 +486,25 @@ func freeBytes(dir string) (int64, bool) {
 	return int64(st.Bavail) * int64(st.Bsize), true
 }
 
-func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware, faststart bool) []string {
-	needsReencode := videoNeedsReencode(videoCodec, videoPixFmt)
+func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioStreams []AudioStream, hw playback.HWAccel, forceSoftware, faststart bool, profile playback.Profile, downscale bool) []string {
+	needsReencode := videoNeedsReencode(videoCodec, videoPixFmt) || downscale
 
 	// 10-Bit-/4:2:2-h264 lassen wir bewusst per Software (libx264) auf 8-Bit
 	// 4:2:0 bringen: der Intel-VAAPI-Decoder kann solche h264-Profile auf dieser
 	// Hardware oft nicht, und es ist eine einmalige, gecachte Konvertierung.
-	h264Reencode := videoCodec == "h264" && needsReencode
+	// NICHT von `downscale` ausgelöst — ein reiner Downscale-Grund braucht
+	// keinen erzwungenen Software-Decode, nur `videoNeedsReencode` (Pixfmt/
+	// Codec) tut das.
+	h264Reencode := videoCodec == "h264" && videoNeedsReencode(videoCodec, videoPixFmt)
 
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-nostdin"}
-	if needsReencode && !forceSoftware && !h264Reencode {
+	// "Optimierte Downloads" (User-Wunsch 2026-09-11, Plex-Vorbild): reine
+	// Downscale-Läufe skalieren per CPU-Filter + anschließendem `hwupload`
+	// (identisches Muster wie der Streaming-Transcode in
+	// `internal/playback/ffmpeg.go` — "Software-scaling ist billig und
+	// funktioniert mit beliebigen Input-Codecs") statt per HW-Decode — daher
+	// hier bewusst KEIN `hwaccelDecodeArgs`.
+	if needsReencode && !forceSoftware && !h264Reencode && !downscale {
 		args = append(args, hwaccelDecodeArgs(hw)...)
 	}
 	// Vor -i: (a) großzügiges Probing, damit ffmpeg ALLE Tonspuren einer großen
@@ -498,11 +549,25 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioS
 			}
 		}
 		// Global für ALLE Audio-Ausgabestreams: Stereo-Downmix mit definiertem
-		// Layout + moderate Bitrate. Siehe langen Kommentar oben.
-		args = append(args, "-ac", "2", "-b:a", "256k")
+		// Layout + moderate Bitrate. Siehe langen Kommentar oben. Bei einem
+		// Downscale-Profil wird zusätzlich dessen Audio-Bitrate übernommen —
+		// eine 256k-Tonspur bei einem auf 480p/600kbps runtergerechneten
+		// Video wäre unverhältnismäßig groß.
+		audioKbps := 256
+		if downscale && profile.AudioKbps > 0 {
+			audioKbps = profile.AudioKbps
+		}
+		args = append(args, "-ac", "2", "-b:a", fmt.Sprintf("%dk", audioKbps))
 	}
 
 	switch {
+	case downscale:
+		// "Optimierte Downloads" — Video wird IMMER neu encodet und auf
+		// `profile.MaxHeight`/`profile.VideoKbps` begrenzt, unabhängig vom
+		// Quell-Codec (siehe `plan()`/`needsDownscale`). Selbes Skalierungs-
+		// und Encoder-Muster wie der Streaming-Transcode
+		// (`internal/playback/ffmpeg.go Manager.buildArgs`).
+		args = append(args, downscaleVideoArgs(hw, profile, forceSoftware)...)
 	case videoCodec == "hevc":
 		if videoTag == "hvc1" {
 			args = append(args, "-c:v", "copy")
@@ -564,6 +629,74 @@ func videoEncodeArgs(hw playback.HWAccel) []string {
 		return []string{"-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "20", "-pix_fmt", "yuv420p"}
 	default:
 		return []string{"-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p"}
+	}
+}
+
+// downscaleVideoArgs liefert Skalierungs-Filter + Encoder-Argumente für einen
+// "optimierten Download" (`plan()`/`needsDownscale`) — dasselbe CPU-Skalieren-
+// +hwupload-Muster wie der Streaming-Transcode (`internal/playback/ffmpeg.go
+// Manager.buildArgs`, Kommentar dort: "Software-scaling ist billig und
+// funktioniert mit beliebigen Input-Codecs"). `force_original_aspect_ratio=
+// decrease` verhindert ein Hochskalieren, falls die Quelle (entgegen der DB-
+// Metadaten, z. B. nach einem Rescan-Rückstand) tatsächlich schon kleiner ist.
+func downscaleVideoArgs(hw playback.HWAccel, profile playback.Profile, forceSoftware bool) []string {
+	scaleFilter := ""
+	if profile.MaxHeight > 0 {
+		scaleFilter = fmt.Sprintf("scale=-2:%d:force_original_aspect_ratio=decrease", profile.MaxHeight)
+	}
+	backend := hw.Selected
+	if forceSoftware {
+		backend = playback.BackendSoftware
+	}
+	switch backend {
+	case playback.BackendVAAPI:
+		vf := "format=nv12,hwupload"
+		if scaleFilter != "" {
+			vf = scaleFilter + "," + vf
+		}
+		args := []string{"-vaapi_device", hw.VAAPIDevice, "-vf", vf, "-c:v", "h264_vaapi"}
+		if profile.VideoKbps > 0 {
+			args = append(args,
+				"-b:v", fmt.Sprintf("%dk", profile.VideoKbps),
+				"-maxrate", fmt.Sprintf("%dk", profile.VideoKbps*3/2),
+				"-bufsize", fmt.Sprintf("%dk", profile.VideoKbps*2),
+			)
+		} else {
+			args = append(args, "-qp", "20")
+		}
+		return args
+	case playback.BackendNVENC:
+		args := []string{}
+		if scaleFilter != "" {
+			args = append(args, "-vf", scaleFilter)
+		}
+		args = append(args, "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-pix_fmt", "yuv420p")
+		if profile.VideoKbps > 0 {
+			args = append(args,
+				"-b:v", fmt.Sprintf("%dk", profile.VideoKbps),
+				"-maxrate", fmt.Sprintf("%dk", profile.VideoKbps*3/2),
+				"-bufsize", fmt.Sprintf("%dk", profile.VideoKbps*2),
+			)
+		} else {
+			args = append(args, "-cq", "20")
+		}
+		return args
+	default:
+		args := []string{}
+		if scaleFilter != "" {
+			args = append(args, "-vf", scaleFilter)
+		}
+		args = append(args, "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p")
+		if profile.VideoKbps > 0 {
+			args = append(args,
+				"-b:v", fmt.Sprintf("%dk", profile.VideoKbps),
+				"-maxrate", fmt.Sprintf("%dk", profile.VideoKbps*3/2),
+				"-bufsize", fmt.Sprintf("%dk", profile.VideoKbps*2),
+			)
+		} else {
+			args = append(args, "-crf", "20")
+		}
+		return args
 	}
 }
 

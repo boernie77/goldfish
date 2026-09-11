@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/boernie77/goldfish/internal/download"
+	"github.com/boernie77/goldfish/internal/playback"
 )
 
 // deleteItem löscht ein Item vom Filesystem UND aus der Datenbank. Admin-only.
@@ -93,6 +94,14 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	playPath := it.Path
+	// "Optimierte Downloads" (User-Wunsch 2026-09-11, Plex-Vorbild
+	// "Optimierte Versionen"): optionaler `&profile=`-Parameter, gleicher
+	// Katalog wie beim Streaming (`playback.Profiles`). Wirkt NUR als echter
+	// Auflösungs-/Bitrate-Cap, wenn das Item ihn tatsächlich überschreitet —
+	// "Automatisch" (kein Parameter, oder "orig") lädt unverändert das
+	// Original/die reine Codec-Fix-Kopie wie bisher. `ProfileByID("")`
+	// liefert bereits `Profiles[0]` ("orig"), keine explizite Prüfung nötig.
+	profile := playback.ProfileByID(r.URL.Query().Get("profile"))
 	// User-Anfrage 2026-08-27: "wie löst Jellyfin das eigentlich" — statt die
 	// Original-Datei blind rauszugeben und den Client (Mac/iOS-App) sie danach
 	// selbst per lokalem ffmpeg reparieren zu lassen (mit dem realen Bug, dass
@@ -105,7 +114,7 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	// selbst breiter dekodieren können) unverändert bleiben.
 	if r.URL.Query().Get("compat") == "1" {
 		cacheDir := filepath.Join(s.ConfigDir, "cache", "downloads")
-		p, err := download.EnsureCompatible(r.Context(), s.HW, cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec)
+		p, err := download.EnsureCompatible(r.Context(), s.HW, cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec, profile, it.Height, it.BitrateKbps)
 		if err != nil {
 			writeError(w, 500, "Formatanpassung fehlgeschlagen: "+err.Error())
 			return
@@ -125,7 +134,15 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	modTime := info.ModTime()
 	if playPath != it.Path {
 		// Formatangepasste Kopie ist immer .mp4, unabhängig vom Original-Container.
-		filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ".mp4"
+		base := strings.TrimSuffix(filename, filepath.Ext(filename))
+		// Nur wenn WIRKLICH runtergerechnet wurde (Cache-Pfad trägt den
+		// Profil-Suffix, siehe `plan()`) den Dateinamen entsprechend
+		// kennzeichnen — bei "Automatisch"/Profil-unter-Cap ist es exakt
+		// dieselbe Datei wie beim reinen Codec-Fix, kein irreführendes Tag.
+		if strings.HasSuffix(filepath.Base(playPath), "-"+profile.ID+".mp4") {
+			base += " (" + profile.ID + ")"
+		}
+		filename = base + ".mp4"
 		// Cache-Validator (ETag + Last-Modified) primär an die QUELLDATEI koppeln
 		// (mtime+size): die bleibt über Resume-Versuche stabil, anders als die
 		// ModTime der Cache-Kopie — das war die Ursache für „Download klebt bei

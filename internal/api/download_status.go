@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/boernie77/goldfish/internal/download"
+	"github.com/boernie77/goldfish/internal/playback"
 )
 
 // downloadCompatStatus: GET /api/download/{id}/compat-status
@@ -37,10 +38,16 @@ func (s *Server) downloadCompatStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Optimierte Downloads" — derselbe optionale `&profile=`-Parameter wie
+	// beim eigentlichen Download-Endpoint, siehe `delete_download.go
+	// downloadItem`. Muss hier UND dort identisch aufgelöst werden, sonst
+	// würde die Status-Abfrage einen anderen Cache-Pfad prüfen als der
+	// spätere Download tatsächlich anfordert.
+	profile := playback.ProfileByID(r.URL.Query().Get("profile"))
 	cacheDir := filepath.Join(s.ConfigDir, "cache", "downloads")
-	p := download.Status(cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec)
+	p := download.Status(cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec, profile, it.Height, it.BitrateKbps)
 	if p.State == "idle" {
-		p = download.StartPrep(s.HW, cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec)
+		p = download.StartPrep(s.HW, cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec, profile, it.Height, it.BitrateKbps)
 	}
 	writeJSON(w, 200, p)
 }
