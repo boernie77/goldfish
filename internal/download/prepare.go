@@ -60,7 +60,16 @@ type AudioStream struct {
 //	5 = "-map 0:V:0" statt "0:v:0" — schließt attached_pic-Streams (Cover-
 //	    Thumbnails) vom Video-Mapping aus, sonst wurde bei Dateien mit
 //	    eingebettetem Cover (z. B. WMV) nur das Cover-Standbild kopiert
-const convVersion = 5
+//	6 = "Optimierte Downloads" (profilbasierte Downscale-Kopien) klemmen die
+//	    Ziel-Bitrate jetzt an die Quell-Bitrate (`clampProfileToSource`) — vorher
+//	    konnte ein Downscale-Profil (z. B. "480p-hq" · 2 Mbps) über der ohnehin
+//	    schon effizienten Quell-Bitrate liegen und die Datei GRÖSSER als das
+//	    Original machen (User-Report 2026-09-11, YouTube-Video 273 MB → 315 MB
+//	    trotz Auflösungs-Downscale auf 480p). Nur profilspezifische Caches
+//	    (`<itemID>-<profileID>.mp4`) betroffen, reine Compat-Fix-Kopien
+//	    (`<itemID>.mp4`) unverändert — die Invalidierung trifft sie trotzdem
+//	    mit, harmlos (identisches Ergebnis, nur einmal neu erzeugt).
+const convVersion = 6
 
 // h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
 // diesem Pixelformat hardware-dekodieren kann (nur 8-Bit 4:2:0). Alles andere
@@ -203,6 +212,26 @@ func needsDownscale(profile playback.Profile, itemHeight, itemBitrateKbps int) b
 	return exceedsH || exceedsB
 }
 
+// clampProfileToSource verhindert, dass ein "optimierter Download" GRÖSSER
+// wird als das Original (Bug, gefixt 2026-09-11, User-Report: ein YouTube-
+// Video mit effizient kodierten ~1,9 Mbps wurde auf "480p" — was serverseitig
+// auf den ERSTEN Katalog-Eintrag "480p-hq · 2 Mbps" traf, siehe drei Stufen
+// pro Auflösung in `playback.Profiles` — mit einem Zieldeckel von 2 Mbps neu
+// encodet: Auflösung sank, aber die Zielbitrate lag ÜBER der Quelle, die
+// Datei wurde größer statt kleiner). `needsDownscale` entscheidet nur, OB
+// überhaupt runtergerechnet wird (Höhe oder Bitrate über dem Cap) — hier wird
+// zusätzlich die tatsächlich für den Encode verwendete Ziel-Bitrate nie höher
+// als die der Quelle gewählt. Nur die VideoKbps werden gekappt (AudioKbps
+// bleiben unverändert, die sind ohnehin klein) und nur, wenn die Quell-
+// Bitrate bekannt ist (`itemBitrateKbps > 0`) UND niedriger als der
+// Katalog-Wert — sonst bleibt `profile` unverändert.
+func clampProfileToSource(profile playback.Profile, itemBitrateKbps int) playback.Profile {
+	if itemBitrateKbps > 0 && profile.VideoKbps > 0 && itemBitrateKbps < profile.VideoKbps {
+		profile.VideoKbps = itemBitrateKbps
+	}
+	return profile
+}
+
 // plan entscheidet, ob überhaupt eine Formatanpassung nötig ist, und liefert die
 // Cache-Pfade. needsPrep=false → die Originaldatei kann direkt ausgeliefert
 // werden. `container`/`videoCodecHint`/`audioCodecHint` kommen aus den beim Scan
@@ -293,7 +322,7 @@ func EnsureCompatible(ctx context.Context, hw playback.HWAccel, cacheDir string,
 	}
 
 	job := prepReg.start(outPath, func(j *prepJob) (string, error) {
-		return runPrep(j, hw, outPath, metaPath, sourcePath, info, profile, needsDownscale(profile, itemHeight, itemBitrateKbps))
+		return runPrep(j, hw, outPath, metaPath, sourcePath, info, clampProfileToSource(profile, itemBitrateKbps), needsDownscale(profile, itemHeight, itemBitrateKbps))
 	})
 	select {
 	case <-ctx.Done():
@@ -338,7 +367,7 @@ func StartPrep(hw playback.HWAccel, cacheDir string, itemID int64, sourcePath, c
 		return Progress{State: "ready", Percent: 100}
 	}
 	prepReg.start(outPath, func(j *prepJob) (string, error) {
-		return runPrep(j, hw, outPath, metaPath, sourcePath, info, profile, needsDownscale(profile, itemHeight, itemBitrateKbps))
+		return runPrep(j, hw, outPath, metaPath, sourcePath, info, clampProfileToSource(profile, itemBitrateKbps), needsDownscale(profile, itemHeight, itemBitrateKbps))
 	})
 	return Progress{State: "preparing", Percent: 0}
 }

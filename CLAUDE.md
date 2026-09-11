@@ -3632,6 +3632,21 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   (sonst prüft die Status-Abfrage einen anderen Cache-Pfad als der
   spätere Download anfordert). Tests: `internal/download/prepare_test.go`
   (`needsDownscale`-Wahrheitstabelle, `plan()`-Cache-Pfad-Verzweigung).
+  **🔴→✅ Downscale konnte die Datei GRÖSSER als das Original machen (Bug,
+  gefixt noch am selben Tag, convVersion 6, User-Report: ein YouTube-Video
+  mit effizient kodierten ~1,9 Mbps wurde auf "480p" gestellt — traf
+  serverseitig aber auf den ERSTEN Katalog-Eintrag "480p-hq · 2 Mbps" (drei
+  Bitraten-Stufen pro Auflösung in `playback.Profiles`) — 273 MB Original
+  → 315 MB "optimierter" Download trotz Auflösungs-Downscale auf 480p):**
+  `needsDownscale` entscheidet nur, OB überhaupt runtergerechnet wird
+  (Höhe- oder Bitrate-Cap überschritten) — die tatsächlich für den Encode
+  verwendete Ziel-Bitrate war bisher ungeprüft der rohe Katalogwert, auch
+  wenn der über der (schon bekannten) Quell-Bitrate lag. Fix: neue
+  `clampProfileToSource(profile, itemBitrateKbps)` — kappt `VideoKbps` auf
+  die Quell-Bitrate, wenn die niedriger als der Katalogwert ist (nur die
+  tatsächliche Encode-Bitrate, NICHT die `needsDownscale`-Entscheidung
+  selbst, und NICHT der Cache-Dateiname — der bleibt beim gewählten
+  Profil-ID). Test: `TestClampProfileToSource`.
 - **`?compat=1`** (seit 2026-08-27, `internal/download`): server-seitige
   Kompatibilitätsprüfung + einmalige, dauerhaft gecachte Remux-/Transcode-Kopie
   VOR dem Ausliefern — analog zu Jellyfins Geräteprofil-Direct-Play-Entscheidung.

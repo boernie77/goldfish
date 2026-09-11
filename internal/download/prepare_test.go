@@ -86,3 +86,31 @@ func TestPlanProfileCachePaths(t *testing.T) {
 		t.Errorf("outPath = %q, want 42.mp4 (Item liegt schon unter dem Cap)", filepath.Base(outPath))
 	}
 }
+
+// TestClampProfileToSource — Regressionstest für den "größer statt kleiner"-
+// Bug (User-Report 2026-09-11): eine Downscale-Zielbitrate darf NIE über der
+// bekannten Quell-Bitrate liegen.
+func TestClampProfileToSource(t *testing.T) {
+	p480hq := playback.ProfileByID("480p-hq") // 2000 kbps Katalogwert
+
+	cases := []struct {
+		name            string
+		itemBitrateKbps int
+		wantVideoKbps   int
+	}{
+		{"Quelle unbekannt (0) -> Katalogwert bleibt", 0, 2000},
+		{"Quelle effizienter als Katalogwert -> geklemmt", 1900, 1900},
+		{"Quelle über Katalogwert -> Katalogwert bleibt (kein Hochsetzen)", 5000, 2000},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := clampProfileToSource(p480hq, c.itemBitrateKbps)
+			if got.VideoKbps != c.wantVideoKbps {
+				t.Errorf("clampProfileToSource(.., %d).VideoKbps = %d, want %d", c.itemBitrateKbps, got.VideoKbps, c.wantVideoKbps)
+			}
+			if got.AudioKbps != p480hq.AudioKbps {
+				t.Errorf("AudioKbps sollte unverändert bleiben, got %d want %d", got.AudioKbps, p480hq.AudioKbps)
+			}
+		})
+	}
+}
