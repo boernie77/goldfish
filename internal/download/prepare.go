@@ -201,6 +201,25 @@ func plan(cacheDir string, itemID int64, sourcePath, container, videoCodecHint, 
 	if err != nil {
 		return false, "", "", nil, err
 	}
+	// Audio-only (Musik-Bibliotheken, kind=music): dieses Package ist komplett auf
+	// VIDEO-Kompatibilität ausgelegt (Doc-Kommentar oben) — `videoCodecHint == ""`
+	// bedeutet laut Scanner "kein Videostream in der Datei" (musicNoteCoverArt
+	// ausgenommen, siehe scanner.go attached_pic-Behandlung). Der weiter unten
+	// folgende Remux-Pfad mappt IMMER `-map 0:V:0` (Großbuchstabe, schließt
+	// Cover-Art-Streams bewusst aus, siehe convVersion=5-Kommentar) — bei einer
+	// echten Audio-Datei ohne jeden Videostream matcht das nichts, ffmpeg bricht
+	// mit "Stream map '0:V:0' matches no streams" ab (User-Report 2026-09-11,
+	// Mac-App-Musik-Download: "SOS" von ABBA Gold, ein ganz normales mp3, schlug
+	// beim `?compat=1`-Download 500 fehl). Der Browser hat das nie ausgelöst,
+	// weil er Musik-Downloads immer OHNE `?compat=1` anfragt (siehe CLAUDE.md
+	// "Download & Löschen") — der neue Mac-Musik-Download war der erste
+	// Aufrufer, der diesen Pfad für Audio überhaupt erreicht. mp3/m4a/flac/…
+	// spielen auf AVFoundation ohnehin nativ oder werden beim Streaming bereits
+	// separat behandelt (`internal/playback/decider.go`) — für den Download
+	// reicht die Originaldatei unverändert.
+	if videoCodecHint == "" {
+		return false, "", "", info, nil
+	}
 	containerOK := container == "mp4" || container == "mov" || container == "m4v"
 	if containerOK && videoCodecHint == "h264" && audioCodecHint == "aac" {
 		return false, "", "", info, nil

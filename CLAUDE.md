@@ -3635,6 +3635,25 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   statt `elst`-edit-list (ffmpegs edit list verhinderte Wiedergabe bei
   kopiertem h264 in AVFoundation komplett). Verwaiste `.tmp.*.mp4`
   (Container-Restart mitten im Lauf) werden vor einem neuen Lauf weggeräumt.
+  **🔴→✅ Audio-only-Dateien (Musik-Bibliotheken) schlugen mit `?compat=1`
+  IMMER fehl (Bug, gefixt 2026-09-11, LIVE 1.3.10, User-Report über die
+  neue Mac-App-Musik-Download-Funktion: "SOS" von ABBA Gold, eine ganz
+  normale mp3, lieferte 500 "Stream map '0:V:0' matches no streams"):**
+  dieses ganze Package ist auf VIDEO-Kompatibilität zugeschnitten (siehe
+  Paket-Kommentar), die schnelle "ist eh schon passend"-Kurzentscheidung
+  in `plan()` kannte aber nur den mp4/mov/m4v+h264+aac-Fall — jede Audio-
+  Datei (mp3, m4a, flac, …) fiel dadurch immer in den Remux-Pfad, der
+  bedingungslos `-map 0:V:0` setzt (Großbuchstabe, schließt Cover-Art
+  bewusst aus, siehe `convVersion=5`-Historie) — bei einer Datei OHNE
+  jeden Videostream matcht das nichts, ffmpeg bricht sofort ab. Der
+  Browser hat das nie ausgelöst (fragt Musik-Downloads immer OHNE
+  `?compat=1` an), der neue Mac-App-Musik-Download (siehe
+  `project_feature_apple_music_player`-Memory) war der erste Aufrufer,
+  der diesen Pfad für Audio überhaupt erreicht hat. Fix: `plan()` liefert
+  jetzt `needsPrep=false` (Originaldatei direkt ausliefern) sobald
+  `videoCodecHint == ""` (Scanner-Konvention "kein Videostream in der
+  Datei") — Audio-Formate brauchen für den Download keine MP4-Remux-
+  Behandlung, AVFoundation spielt mp3/m4a/aac nativ.
   **Video-Pixelformat (convVersion 3):** `-c:v copy` für h264 nur noch bei
   **8-Bit 4:2:0** (`pix_fmt` ∈ yuv420p/yuvj420p/nv12/nv21). 10-Bit-H.264 /
   4:2:2 / 4:4:4 kann VideoToolbox/AVFoundation **nicht** dekodieren → wird per
