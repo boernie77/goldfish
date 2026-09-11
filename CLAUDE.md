@@ -3867,11 +3867,19 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
     z. B. "Titel (12:34 von 45:00, zu Ende)"/"…, geschlossen"
     (`fmtClock()`-Helper in stream.go).
   - Protokoll-Tabelle hat eine neue "Gerät"-Spalte.
-  - **Noch offen (nächster Schritt):** GoldfishApple (Mac/iOS/tvOS) und
-    GoldfishAndroid senden bisher keinen `X-Goldfish-Client`-Header und
-    rufen die neuen Stop-/Error-Endpoints noch nicht auf — läuft dort also
-    vorerst nur mit generischem Device-Label und ohne Stop/Error-Logging,
-    bis die Client-Seite nachgezogen ist.
+  - **✅ GoldfishApple nachgezogen (Build 210, 2026-09-11):**
+    `GoldfishClient` setzt `X-Goldfish-Client` (z. B. "Goldfish-Mac/210")
+    per `httpAdditionalHeaders` auf JEDEM Request; `PlayerView.swift`
+    (plattformübergreifend geteilt, deckt Mac/iOS/tvOS in einem Rutsch ab)
+    meldet Stop bei `didPlayToEndTime` UND manuellem Schließen
+    (`playbackStopReported`-Flag verhindert Doppel-Report) sowie Error bei
+    allen vier bestehenden Fehlerquellen (Stream-URL fehlt, `playback()`-
+    Fetch schlägt fehl, `AVPlayerItem.status == .failed`,
+    `AVPlayerItemNewErrorLogEntry`).
+  - **Noch offen:** GoldfishAndroid sendet bisher keinen
+    `X-Goldfish-Client`-Header und ruft die neuen Stop-/Error-Endpoints
+    noch nicht auf — läuft dort vorerst nur mit generischem OkHttp-
+    User-Agent-Fallback und ohne Stop/Error-Logging.
   - Tests: `internal/api/helpers_test.go` (`TestDeviceLabel`),
     `internal/store/activity_log_test.go` (Device-Feld-Roundtrip).
 - **Backup:** `Store.BackupToFile` (`internal/store/backup.go`) nutzt SQLites
