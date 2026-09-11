@@ -244,6 +244,11 @@ oben gelten weiterhin immer.
 > `.playback`-Kategorie auf `.soloAmbient` zurückfällt. Fix im `init()`
 > von `GoldfishApp.swift`, `#if os(iOS)`-gated. Betraf vermutlich auch die
 > bereits live stehende 1.1/187-Version (gleicher, unveränderter Code).
+> **Seit 2026-09-11 (Build 206):** die "🎞 Qualität"-Auswahl gibt es jetzt
+> auch auf macOS (`ItemDetailView.swift`, war `#if os(tvOS) || os(iOS)`,
+> jetzt ungegated) — User-Wunsch, kein technischer Grund für den
+> Ausschluss (`availableProfiles`/`pickedProfile` liefen schon immer
+> plattformübergreifend). Gilt für Filme/Serien/Privatvideos.
 > Details + Export-Compliance-Fallstrick (Frankreich als Vertriebsland
 > musste entfernt werden, um eine Dokumenten-Upload-Pflicht zu vermeiden):
 > Memory `feedback_apple_versioning.md`.
