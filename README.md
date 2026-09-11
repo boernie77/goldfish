@@ -1,4 +1,4 @@
-# Goldfish 🐠
+# <img src="internal/webassets/web/icon-192.png" width="32" height="32" valign="middle" alt=""> Goldfish
 
 A lean, single-binary, Jellyfin-style streaming server for home labs.
 Written in Go, runs in a ~150 MB Docker image, no external database or
