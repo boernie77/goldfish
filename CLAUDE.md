@@ -252,6 +252,25 @@ oben gelten weiterhin immer.
 > Details + Export-Compliance-Fallstrick (Frankreich als Vertriebsland
 > musste entfernt werden, um eine Dokumenten-Upload-Pflicht zu vermeiden):
 > Memory `feedback_apple_versioning.md`.
+> **Seit 2026-09-11 (iOS 1.3/196), User-Vorgabe "Alles was wir heute für
+> macOS gebaut haben, soll nun auch in die iOS APP. ALLES":** der bis dahin
+> Mac-only Musik-Player (eigener `AVPlayer`/Mini-Leiste/Album-Playlist-
+> Warteschlangen-Ansichten/Favoriten/Offline-Sync/AirPlay/Hintergrund-
+> Wiedergabe) läuft jetzt komplett auch auf iOS, inkl. Shuffle in Video-
+> Playlists + feste 2-Spalten-Bibliotheksgrids. Vom User live am echten
+> iPhone gegengeprüft über mehrere Feinschliff-Runden (Listenansicht/
+> Player/Sheets/Tab-Leiste/"Zuletzt abgespielt"-Filter), abschließend
+> bestätigt ("Passt so, danke. Perfekt."). **Wichtiger SwiftUI-Fallstrick,
+> der dabei gefunden wurde:** eine persistente Leiste (Mini-Player) darf
+> auf iOS NIE als `.safeAreaInset` außen um eine `TabView` gelegt werden —
+> die native, von UIKit gezeichnete Tab-Leiste bleibt dabei am
+> Bildschirmrand verankert und wird von der eigenen Leiste optisch UND für
+> Taps blockiert (kompletter Tab-Wechsel war dadurch unmöglich). Die Leiste
+> muss stattdessen PRO Tab-Inhalt sitzen (`RootView.swift withMusicBar(...)`,
+> auf jedes einzelne Tab angewendet) — bei jeder künftigen "Leiste über der
+> Tab-Leiste"-Anforderung sofort so ansetzen. Volle Bugfix-Chronik (4
+> Feinschliff-Runden, Commits einzeln aufgeschlüsselt): Memory
+> `project_feature_apple_music_player.md` (Runde 17-19).
 
 ## Architektur-Kurzfassung
 - macOS: App Sandbox AUS (`GoldfishMac.entitlements` = `<dict/>`, nach jedem
