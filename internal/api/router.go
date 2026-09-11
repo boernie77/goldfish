@@ -111,6 +111,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/albums/{id}", s.getAlbum)
 		r.Get("/poster/album/{id}", s.getAlbumCover)
 		r.Put("/albums/{id}/favorite", s.setAlbumFavorite)
+		r.Put("/albums/{id}/metadata", requireAdmin(s.updateMusicAlbumMetadata))
 		r.Get("/libraries/{id}/paths", requireAdmin(s.listLibraryPaths))
 		r.Post("/libraries/{id}/paths", requireAdmin(s.addLibraryPath))
 		r.Delete("/libraries/{id}/paths", requireAdmin(s.deleteLibraryPath))
@@ -355,7 +356,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.3.7"
+const appVersion = "1.3.8"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

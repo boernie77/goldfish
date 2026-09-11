@@ -67,6 +67,52 @@ func (s *Server) updateMusicItemMetadata(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(204)
 }
 
+// updateMusicAlbumMetadata speichert manuell korrigierte Album-Metadaten
+// (Künstler/Album/Genre/Jahr) und überträgt sie auf ALLE Tracks des Albums
+// (siehe Store.UpdateMusicAlbumMetadata) — User-Wunsch 2026-09-11.
+func (s *Server) updateMusicAlbumMetadata(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	album, err := s.Store.GetMusicAlbum(id, 0)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if album == nil {
+		writeError(w, 404, "Album nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, album.LibraryID) {
+		return
+	}
+	var body struct {
+		Artist string `json:"artist"`
+		Album  string `json:"album"`
+		Genre  string `json:"genre"`
+		Year   int    `json:"year"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if body.Album == "" {
+		writeError(w, 400, "Album darf nicht leer sein")
+		return
+	}
+	if body.Year != 0 && (body.Year < 1900 || body.Year > 2099) {
+		writeError(w, 400, "year muss leer oder zwischen 1900 und 2099 liegen")
+		return
+	}
+	if err := s.Store.UpdateMusicAlbumMetadata(id, body.Artist, body.Album, body.Genre, body.Year); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
 // getAlbum liefert Album-Detail + Tracks (sortiert nach Track-Nummer).
 func (s *Server) getAlbum(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")

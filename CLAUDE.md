@@ -1821,14 +1821,28 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `editMetaDialog` — für den User nicht von "schließt nicht" zu
   unterscheiden. Fix: Musik-Zweig ruft nach dem Speichern nur noch
   `loadItems()` + Toast auf, kein `openDetail()` mehr.
-  **Album-Bearbeitung ist bewusst NICHT vorgesehen** (User-Nachfrage im
-  selben Gespräch "ein Album kann ich gar nicht bearbeiten"): es gibt
-  keinen ✏-Button auf der Album-Kachel selbst — Alben sind kein eigenes
-  `items`-Objekt, sondern ein aus den zugehörigen Tracks aggregierter
-  Wert (`GroupMusicAlbums`/`canonicalAlbumFields`). Bearbeitung läuft
-  ausschließlich pro Track; ein geänderter Artist/Album-Wert auf einem
-  Track löst automatisch eine Neu-Gruppierung aus, die auch das
-  Album-Genre/-Jahr neu berechnet.
+  **✅ Album-Metadaten bearbeiten (seit 2026-09-11, LIVE 1.3.8, User-Wunsch:
+  "Wenn ich beim Album das Jahr zum Beispiel eintrage, dann soll es
+  natürlich auch für die Titel übernommen werden")** — nimmt die oben
+  beschriebene bewusste Lücke zurück. Alben bleiben weiterhin ein reines
+  Aggregat (`GroupMusicAlbums`/`canonicalAlbumFields`), es gibt also
+  keine eigene Album-Zeile zum Editieren — stattdessen schreibt
+  `Store.UpdateMusicAlbumMetadata(albumID, artist, album, genre, year)`
+  (`internal/store/music.go`) die vier Felder per
+  `UPDATE items ... WHERE music_album_id = ?` auf ALLE Tracks des Albums
+  gleichzeitig (`year=0` lässt das Jahr unverändert, exakt wie beim
+  Track-Edit) und stößt danach `GroupMusicAlbums` erneut an, damit die
+  Aggregation neu berechnet wird. Endpoint `PUT /api/albums/{id}/metadata`
+  (admin-only, `internal/api/music.go updateMusicAlbumMetadata`) prüft
+  `requireLibAccess` über die Library des Albums. Frontend: neuer
+  ✏-Button im Album-Detail-Header (neben dem ♥-Favoriten-Button, admin-only)
+  öffnet `#editAlbumMetaDialog` (Künstler/Album/Genre/Jahr,
+  `openEditAlbumMetaDialog`/`handleEditAlbumMetaSubmit` in `music.js`) —
+  eigener Dialog/Speicherpfad, getrennt vom Track-Edit-Dialog, weil es
+  serverseitig kein eigenes Album-Metadaten-Objekt gibt. Kein separater
+  Entry-Point auf der Album-Kachel/-Übersichtszeile (bewusst nur EIN
+  Einstiegspunkt, der Album-Detail-Header ist ohnehin bei jedem Album
+  erreichbar).
 - **🔴 IMDb-Zuordnung schlug bei obfuskierten Dateinamen fehl (Bug, gefixt
   2026-09-06, User-Report mit Screenshot: Datei „gb-100jamamoihwage-1080p",
   Fehler „Konnte Staffel/Episode aus Dateiname nicht ermitteln")**:

@@ -1721,6 +1721,7 @@ function wire() {
   });
   $("#detailEditMeta").addEventListener("click", openEditMetaDialog);
   $("#editMetaForm").addEventListener("submit", handleEditMetaSubmit);
+  $("#editAlbumMetaForm").addEventListener("submit", handleEditAlbumMetaSubmit);
   $("#editMetaPoster").addEventListener("click", openPosterPickerFromEditDialog);
   $("#posterUploadForm").addEventListener("submit", handlePosterUpload);
   $("#detailConfirm").addEventListener("click", async () => {

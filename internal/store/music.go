@@ -169,6 +169,38 @@ func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album strin
 	return s.GroupMusicAlbums(libraryID)
 }
 
+// UpdateMusicAlbumMetadata schreibt manuell korrigierte Album-Metadaten
+// (Künstler/Album/Genre/Jahr) auf ALLE Tracks des Albums gleichzeitig —
+// User-Wunsch 2026-09-11: "Wenn ich beim Album das Jahr zum Beispiel
+// eintrage, dann soll es natürlich auch für die Titel übernommen werden."
+// Bisher gab es nur die Bearbeitung einzelner Tracks (UpdateMusicItemMetadata);
+// music_albums selbst ist eine reine COMPUTED-Tabelle (siehe GroupMusicAlbums-
+// Kommentar oben), Album-Metadaten existieren nur als Aggregat der Tracks —
+// ein Edit muss also auf items.* für alle Zeilen mit music_album_id=albumID
+// geschrieben werden, danach GroupMusicAlbums die Aggregation neu berechnen.
+// `year=0` lässt das Jahr auf allen Tracks unverändert, exakt wie bei
+// UpdateMusicItemMetadata (0 ist kein gültiges Jahr, sondern "unverändert").
+func (s *Store) UpdateMusicAlbumMetadata(albumID int64, artist, album, genre string, year int) error {
+	var libraryID int64
+	if err := s.db.QueryRow(`SELECT library_id FROM music_albums WHERE id = ?`, albumID).Scan(&libraryID); err != nil {
+		return err
+	}
+	if year > 0 {
+		if _, err := s.db.Exec(
+			`UPDATE items SET artist = ?, album = ?, genre = ?, year = ? WHERE music_album_id = ?`,
+			artist, album, genre, year, albumID,
+		); err != nil {
+			return err
+		}
+	} else if _, err := s.db.Exec(
+		`UPDATE items SET artist = ?, album = ?, genre = ? WHERE music_album_id = ?`,
+		artist, album, genre, albumID,
+	); err != nil {
+		return err
+	}
+	return s.GroupMusicAlbums(libraryID)
+}
+
 // musicGroupKey: physischer Elternordner ist die primäre Gruppierungs-
 // Identität (siehe GroupMusicAlbums-Kommentar). Root-Level-Dateien ohne
 // Unterordner (kein "/" in relPath) fallen auf das alte (artist,album)-

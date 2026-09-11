@@ -722,6 +722,25 @@
   </form>
 </dialog>
 
+<!-- Album-Metadaten bearbeiten (Admin, Musik) — kaskadiert auf alle Titel -->
+<dialog id="editAlbumMetaDialog" class="modal">
+  <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>
+  <h2>Album-Metadaten bearbeiten</h2>
+  <p class="hint">Änderungen werden auf alle Titel dieses Albums übertragen.</p>
+  <form id="editAlbumMetaForm" class="form">
+    <label>Album <input name="album" type="text" required /></label>
+    <div class="row" style="gap:8px">
+      <label style="flex:2">Künstler <input name="artist" type="text" /></label>
+      <label style="flex:1">Jahr <input name="year" type="number" min="1900" max="2099" step="1" /></label>
+    </div>
+    <label>Genre <input name="genre" type="text" placeholder="z. B. Rock" /></label>
+    <div class="row" style="margin-top:10px">
+      <button type="submit" class="primary">Speichern</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Scan-Abschluss-Bericht -->
 <dialog id="scanSummaryDialog" class="modal scan-summary-modal">
   <button type="button" class="modal-close" data-close aria-label="Schließen">✕</button>

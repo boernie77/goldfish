@@ -387,6 +387,44 @@ async function toggleAlbumFavorite(album, btn) {
   }
 }
 
+// Album-Metadaten bearbeiten (Admin) — kaskadiert auf ALLE Titel des Albums
+// (Store.UpdateMusicAlbumMetadata), User-Wunsch 2026-09-11: "Wenn ich beim
+// Album das Jahr eintrage, soll es auch für die Titel übernommen werden."
+// Eigener Dialog/Speicherpfad statt des Track-Edit-Dialogs — music_albums
+// selbst ist nur eine Aggregat-Tabelle (siehe GroupMusicAlbums), Album-
+// Felder existieren serverseitig nicht separat von den Track-Feldern.
+function openEditAlbumMetaDialog(album) {
+  state.currentEditAlbum = album;
+  const f = $("#editAlbumMetaForm");
+  f.album.value = album.album || "";
+  f.artist.value = album.artist || "";
+  f.genre.value = album.genre || "";
+  f.year.value = album.year || "";
+  $("#editAlbumMetaDialog").showModal();
+}
+
+async function handleEditAlbumMetaSubmit(e) {
+  e.preventDefault();
+  const album = state.currentEditAlbum;
+  if (!album) return;
+  const f = e.target;
+  const body = {
+    artist: f.artist.value.trim(),
+    album: f.album.value.trim(),
+    genre: f.genre.value.trim(),
+    year: f.year.value ? Number(f.year.value) : 0,
+  };
+  try {
+    await api(`/api/albums/${album.id}/metadata`, { method: "PUT", body: JSON.stringify(body) });
+    $("#editAlbumMetaDialog").close();
+    invalidateItemsCache();
+    loadItems();
+    showToast("Album-Metadaten gespeichert", { kind: "success" });
+  } catch (err) {
+    appAlert("Fehler: " + err.message);
+  }
+}
+
 // renderAlbumRow: Zeilen-Renderer für die Album-Übersicht als Liste
 // (analog renderMusicTrackRow für Track-Listen, aber mit Album-eigenen
 // Feldern — kein trackNo/Dauer, dafür Titelzahl). `columns` kommt aus
@@ -471,6 +509,7 @@ function renderAlbumTracks(grid, data, listView) {
       <button type="button" class="link-btn" id="albumBackBtn" title="Zurück zur Album-Übersicht">←</button>
       <h2>${escapeHTML(album.album || "")}
         <button type="button" class="fav-toggle-inline ${album.favorite ? "is-on" : ""}" id="albumFavBtn" title="${album.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}">${album.favorite ? "♥" : "♡"}</button>
+        ${(state.me && state.me.isAdmin) ? `<button type="button" class="link-btn" id="albumEditMetaBtn" title="Album-Metadaten bearbeiten">✏</button>` : ""}
       </h2>
       <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}${album.genre ? `<span>${escapeHTML(album.genre)}</span>` : ""}</div>
     </div>
@@ -481,6 +520,8 @@ function renderAlbumTracks(grid, data, listView) {
     loadItems();
   });
   header.querySelector("#albumFavBtn").addEventListener("click", (ev) => toggleAlbumFavorite(album, ev.currentTarget));
+  const editMetaBtn = header.querySelector("#albumEditMetaBtn");
+  if (editMetaBtn) editMetaBtn.addEventListener("click", () => openEditAlbumMetaDialog(album));
   if (!tracks.length) {
     const e = document.createElement("div");
     e.className = "empty";
