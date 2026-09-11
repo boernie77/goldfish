@@ -108,6 +108,39 @@ type Scanner struct {
 	newPaths     []string
 	updatedPaths []string
 	removedPaths []string
+
+	// pauseCheck: wenn gesetzt und true zurückgibt, pausiert der Scan
+	// zwischen zwei Dateien (vor dem jeweils teuren ffprobe-Aufruf) — von
+	// main.go aus playback.Active() gespeist. User-Wunsch 2026-09-11:
+	// "wenn etwas abgespielt wird, muss ein Scan auch pausieren oder
+	// reduziert werden, das hat immer Vorrang". Anders als bei
+	// Introskip/OCR/Trickplay (siehe dort) läuft KEIN "pausiert auch
+	// während eines Scans"-Fall in die andere Richtung — der Scan selbst
+	// hat neben laufender Wiedergabe die höchste Priorität aller
+	// Hintergrund-Worker.
+	pauseCheck func() bool
+}
+
+// SetPauseCheck registriert die Pause-Bedingung (siehe Scanner.pauseCheck).
+func (sc *Scanner) SetPauseCheck(fn func() bool) {
+	sc.pauseCheck = fn
+}
+
+func (sc *Scanner) paused() bool {
+	return sc.pauseCheck != nil && sc.pauseCheck()
+}
+
+// waitWhilePaused blockiert, solange paused() true liefert (kurzes Polling),
+// respektiert aber ctx-Abbruch (Scan-Cancel).
+func (sc *Scanner) waitWhilePaused(ctx context.Context) error {
+	for sc.paused() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	return nil
 }
 
 func New(s *store.Store, thumbDir string) *Scanner {
@@ -329,6 +362,9 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 			continue
 		}
 
+		if err := sc.waitWhilePaused(ctx); err != nil {
+			return err
+		}
 		item, err := sc.probeItem(ctx, lib, ref.root, ref.path, info)
 		if err != nil {
 			log.Printf("[scan] probe %s: %v", ref.path, err)

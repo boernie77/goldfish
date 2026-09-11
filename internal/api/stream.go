@@ -194,6 +194,11 @@ func (s *Server) streamDirect(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = f.Close() }()
 	info, _ := f.Stat()
 	w.Header().Set("Content-Type", mimeForExt(filepath.Ext(it.Path)))
+	// Direct Play hat kein Session-Konzept wie Transcode (dessen Touch()
+	// bereits playback.TouchActivity() mitzieht) — hier direkt markieren,
+	// damit Scanner/Trickplay/Introskip/OCR wissen, dass gerade etwas
+	// angesehen wird (siehe internal/playback/activity.go).
+	playback.TouchActivity()
 	http.ServeContent(w, r, filepath.Base(it.Path), info.ModTime(), f)
 }
 

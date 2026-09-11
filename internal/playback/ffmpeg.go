@@ -497,6 +497,7 @@ func (s *Session) Touch() {
 	s.mu.Lock()
 	s.lastUsed = time.Now()
 	s.mu.Unlock()
+	TouchActivity()
 }
 
 func (s *Session) Stop() {

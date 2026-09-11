@@ -910,6 +910,37 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (`timeout nach 11m0s …`), statt nichtssagendem `signal: killed ()`.
 - **Filter-Chain VAAPI**: `fps=1/N,scale_vaapi=w=160:h=90:force_original_aspect_ratio=decrease,hwdownload,format=nv12,pad=…color=black,tile=XxY`
 - **Filter-Chain Software-Fallback**: `fps=1/N,scale=160:90:force_original_aspect_ratio=decrease,pad=…color=black,tile=XxY`
+- **Pausiert automatisch während eines Library-Scans UND während gerade
+  irgendetwas angesehen wird** (seit 2026-09-11, LIVE 1.3.6, User-Report
+  "Mir ist die Last auf dem Server durch Goldfish zu hoch ... wenn ein Scan
+  läuft, soll Trickbild kurz pausieren" + im selben Gespräch erweitert:
+  "wenn etwas abgespielt wird, muss ein Scan und Trickbild auch pausieren
+  oder reduziert werden, das hat immer Vorrang"). Trickplay ist wie
+  Introskip/OCR sehr I/O-intensiv (ffmpeg pro Item) und kollidiert sonst
+  mit einem gleichzeitig laufenden Scan auf demselben Netzwerk-Mount ODER
+  mit dem, was der User gerade tatsächlich streamt. Mechanismus identisch
+  zu Introskip (`SetPauseCheck`/`waitWhilePaused`, siehe dort) — neu ist
+  der zweite Baustein **`internal/playback/activity.go`**: ein simpler,
+  paketweiter „wird gerade etwas wiedergegeben"-Merker
+  (`TouchActivity()`/`Active()`, 25s-Zeitfenster seit dem letzten
+  beobachteten Wiedergabe-Request). Wird angestoßen aus `Session.Touch()`
+  (Transcode — deckt sowohl Segment- als auch Progress-Poll-Requests ab,
+  beide riefen das schon vorher für die Session-GC) UND direkt aus
+  `streamDirect` (Direct Play hat kein Session-Konzept). `main.go` verdrahtet
+  `trickplayWorker.SetPauseCheck(func() bool { return sc.Status().Running ||
+  playback.Active() })` — **derselbe `playback.Active()`-Check wurde im
+  selben Zug auch bei `introSkipWorker`/`ocrSubWorker` ergänzt** (vorher nur
+  scan-pausiert, jetzt zusätzlich wiedergabe-pausiert) **und beim Scanner
+  selbst** (`Scanner.SetPauseCheck`, neuer Pause-Punkt im Datei-Loop direkt
+  vor dem teuren `probeItem`/ffprobe-Call, NICHT vor dem billigen
+  mtime-Skip-Check) — der Scan selbst hat also ebenfalls Vorrang vor sich
+  ausschließlich, aber weicht laufender Wiedergabe. **Bewusst kein
+  Rate-Limiting/Drosseln statt Pausieren** — die vier Hintergrund-Worker sind
+  ohnehin nicht latenzkritisch (Trickplay/Introskip/OCR laufen im Hintergrund
+  über Stunden, ein Scan darf auch mal ein paar Minuten länger dauern),
+  ein hartes Pausieren ist einfacher korrekt zu implementieren als ein
+  quantitatives Throttling und liefert dem User exakt das gewünschte "hat
+  immer Vorrang". Tests: `internal/playback/activity_test.go`.
 - Asset-Endpoints: `/api/trickplay/{id}/thumbs.vtt`, `/api/trickplay/{id}/sprite.jpg`.
 - UI: Eigenes kompaktes Hover-Plugin **direkt in `app.js`** (`attachTrickplayHover`,
   `parseThumbVTT`) — parst VTT, hängt Mousemove auf `progressControl`, zeigt
@@ -1184,8 +1215,11 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   (`cmd/goldfish/main.go`, Settings-Gate `intro_skip_missing_jobs_backfill_v1`)
   holt für alle bereits aktivierten, aber job-losen Ordner den Job
   nachträglich nach.
-- **Pausiert automatisch während eines Library-Scans** (`Worker.SetPauseCheck`
-  in `cmd/goldfish/main.go`, gespeist aus `sc.Status().Running`): Introskip
+- **Pausiert automatisch während eines Library-Scans UND während gerade
+  irgendetwas angesehen wird** (seit 2026-09-11 auch Letzteres, siehe
+  „Trickplay" oben für `playback.Active()`) (`Worker.SetPauseCheck`
+  in `cmd/goldfish/main.go`, gespeist aus `sc.Status().Running ||
+  playback.Active()`): Introskip
   ist sehr I/O-intensiv (ffmpeg+fpcalc pro Episode) und kollidierte mit
   gleichzeitigen Scans auf demselben Netzwerk-Mount (real beobachtet:
   massenhaft `ffprobe: exit status 1` während eines Scans). Pause wirkt an
@@ -3468,7 +3502,9 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   SUP-Muxer wirft „[sup] Not enough data … Invalid data" an
   Display-Set-Grenzen; NICHT wieder darauf umstellen. Nicht-MKV-Quellen
   (m2ts/ts/mp4) → klarer „nur .mkv/.mks"-Fehler (Fallback noch offen).
-  Timeout 45 min/Item. Pausiert während Library-Scans (`SetPauseCheck`).
+  Timeout 45 min/Item. Pausiert während Library-Scans UND während aktiver
+  Wiedergabe (`SetPauseCheck`, seit 2026-09-11 auch `playback.Active()`,
+  siehe „Trickplay" weiter oben).
 - **Auto-Enqueue:** `ocrSubWorker.EnqueueNewItems()` im `sc.OnComplete`-Hook —
   neue Dateien mit Bild-Untertiteln in aktivierten Libs kommen nach jedem
   Scan automatisch dazu (`EnqueueOCRSubBacklog` = alle Items in aktiven

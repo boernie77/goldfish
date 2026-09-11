@@ -71,6 +71,11 @@ func main() {
 	// Album-Cover teilen sich den Poster-Cache-Ordner (gleiche Flat-Dir-
 	// Konvention, eigener Dateiname-Präfix "album_", siehe extractAlbumCovers).
 	sc.SetAlbumArtDir(filepath.Join(configDir, "posters"))
+	// Pausiert (zwischen zwei Dateien, vor dem jeweils teuren ffprobe-Call),
+	// solange gerade irgendetwas angesehen wird — User-Wunsch 2026-09-11:
+	// "wenn etwas abgespielt wird, muss ein Scan auch pausieren oder
+	// reduziert werden, das hat immer Vorrang". Siehe internal/playback/activity.go.
+	sc.SetPauseCheck(func() bool { return playback.Active() })
 
 	// TMDB + OMDb Enrichment-Worker (Keys aus Settings, können leer sein)
 	tmdbKey, _ := db.GetSetting("tmdb_api_key", "")
@@ -96,6 +101,12 @@ func main() {
 		trickplayWorker.SetHWAccelDevice(hw.VAAPIDevice)
 	}
 	trickplayWorker.SetBackend(string(hw.Selected))
+	// Pausiert während eines Library-Scans (gleicher Grund wie Introskip/OCR
+	// unten — ffmpeg pro Item kollidiert mit dem Scan auf demselben Mount)
+	// UND während gerade irgendetwas angesehen wird (User-Wunsch 2026-09-11:
+	// "wenn etwas abgespielt wird, muss ein Scan und Trickbild auch
+	// pausieren, das hat immer Vorrang" — siehe internal/playback/activity.go).
+	trickplayWorker.SetPauseCheck(func() bool { return sc.Status().Running || playback.Active() })
 	go trickplayWorker.Run(workerCtx)
 
 	// Whisper-Worker (KI-Untertitel-Generierung)
@@ -109,7 +120,9 @@ func main() {
 	// Ohne das kollidieren sie: real beobachtet massenhaft
 	// "ffprobe: exit status 1" während eines Scans, weil zeitgleich ein
 	// Introskip-Job mit 125 Episoden lief (2026-08-13).
-	introSkipWorker.SetPauseCheck(func() bool { return sc.Status().Running })
+	// Seit 2026-09-11 zusätzlich: pausiert auch während aktiver Wiedergabe
+	// (playback.Active(), s. o. bei trickplayWorker) — "das hat immer Vorrang".
+	introSkipWorker.SetPauseCheck(func() bool { return sc.Status().Running || playback.Active() })
 	go introSkipWorker.Run(workerCtx)
 
 	// OCR-Untertitel-Worker (Bild-Untertitel PGS/VOBSUB → Text per Tesseract).
@@ -119,7 +132,9 @@ func main() {
 		log.Printf("[ocrsub] pgsrip nicht gefunden — OCR-Untertitel deaktiviert")
 	}
 	ocrSubWorker := ocrsub.New(db, configDir, "ffmpeg", pgsripPath)
-	ocrSubWorker.SetPauseCheck(func() bool { return sc.Status().Running })
+	// Seit 2026-09-11 zusätzlich: pausiert auch während aktiver Wiedergabe,
+	// siehe trickplayWorker weiter oben.
+	ocrSubWorker.SetPauseCheck(func() bool { return sc.Status().Running || playback.Active() })
 	go ocrSubWorker.Run(workerCtx)
 
 	// Nach jedem Scan alle Hintergrund-Worker anstoßen.

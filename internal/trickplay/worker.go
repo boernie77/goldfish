@@ -57,6 +57,42 @@ type Worker struct {
 	cancelFn context.CancelFunc // gesetzt während runOnce, null sonst
 	trigger  chan struct{}
 	status   Status
+
+	// pauseCheck: wenn gesetzt und true zurückgibt, pausiert der Worker
+	// (startet keinen neuen Lauf, unterbricht einen laufenden zwischen zwei
+	// Items) — analog internal/introskip und internal/ocrsub. Von main.go
+	// gespeist aus Scanner-Status UND playback.Active() (User-Wunsch
+	// 2026-09-11: "wenn ein Scan läuft, soll Trickbild kurz pausieren" +
+	// "wenn etwas abgespielt wird, muss Trickbild auch pausieren, das hat
+	// immer Vorrang"). Trickplay ist wie Introskip sehr I/O/CPU-intensiv
+	// (ffmpeg pro Item) und kollidiert sonst mit einem gleichzeitig
+	// laufenden Scan bzw. mit dem, was der User gerade tatsächlich ansieht.
+	pauseCheck func() bool
+}
+
+// SetPauseCheck registriert die Pause-Bedingung (siehe Worker.pauseCheck).
+func (w *Worker) SetPauseCheck(fn func() bool) {
+	w.pauseCheck = fn
+}
+
+func (w *Worker) paused() bool {
+	return w.pauseCheck != nil && w.pauseCheck()
+}
+
+// waitWhilePaused blockiert, solange paused() true liefert (kurzes Polling),
+// respektiert aber ctx-Abbruch. Wird zwischen zwei Items innerhalb eines
+// laufenden Laufs aufgerufen, damit ein währenddessen startender Scan bzw.
+// eine währenddessen startende Wiedergabe nicht erst nach dem kompletten
+// (ggf. sehr langen) Lauf berücksichtigt wird.
+func (w *Worker) waitWhilePaused(ctx context.Context) error {
+	for w.paused() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	return nil
 }
 
 // SetHWAccelDevice konfiguriert das VAAPI-Device für Hardware-Decode. Ohne Setup
@@ -155,6 +191,9 @@ func (w *Worker) Run(ctx context.Context) {
 }
 
 func (w *Worker) runOnce(ctx context.Context) {
+	if w.paused() {
+		return
+	}
 	w.mu.Lock()
 	if w.running {
 		w.mu.Unlock()
@@ -199,6 +238,9 @@ func (w *Worker) runOnce(ctx context.Context) {
 
 	for _, it := range items {
 		if runCtx.Err() != nil {
+			return
+		}
+		if err := w.waitWhilePaused(runCtx); err != nil {
 			return
 		}
 		w.mu.Lock()
