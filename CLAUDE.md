@@ -148,58 +148,31 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 # 📱 Android-App (in Testphase, aktuell 1.2.67)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
-> Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`,
+> Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`
+> (eigenes Git-Repo `github.com/boernie77/goldfish-android`, privat),
 > die aktuell im **Internal-Testing-Track** der Google Play Console verteilt wird
-> (NICHT öffentlich im Play Store) und auf einem Samsung-Tablet des Users sowie
-> im Pixel-Tablet-Emulator läuft. Die App ist NICHT mitversioniert mit dem Server —
-> wenn du eine API-Antwort änderst, kann die App stillschweigend brechen
-> (Moshi-Parse-Error → leere Listen).
+> (NICHT öffentlich im Play Store). Die App ist NICHT mitversioniert mit dem
+> Server — wenn du eine API-Antwort änderst, kann die App stillschweigend
+> brechen (Moshi-Parse-Error → leere Listen).
 >
-> **VOR** API-Änderungen prüfen:
-> - Pfad geändert? → App-Repo `app/src/main/kotlin/com/goldfish/android/data/api/GoldfishApi.kt`
-> - JSON-Feld umbenannt oder Typ geändert? → `data/model/Models.kt` (Moshi `@Json(name=…)`)
-> - Neuer Endpoint? Optional, App kann ihn ignorieren.
+> **Die volle Architektur/Feature-Chronik/Build-Notizen stehen jetzt in der
+> CLAUDE.md dieses App-Repos** (nicht mehr hier) — bei jeder Änderung, die
+> diese App betreffen könnte, dort nachsehen bzw. das Repo direkt öffnen.
 >
-> **Wenn du etwas brichst:** versionCode in `app/build.gradle.kts` erhöhen, neue
-> AAB bauen (`./gradlew bundleRelease`), in Play Console Internal-Testing-Track
-> hochladen. Dauert ~3 Min Build + 5 Min Play-Console-Prozessierung.
+> **Die drei harten API-Kompatibilitäts-Regeln, die JEDE Session kennen muss:**
+> 1. **`resumePosSec` ist NICHT in der `getItem`-Antwort** — separater
+>    Endpoint `GET /api/items/{id}/resume`.
+> 2. **Download-Endpoint heißt `/api/download/{id}`**, NICHT
+>    `/api/items/{id}/download` (404).
+> 3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**:
+>    `GET /api/metadata/{id}/cast`.
 >
-> **Git-Repo seit 2026-08-19:** `github.com/boernie77/goldfish-android` (privat).
-> Release-Signing-Credentials (`goldfish-release.jks` + Passwort) liegen NICHT im
-> Repo — `app/build.gradle.kts` liest sie aus `keystore.properties` (git-ignoriert,
-> nur lokal, siehe `keystore.properties.example` für die Struktur). **Diesen
-> Keystore NIE committen** — er signiert alle Play-Store-Updates.
-
-## Server-API-Quirks, die die App kennt (NICHT brechen)
-
-Diese drei Quirks sind in der App fest verdrahtet und gelten als „bekannte
-Konvention" — nicht ändern, sonst stille App-Bugs:
-
-1. **`resumePosSec` ist NICHT in der `getItem`-Antwort.** Es gibt einen separaten
-   Endpoint `GET /api/items/{id}/resume` → `{positionSec: float}`. Die App holt
-   beide Calls und merget. Der `GetItemFor`-SQL-Query in `internal/store/sqlite.go`
-   listet `resume_pos_sec` bewusst nicht auf — Server hat ihn historisch nicht
-   im Item-Modell exposed. Wenn du das ändern willst, ist es OK — aber die App
-   verlässt sich aktuell auf den separaten Endpoint UND würde von einem Feld
-   im JSON profitieren, nicht stören.
-2. **Download-Endpoint heißt `/api/download/{id}`**, NICHT `/api/items/{id}/download`.
-   Letzteres existiert nicht (404). Routing in `internal/api/router.go` Zeile 100.
-3. **Cast-Endpoint via `metadata_id`, nicht `item_id`**: `GET /api/metadata/{id}/cast`.
-   Bei Episoden liefert der Server automatisch Show-Hauptcast + Episoden-Gäste.
-
-## Android-App-Featureliste
-
-Ausführliche Feature-/Bugfix-Chronik (Stand 1.2.67 + Snapshot 1.1.3) ausgelagert
-in den Skill `android-feature-history` — lädt bei Bedarf, z. B. wenn Details zu
-einem konkreten vC-Versionsstand gebraucht werden. Die drei harten API-Quirks
-oben gelten weiterhin immer.
-
-## Was die App NICHT hat
-
-- Kein OIDC. Login direkt per Email/Passwort (Cookie-Persistenz in SharedPrefs).
-  Die App profitiert NICHT vom Authentik-SSO im Browser.
-- Kein Cast/AirPlay (die Buttons im Player sind browser-only, in der App fehlen sie).
-- Kein Admin (User-Verwaltung, Library-Manager, Scan, NFO-Bulk, Whisper-UI etc.).
+> **Wenn du etwas brichst:** versionCode in `app/build.gradle.kts` erhöhen
+> (bei JEDER AAB), neue AAB bauen (`./gradlew bundleRelease`), in Play
+> Console Internal-Testing-Track hochladen.
+>
+> Release-Signing-Credentials liegen NICHT im Repo — nur lokal in
+> `keystore.properties` (git-ignoriert). **Diesen Keystore NIE committen.**
 
 ---
 
@@ -207,20 +180,17 @@ oben gelten weiterhin immer.
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt außer Android/Apple auch einen **nativen Linux-Desktop-Client**
-> unter `github.com/boernie77/goldfish-linux` (privat, lokal
+> unter `github.com/boernie77/goldfish-linux` (öffentlich, lokal
 > `~/Projekte/GoldfishLinux/`) — Python 3 + GTK4/libadwaita, als `.deb` für
-> Debian 12+/Ubuntu 24.04+/Mint 22+ paketiert (ältere Systeme mit
-> libadwaita < 1.4 werden bewusst NICHT unterstützt). v1 (2026-09-12) deckt
-> Login, Bibliotheks-/Ordner-Browser, Streaming (Direct Play/Transcode über
-> `Gtk.Video`) und Offline-Downloads ab — kein Cast, keine Staffel-Ansicht,
-> kein Admin-Bereich. Details/Architektur/Grenzen: Memory
-> `project_feature_goldfish_linux`.
+> Debian 12+/Ubuntu 24.04+/Mint 22+ paketiert.
+>
+> **Die volle Architektur/aktueller-Stand/Bugfix-Historie steht jetzt in
+> der CLAUDE.md dieses App-Repos** (nicht mehr hier).
 >
 > **Bei API-Änderungen prüfen:** `goldfish_linux/api.py` im dortigen Repo —
 > nutzt `/api/auth/login`, `/api/libraries`, `/api/libraries/{id}/folders`,
-> `/api/items`, `/api/playback/{id}` + den `?session=<token>`-Query-Fallback
-> (ursprünglich für Cast-Receiver gedacht) für die Video-Wiedergabe ohne
-> Cookie-Jar, `/api/download/{id}`, `/api/items/{id}/watched|favorite`.
+> `/api/items`, `/api/playback/{id}` + den `?session=<token>`-Query-Fallback,
+> `/api/download/{id}`, `/api/items/{id}/watched|favorite`.
 > **Konnte in der Entwicklungsumgebung (macOS) nicht auf echtem
 > GTK4/libadwaita getestet werden** — nur `py_compile`/`pyflakes` sauber.
 
@@ -229,314 +199,27 @@ oben gelten weiterhin immer.
 # 🍎 Mac/iOS/tvOS-App (GoldfishApple, seit 2026-08-17)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
-> Es gibt außer der Android-App auch eine **native Mac/iOS/tvOS-App** unter
-> `/Users/christian/Projekte/GoldfishApple/` (SwiftUI, `GoldfishMac` + `GoldfishiOS`
-> + **`GoldfishTV`** (seit 2026-09-03, Apple TV, `com.goldfish.tvos`, tvOS 17+)
-> Targets via `xcodegen` aus `project.yml`, gemeinsames Swift-Package `GoldfishCore`).
-> **Seit 2026-08-19 eigenes Git-Repo:** `github.com/boernie77/goldfish-apple`
-> (privat). Analog dazu `github.com/boernie77/goldfish-android` — beide getrennt
-> vom Server-Repo (`goldfish`), nicht darin eingegliedert.
+> Es gibt außer Android/Linux auch eine **native Mac/iOS/tvOS-App** unter
+> `/Users/christian/Projekte/GoldfishApple/` (SwiftUI, `GoldfishMac` +
+> `GoldfishiOS` + `GoldfishTV`, eigenes Git-Repo
+> `github.com/boernie77/goldfish-apple`, privat).
 >
-> **GoldfishTV-Details ausgelagert in Memory `project_apple_tvos_port` (lädt
-> nicht automatisch)** — u. a.: Downloads-Tab seit 2026-09-04 wieder aktiv
-> (ursprüngliche "kein Bedarf"-Entscheidung vom User zurückgenommen), kein
-> SSO/WebKit, `Menu`-in-Toolbar öffnet auf tvOS zuverlässig NICHTS (→ immer
-> `.sheet`/`.confirmationDialog` statt `Menu` für neue tvOS-UI), und ein
-> Workaround (kein echter Fix) für den nativen `NavigationLink`-Fokus-Kasten
-> auf Poster-Kacheln (überlappte den Titeltext, jetzt per Abstand entschärft,
-> der Rahmen selbst ist weiterhin nicht abschaltbar) — vor einem erneuten
-> Versuch das Memory lesen, nicht dieselben vier Ansätze wiederholen.
-> **Seit 2026-09-08 ergänzt (LIVE v1.1):** eigener Suche-Tab (statt
-> Toolbar-Button, library-gescoped über `LastLibraryContext`), Serien-/
-> Staffelansicht + Besetzungsleiste dort komplett vergrößert und die
-> Besetzung jetzt klickbar (behob nebenbei einen Sprung-zu-Staffel-1-
-> Fokus-Bug), `.focusSection()` zwischen Besetzungsleiste und Staffel-Grid.
-> Player-Overlay zeigt jetzt Direct-Play/Transcode-Modus + Qualität an,
-> neue "🎞 Qualität"-Auswahl im Info-Dialog (behebt: 4K-Filme liefen sonst
-> im Auto-Transcode-Modus ohne Downscale-Cap und stockten), Tonspur-
-> Umschaltung im Player nutzt jetzt `.confirmationDialog` statt `Menu`
-> (war dort unzuverlässig), Auto-Hide-Timer der Steuerleiste resettet
-> jetzt auch bei reiner Fokus-Bewegung.
-> **Seit 2026-09-10 (iOS v1.2, Build 189, eingereicht):** die "🎞
-> Qualität"-Auswahl im Info-Dialog (oben, ursprünglich nur tvOS) gibt es
-> jetzt auch auf iOS (`#if os(tvOS) || os(iOS)`) — Laden/Durchreichen der
-> Profile lief schon immer plattformübergreifend, nur die UI fehlte.
-> Zweiter, unabhängiger Fund beim ersten echten iPhone-Test: die App
-> konfigurierte nirgends eine `AVAudioSession` — Ton blieb je nach
-> Systemzustand (u. a. Stumm-Schalter) komplett aus, da iOS ohne
-> `.playback`-Kategorie auf `.soloAmbient` zurückfällt. Fix im `init()`
-> von `GoldfishApp.swift`, `#if os(iOS)`-gated. Betraf vermutlich auch die
-> bereits live stehende 1.1/187-Version (gleicher, unveränderter Code).
-> **Seit 2026-09-11 (Build 206):** die "🎞 Qualität"-Auswahl gibt es jetzt
-> auch auf macOS (`ItemDetailView.swift`, war `#if os(tvOS) || os(iOS)`,
-> jetzt ungegated) — User-Wunsch, kein technischer Grund für den
-> Ausschluss (`availableProfiles`/`pickedProfile` liefen schon immer
-> plattformübergreifend). Gilt für Filme/Serien/Privatvideos.
-> Details + Export-Compliance-Fallstrick (Frankreich als Vertriebsland
-> musste entfernt werden, um eine Dokumenten-Upload-Pflicht zu vermeiden):
-> Memory `feedback_apple_versioning.md`.
-> **Seit 2026-09-11 (iOS 1.3/196), User-Vorgabe "Alles was wir heute für
-> macOS gebaut haben, soll nun auch in die iOS APP. ALLES":** der bis dahin
-> Mac-only Musik-Player (eigener `AVPlayer`/Mini-Leiste/Album-Playlist-
-> Warteschlangen-Ansichten/Favoriten/Offline-Sync/AirPlay/Hintergrund-
-> Wiedergabe) läuft jetzt komplett auch auf iOS, inkl. Shuffle in Video-
-> Playlists + feste 2-Spalten-Bibliotheksgrids. Vom User live am echten
-> iPhone gegengeprüft über mehrere Feinschliff-Runden (Listenansicht/
-> Player/Sheets/Tab-Leiste/"Zuletzt abgespielt"-Filter), abschließend
-> bestätigt ("Passt so, danke. Perfekt."). **Wichtiger SwiftUI-Fallstrick,
-> der dabei gefunden wurde:** eine persistente Leiste (Mini-Player) darf
-> auf iOS NIE als `.safeAreaInset` außen um eine `TabView` gelegt werden —
-> die native, von UIKit gezeichnete Tab-Leiste bleibt dabei am
-> Bildschirmrand verankert und wird von der eigenen Leiste optisch UND für
-> Taps blockiert (kompletter Tab-Wechsel war dadurch unmöglich). Die Leiste
-> muss stattdessen PRO Tab-Inhalt sitzen (`RootView.swift withMusicBar(...)`,
-> auf jedes einzelne Tab angewendet) — bei jeder künftigen "Leiste über der
-> Tab-Leiste"-Anforderung sofort so ansetzen. Volle Bugfix-Chronik (4
-> Feinschliff-Runden, Commits einzeln aufgeschlüsselt): Memory
-> `project_feature_apple_music_player.md` (Runde 17-19).
-
-## Architektur-Kurzfassung
-- macOS: App Sandbox AUS (`GoldfishMac.entitlements` = `<dict/>`, nach jedem
-  `xcodegen generate` prüfen, wird sonst zurückgesetzt).
-- Player läuft NICHT als `.sheet`, sondern als eigene `WindowGroup(id: "player"/
-  "localPlayer")`-Szene (`openWindow(id:)` + `PlayerLaunchCoordinator.shared`
-  hält die live Swift-Werte, da `RandomContext`/`[Item]` nicht sinnvoll
-  `Codable` für `openWindow(value:)` sind) — Sheets unterstützen kein echtes
-  `NSWindow.toggleFullScreen`.
-- Custom `AppDelegate` (`Sources/GoldfishApp/AppDelegate.swift`) für Window-
-  Lifecycle-Handling, das SwiftUI pur nicht bietet (Dock-Reopen, Space-Handling).
-- Build: `xcodebuild -scheme GoldfishMac -configuration Debug -destination
-  'platform=macOS' build`, dann App-Bundle aus DerivedData auf den Desktop
-  kopieren zum Testen (kein Simulator für Mac-Target nötig).
-
-## Gelöste Bugs (Kurzfassung — volle Root-Cause-Analyse in DECISIONS.md „GoldfishApple")
-Chronologisch, Build 0100 (2026-08-19) bis Build 179:
-- **Fenster-Verschwinden-Bug**: verwaiste Coordinator-Referenzen + Hauptfenster rutschte in
-  einen eigenen Fullscreen-Space. Fix: `PlayerLaunchCoordinator` korrekt zurückgesetzt +
-  `window.collectionBehavior` explizit gesetzt.
-- **„Von Anfang" startete mitten im Video** (Transcode): identischer Root-Cause wie im Browser
-  (DECISIONS.md „„Von Anfang" startet mitten im Film") — `&fresh=1` + `_t=<timestamp>`
-  Cache-Bust an die Transcode-URL (`PlayerView.transcodeURLWithParams`).
-- Per-User-Isolation für lokale Bibliotheken/Downloads/Shuffle-Scope nachgezogen (gleiche
-  Fehlerklasse wie der frühere Android-Bug: fehlender User-Filter).
-- **Bibliotheks-Vorschaubilder offline weg** (Build 165): `hydratePreviewsFromCache()` lief nur
-  im Online-Erfolgsfall. Fix: läuft jetzt immer, unabhängig vom Netzwerk-Call; Poster pro
-  Bibliothek wird nur noch einmalig zufällig gezogen statt bei jedem Öffnen überschrieben.
-- **Zufallsmodus-Auto-Weiter** (Build 173): `PlayerView`/`LocalPlayerView` starten am Videoende
-  automatisch das nächste Zufallsvideo (`jumpRandom(by:1)`/`jump(by:1)`), gleicher Pfad wie ⏭.
-- **Gesehene Downloads löschen + Staffel-Gesehen + lokale Sternebewertung** (Build 174):
-  Downloads-Toolbar hat „Alle gesehenen löschen"; `ShowSeasonsView.SeasonCard` markiert eine
-  ganze Staffel auf einmal gesehen; lokale Items haben eine 0–3-Sternebewertung.
-- **Ton-/Untertitel-Dropdowns im Detail-Dialog + Untertitel-Overlay** (Build 179, aktuelle
-  Architektur): `ItemDetailView` hat zwei `Picker` (🔊 Tonspur = alle Audiostreams, 💬
-  Untertitel = nur `MediaStream.isDisplayableGeneratedSub`, Bitmap-Subs raus). Streams kommen
-  aus `client.playback(itemId:)` (nicht `fetchItem`). Auswahl → `preferredAudioIndex`/
-  `preferredSubtitle` in `PlayerLaunchRequest`/`PlayerView`. `PlayerView` rendert ein eigenes
-  WebVTT-Overlay; `currentTime` ist im Transcode-Modus bereits absolut (kein Cue-Shift wie im
-  Browser nötig).
-- **Offline→online: „Session abgelaufen" ohne Weg zurück** (Build 166): Session wurde nach
-  Reconnect nie neu abgeglichen, 401 wurde fälschlich als Connectivity-Fehler behandelt. Fix:
-  `GoldfishClient.isAuthError()`/`markSessionInvalid()` + Session-Re-Check bei jedem
-  Vordergrund-Wechsel + „Erneut versuchen"-Button.
-- **SSO-Login schlug still fehl** (Build 167, WKWebView-Cookie-Timing) + **SSO-Sheet war auf
-  macOS leer** (Build 168, `NSViewRepresentable` ohne explizite Größe) — zwei unabhängige Bugs
-  auf demselben Flow, Sheet-Bug kam zuerst. Fixe: Cookie-Poll bis ~2,5s + explizite Sheet-Größe
-  (`minWidth:720, minHeight:760`).
-- **Passwort-Manager-AutoFill** (Build 169): `.textContentType(.username/.password)` auf den
-  Login-Feldern nachgerüstet.
-- **Signierung/Team-ID + Version in `project.yml`** (2026-08-28, mit ⚠ Team-ID-Falle bei
-  Mac-Wechsel — siehe DECISIONS.md): `DEVELOPMENT_TEAM` + `CFBundleVersion` zentral in
-  `project.yml`.
-  **✅ Überholt seit 2026-09-04: Mit dem jetzt aktiven bezahlten Account
-  (Team `SYQL3PUXA9`, siehe `feedback_apple_versioning.md`) signiert
-  `xcodebuild ... -allowProvisioningUpdates` auch auf echte, per Xcode
-  gepaarte Geräte per CLI** — verifiziert für sowohl `GoldfishiOS` (echtes
-  iPhone) als auch `GoldfishTV` (echter Apple TV):
-  `xcodebuild -scheme <Target> -destination 'id=<devicectl-UDID>'
-  -allowProvisioningUpdates build`, danach `xcrun devicectl device install
-  app --device <UDID> <Pfad>.app` + `xcrun devicectl device process launch
-  --device <UDID> <bundle-id>`. Geräte-UDIDs via `xcrun devicectl list
-  devices`. Die alte „Free-Personal-Team kann nicht signieren"-Einschränkung
-  galt nur für den damaligen kostenlosen Account — bei einem künftigen
-  Account-/Team-Wechsel zurück auf kostenlos gilt sie wieder, dann zuerst
-  hier + `feedback_apple_versioning.md` nachsehen, ob der Account noch
-  bezahlt ist, bevor man CLI-Signierung erneut versucht.
-- **SSO-Kontowechsel unmöglich** (Build 171): `WKWebsiteDataStore` war persistent. Fix: Button
-  „Mit anderem Konto anmelden" leert den DataStore vor dem Laden. SSO ist immer nur ein aktives
-  Konto gleichzeitig; Offline-Kontowechsel bleibt passwort-only.
-- Sammlungen sortieren Filme jetzt chronologisch nach Erscheinungsdatum, wie im Browser.
-- **Gesehen-Status propagierte nicht ans Downloads-Grid**: Downloads-Kacheln rendern aus einem
-  beim Download eingefrorenen JSON-Snapshot. Fix: `Item.withWatched(_:)` +
-  `DownloadManager.updateCachedWatched(itemId:watched:)` an jedem `setWatched`-Call-Site.
-- **Tonspur-Auswahl bei Server-Transcode** (Build 176, aktuelle Architektur): Auswahl läuft über
-  `PlaybackResponse.streams` + `&audio=<index>` an der Transcode-URL,
-  `restartTranscodeSession` an der aktuellen Position (Browser-Pendant: Audio-Dropdown im
-  Player-Dialog). Zweites `waveform`-Menü in `PlayerControlsBar`, sichtbar bei >1 Spur.
-- **Serien-Ordner zeigte Ordner-Kacheln UND rekursiv alle Folgen gleichzeitig**
-  (Build 184/185/3, 2026-09-06, User-Report mit Screenshots Mac+iOS): der
-  `ShowSeasonsView`-Fallback (keine TMDB-Staffel-Struktur, z. B. "Terra X
-  History") übergab einen konkreten Ordnerpfad an `ItemGridView` — dort lud
-  `effectiveFolder=folder` REKURSIV alle Dateien (der Server kennt kein
-  "nur direkte Kinder eines Unterpfads", nur `""`=alles/`"/"`=echte
-  Bibliotheks-Root/`"<path>"`=rekursiv darunter, siehe `internal/store/sqlite.go
-  ListItems`), während gleichzeitig `showsFolderTiles=true` die direkten
-  Unterordner als Kacheln zeigte — dieselben Dateien erschienen doppelt.
-  Fix: die (weiterhin rekursiv geladenen) Items werden client-seitig auf
-  echte direkte Kinder gefiltert (`relPath` ohne weiteren `/` nach dem
-  `folder`-Präfix), wenn Ordner-Kacheln gleichzeitig gezeigt werden — bewahrt
-  Drilldown-Fähigkeit für Ordner mit sinnvoller Unterstruktur (Tatort-
-  Kommissar-Duos), ohne Duplizierung. Auf echtem iPhone + Apple TV installiert
-  und getestet, Mac-App auf Desktop kopiert. Details: `goldfish-apple`-Repo,
-  Commit `0be7a4b`.
-
-## Gesehen-Sync zwischen zwei Usern (seit 2026-08-19)
-- User-Anfrage: zwei eigene Accounts (z. B. Christian + Alex/Börnie) sollen
-  ihren Gesehen-Status synchronisieren können, mutual opt-in (beide müssen
-  bestätigen), und respektiert dabei die eigene Library-ACL + FSK-Grenze
-  **des Partners** — es werden nur Items gespiegelt, die der Partner selbst
-  sehen dürfte.
-- **Bewusst server-seitig implementiert** (nicht nur in der Mac-App), damit
-  der Sync für ALLE Clients automatisch funktioniert (Browser, Android, Mac).
-- Server (`~/Projekte/Videoplayer/`):
-  - Neue Tabelle `user_watch_links` (`internal/store/sqlite.go`): eine Zeile
-    pro Paar (`user_a_id < user_b_id` per CHECK erzwungen, normalisiert via
-    `normalizeWatchLinkPair`), `status` ∈ `pending`/`accepted`,
-    `requester_id` für die UI-Anzeige "wartet auf …". Anfrage + Gegenanfrage
-    vom Partner bestätigt automatisch (kein doppeltes pending nötig).
-  - Store: `internal/store/watch_links.go` — `RequestWatchLink`,
-    `ConfirmWatchLink`, `UnlinkWatchLink` (dient auch als Ablehnen — Zeile
-    wird einfach gelöscht), `GetWatchLinks`, `ActiveWatchPartnerIDs`.
-  - API: `internal/api/watch_links.go` + Routen in `router.go` (alle
-    authenticated, NICHT admin-only — jeder User verwaltet nur seine
-    eigenen Links):
-    ```
-    GET    /api/users/names            — Partner-Picker (nur id+username)
-    GET    /api/watch-links            — eigene Links (aktiv + offen)
-    POST   /api/watch-links            {username}
-    POST   /api/watch-links/{partnerId}/confirm
-    DELETE /api/watch-links/{partnerId}  — trennen ODER ablehnen
-    ```
-  - **Propagation-Hook** in `setWatched` (`internal/api/watched.go`):
-    `propagateWatchedToLinkedPartners` (in `watch_links.go`) läuft NACH dem
-    eigenen `SetWatchedFor`, holt alle `ActiveWatchPartnerIDs`, prüft pro
-    Partner `Store.UserHasLibraryAccess` + eine neue reine (writer-lose)
-    `isAgeAllowedForUser`-Variante von `requireAgeAllowed` (Refactor:
-    `requireAgeAllowed` ist jetzt ein dünner HTTP-Wrapper darum) und
-    spiegelt nur bei Erlaubnis via `Store.SetWatchedFor(partner.ID, …)`.
-    Fehler werden nur geloggt — Sync ist Komfort-Feature, kein Blocker
-    (Pattern analog NFO-Auto-Write).
-- Mac-App: `GoldfishClient` (`fetchOtherUsers`, `fetchWatchLinks`,
-  `requestWatchLink`, `confirmWatchLink`, `unlinkWatchLink`) + neue Models
-  `OtherUser`/`WatchLink` in `GoldfishCore/Models/Models.swift`. UI:
-  neue Section „Gesehen-Sync" in `SettingsView.swift` (Zusammenfassungszeile
-  via `watchLinkSummary`) → `WatchLinkSettingsView.swift` (Partner-Picker,
-  Bestätigen/Ablehnen/Trennen-Buttons).
-- Browser/Android-UI für den Partner-Picker **noch nicht gebaut** — nur der
-  Server-Endpoint + die Mac-App-UI sind live. Sync wirkt serverseitig aber
-  bereits für Watched-Toggles aus JEDEM Client, sobald eine Verknüpfung
-  `accepted` ist (auch aus dem Browser heraus, nur die Verwaltungs-UI dafür
-  fehlt dort noch).
-
-## Auflösung + FSK im Detail-Dialog (Mac-App, seit 2026-08-19)
-- `ItemDetailView.swift`: FSK-Badge neben der bereits vorhandenen
-  Auflösungs-Anzeige, liest `item.metadata?.ageRating` (liefert auch für
-  Episoden korrekt, wenn der Server das Parent-Show-Rating durchreicht).
-  Nur in der Mac/iOS-App — kein Server-Change nötig, das Feld kam schon vorher
-  in der Item-JSON mit.
-- **Noch offen:** `ShowSeasonsView.swift`'s `ShowHeader` (Serien-Übersicht)
-  zeigt noch keine FSK — der Server liefert dafür aktuell KEIN Age-Rating-
-  Feld im `ShowOut`-Struct (`internal/api/series.go`), müsste separat
-  ergänzt werden. Nicht Teil dieser Runde.
-
-## Was die App NICHT hat
-- Kein Windows/Linux-Target (nur macOS + iOS).
-
-## Eigenes Passwort ändern + schlanke iPhone-App (Build 181, 2026-09-02)
-
-- **Passwort ändern:** `GoldfishClient.changePassword(oldPassword:newPassword:)`
-  (`PUT /api/auth/password`, gleicher Endpoint wie im Browser) + neuer
-  „Passwort ändern…"-Button in `SettingsView.swift`s Account-Section, öffnet
-  `ChangePasswordSheet` (zwei `SecureField`s, `canSave` ab 6 Zeichen neues
-  Passwort, grünes Erfolgs-Feedback, Server-Fehlertext inline rot). War
-  bisher komplett gefehlt — der Browser konnte es (`PUT /api/auth/password`
-  existiert dort schon lange), die App nicht.
-- **iOS als reiner Online-Player (User-Anfrage 2026-09-02):** GoldfishiOS
-  soll „grundsätzlich nur zum Abspielen der Videos aus den online
-  Bibliotheken" da sein + Downloads. Alles, was **lokale/externe
-  Bibliotheken** betrifft, ist in `SettingsView.swift` jetzt in
-  `#if os(macOS) … #endif` gewrappt und existiert im iOS-Build gar nicht
-  mehr: „Lokale Bibliotheken" (hinzufügen/umbenennen/löschen/rescannen),
-  „Lokale Wiedergabe"-Puffer-Regler, „Bibliotheken zusammenlegen",
-  „Duplikate finden". **Downloads sind davon NICHT betroffen** — die laufen
-  über einen komplett separaten Pfad (`PlayerView` + `downloads.localFileURL`),
-  der `LocalPlaybackSettings.bufferSeconds` nie referenziert (das nutzt
-  ausschließlich `LocalPlayerView.swift`, verifiziert per Grep vor dem
-  Trimmen). `LibrariesView.swift`/`RootView.swift` brauchten keine Änderung —
-  die lokalen Bibliotheks-Kacheln verschwinden von selbst, sobald
-  `localLibrary.libraries` durch den fehlenden Einstiegspunkt leer bleibt.
-  Filter/Sortierung/Suche bleiben zwischen Mac und iOS identisch (gemeinsamer
-  Code, nicht angefasst — User-Vorgabe „funktionsmäßig an der Apple App
-  orientieren").
-- **Build-Nummer:** `CFBundleVersion` liegt seit 2026-08-28 direkt in
-  `project.yml` (beide Targets), nicht mehr nur in den Info-plists — dort auf
-  **181** angehoben, danach `xcodegen generate` laufen lassen (Entitlements
-  bleiben dabei `<dict/>`, kein Reset beobachtet dieses Mal).
-- **`GoldfishMac` baut sauber** (`xcodebuild … CODE_SIGN_STYLE=Manual
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`).
-  `GoldfishiOS` konnte in dieser Session **nicht** per CLI verifiziert werden
-  (siehe „⚠ iOS-Simulator-Runtime" unten) — steht noch aus.
-
-### ✅ iOS-Simulator-Runtime ließ sich zunächst nicht sauber installieren (behoben)
-War zeitweise blockiert: fehlende Simulator-Runtime + Xcode-GUI-Downloads-Fenster zeigte
-wiederholt „Failed — Duplicate of `<UUID>`" beim iOS-26.5-Download (`xcodebuild
--downloadPlatform iOS` lud zwar herunter, persistierte das Image aber nicht — vermutlich
-fehlende Root-Rechte für den Cryptex-Mount aus dem nicht-interaktiven Terminal-Tool heraus).
-**Per Mac-Neustart am 2026-09-02 behoben** (räumt hängende CoreSimulator-/Downloadd-
-Prozesshandles auf, die einzelne `killall`-Befehle nicht lösten) — `GoldfishiOS` baut seither
-auch im Simulator sauber (iPhone 17 Pro, iOS 26.5). Volle Fehlerbeschreibung: Memory
-`feedback_ios_simulator_duplicate_bug`.
-
-## Lokale Bibliotheken — Player/Formatanpassung/Puffer (seit 2026-08-24, Stand Build 0153)
-
-Externe Datenträger (USB-Platten, SD-Karten) als lokale Bibliotheken. Mehrere I/O-Contention-
-Bugs und ihre Fixes (Formatanpassung pausiert nicht während Wiedergabe, Cache-Cap nicht
-disk-space-aware, Eviction warf teure Re-Encodes raus, verwaiste ffmpeg-Prozesse, N parallele
-Thumbnail-Loops) sind ausgelagert in DECISIONS.md „Lokale Bibliotheken (GoldfishApple)" —
-**Diagnose-Reflex bei künftigen Ruckel-Reports:** `ps aux | grep ffmpeg` (Zombie-Check) +
-`lsof +D <externes-Volume>` während Wiedergabe.
-
-Aktueller Stand (Architektur, bleibt hier):
-- **Resume-Dialog**: `LocalLibraryItemsView`-Kachel-Tap fragt wie bei Server-Items
-  "Von Anfang/Fortsetzen" (`LocalPlayerLaunchRequest.startFromBeginning`).
-- **Mauszeiger**: `setHiddenUntilMouseMoves(true)` statt manuellem `NSCursor.hide()/unhide()`-
-  Pairing (letzteres ist app-weit refcounted, nicht fensterbezogen, und leakte bei
-  `onDisappear`-Ausfall).
-- **Formatanpassungs-Priorität**: nur Dateien mit ECHTEM Re-Encode-Bedarf (AV1/VP9/…) werden
-  bedingungslos vorab konvertiert; reine Remuxe (HEVC/H264/ProRes, `-c:v copy`) nur wenn im
-  Cache noch Platz ist. `LocalTranscodeService.beginPlayback()`/`endPlayback()`/
-  `waitWhilePlaybackActive()` pausiert die Queue während aktiver Wiedergabe.
-- **Cache-Cap**: `maxCacheBytes` (80 GB nominell) + `minFreeBytes` (15 GB) über
-  `.volumeAvailableCapacityKey` (bewusst NICHT `...ForImportantUsage`). Slow/Fast-
-  Klassifizierung persistiert in `.slow-classification.json` — Eviction opfert erst schnelle
-  (billige) Einträge, dann langsame (teure Re-Encodes).
-- **Puffer-Regler**: `LocalPlaybackSettings.bufferSecondsKey` (global, Default 60s) steuert
-  `AVPlayerItem.preferredForwardBufferDuration`. Kein "X Sekunden garantiert ruckelfrei"-Wert —
-  nur ein Vorauslese-Ziel.
-- **Auflösung für lokale Items**: `LocalItem.width/height` (AVAssetTrack-Probing, funktioniert
-  auch auf iOS), gleiche Bucket-Grenzen wie der Server. Wird nur beim SCANNEN ermittelt —
-  Bestandsbibliotheken brauchen einmal "Neu einlesen".
-- **Auflösungs-Sortierung auch für Server-Bibliotheken nachgezogen**: `ItemSort.resolution`
-  (Server unterstützte `sort=resolution` schon lange, fehlte nur im Mac-Client).
-- **Gesamtgröße neben Datei-Anzahl**: `DisplaySettings.showTotalSizeKey` (gemeinsamer Schalter
-  für Server- UND lokale Bibliotheken), Toggle im "Filter"-Menü.
-- **Downloads fortsetzbar nach Verbindungsabbruch**: `DownloadRecord.resumeData` — nicht bei
-  jedem Abbruch garantiert (fragile Foundation-API), fällt sonst auf Neustart zurück.
-- **Download-Metadaten-Nachkorrektur**: falsch zugeordnete, bereits heruntergeladene Items
-  korrigieren sich beim nächsten Öffnen des Downloads-Tabs automatisch, sobald online.
-- **Löschen im lokalen Player + "Alle Downloads löschen"**: 🗑-Button in
-  `LocalPlayerView`/`LocalPlayerControlsBar` (Bestätigungsdialog); `DownloadManager
-  .deleteAllDownloads()` bricht laufende Downloads über `tasks[itemId]?.cancel()` ab, NICHT
-  über `cancelDownload()` (das würde den Record vorzeitig löschen).
+> **Die volle Architektur/Bugfix-Chronik/Build-Notizen stehen jetzt in der
+> CLAUDE.md dieses App-Repos** (nicht mehr hier) — bei jeder Änderung, die
+> diese App betreffen könnte, dort nachsehen bzw. das Repo direkt öffnen.
+>
+> **Die wichtigsten Dauer-Constraints, die JEDE Session kennen muss:**
+> - SSO läuft über WKWebView (nicht wie Android komplett ohne OIDC) —
+>   `WKWebsiteDataStore` ist persistent, ein Kontowechsel muss ihn explizit leeren.
+> - **tvOS:** `Menu` in der Toolbar öffnet zuverlässig NICHTS — immer
+>   `.sheet`/`.confirmationDialog` für neue tvOS-UI.
+> - Eine persistente Leiste (Mini-Player) darf auf iOS NIE als
+>   `.safeAreaInset` außen um eine `TabView` gelegt werden — blockiert die
+>   native Tab-Leiste komplett. Muss pro Tab-Inhalt eingebunden werden.
+> - Kein Windows/Linux-Target (nur macOS + iOS + tvOS).
+>
+> **Bei API-Änderungen prüfen:** `GoldfishCore/GoldfishClient.swift` +
+> `GoldfishCore/Models/Models.swift` im App-Repo.
 
 ---
 
