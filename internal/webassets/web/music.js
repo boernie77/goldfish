@@ -353,10 +353,17 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     const deleteBtn = (state.me && state.me.isAdmin)
       ? `<button type="button" class="delete-toggle" title="Album löschen" data-toggle-delete-album aria-label="Album löschen">🗑</button>`
       : "";
+    // Edit-Overlay (seit 2026-09-12, symmetrisch zur Listenansicht) — öffnet
+    // denselben Album-Metadaten-Dialog wie der ✏-Button im Album-Detail-
+    // Header, direkt aus der Kachel-Übersicht.
+    const editBtnHtml = (state.me && state.me.isAdmin)
+      ? `<button type="button" class="edit-toggle" title="Album-Metadaten bearbeiten" data-toggle-edit-album aria-label="Album-Metadaten bearbeiten">✏</button>`
+      : "";
     el.innerHTML = `
       <div class="thumb">
         <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${cover}">
         <button type="button" class="fav-toggle ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav aria-label="${a.favorite ? "Favorit" : "Kein Favorit"}">${a.favorite ? "♥" : "♡"}</button>
+        ${editBtnHtml}
         ${deleteBtn}
         <span class="folder-count">${a.trackCount || 0} Titel</span>
       </div>
@@ -368,6 +375,8 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     el.addEventListener("click", (ev) => {
       const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
       if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+      const editBtn = ev.target && ev.target.closest("[data-toggle-edit-album]");
+      if (editBtn) { ev.stopPropagation(); openEditAlbumMetaDialog(a); return; }
       const delBtn = ev.target && ev.target.closest("[data-toggle-delete-album]");
       if (delBtn) {
         ev.stopPropagation();
@@ -545,6 +554,14 @@ function renderAlbumRow(a, columns) {
       case "fav":
         html += `<button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>`;
         break;
+      case "editMeta":
+        // Admin-only, seit 2026-09-12 (User-Report: "jetzt fehlt dort das
+        // Bearbeiten Zeichen" — öffnet denselben Album-Metadaten-Dialog wie
+        // der ✏-Button im Album-Detail-Header, direkt aus der Übersicht).
+        html += (state.me && state.me.isAdmin)
+          ? `<button type="button" class="edit-toggle track-row-edit" title="Album-Metadaten bearbeiten" data-edit-album aria-label="Album-Metadaten bearbeiten">✏</button>`
+          : `<span></span>`;
+        break;
       case "delete":
         // Admin-only, seit 2026-09-12 (User-Wunsch: "in der Listenansicht
         // auch ... Alben löschen können") — löscht ALLE Titel des Albums.
@@ -558,6 +575,8 @@ function renderAlbumRow(a, columns) {
   row.addEventListener("click", (ev) => {
     const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
     if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+    const editBtn = ev.target && ev.target.closest("[data-edit-album]");
+    if (editBtn) { ev.stopPropagation(); openEditAlbumMetaDialog(a); return; }
     const delBtn = ev.target && ev.target.closest("[data-delete-album]");
     if (delBtn) {
       ev.stopPropagation();
@@ -739,15 +758,16 @@ const MUSIC_LIST_CONTEXTS = {
   overview: {
     fixedLeading: ["cover"],
     reorderable: ["title", "artist", "genre", "count"],
-    // "delete" seit 2026-09-12 ergänzt (User-Wunsch: "Ich möchte in der
-    // Listenansicht auch ... Alben löschen können") — die Album-Übersicht
-    // hat keinen Edit-Button (Metadaten-Edit gibt es nur im Album-Detail-
-    // Header), aber ein eigener Lösch-Icon-Slot war trotzdem nötig.
-    fixedTrailing: ["fav", "delete"],
+    // "editMeta"/"delete" seit 2026-09-12 ergänzt (User-Wunsch: "in der
+    // Listenansicht auch ... Alben löschen können", danach Nachfrage: "jetzt
+    // fehlt dort das Bearbeiten Zeichen" — Metadaten-Edit gab es bis dahin
+    // nur im Album-Detail-Header, jetzt zusätzlich direkt aus der Übersicht
+    // erreichbar, symmetrisch neben dem Lösch-Icon).
+    fixedTrailing: ["fav", "editMeta", "delete"],
     labels: { title: "Album", artist: "Künstler", genre: "Genre", count: "Titel" },
     defaultWidths: { title: 260, artist: 160, genre: 120, count: 90 },
     minWidths: { title: 100, artist: 80, genre: 70, count: 60 },
-    fixedWidths: { cover: 40, fav: 32, delete: 32 },
+    fixedWidths: { cover: 40, fav: 32, editMeta: 32, delete: 32 },
   },
   album: {
     fixedLeading: ["track"],

@@ -48,7 +48,30 @@ type musicItemTag struct {
 // Dateien direkt im Bibliotheks-Root (kein Unterordner) haben keinen
 // gemeinsamen Ordner, der mehrere Tracks bündeln könnte — die behalten das
 // alte reine (artist,album)-Tag-Verhalten (siehe musicGroupKey).
+//
+// GroupMusicAlbums (force=false, Scan-Pfad) schützt ein bereits gesetztes
+// music_albums.genre/.year bewusst vor dem Recompute — ein Rescan, der aus
+// den rohen Datei-Tags plötzlich eine leere/andere Kombination liest, darf
+// einen vorher per MusicBrainz oder manuellem Edit gesetzten Wert nicht
+// stillschweigend wieder verlieren. GroupMusicAlbumsForce (force=true) ist
+// für die beiden expliziten Admin-Edit-Pfade (UpdateMusicItemMetadata/
+// UpdateMusicAlbumMetadata) gedacht — dort SOLL der frisch aus den (gerade
+// geänderten) Items neu berechnete Wert die Aggregat-Zeile überschreiben,
+// sonst bleibt eine bewusste Korrektur in der Albenübersicht für immer
+// unsichtbar (🔴 User-Report 2026-09-12: Titelübersicht zeigte das neue
+// Genre korrekt, Albenübersicht weiterhin das alte — der erste Fix dafür
+// hatte nur UpdateMusicAlbumMetadata separat gepatcht und damit denselben
+// Bug im Track-Edit-Pfad übersehen).
 func (s *Store) GroupMusicAlbums(libraryID int64) error {
+	return s.groupMusicAlbums(libraryID, false)
+}
+
+// GroupMusicAlbumsForce siehe GroupMusicAlbums-Kommentar oben.
+func (s *Store) GroupMusicAlbumsForce(libraryID int64) error {
+	return s.groupMusicAlbums(libraryID, true)
+}
+
+func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 	rows, err := s.db.Query(
 		`SELECT id, rel_path, artist, album, genre, year FROM items
 		 WHERE library_id = ? AND (artist != '' OR album != '')`,
@@ -82,11 +105,15 @@ func (s *Store) GroupMusicAlbums(libraryID int64) error {
 		if artist == "" && album == "" {
 			continue
 		}
+		genreClause := `genre = CASE WHEN music_albums.genre = '' AND excluded.genre != '' THEN excluded.genre ELSE music_albums.genre END`
+		yearClause := `year = CASE WHEN music_albums.year = 0 AND excluded.year != 0 THEN excluded.year ELSE music_albums.year END`
+		if force {
+			genreClause = `genre = excluded.genre`
+			yearClause = `year = CASE WHEN excluded.year != 0 THEN excluded.year ELSE music_albums.year END`
+		}
 		if _, err := s.db.Exec(
-			`INSERT INTO music_albums(library_id, artist, album, genre, year) VALUES(?, ?, ?, ?, ?)
-			 ON CONFLICT(library_id, artist, album) DO UPDATE SET
-			   genre = CASE WHEN music_albums.genre = '' AND excluded.genre != '' THEN excluded.genre ELSE music_albums.genre END,
-			   year = CASE WHEN music_albums.year = 0 AND excluded.year != 0 THEN excluded.year ELSE music_albums.year END`,
+			fmt.Sprintf(`INSERT INTO music_albums(library_id, artist, album, genre, year) VALUES(?, ?, ?, ?, ?)
+			 ON CONFLICT(library_id, artist, album) DO UPDATE SET %s, %s`, genreClause, yearClause),
 			libraryID, artist, album, genre, year,
 		); err != nil {
 			return err
@@ -196,7 +223,11 @@ func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album strin
 	); err != nil {
 		return err
 	}
-	return s.GroupMusicAlbums(libraryID)
+	// Force-Variante (siehe GroupMusicAlbums-Kommentar): ein expliziter
+	// Admin-Edit soll den frisch berechneten Wert in die Aggregat-Zeile
+	// durchreichen, nicht am Schutz gegen versehentliches Scan-Überschreiben
+	// scheitern.
+	return s.GroupMusicAlbumsForce(libraryID)
 }
 
 // UpdateMusicAlbumMetadata schreibt manuell korrigierte Album-Metadaten
@@ -214,16 +245,17 @@ func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album strin
 // 🔴→✅ "Albenübersicht zeigt weiterhin das alte Genre" (gefixt 2026-09-12,
 // User-Report direkt nach dem Genre-Ändern eines Albums: Titelübersicht
 // zeigte korrekt das neue Genre, die Album-Kachel/-Liste aber weiterhin das
-// alte): GroupMusicAlbums' UPSERT schützt ein bereits gesetztes
+// alte, UND selbst nach einem ersten (unzureichenden) Fix hier weiterhin
+// bei einem Genre-Edit über den TRACK-Dialog statt des Album-Dialogs):
+// GroupMusicAlbums' UPSERT schützt ein bereits gesetztes
 // music_albums.genre/.year BEWUSST vor dem automatischen Recompute bei
 // einem Scan (verhindert, dass ein Rescan einen vorher manuell/per
 // MusicBrainz gesetzten Wert wieder verliert) — genau dieser Schutz
 // verhinderte aber auch, dass ein EXPLIZITER Admin-Edit hier je in der
 // Aggregat-Zeile ankommt, obwohl alle zugehörigen Tracks längst den neuen
-// Wert tragen. Fix: nach GroupMusicAlbums() wird music_albums für genau
-// dieses (artist,album)-Paar noch einmal GEZIELT überschrieben — Genre
-// immer (auch auf "" leeren, falls der Admin das Feld bewusst leert),
-// Jahr nur bei year>0 (0 bleibt wie überall in dieser Datei "unverändert").
+// Wert tragen. Der erste Fix-Versuch patchte das nur lokal in dieser
+// Funktion — GroupMusicAlbumsForce (siehe Kommentar dort) löst es jetzt
+// zentral für BEIDE Edit-Pfade (Album- und Track-Dialog).
 func (s *Store) UpdateMusicAlbumMetadata(albumID int64, artist, album, genre string, year int) error {
 	var libraryID int64
 	if err := s.db.QueryRow(`SELECT library_id FROM music_albums WHERE id = ?`, albumID).Scan(&libraryID); err != nil {
@@ -242,17 +274,7 @@ func (s *Store) UpdateMusicAlbumMetadata(albumID int64, artist, album, genre str
 	); err != nil {
 		return err
 	}
-	if err := s.GroupMusicAlbums(libraryID); err != nil {
-		return err
-	}
-	if _, err := s.db.Exec(
-		`UPDATE music_albums SET genre = ?, year = CASE WHEN ? > 0 THEN ? ELSE year END
-		 WHERE library_id = ? AND artist = ? AND album = ?`,
-		genre, year, year, libraryID, artist, album,
-	); err != nil {
-		return err
-	}
-	return nil
+	return s.GroupMusicAlbumsForce(libraryID)
 }
 
 // musicGroupKey: physischer Elternordner ist die primäre Gruppierungs-

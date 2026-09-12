@@ -42,6 +42,40 @@ func TestUpdateMusicItemMetadata(t *testing.T) {
 	}
 }
 
+// TestUpdateMusicItemMetadataOverwritesExistingAlbumGenre sichert den
+// 2026-09-12-Bugfix für den TRACK-Edit-Pfad ab (die Schwester von
+// TestUpdateMusicAlbumMetadataOverwritesExistingGenre für den ALBUM-Edit-
+// Pfad in einer anderen Datei): TestUpdateMusicItemMetadata oben ändert
+// bewusst/versehentlich auch den Artist mit — das erzeugt über den
+// (library_id,artist,album)-Konfliktschlüssel eine BRANDNEUE music_albums-
+// Zeile (Insert statt Update) und umgeht den schützenden UPSERT-CASE-Guard
+// dadurch zufällig. Dieser Test hält Artist/Album bewusst UNVERÄNDERT, nur
+// das Genre ändert sich — genau der Fall, der beim User real fehlschlug
+// (Titelübersicht zeigte das neue Genre, Albenübersicht das alte).
+func TestUpdateMusicItemMetadataOverwritesExistingAlbumGenre(t *testing.T) {
+	s := newTestStore(t)
+	libID, err := s.CreateLibrary("Musik", t.TempDir(), model.KindMusic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := mustUpsertMusicItem(t, s, libID, "Hoerbuch/kapitel1.mp3", "Autor", "Mein Hoerbuch", "OldGenre")
+	if err := s.GroupMusicAlbums(libID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateMusicItemMetadata(id, "Kapitel 1", "Autor", "Mein Hoerbuch", 1, "NewGenre", 0); err != nil {
+		t.Fatal(err)
+	}
+
+	albums, err := s.ListMusicAlbums(libID, 0)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("expected 1 album, got %+v err=%v", albums, err)
+	}
+	if albums[0].Genre != "NewGenre" {
+		t.Fatalf("expected album aggregate genre to follow the track edit, got %+v", albums[0])
+	}
+}
+
 // TestUpdateMusicItemMetadataYearZeroKeepsExisting sichert ab, dass ein
 // leeres Jahr-Feld (year=0) den bestehenden Wert NICHT löscht — anders als
 // Genre/Artist/Album/Titel, die immer überschrieben werden, gibt es für
