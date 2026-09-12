@@ -315,7 +315,7 @@ async function loadItemsBody() {
   // nur bei aktiver Auswahl auslöst — nützlich für Serien wie Tatort, deren
   // Dateinamen Jahr+Episodennummer tragen, aber nicht durchgängig pro Folge
   // TMDB-gematcht sind.
-  const FLAT_SORTS = new Set(["played", "added", "duration", "released", "filename"]);
+  const FLAT_SORTS = new Set(["played", "added", "duration", "size", "released", "filename"]);
   const flatSort = $("#sortSelect").value;
   // Musik-Bibliotheken haben ihren EIGENEN Flat-Sort-Pfad weiter unten
   // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —

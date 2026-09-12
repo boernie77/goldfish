@@ -549,6 +549,12 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		} else {
 			q += ` ORDER BY i.duration_sec DESC`
 		}
+	case "size":
+		if asc {
+			q += ` ORDER BY i.size_bytes ASC`
+		} else {
+			q += ` ORDER BY i.size_bytes DESC`
+		}
 	case "resolution":
 		// Effektive Höhe (max(height, width*9/16)) — siehe Bucket-Filter.
 		// Default desc: höchste Auflösung zuerst.
