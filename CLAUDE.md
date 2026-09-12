@@ -203,6 +203,29 @@ oben gelten weiterhin immer.
 
 ---
 
+# 🐧 Linux-App (GoldfishLinux, seit 2026-09-12, v1 ungetestet auf echtem Linux)
+
+> **An jede Claude-Session, die Goldfish-Server-API anfasst:**
+> Es gibt außer Android/Apple auch einen **nativen Linux-Desktop-Client**
+> unter `github.com/boernie77/goldfish-linux` (privat, lokal
+> `~/Projekte/GoldfishLinux/`) — Python 3 + GTK4/libadwaita, als `.deb` für
+> Debian 12+/Ubuntu 24.04+/Mint 22+ paketiert (ältere Systeme mit
+> libadwaita < 1.4 werden bewusst NICHT unterstützt). v1 (2026-09-12) deckt
+> Login, Bibliotheks-/Ordner-Browser, Streaming (Direct Play/Transcode über
+> `Gtk.Video`) und Offline-Downloads ab — kein Cast, keine Staffel-Ansicht,
+> kein Admin-Bereich. Details/Architektur/Grenzen: Memory
+> `project_feature_goldfish_linux`.
+>
+> **Bei API-Änderungen prüfen:** `goldfish_linux/api.py` im dortigen Repo —
+> nutzt `/api/auth/login`, `/api/libraries`, `/api/libraries/{id}/folders`,
+> `/api/items`, `/api/playback/{id}` + den `?session=<token>`-Query-Fallback
+> (ursprünglich für Cast-Receiver gedacht) für die Video-Wiedergabe ohne
+> Cookie-Jar, `/api/download/{id}`, `/api/items/{id}/watched|favorite`.
+> **Konnte in der Entwicklungsumgebung (macOS) nicht auf echtem
+> GTK4/libadwaita getestet werden** — nur `py_compile`/`pyflakes` sauber.
+
+---
+
 # 🍎 Mac/iOS/tvOS-App (GoldfishApple, seit 2026-08-17)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
