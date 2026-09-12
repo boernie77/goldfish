@@ -209,7 +209,7 @@ async function loadItemsBody() {
     // Suchfeld-Beschriftung an die Bibliothek anpassen (User-Wunsch
     // 2026-09-04): "Titel oder Schauspieler" passt für Musik nicht (kein
     // Cast), dort sucht man nach Künstler/Album.
-    $("#searchInput").placeholder = isMusicKind ? "Künstler oder Album…" : "Titel oder Schauspieler…";
+    $("#searchInput").placeholder = isMusicKind ? "Titel, Künstler oder Album…" : "Titel oder Schauspieler…";
   }
 
   // Trickplay-Fehler-View (aus dem Trickplay-Manager-Dialog ausgelöst):
@@ -1144,7 +1144,7 @@ async function loadItemsBody() {
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
       renderBreadcrumb(musicSearchQ ? { searchCount: tracks.length } : {});
-      renderAllTracksList(grid, tracks);
+      renderAllTracksList(grid, tracks, musicSearchQ ? `Keine Treffer für „${musicSearchQ}".` : undefined);
       return;
     }
     if (musicFavActive) {
@@ -1181,28 +1181,35 @@ async function loadItemsBody() {
       renderAlbumTracks(grid, data, state.musicListView);
       return;
     }
-    // Album-Übersicht (Library-Root): eine aktive Suche soll — analog zur
-    // Serien-Bündelung im normalen Grid — ganze ALBEN als Treffer zeigen,
-    // nicht einzelne Titel-Kacheln (User-Wunsch 2026-09-04: "so wie auch bei
-    // den Serien"). Dafür erst die matchenden Tracks holen (der Such-Endpoint
-    // durchsucht bereits Titel+Artist+Album), daraus die betroffenen Album-
-    // IDs sammeln und die volle Albumliste darauf filtern — so bleiben Cover/
-    // Trackzahl/Artist korrekt (nicht aus den gefilterten Tracks abgeleitet).
+    // Eine aktive Suche zeigt die TREFFER-TITEL selbst als flache Liste
+    // (Titel/Künstler/Album), nicht nur die enthaltenden Alben als Kacheln
+    // (User-Report 2026-09-12: "man kann nicht nach Titeln suchen ... es
+    // soll der Titel als Treffer angezeigt werden"). Bisher bündelte eine
+    // Suche — analog zur Serien-Bündelung im normalen Grid — zu ganzen
+    // Album-Kacheln (User-Wunsch 2026-09-04), was einen Titel-Treffer
+    // nirgends als solchen zeigte, nur das umgebende Album. Nutzt denselben
+    // Zeilen-Renderer wie „Alle Titel" (`renderAllTracksList`).
+    if (musicSearchQ) {
+      let matches;
+      try {
+        const p = new URLSearchParams({
+          libraryId: state.currentLibrary,
+          search: musicSearchQ,
+          sort: currentSortMode(),
+          dir: effectiveSortDir(),
+        });
+        applyGenreFilter(p);
+        matches = await api(`/api/items?${p}`);
+      } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+      if (stale()) return;
+      renderBreadcrumb({ searchCount: matches.length });
+      renderAllTracksList(grid, matches, `Keine Treffer für „${musicSearchQ}".`);
+      return;
+    }
     let albums;
     try { albums = await api(`/api/libraries/${state.currentLibrary}/albums?${musicGenreQS()}`); }
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
-    if (musicSearchQ) {
-      let matches;
-      try { matches = await api(`/api/items?libraryId=${state.currentLibrary}&search=${encodeURIComponent(musicSearchQ)}`); }
-      catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
-      if (stale()) return;
-      const matchedAlbumIds = new Set(matches.filter(it => it.musicAlbumId).map(it => it.musicAlbumId));
-      albums = albums.filter(a => matchedAlbumIds.has(a.id));
-      renderBreadcrumb({ searchCount: albums.length });
-      renderAlbumTiles(grid, albums, state.musicListView, true);
-      return;
-    }
     renderBreadcrumb({});
     renderAlbumTiles(grid, albums, state.musicListView);
     return;

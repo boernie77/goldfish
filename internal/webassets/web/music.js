@@ -694,13 +694,13 @@ function renderAlbumTracks(grid, data, listView) {
 // (Künstler/Album/Titel/letzte Wiedergabe) — bewusst NUR als Liste, keine
 // Kachel-Variante (User-Wunsch 2026-09-04: eine Übersicht, um z. B. per
 // letzter Wiedergabe zu sortieren; als Kacheln wäre das unübersichtlich).
-function renderAllTracksList(grid, tracks) {
+function renderAllTracksList(grid, tracks, emptyMessage) {
   grid.innerHTML = "";
   grid.classList.add("track-list-grid");
   document.body.classList.remove("has-alpha-sidebar");
   const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
   if (!tracks.length) {
-    grid.innerHTML = `<div class="empty">Keine Titel in dieser Bibliothek.</div>`;
+    grid.innerHTML = `<div class="empty">${escapeHTML(emptyMessage || "Keine Titel in dieser Bibliothek.")}</div>`;
     return;
   }
   state.playQueue = tracks;
