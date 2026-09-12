@@ -210,6 +210,20 @@ func (s *Store) UpdateMusicItemMetadata(itemID int64, title, artist, album strin
 // geschrieben werden, danach GroupMusicAlbums die Aggregation neu berechnen.
 // `year=0` lässt das Jahr auf allen Tracks unverändert, exakt wie bei
 // UpdateMusicItemMetadata (0 ist kein gültiges Jahr, sondern "unverändert").
+//
+// 🔴→✅ "Albenübersicht zeigt weiterhin das alte Genre" (gefixt 2026-09-12,
+// User-Report direkt nach dem Genre-Ändern eines Albums: Titelübersicht
+// zeigte korrekt das neue Genre, die Album-Kachel/-Liste aber weiterhin das
+// alte): GroupMusicAlbums' UPSERT schützt ein bereits gesetztes
+// music_albums.genre/.year BEWUSST vor dem automatischen Recompute bei
+// einem Scan (verhindert, dass ein Rescan einen vorher manuell/per
+// MusicBrainz gesetzten Wert wieder verliert) — genau dieser Schutz
+// verhinderte aber auch, dass ein EXPLIZITER Admin-Edit hier je in der
+// Aggregat-Zeile ankommt, obwohl alle zugehörigen Tracks längst den neuen
+// Wert tragen. Fix: nach GroupMusicAlbums() wird music_albums für genau
+// dieses (artist,album)-Paar noch einmal GEZIELT überschrieben — Genre
+// immer (auch auf "" leeren, falls der Admin das Feld bewusst leert),
+// Jahr nur bei year>0 (0 bleibt wie überall in dieser Datei "unverändert").
 func (s *Store) UpdateMusicAlbumMetadata(albumID int64, artist, album, genre string, year int) error {
 	var libraryID int64
 	if err := s.db.QueryRow(`SELECT library_id FROM music_albums WHERE id = ?`, albumID).Scan(&libraryID); err != nil {
@@ -228,7 +242,17 @@ func (s *Store) UpdateMusicAlbumMetadata(albumID int64, artist, album, genre str
 	); err != nil {
 		return err
 	}
-	return s.GroupMusicAlbums(libraryID)
+	if err := s.GroupMusicAlbums(libraryID); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(
+		`UPDATE music_albums SET genre = ?, year = CASE WHEN ? > 0 THEN ? ELSE year END
+		 WHERE library_id = ? AND artist = ? AND album = ?`,
+		genre, year, year, libraryID, artist, album,
+	); err != nil {
+		return err
+	}
+	return nil
 }
 
 // musicGroupKey: physischer Elternordner ist die primäre Gruppierungs-

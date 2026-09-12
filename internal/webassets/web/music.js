@@ -496,6 +496,11 @@ async function handleEditAlbumMetaSubmit(e) {
     genre: f.genre.value.trim(),
     year: f.year.value ? Number(f.year.value) : 0,
   };
+  // Speichern-Button während der Anfrage deaktivieren — verhindert einen
+  // Doppel-Submit (z. B. ein zweiter, ungeduldiger Klick, während die erste
+  // Anfrage noch läuft), der sonst zwei überlappende PUTs auslösen könnte.
+  const submitBtn = document.querySelector('#editAlbumMetaDialog button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
   try {
     await api(`/api/albums/${album.id}/metadata`, { method: "PUT", body: JSON.stringify(body) });
     $("#editAlbumMetaDialog").close();
@@ -504,6 +509,8 @@ async function handleEditAlbumMetaSubmit(e) {
     showToast("Album-Metadaten gespeichert", { kind: "success" });
   } catch (err) {
     appAlert("Fehler: " + err.message);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 }
 

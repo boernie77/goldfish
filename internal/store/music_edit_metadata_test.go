@@ -69,6 +69,42 @@ func TestUpdateMusicItemMetadataYearZeroKeepsExisting(t *testing.T) {
 	}
 }
 
+// TestUpdateMusicAlbumMetadataOverwritesExistingGenre sichert den
+// 2026-09-12-Bugfix ab: GroupMusicAlbums' UPSERT schützt ein bereits
+// gesetztes music_albums.genre/.year bewusst vor dem automatischen
+// Neuberechnen bei einem Scan — das verhinderte aber auch, dass ein
+// expliziter Admin-Edit über UpdateMusicAlbumMetadata je in der
+// Aggregat-Zeile ankam (User-Report: Titelübersicht zeigte das neue Genre
+// korrekt, die Album-Kachel/-Liste weiterhin das alte).
+func TestUpdateMusicAlbumMetadataOverwritesExistingGenre(t *testing.T) {
+	s := newTestStore(t)
+	libID, err := s.CreateLibrary("Musik", t.TempDir(), model.KindMusic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustUpsertMusicItem(t, s, libID, "Old Album/01 Song.mp3", "Old Artist", "Old Album", "OldGenre")
+	if err := s.GroupMusicAlbums(libID); err != nil {
+		t.Fatal(err)
+	}
+	albums, err := s.ListMusicAlbums(libID, 0)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("expected 1 album, got %+v err=%v", albums, err)
+	}
+	albumID := albums[0].ID
+
+	if err := s.UpdateMusicAlbumMetadata(albumID, "Old Artist", "Old Album", "NewGenre", 2011); err != nil {
+		t.Fatal(err)
+	}
+
+	albums, err = s.ListMusicAlbums(libID, 0)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("expected 1 album after update, got %+v err=%v", albums, err)
+	}
+	if albums[0].Genre != "NewGenre" || albums[0].Year != 2011 {
+		t.Fatalf("expected album aggregate to reflect the edit, got %+v", albums[0])
+	}
+}
+
 // TestListMusicAlbumTracksIncludesGenre sichert ab, dass ListMusicAlbumTracks
 // (Datenquelle für GET /api/albums/{id}, die tatsächliche Album-Detail-
 // Trackliste im Frontend) das Genre pro Track mitliefert — Bug gefunden
