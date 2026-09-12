@@ -2776,7 +2776,7 @@ body.selection-mode .card { cursor: pointer; }
 }
 .show-header .detail-body { flex: 1; min-width: 0; }
 .show-header h2 { margin: 0 0 8px; font-size: 22px; }
-.fav-toggle-inline {
+.fav-toggle-inline, .header-action-btn {
   background: none;
   border: none;
   font-size: 20px;
@@ -2786,6 +2786,14 @@ body.selection-mode .card { cursor: pointer; }
   vertical-align: middle;
   margin-left: 8px;
 }
+/* .header-action-btn: neutraler Icon-Button neben einem Show/Album-Header-
+   Titel (✎ Bearbeiten, 🗑 Löschen) — geteilte Optik mit .fav-toggle-inline
+   (kein Rahmen/Hintergrund, reiner Glyph), aber ohne den fav-spezifischen
+   Klassennamen zu missbrauchen. Ersetzt seit 2026-09-12 die vorherige
+   .link-btn-Nutzung im Musik-Album-Header (blauer Unterstrich-Textlink sah
+   neben dem icon-only Favoriten-Herz inkonsistent aus, User-Feedback:
+   "das gefällt mir ... nicht"). */
+.header-action-btn:hover { color: rgba(255,255,255,0.9); }
 .fav-toggle-inline.is-on { color: #ef4444; }
 .show-header .sub { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 .show-header .overview { margin: 8px 0 16px; line-height: 1.5; color: var(--text); font-size: 14px; }

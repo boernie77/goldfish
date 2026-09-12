@@ -1177,7 +1177,7 @@ async function loadItemsBody() {
         const q = musicSearchQ.toLowerCase();
         data = { ...data, tracks: (data.tracks || []).filter(t => (t.title || "").toLowerCase().includes(q)) };
       }
-      renderBreadcrumb({});
+      renderBreadcrumb({ musicAlbumView: data.album || {} });
       renderAlbumTracks(grid, data, state.musicListView);
       return;
     }

@@ -721,18 +721,18 @@ function renderCard(it, opts = {}) {
   const fav = `<button type="button" class="fav-toggle ${it.favorite ? "is-on" : ""}" title="${it.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}" data-toggle-fav aria-label="${it.favorite ? "Favorit" : "Kein Favorit"}">${it.favorite ? "♥" : "♡"}</button>`;
   // Musik-Items haben keinen anderen Weg zum Edit-Metadata-Dialog — ein Klick
   // auf die Kachel spielt sofort ab (musicPlayAlbum, s. u.), öffnet NIE
-  // openDetail(), wo der ✏-Button im Detail-Dialog sonst sitzt (User-Bericht
+  // openDetail(), wo der ✎-Button im Detail-Dialog sonst sitzt (User-Bericht
   // 2026-09-06: "ich sehe bei der Musik keinen Button zum Bearbeiten der
   // Metadaten"). Eigener Kachel-Overlay-Button, admin-only, nur bei Musik.
   const editMeta = (isMusicLib && state.me && state.me.isAdmin)
-    ? `<button type="button" class="edit-toggle" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✏</button>`
+    ? `<button type="button" class="edit-toggle" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✎</button>`
     : "";
-  // Löschen-Overlay direkt neben dem ✏-Button (User-Wunsch 2026-09-12:
+  // Löschen-Overlay direkt neben dem ✎-Button (User-Wunsch 2026-09-12:
   // "neben jeden Bearbeitungsbutton auch ein Löschbutton") — gleiche
   // Sichtbarkeitsregel wie editMeta (Musik, admin-only), eigene Position
   // laut CLAUDE.md-Kachel-Koordinatentabelle-Empfehlung ("top:66 right:6").
   const deleteMeta = (isMusicLib && state.me && state.me.isAdmin)
-    ? `<button type="button" class="delete-toggle" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">🗑</button>`
+    ? `<button type="button" class="delete-toggle" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">${ICON_TRASH_SVG}</button>`
     : "";
   let tp = "";
   if (it.trickplayStatus === "done") {
@@ -862,7 +862,7 @@ function renderCard(it, opts = {}) {
       toggleFavoriteOnCard(it, favTog);
       return;
     }
-    // Click auf den ✏-Edit-Metadata-Button (nur Musik-Kacheln, admin-only):
+    // Click auf den ✎-Edit-Metadata-Button (nur Musik-Kacheln, admin-only):
     // Detail NICHT öffnen (gäbe es für Musik ohnehin nicht) und NICHT
     // abspielen — stattdessen direkt den Edit-Dialog öffnen.
     const editTog = ev.target && ev.target.closest("[data-toggle-edit-meta]");

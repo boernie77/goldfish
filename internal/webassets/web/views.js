@@ -1090,6 +1090,42 @@ function renderBreadcrumb(opts) {
     return;
   }
 
+  // musicAlbumView: geöffnetes Album einer Musik-Bibliothek — vorher hatte
+  // der Album-Detail-Header (music.js renderAlbumTracks) einen eigenen
+  // inline "←"-Button im .link-btn-Stil (blauer Unterstrich-Text), der
+  // optisch nicht zum runden .back-btn passte, den JEDE andere Bibliothek
+  // für "eine Ebene zurück" nutzt (User-Feedback 2026-09-12, mit
+  // Screenshot des Serien-Beispiels). Jetzt derselbe Button/dieselbe
+  // Stelle (#breadcrumb) wie überall sonst.
+  if (opts.musicAlbumView) {
+    const back = document.createElement("button");
+    back.className = "back-btn";
+    back.title = "Zurück zur Album-Übersicht";
+    back.textContent = "←";
+    back.addEventListener("click", () => {
+      state.currentAlbum = null;
+      // Restauriert einen beim Öffnen des Albums weggeräumten Suchbegriff
+      // (openMusicAlbum leert das Feld bewusst, siehe dort) — sonst
+      // verliert man einen Künstler-/Album-Filter beim Reingehen+Zurückgehen.
+      const si = $("#searchInput");
+      if (si && state.albumSearchStash) si.value = state.albumSearchStash;
+      state.albumSearchStash = "";
+      loadItems();
+    });
+    bc.appendChild(back);
+    const cur = document.createElement("span");
+    cur.className = "current";
+    cur.textContent = "🎵 " + (opts.musicAlbumView.album || "Album");
+    bc.appendChild(cur);
+    if (opts.musicAlbumView.artist) {
+      const count = document.createElement("span");
+      count.className = "count";
+      count.textContent = opts.musicAlbumView.artist;
+      bc.appendChild(count);
+    }
+    return;
+  }
+
   if (state.personFilter) {
     const back = document.createElement("button");
     back.className = "back-btn";

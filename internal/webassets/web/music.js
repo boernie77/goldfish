@@ -347,17 +347,17 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     el.setAttribute("role", "button");
     const cover = a.coverSource ? `/api/poster/album/${a.id}` : "/placeholder.svg";
     // Löschen-Overlay (admin-only, seit 2026-09-12): Album-Tiles hatten
-    // bisher keinen ✏-Button (Metadaten-Edit gibt es nur im Album-Detail-
+    // bisher keinen ✎-Button (Metadaten-Edit gibt es nur im Album-Detail-
     // Header) — trotzdem soll man ein Album auch direkt aus der Übersicht
     // löschen können, ohne es erst öffnen zu müssen.
     const deleteBtn = (state.me && state.me.isAdmin)
-      ? `<button type="button" class="delete-toggle" title="Album löschen" data-toggle-delete-album aria-label="Album löschen">🗑</button>`
+      ? `<button type="button" class="delete-toggle" title="Album löschen" data-toggle-delete-album aria-label="Album löschen">${ICON_TRASH_SVG}</button>`
       : "";
     // Edit-Overlay (seit 2026-09-12, symmetrisch zur Listenansicht) — öffnet
-    // denselben Album-Metadaten-Dialog wie der ✏-Button im Album-Detail-
+    // denselben Album-Metadaten-Dialog wie der ✎-Button im Album-Detail-
     // Header, direkt aus der Kachel-Übersicht.
     const editBtnHtml = (state.me && state.me.isAdmin)
-      ? `<button type="button" class="edit-toggle" title="Album-Metadaten bearbeiten" data-toggle-edit-album aria-label="Album-Metadaten bearbeiten">✏</button>`
+      ? `<button type="button" class="edit-toggle" title="Album-Metadaten bearbeiten" data-toggle-edit-album aria-label="Album-Metadaten bearbeiten">✎</button>`
       : "";
     el.innerHTML = `
       <div class="thumb">
@@ -557,16 +557,16 @@ function renderAlbumRow(a, columns) {
       case "editMeta":
         // Admin-only, seit 2026-09-12 (User-Report: "jetzt fehlt dort das
         // Bearbeiten Zeichen" — öffnet denselben Album-Metadaten-Dialog wie
-        // der ✏-Button im Album-Detail-Header, direkt aus der Übersicht).
+        // der ✎-Button im Album-Detail-Header, direkt aus der Übersicht).
         html += (state.me && state.me.isAdmin)
-          ? `<button type="button" class="edit-toggle track-row-edit" title="Album-Metadaten bearbeiten" data-edit-album aria-label="Album-Metadaten bearbeiten">✏</button>`
+          ? `<button type="button" class="edit-toggle track-row-edit" title="Album-Metadaten bearbeiten" data-edit-album aria-label="Album-Metadaten bearbeiten">✎</button>`
           : `<span></span>`;
         break;
       case "delete":
         // Admin-only, seit 2026-09-12 (User-Wunsch: "in der Listenansicht
         // auch ... Alben löschen können") — löscht ALLE Titel des Albums.
         html += (state.me && state.me.isAdmin)
-          ? `<button type="button" class="edit-toggle track-row-edit delete-toggle track-row-delete" title="Album löschen" data-delete-album aria-label="Album löschen">🗑</button>`
+          ? `<button type="button" class="edit-toggle track-row-edit delete-toggle track-row-delete" title="Album löschen" data-delete-album aria-label="Album löschen">${ICON_TRASH_SVG}</button>`
           : `<span></span>`;
         break;
     }
@@ -636,26 +636,15 @@ function renderAlbumTracks(grid, data, listView) {
   header.innerHTML = `
     <div class="detail-poster" style="background-image:url('${cover}')"></div>
     <div class="detail-body">
-      <button type="button" class="link-btn" id="albumBackBtn" title="Zurück zur Album-Übersicht">←</button>
       <h2>${escapeHTML(album.album || "")}
         <button type="button" class="fav-toggle-inline ${album.favorite ? "is-on" : ""}" id="albumFavBtn" title="${album.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}">${album.favorite ? "♥" : "♡"}</button>
-        ${(state.me && state.me.isAdmin) ? `<button type="button" class="link-btn" id="albumEditMetaBtn" title="Album-Metadaten bearbeiten">✏</button>` : ""}
-        ${(state.me && state.me.isAdmin) ? `<button type="button" class="link-btn" id="albumDeleteBtn" title="Album löschen">🗑</button>` : ""}
+        ${(state.me && state.me.isAdmin) ? `<button type="button" class="header-action-btn" id="albumEditMetaBtn" title="Album-Metadaten bearbeiten">✎</button>` : ""}
+        ${(state.me && state.me.isAdmin) ? `<button type="button" class="header-action-btn" id="albumDeleteBtn" title="Album löschen">${ICON_TRASH_SVG}</button>` : ""}
       </h2>
       <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}${album.genre ? `<span>${escapeHTML(album.genre)}</span>` : ""}</div>
     </div>
   `;
   grid.appendChild(header);
-  header.querySelector("#albumBackBtn").addEventListener("click", () => {
-    state.currentAlbum = null;
-    // Restauriert einen beim Öffnen des Albums weggeräumten Suchbegriff
-    // (openMusicAlbum leert das Feld bewusst, siehe dort) — sonst verliert
-    // man einen Künstler-/Album-Filter jedes Mal beim Reingehen+Zurückgehen.
-    const si = $("#searchInput");
-    if (si && state.albumSearchStash) si.value = state.albumSearchStash;
-    state.albumSearchStash = "";
-    loadItems();
-  });
   header.querySelector("#albumFavBtn").addEventListener("click", (ev) => toggleAlbumFavorite(album, ev.currentTarget));
   const editMetaBtn = header.querySelector("#albumEditMetaBtn");
   if (editMetaBtn) editMetaBtn.addEventListener("click", () => openEditAlbumMetaDialog(album));
@@ -1026,7 +1015,7 @@ function renderMusicTrackRow(it, queue, idx, columns) {
         // Admin-only — Klick auf eine Musik-Zeile spielt sonst sofort ab
         // (musicPlayAlbum), es gibt keinen anderen Weg zum Edit-Dialog.
         html += (state.me && state.me.isAdmin)
-          ? `<button type="button" class="edit-toggle track-row-edit" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✏</button>`
+          ? `<button type="button" class="edit-toggle track-row-edit" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✎</button>`
           : `<span></span>`;
         break;
       case "delete":
@@ -1034,7 +1023,7 @@ function renderMusicTrackRow(it, queue, idx, columns) {
         // Bearbeitungsbutton auch ein Löschbutton" / "in der Listenansicht
         // auch Lieder ... löschen können").
         html += (state.me && state.me.isAdmin)
-          ? `<button type="button" class="edit-toggle track-row-edit delete-toggle track-row-delete" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">🗑</button>`
+          ? `<button type="button" class="edit-toggle track-row-edit delete-toggle track-row-delete" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">${ICON_TRASH_SVG}</button>`
           : `<span></span>`;
         break;
     }
