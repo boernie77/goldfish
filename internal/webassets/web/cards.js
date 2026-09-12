@@ -727,6 +727,13 @@ function renderCard(it, opts = {}) {
   const editMeta = (isMusicLib && state.me && state.me.isAdmin)
     ? `<button type="button" class="edit-toggle" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✏</button>`
     : "";
+  // Löschen-Overlay direkt neben dem ✏-Button (User-Wunsch 2026-09-12:
+  // "neben jeden Bearbeitungsbutton auch ein Löschbutton") — gleiche
+  // Sichtbarkeitsregel wie editMeta (Musik, admin-only), eigene Position
+  // laut CLAUDE.md-Kachel-Koordinatentabelle-Empfehlung ("top:66 right:6").
+  const deleteMeta = (isMusicLib && state.me && state.me.isAdmin)
+    ? `<button type="button" class="delete-toggle" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">🗑</button>`
+    : "";
   let tp = "";
   if (it.trickplayStatus === "done") {
     tp = `<span class="tp-badge" title="Trickplay vorhanden">${ICON_FILM_SVG}</span>`;
@@ -782,6 +789,7 @@ function renderCard(it, opts = {}) {
       ${confirmBtn}
       ${fav}
       ${editMeta}
+      ${deleteMeta}
       ${tp}
       ${variantBadge}
       ${dupeBadge}
@@ -862,6 +870,14 @@ function renderCard(it, opts = {}) {
       ev.stopPropagation();
       state.currentItem = it;
       openEditMetaDialog();
+      return;
+    }
+    // Click auf den 🗑-Löschen-Button (nur Musik-Kacheln, admin-only, seit
+    // 2026-09-12): Titel inkl. Datei auf Disk endgültig löschen.
+    const delTog = ev.target && ev.target.closest("[data-toggle-delete-track]");
+    if (delTog) {
+      ev.stopPropagation();
+      deleteMusicTrack(it).then(ok => { if (ok) { invalidateItemsCache(); loadItems(); } });
       return;
     }
     // Click auf den ✅-Confirm-Button (nur im Duplikate/Suspicious-Modus

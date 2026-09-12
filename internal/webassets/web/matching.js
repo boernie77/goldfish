@@ -425,7 +425,14 @@ function openEditMetaDialog() {
     f.musicAlbum.value = it.album || "";
     f.musicTrackNo.value = it.trackNo || "";
     f.musicGenre.value = it.genre || "";
-    f.musicYear.value = it.year || "";
+    // Clamp auf den vom <input min/max> erlaubten Bereich (siehe
+    // openEditAlbumMetaDialog in music.js für die volle Fehleranalyse): ein
+    // aus schlecht getaggten Dateien geparster Jahreswert außerhalb
+    // 1900–2099 würde das Formular sonst schon beim Öffnen ungültig
+    // vorbefüllen — ein Klick auf "Speichern" schlägt dann komplett lautlos
+    // fehl (natives Constraint-Validation blockt das submit-Event, ohne
+    // Fehlermeldung), selbst wenn nur Genre/Titel geändert werden sollen.
+    f.musicYear.value = (it.year && it.year >= 1900 && it.year <= 2099) ? it.year : "";
     $("#editMetaDialog").querySelector("h2").textContent = "Metadaten bearbeiten";
     const posterBtn = $("#editMetaPoster");
     if (posterBtn) posterBtn.style.display = "none"; // Musik-Tracks haben kein eigenes Poster (nur das Album ein Cover)

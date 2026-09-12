@@ -346,10 +346,18 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     el.tabIndex = 0;
     el.setAttribute("role", "button");
     const cover = a.coverSource ? `/api/poster/album/${a.id}` : "/placeholder.svg";
+    // Löschen-Overlay (admin-only, seit 2026-09-12): Album-Tiles hatten
+    // bisher keinen ✏-Button (Metadaten-Edit gibt es nur im Album-Detail-
+    // Header) — trotzdem soll man ein Album auch direkt aus der Übersicht
+    // löschen können, ohne es erst öffnen zu müssen.
+    const deleteBtn = (state.me && state.me.isAdmin)
+      ? `<button type="button" class="delete-toggle" title="Album löschen" data-toggle-delete-album aria-label="Album löschen">🗑</button>`
+      : "";
     el.innerHTML = `
       <div class="thumb">
         <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${cover}">
         <button type="button" class="fav-toggle ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav aria-label="${a.favorite ? "Favorit" : "Kein Favorit"}">${a.favorite ? "♥" : "♡"}</button>
+        ${deleteBtn}
         <span class="folder-count">${a.trackCount || 0} Titel</span>
       </div>
       <div class="card-body">
@@ -360,6 +368,12 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     el.addEventListener("click", (ev) => {
       const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
       if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+      const delBtn = ev.target && ev.target.closest("[data-toggle-delete-album]");
+      if (delBtn) {
+        ev.stopPropagation();
+        deleteMusicAlbum(a).then(ok => { if (ok) { invalidateItemsCache(); loadItems(); } });
+        return;
+      }
       openMusicAlbum(a.id);
     });
     el.addEventListener("keydown", e => { if (e.key === "Enter") el.click(); });
@@ -398,14 +412,77 @@ async function toggleAlbumFavorite(album, btn) {
 // Eigener Dialog/Speicherpfad statt des Track-Edit-Dialogs — music_albums
 // selbst ist nur eine Aggregat-Tabelle (siehe GroupMusicAlbums), Album-
 // Felder existieren serverseitig nicht separat von den Track-Feldern.
+//
+// 🔴→✅ "Speichern tut nichts, Fenster schließt nicht" (gefixt 2026-09-12,
+// User-Report am Beispiel eines Hörbuchs): das Jahr-Feld hat clientseitig
+// min="1900"/max="2099" (siehe editAlbumMetaDialog in index.html) — der
+// Scanner extrahiert das Jahr aber per simplem "erste 4 Ziffern im
+// date-Tag"-Regex (yearTagRe in scanner.go), das bei schlecht getaggten
+// Hörbüchern (Katalog-/ASIN-Nummern statt echtem Datum im Tag) leicht einen
+// Wert AUSSERHALB dieses Bereichs liefert. Das Formular wurde bisher mit
+// genau diesem (bereits ungültigen) Wert vorbefüllt — ein Klick auf
+// "Speichern" scheiterte dadurch STILL an der nativen Browser-Validierung
+// (der Submit-Button hängt wegen normalizeModalLayout ohnehin außerhalb des
+// <form>, nur per form="…" verknüpft — das submit-Event feuert dann gar
+// nicht erst, ganz ohne Fehlermeldung), selbst wenn nur das Genre geändert
+// werden sollte und das Jahr-Feld gar nicht angefasst wurde. Fix: ein schon
+// beim Öffnen ungültiger (nicht editierbarer) Bestandswert wird als "leer"
+// dargestellt statt das Formular blockierend vorzubefüllen — der User kann
+// dann alle ANDEREN Felder trotzdem speichern; year=0 (leer) lässt den
+// vorhandenen (kaputten) Jahreswert serverseitig ohnehin unverändert, siehe
+// Store.UpdateMusicAlbumMetadata.
 function openEditAlbumMetaDialog(album) {
   state.currentEditAlbum = album;
   const f = $("#editAlbumMetaForm");
   f.album.value = album.album || "";
   f.artist.value = album.artist || "";
   f.genre.value = album.genre || "";
-  f.year.value = album.year || "";
+  f.year.value = (album.year && album.year >= 1900 && album.year <= 2099) ? album.year : "";
   $("#editAlbumMetaDialog").showModal();
+}
+
+// deleteMusicTrack: löscht EINEN Musik-Track endgültig inkl. Datei auf Disk
+// (User-Wunsch 2026-09-12: "neben jeden Bearbeitungsbutton auch ein
+// Löschbutton", "in der Listenansicht auch Lieder ... löschen können").
+// Wiederverwendet denselben admin-only Item-Delete-Endpoint wie bulkDelete()
+// in app.js — Musik-Tracks sind ganz normale `items`-Zeilen, kein Sonderfall.
+async function deleteMusicTrack(it) {
+  if (!(await appConfirm(`"${it.title || "Titel"}" wirklich endgültig löschen (inkl. Datei auf Disk)?`))) return false;
+  try {
+    await api(`/api/items/${it.id}?deleteFile=true`, { method: "DELETE" });
+    showToast("Titel gelöscht", { kind: "success" });
+    return true;
+  } catch (e) {
+    appAlert("Löschen fehlgeschlagen: " + e.message);
+    return false;
+  }
+}
+
+// deleteMusicAlbum: löscht ALLE Titel eines Albums endgültig inkl. Dateien
+// auf Disk. music_albums ist eine reine Aggregat-Tabelle (siehe
+// GroupMusicAlbums-Kommentar) — es gibt keinen Album-Delete-Endpoint,
+// stattdessen werden die aktuellen Tracks frisch nachgeladen (der Aufrufer
+// kennt oft nur trackCount, keine IDs) und einzeln über denselben
+// Item-Delete-Endpoint wie deleteMusicTrack entfernt.
+async function deleteMusicAlbum(album) {
+  let tracks;
+  try {
+    const data = await api(`/api/albums/${album.id}`);
+    tracks = data.tracks || [];
+  } catch (e) {
+    appAlert("Album konnte nicht geladen werden: " + e.message);
+    return false;
+  }
+  const name = album.album || "(Unbekanntes Album)";
+  if (!(await appConfirm(`Album "${name}" mit ${tracks.length} Titel${tracks.length === 1 ? "" : "n"} wirklich endgültig löschen (inkl. aller Dateien auf Disk)?`))) return false;
+  let fails = 0;
+  for (const t of tracks) {
+    try { await api(`/api/items/${t.id}?deleteFile=true`, { method: "DELETE" }); }
+    catch { fails++; }
+  }
+  if (fails) appAlert(`${fails} von ${tracks.length} Dateien konnten nicht gelöscht werden.`);
+  else showToast("Album gelöscht", { kind: "success" });
+  return true;
 }
 
 async function handleEditAlbumMetaSubmit(e) {
@@ -461,12 +538,25 @@ function renderAlbumRow(a, columns) {
       case "fav":
         html += `<button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>`;
         break;
+      case "delete":
+        // Admin-only, seit 2026-09-12 (User-Wunsch: "in der Listenansicht
+        // auch ... Alben löschen können") — löscht ALLE Titel des Albums.
+        html += (state.me && state.me.isAdmin)
+          ? `<button type="button" class="edit-toggle track-row-edit delete-toggle track-row-delete" title="Album löschen" data-delete-album aria-label="Album löschen">🗑</button>`
+          : `<span></span>`;
+        break;
     }
   }
   row.innerHTML = html;
   row.addEventListener("click", (ev) => {
     const favBtn = ev.target && ev.target.closest("[data-toggle-album-fav]");
     if (favBtn) { ev.stopPropagation(); toggleAlbumFavorite(a, favBtn); return; }
+    const delBtn = ev.target && ev.target.closest("[data-delete-album]");
+    if (delBtn) {
+      ev.stopPropagation();
+      deleteMusicAlbum(a).then(ok => { if (ok) { invalidateItemsCache(); loadItems(); } });
+      return;
+    }
     openMusicAlbum(a.id);
   });
   row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
@@ -481,7 +571,16 @@ function renderAlbumRow(a, columns) {
 // 2026-09-04: Album zeigte "Keine Titel in diesem Album", obwohl die Kachel
 // zuvor die korrekte Trackzahl anzeigte).
 function openMusicAlbum(albumId) {
-  const si = $("#searchInput"); if (si) si.value = "";
+  const si = $("#searchInput");
+  // Vor dem Leeren merken (User-Report 2026-09-12: "wenn ich auf einen
+  // Künstler filtere, und dann in ein Album rein gehe, und dann wieder
+  // raus, dann ist die Filterung weg" — der ←-Zurück-Button im
+  // Album-Detail-Header restauriert ihn wieder, siehe dort). Nur der zuletzt
+  // gesetzte Stash zählt — ein erneutes Öffnen eines Albums OHNE aktive
+  // Suche überschreibt ihn absichtlich mit "", sonst würde ein alter
+  // Suchbegriff aus einer ganz anderen Sitzung wieder auftauchen.
+  state.albumSearchStash = si ? si.value : "";
+  if (si) si.value = "";
   state.currentAlbum = albumId;
   loadItems();
 }
@@ -515,6 +614,7 @@ function renderAlbumTracks(grid, data, listView) {
       <h2>${escapeHTML(album.album || "")}
         <button type="button" class="fav-toggle-inline ${album.favorite ? "is-on" : ""}" id="albumFavBtn" title="${album.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}">${album.favorite ? "♥" : "♡"}</button>
         ${(state.me && state.me.isAdmin) ? `<button type="button" class="link-btn" id="albumEditMetaBtn" title="Album-Metadaten bearbeiten">✏</button>` : ""}
+        ${(state.me && state.me.isAdmin) ? `<button type="button" class="link-btn" id="albumDeleteBtn" title="Album löschen">🗑</button>` : ""}
       </h2>
       <div class="sub"><span>${escapeHTML(album.artist || "")}</span>${album.year ? `<span>${album.year}</span>` : ""}${album.genre ? `<span>${escapeHTML(album.genre)}</span>` : ""}</div>
     </div>
@@ -522,11 +622,25 @@ function renderAlbumTracks(grid, data, listView) {
   grid.appendChild(header);
   header.querySelector("#albumBackBtn").addEventListener("click", () => {
     state.currentAlbum = null;
+    // Restauriert einen beim Öffnen des Albums weggeräumten Suchbegriff
+    // (openMusicAlbum leert das Feld bewusst, siehe dort) — sonst verliert
+    // man einen Künstler-/Album-Filter jedes Mal beim Reingehen+Zurückgehen.
+    const si = $("#searchInput");
+    if (si && state.albumSearchStash) si.value = state.albumSearchStash;
+    state.albumSearchStash = "";
     loadItems();
   });
   header.querySelector("#albumFavBtn").addEventListener("click", (ev) => toggleAlbumFavorite(album, ev.currentTarget));
   const editMetaBtn = header.querySelector("#albumEditMetaBtn");
   if (editMetaBtn) editMetaBtn.addEventListener("click", () => openEditAlbumMetaDialog(album));
+  const deleteAlbumBtn = header.querySelector("#albumDeleteBtn");
+  if (deleteAlbumBtn) deleteAlbumBtn.addEventListener("click", async () => {
+    if (await deleteMusicAlbum(album)) {
+      invalidateItemsCache();
+      state.currentAlbum = null;
+      loadItems();
+    }
+  });
   if (!tracks.length) {
     const e = document.createElement("div");
     e.className = "empty";
@@ -618,11 +732,15 @@ const MUSIC_LIST_CONTEXTS = {
   overview: {
     fixedLeading: ["cover"],
     reorderable: ["title", "artist", "genre", "count"],
-    fixedTrailing: ["fav"],
+    // "delete" seit 2026-09-12 ergänzt (User-Wunsch: "Ich möchte in der
+    // Listenansicht auch ... Alben löschen können") — die Album-Übersicht
+    // hat keinen Edit-Button (Metadaten-Edit gibt es nur im Album-Detail-
+    // Header), aber ein eigener Lösch-Icon-Slot war trotzdem nötig.
+    fixedTrailing: ["fav", "delete"],
     labels: { title: "Album", artist: "Künstler", genre: "Genre", count: "Titel" },
     defaultWidths: { title: 260, artist: 160, genre: 120, count: 90 },
     minWidths: { title: 100, artist: 80, genre: 70, count: 60 },
-    fixedWidths: { cover: 40, fav: 32 },
+    fixedWidths: { cover: 40, fav: 32, delete: 32 },
   },
   album: {
     fixedLeading: ["track"],
@@ -631,20 +749,22 @@ const MUSIC_LIST_CONTEXTS = {
     // button soll auch in der Listenansicht am Ende der Zeile sein") — reiner
     // Icon-Slot wie "fav", kein Spalten-Label nötig (renderMusicColumnHeader
     // baut für fixedLeading/fixedTrailing nur leere Platzhalter).
-    fixedTrailing: ["fav", "editMeta"],
+    // "delete" seit 2026-09-12 daneben ergänzt (User-Wunsch: "neben jeden
+    // Bearbeitungsbutton auch ein Löschbutton").
+    fixedTrailing: ["fav", "editMeta", "delete"],
     labels: { title: "Titel", artist: "Künstler", genre: "Genre", year: "Jahr", duration: "Dauer" },
     defaultWidths: { title: 260, artist: 160, genre: 110, year: 60, duration: 70 },
     minWidths: { title: 100, artist: 80, genre: 70, year: 50, duration: 50 },
-    fixedWidths: { track: 32, fav: 32, editMeta: 32 },
+    fixedWidths: { track: 32, fav: 32, editMeta: 32, delete: 32 },
   },
   all: {
     fixedLeading: ["cover"],
     reorderable: ["title", "artist", "album", "genre", "year", "lastPlayed"],
-    fixedTrailing: ["fav", "editMeta"],
+    fixedTrailing: ["fav", "editMeta", "delete"],
     labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", year: "Jahr", lastPlayed: "Zuletzt gehört" },
     defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, year: 60, lastPlayed: 140 },
     minWidths: { title: 100, artist: 80, album: 80, genre: 70, year: 50, lastPlayed: 100 },
-    fixedWidths: { cover: 40, fav: 32, editMeta: 32 },
+    fixedWidths: { cover: 40, fav: 32, editMeta: 32, delete: 32 },
   },
 };
 
@@ -882,6 +1002,14 @@ function renderMusicTrackRow(it, queue, idx, columns) {
           ? `<button type="button" class="edit-toggle track-row-edit" title="Metadaten bearbeiten" data-toggle-edit-meta aria-label="Metadaten bearbeiten">✏</button>`
           : `<span></span>`;
         break;
+      case "delete":
+        // Admin-only, seit 2026-09-12 (User-Wunsch: "neben jeden
+        // Bearbeitungsbutton auch ein Löschbutton" / "in der Listenansicht
+        // auch Lieder ... löschen können").
+        html += (state.me && state.me.isAdmin)
+          ? `<button type="button" class="edit-toggle track-row-edit delete-toggle track-row-delete" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">🗑</button>`
+          : `<span></span>`;
+        break;
     }
   }
   row.innerHTML = html;
@@ -911,6 +1039,12 @@ function renderMusicTrackRow(it, queue, idx, columns) {
       ev.stopPropagation();
       state.currentItem = it;
       openEditMetaDialog();
+      return;
+    }
+    const delTog = ev.target && ev.target.closest("[data-toggle-delete-track]");
+    if (delTog) {
+      ev.stopPropagation();
+      deleteMusicTrack(it).then(ok => { if (ok) { invalidateItemsCache(); loadItems(); } });
       return;
     }
     if (typeof musicPlayAlbum === "function") musicPlayAlbum(queue, idx);
