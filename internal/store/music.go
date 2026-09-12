@@ -71,8 +71,29 @@ func (s *Store) GroupMusicAlbumsForce(libraryID int64) error {
 	return s.groupMusicAlbums(libraryID, true)
 }
 
+// 🔴→✅ Performance-Fix (2026-09-12, User-Report: "dauert weit über eine
+// Minute" nach einem simplen Genre-Edit): jede der bis zu ~2-5 SQL-
+// Anweisungen PRO Album lief bis dahin als eigenes autocommit-`s.db.Exec`
+// — bei tausenden Alben in einer großen Musik-Bibliothek (User hat laut
+// früherem Backfill 2742 Alben) macht das tausende einzeln committete
+// (und damit einzeln ge-fsyncte) Schreib-Statements, jedes davon mit
+// eigenem Disk-Sync. Für einen normalen Scan (Hintergrund, Fortschrittsbalken)
+// fiel das nie negativ auf — aber SEIT beide Edit-Dialoge zusätzlich
+// `GroupMusicAlbumsForce` synchron in der HTTP-Request-Laufzeit aufrufen
+// (siehe UpdateMusicItemMetadata/UpdateMusicAlbumMetadata), blockiert genau
+// diese Vollbibliotheks-Neuberechnung den Speichern-Klick des Users. Fix:
+// die komplette Funktion läuft jetzt in EINER Transaktion (`s.db.Begin()` +
+// `tx.Commit()` am Ende) — SQLite committet/fsynct dann nur einmal für die
+// gesamte Operation statt einmal pro Statement, unabhängig von der
+// Album-Anzahl. Reine Performance-Änderung, keine Logik-/Ergebnisänderung.
 func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
-	rows, err := s.db.Query(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := tx.Query(
 		`SELECT id, rel_path, artist, album, genre, year FROM items
 		 WHERE library_id = ? AND (artist != '' OR album != '')`,
 		libraryID,
@@ -111,7 +132,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 			genreClause = `genre = excluded.genre`
 			yearClause = `year = CASE WHEN excluded.year != 0 THEN excluded.year ELSE music_albums.year END`
 		}
-		if _, err := s.db.Exec(
+		if _, err := tx.Exec(
 			fmt.Sprintf(`INSERT INTO music_albums(library_id, artist, album, genre, year) VALUES(?, ?, ?, ?, ?)
 			 ON CONFLICT(library_id, artist, album) DO UPDATE SET %s, %s`, genreClause, yearClause),
 			libraryID, artist, album, genre, year,
@@ -121,7 +142,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 		var albumID int64
 		var albumYear int
 		var albumGenre string
-		if err := s.db.QueryRow(
+		if err := tx.QueryRow(
 			`SELECT id, year, genre FROM music_albums WHERE library_id = ? AND artist = ? AND album = ?`,
 			libraryID, artist, album,
 		).Scan(&albumID, &albumYear, &albumGenre); err != nil {
@@ -134,7 +155,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 			placeholders[i] = "?"
 			args = append(args, it.id)
 		}
-		if _, err := s.db.Exec(
+		if _, err := tx.Exec(
 			fmt.Sprintf(`UPDATE items SET music_album_id = ? WHERE id IN (%s)`, strings.Join(placeholders, ",")),
 			args...,
 		); err != nil {
@@ -153,7 +174,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 		// berechneten) — deckt so auch ein nachträglich per MusicBrainz
 		// oder manuellem Album-Edit gesetztes Jahr/Genre ab.
 		if albumYear != 0 {
-			if _, err := s.db.Exec(
+			if _, err := tx.Exec(
 				fmt.Sprintf(`UPDATE items SET year = ? WHERE year = 0 AND id IN (%s)`, strings.Join(placeholders, ",")),
 				append([]any{albumYear}, args[1:]...)...,
 			); err != nil {
@@ -161,7 +182,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 			}
 		}
 		if albumGenre != "" {
-			if _, err := s.db.Exec(
+			if _, err := tx.Exec(
 				fmt.Sprintf(`UPDATE items SET genre = ? WHERE genre = '' AND id IN (%s)`, strings.Join(placeholders, ",")),
 				append([]any{albumGenre}, args[1:]...)...,
 			); err != nil {
@@ -177,7 +198,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 	// die ursprüngliche Annahme "kein Cleanup nötig, kosmetisch irrelevant"
 	// war falsch. `user_music_album_favorites` hat ON DELETE CASCADE, ein
 	// Favorit auf einer verwaisten Zeile verschwindet also automatisch mit.
-	if _, err := s.db.Exec(
+	if _, err := tx.Exec(
 		`DELETE FROM music_albums WHERE library_id = ? AND id NOT IN (
 			SELECT DISTINCT music_album_id FROM items WHERE music_album_id IS NOT NULL
 		)`,
@@ -185,7 +206,7 @@ func (s *Store) groupMusicAlbums(libraryID int64, force bool) error {
 	); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 // UpdateMusicItemMetadata schreibt manuell korrigierte Musik-Tags direkt auf
@@ -627,12 +648,12 @@ func (s *Store) PendingMusicMetadataAlbums(limit int) ([]model.MusicAlbum, error
 
 // ApplyMusicBrainzMetadata schreibt Jahr/Genre eines MusicBrainz-Releases als
 // FALLBACK auf das Album — überschreibt NIE einen bereits vorhandenen Wert
-// (`year=0`/`genre=''` sind die einzigen "fehlt"-Zustände, siehe
+// (`year=0`/`genre=”` sind die einzigen "fehlt"-Zustände, siehe
 // PendingMusicMetadataAlbums). Markiert das Album danach als "versucht"
 // (`metadata_fetched_at`), unabhängig vom Ergebnis — verhindert Endlos-Retry
 // bei Alben ohne MusicBrainz-Treffer (analog `cast_fetched_at`). Ein
 // gefundenes Genre wird zusätzlich auf die einzelnen Tracks propagiert, aber
-// NUR bei Tracks ohne eigenes Genre-Tag (`items.genre = ''` ist dort ein
+// NUR bei Tracks ohne eigenes Genre-Tag (`items.genre = ”` ist dort ein
 // zuverlässiges "fehlt"-Signal, anders als `released_at`, das der Scanner
 // immer mit mindestens der Datei-mtime befüllt — deshalb bewusst KEINE
 // Propagation auf `items.released_at`, das würde echte Tag-Daten mit einer
