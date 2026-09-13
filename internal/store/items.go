@@ -512,17 +512,23 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	if f.ExcludeAudiobooks {
 		// Container-Check allein reicht nicht — nicht jedes Hörbuch liegt als
 		// .m4b vor (z. B. Kapitel als einzelne .mp3-Dateien). Zusätzlich
-		// Namens-Erkennung auf Titel/Ordnerpfad: "Hörbuch"/"Hörbücher"/
-		// "Audiobook", case- UND akzent-insensitiv (UNACCENT wandelt "ö" zu
-		// "o", sodass ein einziges LIKE-Muster "horbuch" beide deutschen
-		// Formen trifft). User-Wunsch 2026-09-14: "Bitte Hörbücher, Hörbuch,
-		// Audiobook ausschließen" — nach dem Fund, dass reine
-		// Container-Filterung ein per Namen erkennbares Hörbuch übersah.
+		// Namens-Erkennung auf Titel/Ordnerpfad/Genre-Tag: "Hörbuch"/
+		// "Hörbücher"/"Audiobook", case- UND akzent-insensitiv (UNACCENT
+		// wandelt "ö" zu "o", sodass ein einziges LIKE-Muster "horbuch"
+		// beide deutschen Formen trifft). User-Wunsch 2026-09-14: "Bitte
+		// Hörbücher, Hörbuch, Audiobook ausschließen" — nach dem Fund, dass
+		// reine Container-Filterung ein per Namen erkennbares Hörbuch
+		// übersah. **Genre nachgezogen (User-Report noch am selben Tag:
+		// "der erste Titel bei Shuffle ist wieder ein Hörbuch"):** ein
+		// Hörbuch ohne "Hörbuch"/"Audiobook" in Titel/Ordnerpfad trägt oft
+		// trotzdem ein entsprechendes Genre-Tag — bisher nicht geprüft.
 		q += ` AND i.container != 'm4b'
 			AND UNACCENT(LOWER(i.rel_path)) NOT LIKE '%horbuch%'
 			AND LOWER(i.rel_path) NOT LIKE '%audiobook%'
 			AND UNACCENT(LOWER(i.title)) NOT LIKE '%horbuch%'
-			AND LOWER(i.title) NOT LIKE '%audiobook%'`
+			AND LOWER(i.title) NOT LIKE '%audiobook%'
+			AND UNACCENT(LOWER(i.genre)) NOT LIKE '%horbuch%'
+			AND LOWER(i.genre) NOT LIKE '%audiobook%'`
 	}
 	if f.MaxAgeRating > 0 {
 		// FSK-Filter: Items mit numerisch höherer age_rating als das User-

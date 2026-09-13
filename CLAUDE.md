@@ -2767,6 +2767,16 @@ Musik-UI unverändert bewusst schlank).
   „Hörbuch" als auch „Hörbücher"). Bewusst konservativ als Substring-Match,
   kein Whitelist/Blacklist-Ordnerkonzept — trifft z. B. auch einen Ordner
   „Hörbücher/Baldacci" oder eine Datei „Audiobook_Kapitel_03.mp3".
+  **Genre-Tag nachgezogen (LIVE 1.3.28, noch am selben Tag, User-Report
+  "der erste Titel bei Shuffle ist wieder ein Hörbuch"):** ein Hörbuch, das
+  weder `.m4b` ist noch „Hörbuch"/„Audiobook" in Titel oder Ordnerpfad
+  trägt, hat oft trotzdem ein entsprechendes Genre-Tag — dieselbe
+  Substring-Prüfung jetzt zusätzlich auf `i.genre` (Spalte ist
+  `TEXT NOT NULL DEFAULT ''`, also nie `NULL` — kein Risiko, dass ein
+  `NULL`-Vergleich die ganze Klausel stillschweigend auf „alles raus"
+  kippt). GoldfishApple zog dieselbe Ergänzung im selben Zug in
+  `Item.isLikelyAudiobook` nach (dort für die Client-seitigen Shuffle-Pfade,
+  die den Server-Endpoint nicht nutzen — siehe App-CLAUDE.md).
 - `openShuffleItem(item)` (playlists.js, seit 2026-09-04) prüft die
   Bibliotheks-Art des gezogenen Items: Musik → `musicPlayShuffleTrack()`
   (Mini-Player), sonst → `openPlayer(item, {fromShuffle:true})`.
