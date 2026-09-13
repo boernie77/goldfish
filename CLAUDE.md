@@ -2753,10 +2753,20 @@ Musik-UI unverändert bewusst schlank).
      mehrere `folderSel=<libId>:<relPath>`. Siehe „Ordner-Scoping" unten.
   5. **Library** (`state.currentLibrary`) → `libraryId` + ggf. `folder`.
 - Zusätzlich greifen IMMER: `search`, `watched`, `favorite`, `match`,
-  Auflösungs-Buckets. **Hörbücher (`.m4b`) sind grundsätzlich ausgeschlossen**
-  (`ItemFilter.ExcludeAudiobooks`, `AND i.container != 'm4b'`, unconditional
-  in `randomItem`-Handler gesetzt, seit 2026-09-05 — User-Wunsch: "Bei Zufall
-  Play dürfen Hörbücher nicht berücksichtigt werden").
+  Auflösungs-Buckets. **Hörbücher sind grundsätzlich ausgeschlossen**
+  (`ItemFilter.ExcludeAudiobooks`, unconditional in `randomItem`-Handler
+  gesetzt, seit 2026-09-05 — User-Wunsch: "Bei Zufall Play dürfen Hörbücher
+  nicht berücksichtigt werden"). **Seit 2026-09-14 (LIVE 1.3.27) zusätzlich
+  Namens-Erkennung, nicht nur Container:** reiner `.m4b`-Container-Check
+  (`AND i.container != 'm4b'`) übersah Hörbücher, deren Kapitel als
+  einzelne `.mp3`-Dateien vorliegen — User-Vorgabe danach: "Bitte
+  Hörbücher, Hörbuch, Audiobook ausschließen". Zusätzliche Klauseln prüfen
+  `i.rel_path`/`i.title` case- UND akzent-insensitiv auf die Teilstrings
+  „hörbuch"/„audiobook" (`UNACCENT(LOWER(...)) LIKE '%horbuch%'` — UNACCENT
+  bildet „ö" auf „o" ab, ein einziges Muster trifft dadurch sowohl
+  „Hörbuch" als auch „Hörbücher"). Bewusst konservativ als Substring-Match,
+  kein Whitelist/Blacklist-Ordnerkonzept — trifft z. B. auch einen Ordner
+  „Hörbücher/Baldacci" oder eine Datei „Audiobook_Kapitel_03.mp3".
 - `openShuffleItem(item)` (playlists.js, seit 2026-09-04) prüft die
   Bibliotheks-Art des gezogenen Items: Musik → `musicPlayShuffleTrack()`
   (Mini-Player), sonst → `openPlayer(item, {fromShuffle:true})`.
