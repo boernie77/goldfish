@@ -3946,6 +3946,50 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Test-Suite nicht simulieren (bräuchte zwei echte Mounts) — die
   Copy-Fallback-Logik selbst (`copyAndRemove`) ist aber direkt getestet.
 
+#### Ziel-Quellordner explizit wählbar (seit 2026-09-14, LIVE 1.3.25)
+
+- **Auslöser:** direkt nach dem Zwischenfenster-Fix (oben) verschob der
+  User eine weitere Einzeldatei — KEIN Zwischenfenster kam, obwohl er das
+  erwartet hatte. Kein Bug: das Ziel blieb korrekt auf Big18 (derselben
+  externen Platte), weil er als Ziel-Bibliothek weiterhin „a" gewählt hatte
+  — bei einer Multi-Path-Library wie „a" (Quellordner sowohl auf dem Array
+  als auch auf zwei externen Platten) bleibt ein Move innerhalb derselben
+  Library IMMER auf dem aktuellen physischen Root (siehe „Root-Auflösung"
+  oben) — das Zwischenfenster warnt nur vor einem tatsächlich bevorstehenden
+  Wechsel, und hier stand keiner bevor. User-Folgeanfrage: „Ich will aber
+  auch innerhalb auf andere Quellen verschieben können. Extern ist aktuell
+  nicht gesichert. Daher will ich wichtige aufs Array schieben."
+- **Fix:** `resolveMoveTarget` bekommt einen neuen, optionalen Parameter
+  `targetRoot string` — ein exakter `library_paths`-Eintrag der
+  Ziel-Bibliothek. Wenn gesetzt, gewinnt er IMMER als physischer Root,
+  UNABHÄNGIG davon, ob `destLibraryID == it.LibraryID` ist — durchbricht
+  bewusst die alte Grenze „Verschieben über zwei Quellordner DERSELBEN
+  Library hinweg nicht unterstützt": die war ursprünglich eingebaut, weil
+  ein impliziter Wechsel den User überraschen könnte (siehe Kommentar) —
+  jetzt ist der Wechsel explizit gewählt UND läuft durch dasselbe
+  Zwischenfenster (`/api/items/move-preview` erkennt den daraus
+  resultierenden Datenträgerwechsel ganz normal). Leer (`""`, Default) =
+  unverändertes altes Verhalten, volle Rückwärtskompatibilität.
+  `moveItem`/`moveItemsBulk`/`moveItemsPreview` haben alle das neue
+  `targetRoot`-Body-Feld bekommen.
+- **Frontend:** neues, nur bei Multi-Path-Bibliotheken sichtbares Dropdown
+  „Ziel-Quellordner (Datenträger)" im Verschieben-Dialog (`#moveRootRow`,
+  `#moveRootSelect` in `index.html`) — `loadMoveRootList()` (`admin.js`)
+  fragt `GET /api/libraries/{id}/paths` (bereits vorhandener Endpoint,
+  bisher nur vom Library-Manager für die Multi-Path-Bearbeitung genutzt)
+  ab; bei `<2` Pfaden bleibt die Zeile versteckt (der Regelfall — die
+  meisten Libraries sind Single-Path). Läuft neu sowohl beim
+  Dialog-Öffnen als auch bei jedem Wechsel der Ziel-Bibliothek. Der
+  gewählte Pfad geht als `targetRoot` in Preview UND tatsächlichen Move.
+  Wählt der User im Zwischenfenster „Auf gleicher Quelle verschieben"
+  (siehe oben), wird `targetRoot` dabei bewusst wieder auf `""` geleert —
+  sonst würde die (gerade verworfene) Ziel-Quellordner-Auswahl aus dem
+  Dropdown den automatischen Fallback überschreiben.
+- Kein neuer Go-Test (reine Parameter-Durchreichung + eine zusätzliche
+  Validierung in `resolveMoveTarget`, kein eigenes API-Test-Harness in
+  diesem Repo für HTTP-Handler-Ebene vorhanden) — Build/Vet/Test-Suite
+  bleibt grün, Verhalten am echten Server verifiziert.
+
 ### TMDB-Integration
 - Suche & Detail für Filme, Serien, Episoden (deutsche Sprache).
 - Match-Strategie: Name-Parser → TMDB-Search → Jahres-Score → Auto-Match; Fallback manuell.

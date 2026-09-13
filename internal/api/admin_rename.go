@@ -306,6 +306,12 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		TargetFolder    string `json:"targetFolder"`
 		TargetLibraryID int64  `json:"targetLibraryId"`
+		// TargetRoot (User-Wunsch 2026-09-14): expliziter `library_paths`-
+		// Eintrag der Ziel-Bibliothek, wenn die Multi-Path ist — auch
+		// innerhalb DERSELBEN Library wählbar, um gezielt z.B. von einer
+		// unbeaufsichtigten externen Quelle aufs Array zu wechseln (siehe
+		// resolveMoveTarget-Kommentar). Leer = altes Verhalten (automatisch).
+		TargetRoot string `json:"targetRoot"`
 		// AllowCrossDevice: User hat im Zwischenfenster (Client) explizit
 		// bestätigt, dass wirklich auf einen anderen Datenträger kopiert
 		// werden soll (siehe rename.RenameOnDisk-Kommentar). Ohne das bricht
@@ -322,7 +328,7 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	histID, target, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move", body.AllowCrossDevice)
+	histID, target, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, body.TargetRoot, "move", body.AllowCrossDevice)
 	if code != 0 {
 		writeError(w, code, msg)
 		return
@@ -360,7 +366,21 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 // etwas anzufassen — gemeinsam genutzt von executeMove (tatsächlicher Move)
 // und moveItemsPreview (Zwischenfenster-Check, siehe dort). Liefert
 // (destLibraryID, newDir, trimmedTargetFolder, errMsg, httpStatusCode).
-func (s *Server) resolveMoveTarget(it *model.Item, targetLibraryID int64, targetFolder string) (int64, string, string, string, int) {
+//
+// targetRoot (User-Wunsch 2026-09-14: "auch innerhalb auf andere Quellen
+// verschieben können" — externe Multi-Path-Quelle ist unbeaufsichtigt/nicht
+// gesichert, wichtige Dateien sollen gezielt aufs Array wandern, OHNE die
+// Bibliothek zu wechseln): wenn gesetzt, gewinnt IMMER dieser exakte
+// `library_paths`-Eintrag als physischer Root — unabhängig davon, ob
+// destLibraryID == it.LibraryID ist. Das durchbricht bewusst die alte
+// Grenze "Verschieben über zwei Quellordner DERSELBEN Library hinweg nicht
+// unterstützt" — jetzt EXPLIZIT wählbar statt implizit unmöglich, weil der
+// User dank des Zwischenfensters (siehe /api/items/move-preview) vorher
+// sieht, dass das den Datenträger wechselt, und das bestätigen muss.
+// Leer ("") = altes Verhalten unverändert (Default-Root automatisch
+// bestimmt), volle Rückwärtskompatibilität für Aufrufer, die das Feld
+// nicht mitschicken.
+func (s *Server) resolveMoveTarget(it *model.Item, targetLibraryID int64, targetFolder, targetRoot string) (int64, string, string, string, int) {
 	targetFolder = strings.Trim(strings.TrimSpace(targetFolder), "/")
 	// Traversal-Schutz: keine ".."-Segmente, kein Backslash.
 	for _, seg := range strings.Split(targetFolder, "/") {
@@ -373,7 +393,28 @@ func (s *Server) resolveMoveTarget(it *model.Item, targetLibraryID int64, target
 		destLibraryID = targetLibraryID
 	}
 	var root string
-	if destLibraryID == it.LibraryID {
+	if targetRoot != "" {
+		validPaths, err := s.Store.LibraryPaths(destLibraryID)
+		if err != nil {
+			return 0, "", "", "Ziel-Bibliothek konnte nicht gelesen werden: " + err.Error(), 500
+		}
+		valid := false
+		for _, p := range validPaths {
+			if p == targetRoot {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			if lib, err := s.Store.GetLibrary(destLibraryID); err == nil && lib != nil && lib.Path == targetRoot {
+				valid = true
+			}
+		}
+		if !valid {
+			return 0, "", "", "Ziel-Quellordner gehört nicht zur Ziel-Bibliothek", 400
+		}
+		root = targetRoot
+	} else if destLibraryID == it.LibraryID {
 		relSlash := filepath.ToSlash(it.RelPath)
 		root = strings.TrimSuffix(filepath.ToSlash(it.Path), "/"+relSlash)
 		if root == filepath.ToSlash(it.Path) {
@@ -398,8 +439,8 @@ func (s *Server) resolveMoveTarget(it *model.Item, targetLibraryID int64, target
 	return destLibraryID, newDir, targetFolder, "", 0
 }
 
-func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder, triggeredBy string, allowCrossDevice bool) (int64, string, string, int) {
-	destLibraryID, newDir, targetFolder, msg, code := s.resolveMoveTarget(it, targetLibraryID, targetFolder)
+func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder, targetRoot, triggeredBy string, allowCrossDevice bool) (int64, string, string, int) {
+	destLibraryID, newDir, targetFolder, msg, code := s.resolveMoveTarget(it, targetLibraryID, targetFolder, targetRoot)
 	if code != 0 {
 		return 0, "", msg, code
 	}
@@ -492,6 +533,7 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 		IDs              []int64 `json:"ids"`
 		TargetFolder     string  `json:"targetFolder"`
 		TargetLibraryID  int64   `json:"targetLibraryId"`
+		TargetRoot       string  `json:"targetRoot"`
 		AllowCrossDevice bool    `json:"allowCrossDevice"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -525,7 +567,7 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 				job.mu.Unlock()
 				continue
 			}
-			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move", body.AllowCrossDevice)
+			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, body.TargetRoot, "move", body.AllowCrossDevice)
 			job.mu.Lock()
 			job.done++
 			if code != 0 {
@@ -570,6 +612,7 @@ func (s *Server) moveItemsPreview(w http.ResponseWriter, r *http.Request) {
 		IDs             []int64 `json:"ids"`
 		TargetFolder    string  `json:"targetFolder"`
 		TargetLibraryID int64   `json:"targetLibraryId"`
+		TargetRoot      string  `json:"targetRoot"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiger Body")
@@ -597,7 +640,7 @@ func (s *Server) moveItemsPreview(w http.ResponseWriter, r *http.Request) {
 			results = append(results, itemResult{ID: id, Error: "nicht gefunden"})
 			continue
 		}
-		_, newDir, _, msg, code := s.resolveMoveTarget(it, body.TargetLibraryID, body.TargetFolder)
+		_, newDir, _, msg, code := s.resolveMoveTarget(it, body.TargetLibraryID, body.TargetFolder, body.TargetRoot)
 		if code != 0 {
 			results = append(results, itemResult{ID: id, Error: msg})
 			continue

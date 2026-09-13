@@ -762,12 +762,35 @@ async function openMoveDialog(ctx) {
   libSelect.onchange = () => {
     input.value = ""; // Ordner der Quell-Library ergibt in einer anderen Lib meist keinen Sinn
     loadMoveFolderList(Number(libSelect.value), "");
+    loadMoveRootList(Number(libSelect.value));
   };
   input.value = currentFolder;
   await loadMoveFolderList(libId, currentFolder);
+  await loadMoveRootList(libId);
   dlg.showModal();
   input.focus();
   input.select();
+}
+
+// loadMoveRootList: bei Multi-Path-Bibliotheken (mehrere physische
+// Quellordner) zeigt sie das "Ziel-Quellordner"-Dropdown — leer/versteckt bei
+// Single-Path-Libraries (der Regelfall), da dort ohnehin nur EIN Ziel
+// möglich ist. Kein `targetRoot` mitgeschickt = altes Server-Verhalten
+// (automatische Root-Wahl, siehe resolveMoveTarget-Kommentar).
+async function loadMoveRootList(libId) {
+  const row = $("#moveRootRow");
+  const select = $("#moveRootSelect");
+  let paths = [];
+  try {
+    paths = await api(`/api/libraries/${libId}/paths`);
+  } catch {}
+  if (!paths || paths.length < 2) {
+    row.classList.add("hidden");
+    select.innerHTML = "";
+    return;
+  }
+  select.innerHTML = paths.map(p => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("");
+  row.classList.remove("hidden");
 }
 
 // Zwischenfenster vor jedem geräteübergreifenden Verschieben (User-Wunsch
@@ -780,28 +803,28 @@ async function openMoveDialog(ctx) {
 //   Ja                              → {allowCrossDevice:true, targetLibraryId (unverändert)}
 //   Nein → "Auf gleicher Quelle…"    → {allowCrossDevice:false, targetLibraryId: ctx.libId}
 //   Nein → "Abbrechen"               → null (Aufrufer bricht komplett ab)
-async function resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId) {
+async function resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId, targetRoot) {
   let preview;
   try {
     preview = await api(`/api/items/move-preview`, {
       method: "POST",
-      body: JSON.stringify({ ids, targetFolder, targetLibraryId }),
+      body: JSON.stringify({ ids, targetFolder, targetLibraryId, targetRoot }),
     });
   } catch {
     // Preview fehlgeschlagen (z.B. Netzwerk-Hänger) — normal weiterversuchen;
     // der Server bricht selbst mit "CROSS_DEVICE" ab, falls nötig, statt den
     // Admin hier komplett auszusperren.
-    return { targetLibraryId, allowCrossDevice: false };
+    return { targetLibraryId, targetRoot, allowCrossDevice: false };
   }
   if (!preview.anyCrossDevice) {
-    return { targetLibraryId, allowCrossDevice: false };
+    return { targetLibraryId, targetRoot, allowCrossDevice: false };
   }
   const goAhead = await appConfirm(
     "Mindestens eine Datei würde dabei auf einen ANDEREN Datenträger kopiert — nicht nur innerhalb desselben Laufwerks verschoben. Je nach Dateigröße kann das dauern. Wirklich physisch verschieben?",
     { title: "Datenträgerwechsel", okLabel: "Ja, physisch verschieben", cancelLabel: "Nein" }
   );
   if (goAhead) {
-    return { targetLibraryId, allowCrossDevice: true };
+    return { targetLibraryId, targetRoot, allowCrossDevice: true };
   }
   const stayOnSource = await appConfirm(
     "Stattdessen auf demselben Datenträger verschieben (Ziel bleibt innerhalb der aktuellen Quelle, keine andere Bibliothek)?",
@@ -811,8 +834,10 @@ async function resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId) 
   // Exakt das Verhalten, das am 2026-09-13 unbeabsichtigt passierte: innerhalb
   // derselben Library bleibt der physische Root immer der aktuelle (siehe
   // executeMove-Kommentar im Server) — hier jetzt ein bewusster, expliziter
-  // dritter Weg statt eines stillen Nebeneffekts.
-  return { targetLibraryId: ctx.libId, allowCrossDevice: false };
+  // dritter Weg statt eines stillen Nebeneffekts. targetRoot wird geleert,
+  // damit der Server wieder den AKTUELLEN physischen Root des Items nimmt,
+  // nicht die (verworfene) Quellordner-Auswahl aus dem Dialog.
+  return { targetLibraryId: ctx.libId, targetRoot: "", allowCrossDevice: false };
 }
 
 async function handleMoveSubmit(e) {
@@ -821,6 +846,10 @@ async function handleMoveSubmit(e) {
   if (!ctx) return;
   const targetFolder = $("#moveFolderInput").value.trim();
   let targetLibraryId = Number($("#moveLibrarySelect").value);
+  // targetRoot: nur gefüllt, wenn das Ziel-Quellordner-Dropdown sichtbar ist
+  // (Multi-Path-Bibliothek, siehe loadMoveRootList) — sonst "" = altes
+  // automatisches Server-Verhalten.
+  let targetRoot = $("#moveRootRow").classList.contains("hidden") ? "" : $("#moveRootSelect").value;
   // NICHT e.target.querySelector(...) — normalizeModalLayout (helpers.js)
   // löst den Submit-Button beim ersten showModal() strukturell aus dem
   // <form> heraus in einen separaten Footer (bleibt nur über form="moveForm"
@@ -830,18 +859,19 @@ async function handleMoveSubmit(e) {
   const submitBtn = $("#moveSubmitBtn");
   const ids = ctx.mode === "single" ? [ctx.item.id] : ctx.ids;
   submitBtn.disabled = true;
-  const decision = await resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId);
+  const decision = await resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId, targetRoot);
   if (!decision) {
     submitBtn.disabled = false;
     return; // User hat im Zwischenfenster abgebrochen
   }
   targetLibraryId = decision.targetLibraryId;
+  targetRoot = decision.targetRoot;
   const allowCrossDevice = decision.allowCrossDevice;
   try {
     if (ctx.mode === "single") {
       await api(`/api/items/${ctx.item.id}/move`, {
         method: "POST",
-        body: JSON.stringify({ targetFolder, targetLibraryId, allowCrossDevice }),
+        body: JSON.stringify({ targetFolder, targetLibraryId, targetRoot, allowCrossDevice }),
       });
       showToast("Verschoben", { kind: "success" });
       $("#moveDialog").close();
@@ -852,7 +882,7 @@ async function handleMoveSubmit(e) {
       showToast(`Verschieben von ${ctx.ids.length} Datei${ctx.ids.length === 1 ? "" : "en"} gestartet…`, { kind: "info" });
       await api(`/api/items/move`, {
         method: "POST",
-        body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId, allowCrossDevice }),
+        body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId, targetRoot, allowCrossDevice }),
       });
       // Server verschiebt asynchron im Hintergrund (kann bei vielen/großen
       // Dateien lange dauern) — Dialog bleibt offen und pollt den Fortschritt,

@@ -514,6 +514,15 @@
     <label>Ziel-Bibliothek
       <select id="moveLibrarySelect"></select>
     </label>
+    <!-- Nur sichtbar bei Multi-Path-Bibliotheken (mehrere physische Quellordner,
+         z.B. Array + externe Platte) — User-Wunsch 2026-09-14: gezielt zwischen
+         den Quellen EINER Bibliothek wechseln können (z.B. von einer
+         unbeaufsichtigten externen Platte aufs Array), statt dass ein Move
+         innerhalb derselben Library immer stur auf dem aktuellen Datenträger
+         bleibt. -->
+    <label id="moveRootRow" class="hidden">Ziel-Quellordner (Datenträger)
+      <select id="moveRootSelect"></select>
+    </label>
     <label>Zielordner (relativ zur Bibliothek, leer = Wurzel)
       <input id="moveFolderInput" name="targetFolder" placeholder="z.B. Anime/Staffel 2" autocomplete="off" />
     </label>
