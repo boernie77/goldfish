@@ -2328,6 +2328,37 @@ Musik-UI unverändert bewusst schlank).
   Stelle diese Funktion sonst noch aus einem anderen Grund (hier: nur um
   eine Referenz auf eine erwartete, bereits existierende Session zu
   bekommen) aufrufen — genau dafür ist `LookupSession` da.
+  **🔴🔴 Trotzdem noch am selben Tag komplett zurückgenommen — das
+  "andere Sessions desselben Items stoppen" in `StartOrGet` selbst war
+  der eigentliche Fehler, nicht nur der Segment-Handler:** das
+  Ping-Pong trat WEITER auf, diesmal auf Playlist-Ebene (User-Report
+  mit HTTP 404 UND HTTP 500, mehrere verschiedene Items betroffen).
+  Live-Diagnose zeigte: die Mac-App schickt beim Player-Start teils
+  wiederholt (mehrere Zyklen über 5-10+ Sekunden) ZWEI verschiedene
+  Playlist-Requests hintereinander — einmal `start=0`, einmal die echte
+  Resume-Position (z. B. 631.8s) — beide über `transcodePlaylist`, beide
+  also legitime `StartOrGet`-Aufrufer. Das sofortige gegenseitige Stoppen
+  verhinderte dabei zuverlässig, dass JEMALS eine der beiden Sessions
+  lange genug lebte, um eine Playlist fertigzustellen — Client bekam
+  404/500 statt Video, ein STRIKT SCHLIMMERES Ergebnis als das
+  ursprüngliche Problem (nur ein vorübergehendes Puffer-Stocken durch
+  zwei parallele Encodes). Der komplette "andere Sessions stoppen"-Block
+  wurde aus `StartOrGet` entfernt — Ursprungszustand (Sessions leben bis
+  zum 5-Minuten-Inaktivitäts-GC) wiederhergestellt. Die
+  `transcodeSegment`→`LookupSession`-Änderung blieb bestehen (für sich
+  genommen weiterhin korrekt: ein Segment-Request soll nie eine Session
+  erzeugen können, unabhängig vom Sibling-Kill-Thema). **Das ursprüngliche
+  "zwei parallele hw=true-Encodes"-Problem ist damit wieder ungelöst** —
+  ein künftiger Fix müsste zuerst klären, WARUM der Mac-App-Client beim
+  Start wiederholt zwei unterschiedliche `start=`-Werte anfragt (Client-
+  seitiger Bug, vermutlich eine Race zwischen einem initialen Default-Load
+  und der eigentlichen Resume-Positions-Anwendung), statt das Symptom
+  serverseitig zu bekämpfen. **Lehre, verschärft:** ein Fix, der auf
+  Basis EINES einzigen Diagnose-Logs gebaut wird, muss nach dem Deploy
+  aktiv auf neue, andere Fehlermuster am selben Symptom-Ort beobachtet
+  werden — hier hätte ein zweiter Blick auf die Client-Seite (warum zwei
+  Requests?) VOR dem Server-Fix vermutlich den echten Bug gefunden und
+  dieses Hin und Her vermieden.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.

@@ -326,30 +326,21 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		s.Touch()
 		return s, nil
 	}
-	// 🔴→✅ Andere Sessions DESSELBEN Items zuerst stoppen (gefixt nach
-	// Live-Diagnose 2026-09-13, User-Report Stream-Fehler -12888 "Playlist
-	// File unchanged for longer than 1.5 * target duration" — DiagnoseItem im
-	// Fehler-Log zeigte ZWEI gleichzeitig laufende ffmpeg-Sessions fuer
-	// dasselbe Item, eine bei Start=0/Default-Audio (alter=2m16s), eine bei
-	// Start=45.7s/Audio=1 (56s alt, genau die gerade aktive) — beide hw=true.
-	// Jeder Seek UND jeder Tonspur-Wechsel erzeugt einen NEUEN Session-Key
-	// (andere startSec bzw. audioIdx), aber NUR `StopSession` mit exakt
-	// demselben Key (der fresh=1-Pfad) stoppte je eine alte Session — ein
-	// Seek/Tonspur-Wechsel liess die vorherige Session dagegen bis zum
-	// 5-Minuten-GC einfach weiterlaufen. Zwei parallele hw=true-Encodes
-	// teilen sich denselben Intel-iGPU-VAAPI-Encoder und fallen dabei
-	// sichtbar zurueck — genau das Muster, das den Client-Timeout ausloeste.
-	// Es gibt konzeptionell immer nur EINEN aktiven Player pro Item (kein
-	// Picture-in-Picture, kein Multi-Stream), ein neuer Session-Key fuer
-	// dasselbe Item ist also IMMER ein Ersatz fuer den vorherigen, nie ein
-	// zusaetzlicher Zuschauer.
-	for otherID, other := range m.sessions {
-		if other.ItemID == itemID && otherID != id {
-			log.Printf("[transcode] session %s gestoppt (abgeloest durch neue Session %s desselben Items)", otherID, id)
-			other.Stop()
-			delete(m.sessions, otherID)
-		}
-	}
+	// 🔴 2026-09-13: Der Versuch, hier andere Sessions DESSELBEN Items sofort
+	// zu stoppen (gegen das "zwei parallele hw=true-Encodes"-Problem, siehe
+	// Git-Historie), wurde noch am selben Tag wieder ENTFERNT — Live-
+	// Diagnose zeigte, dass der Mac-App-Client beim Player-Start teils
+	// wiederholt ZWEI verschiedene Playlist-Requests (start=0 UND die echte
+	// Resume-Position) im Sekundentakt hintereinander schickt. Das sofortige
+	// gegenseitige Stoppen fuehrte dabei zu einem sich selbst verstaerkenden
+	// Ping-Pong (Session A stoppt B, B's naechster Request stoppt A, …), bei
+	// dem NIE eine Playlist fertig wird, bevor die Session schon wieder
+	// gekillt ist — Client bekommt HTTP 404/500 statt Video (schlimmer als
+	// das urspruengliche Problem, ein bloss vorruebergehendes Puffer-
+	// Stocken). Das eigentliche "zwei parallele Encodes"-Problem bleibt
+	// vorerst bewusst ungeloest (faellt bis zum 5-Minuten-Inaktivitaets-GC
+	// zurueck) — ein Fix muesste zuerst klaeren, WARUM der Client diese
+	// doppelten Requests schickt, statt serverseitig blind zu stoppen.
 	// Verzeichnis-Name = Session-Key + eindeutiger Suffix. Der Suffix ist
 	// ESSENTIELL, nicht kosmetisch: `Stop()` wartet nur 3 s auf das Ende von
 	// ffmpeg und loescht danach `s.Dir` — ein langsam sterbender Prozess
