@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,6 +88,7 @@ type Manager struct {
 
 func NewManager(cacheDir string, hw HWAccel) *Manager {
 	_ = os.MkdirAll(cacheDir, 0o755)
+	cleanStaleSessionDirs(cacheDir)
 	m := &Manager{
 		sessions:       map[string]*Session{},
 		cacheDir:       cacheDir,
@@ -224,6 +227,60 @@ func (m *Manager) ConsumeFresh(itemID int64, profile Profile, audioIdx int, star
 	return true
 }
 
+// DiagnoseItem beschreibt den Zustand aller Transcode-Sessions eines Items in
+// einer Zeile. Gedacht fuer den Fehlerpfad: meldet ein Client einen
+// Wiedergabefehler, haelt der Server damit fest, wie es in genau diesem Moment
+// serverseitig aussah. Ohne das ist der Fall spaeter nicht mehr
+// rekonstruierbar — der GC raeumt die Session binnen Minuten ab, und dann
+// steht nur noch die (generische) Client-Meldung im Protokoll.
+//
+// Bewusst reine Diagnose: liest nur, veraendert nichts, und schluckt jeden
+// Fehler beim Verzeichnis-Lesen — ein Diagnose-Aufruf darf den Fehlerpfad
+// niemals seinerseits zum Scheitern bringen.
+func (m *Manager) DiagnoseItem(itemID int64) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	prefix := strconv.FormatInt(itemID, 10) + "-"
+	var parts []string
+	for id, s := range m.sessions {
+		if !strings.HasPrefix(id, prefix) {
+			continue
+		}
+		alive := true
+		select {
+		case <-s.done:
+			alive = false
+		default:
+		}
+		segs, playlist := 0, false
+		if entries, err := os.ReadDir(s.Dir); err == nil {
+			for _, e := range entries {
+				switch {
+				case strings.HasSuffix(e.Name(), ".ts"):
+					segs++
+				case e.Name() == "index.m3u8":
+					playlist = true
+				}
+			}
+		}
+		parts = append(parts, fmt.Sprintf(
+			"session=%s alter=%s ffmpeg_laeuft=%v playlist=%v segmente=%d",
+			id, m.round(time.Since(s.StartedAt)), alive, playlist, segs))
+	}
+	if len(parts) == 0 {
+		return "keine aktive Transcode-Session (Direct Play, oder Session bereits beendet)"
+	}
+	sort.Strings(parts) // stabile Reihenfolge, damit zwei Berichte vergleichbar sind
+	return strings.Join(parts, " | ")
+}
+
+// round kuerzt eine Dauer auf Sekunden — in der Diagnose sind Nanosekunden
+// nur Rauschen.
+func (m *Manager) round(d time.Duration) string {
+	return d.Truncate(time.Second).String()
+}
+
 // LookupSession liefert die existierende Session zur Key oder nil, wenn keine
 // läuft. Im Gegensatz zu StartOrGet wird KEINE neue Session erzeugt — der
 // Progress-Handler nutzt das, damit ein Progress-Poll mit nicht ganz exakt
@@ -269,16 +326,31 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		s.Touch()
 		return s, nil
 	}
-	dir := filepath.Join(m.cacheDir, id)
+	// Verzeichnis-Name = Session-Key + eindeutiger Suffix. Der Suffix ist
+	// ESSENTIELL, nicht kosmetisch: `Stop()` wartet nur 3 s auf das Ende von
+	// ffmpeg und loescht danach `s.Dir` — ein langsam sterbender Prozess
+	// (HEVC-Decode via VAAPI braucht gelegentlich laenger) schreibt danach
+	// weiter. Ohne Suffix legt `StartOrGet` fuer denselben Session-Key
+	// unmittelbar DENSELBEN Pfad neu an: der alte ffmpeg schreibt dann in das
+	// Verzeichnis der neuen Session, beide ueberschreiben wechselseitig
+	// index.m3u8 und die seg*.ts-Nummern kollidieren. Der Client bekommt eine
+	// korrupte Playlist und meldet einen Datenstromfehler — bei `fresh=1`
+	// (Seek / neuer Player-Open) genau der Pfad, der das ausloest.
+	dir := filepath.Join(m.cacheDir, id+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	_ = cleanDir(dir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	args := m.buildArgs(inputPath, dir, profile, audioIdx, startSec, deinterlace, audioOnly)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-	cmd.Stderr = io.Discard
+	// stderr NICHT verwerfen: ffmpeg laeuft mit `-loglevel error`, hier landet
+	// also nur echtes Fehlerhaftes — und genau das fehlte bisher komplett im
+	// Log, wenn eine Wiedergabe scheiterte. Der Ring-Puffer haelt die letzten
+	// Zeilen; ausgegeben werden sie nur, wenn der Prozess mit Fehler endet
+	// (ein per Kontext gekillter Prozess ist der Normalfall und schweigt).
+	errBuf := &ringBuffer{max: 4096}
+	cmd.Stderr = errBuf
 	cmd.Stdout = io.Discard
 
 	log.Printf("[transcode] start session=%s profile=%s audio=%d hw=%v start=%.1fs deinterlace=%v", id, profile.ID, audioIdx, m.hw.Available, startSec, deinterlace)
@@ -302,8 +374,16 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		done:      make(chan struct{}),
 	}
 	go func() {
-		_ = cmd.Wait()
+		err := cmd.Wait()
 		close(s.done)
+		// Kontext-Abbruch = gewolltes Stop (fresh/GC), das ist kein Fehler.
+		if err != nil && ctx.Err() == nil {
+			if out := errBuf.String(); out != "" {
+				log.Printf("[transcode] session %s ffmpeg beendet mit %v: %s", id, err, out)
+			} else {
+				log.Printf("[transcode] session %s ffmpeg beendet mit %v", id, err)
+			}
+		}
 	}()
 	m.sessions[id] = s
 	return s, nil
@@ -562,13 +642,57 @@ func (s *Session) WaitForPlaylist(timeout time.Duration) error {
 	return errors.New("timeout beim Warten auf Playlist")
 }
 
-func cleanDir(dir string) error {
-	entries, err := os.ReadDir(dir)
+// ringBuffer haelt die letzten `max` Bytes eines Streams — fuer ffmpeg-stderr,
+// das sonst unbegrenzt wachsen koennte. Schreibzugriffe kommen aus der
+// exec-Goroutine, gelesen wird nach cmd.Wait(); der Mutex deckt den Fall ab,
+// dass beides kurz ueberlappt.
+type ringBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+	max int
+}
+
+func (r *ringBuffer) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.buf = append(r.buf, p...)
+	if len(r.buf) > r.max {
+		r.buf = r.buf[len(r.buf)-r.max:]
+	}
+	return len(p), nil
+}
+
+func (r *ringBuffer) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return strings.TrimSpace(string(r.buf))
+}
+
+// sessionDirPattern matcht die Verzeichnisse, die StartOrGet anlegt
+// (`<item>-<profil>-a<n>-<start>-d<0|1>-<suffix>`). Bewusst eng gefasst:
+// im selben cacheDir liegen auch `downloads/` und `trailers/`, die NIEMALS
+// angefasst werden duerfen.
+var sessionDirPattern = regexp.MustCompile(`^\d+-.+-a-?\d+-\d+-d[01]-[a-z0-9]+$`)
+
+// cleanStaleSessionDirs entfernt Transcode-Verzeichnisse frueherer Laeufe.
+// Noetig, seit jede Session einen eindeutigen Pfad bekommt: nach einem
+// Container-Neustart wuerde sonst nichts mehr recycelt und der Cache waechst
+// unbegrenzt. Laufende Sessions gibt es beim Start per Definition nicht.
+func cleanStaleSessionDirs(cacheDir string) {
+	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
-		return err
+		return
 	}
+	n := 0
 	for _, e := range entries {
-		_ = os.Remove(filepath.Join(dir, e.Name()))
+		if !e.IsDir() || !sessionDirPattern.MatchString(e.Name()) {
+			continue
+		}
+		if os.RemoveAll(filepath.Join(cacheDir, e.Name())) == nil {
+			n++
+		}
 	}
-	return nil
+	if n > 0 {
+		log.Printf("[transcode] %d verwaiste Session-Verzeichnisse aus einem frueheren Lauf entfernt", n)
+	}
 }

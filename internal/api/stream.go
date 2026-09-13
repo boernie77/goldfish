@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -307,10 +308,27 @@ func (s *Server) playbackError(w http.ResponseWriter, r *http.Request) {
 	if len(msg) > 300 {
 		msg = msg[:300] + "…"
 	}
+	// Serverseitigen Zustand JETZT festhalten. Der Client meldet nur eine
+	// generische Fehlermeldung ("Internal data stream error" o. ae.) — ob
+	// dahinter eine tote ffmpeg-Session, eine leere Playlist oder gar keine
+	// Session steckt, ist wenige Minuten spaeter nicht mehr feststellbar
+	// (der GC raeumt ab). Deshalb hier und nicht erst bei der Auswertung.
+	diag := "n/a"
+	if s.Playback != nil {
+		diag = s.Playback.DiagnoseItem(it.ID)
+	}
+	log.Printf("[playback] FEHLER item=%d %q client=%q geraet=%q | %s",
+		it.ID, it.Title, msg, deviceLabel(r), diag)
+
 	detail := it.Title
 	if msg != "" {
 		detail = fmt.Sprintf("%s — %s", it.Title, msg)
 	}
+	// Der Zustand wandert auch ins Protokoll: Container-Logs rotieren, die
+	// activity_log-Zeile bleibt 180 Tage und ist damit die verlaesslichere
+	// Quelle, wenn der Fehler erst Tage spaeter untersucht wird.
+	detail = fmt.Sprintf("%s [server: %s]", detail, diag)
+
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "error", detail, deviceLabel(r))
 	}

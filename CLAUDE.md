@@ -302,7 +302,29 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   zwei 'E' im Pfad auf Doppelfolgen-Ranges und schreibt `items.episode_end`. Flag
   wird am Ende gesetzt, Restart-idempotent.
 - Transcode-Sessions werden pro `(itemID, profileID, startSec)` gehalten und nach
-  5 min Inaktivität per GC-Loop beendet; Cache unter `/config/cache/{sessionID}/`.
+  5 min Inaktivität per GC-Loop beendet; Cache unter
+  `/config/cache/{sessionID}-{suffix}/`.
+- **⚠ Das Session-Verzeichnis trägt einen eindeutigen Suffix — nicht entfernen**
+  (seit 2026-09-13): `Session.Stop()` wartet nur **3 s** auf das Ende von
+  ffmpeg und löscht danach `s.Dir`. Ein langsam sterbender Prozess (HEVC-Decode
+  via VAAPI braucht gelegentlich länger) schreibt darüber hinaus weiter. Ohne
+  Suffix legt `StartOrGet` für denselben Session-Key sofort DENSELBEN Pfad neu
+  an — altes und neues ffmpeg schreiben dann ins gleiche Verzeichnis,
+  überschreiben wechselseitig `index.m3u8` und vergeben `seg*.ts`-Nummern
+  doppelt. Der Client bekommt eine korrupte Playlist und meldet einen
+  Datenstromfehler. Ausgelöst wurde das von `fresh=1` (Seek oder neuer
+  Player-Open bei laufender Session), reproduziert mit HTTP 500 auf die
+  Playlist-Anfrage. **`cleanStaleSessionDirs` beim Manager-Start räumt
+  verwaiste Verzeichnisse weg** — sein `sessionDirPattern` ist bewusst eng
+  gefasst, weil im selben `cacheDir` auch `downloads/` und `trailers/` liegen,
+  die NIEMALS angefasst werden dürfen. Tests:
+  `internal/playback/session_dir_test.go`.
+- **ffmpeg-stderr landet im Log** (seit 2026-09-13): der Transcode-Prozess
+  läuft mit `-loglevel error`, sein stderr wurde vorher per `io.Discard`
+  komplett verworfen — scheiterte eine Wiedergabe, stand NICHTS im Log und die
+  Diagnose war blind. Jetzt hält ein `ringBuffer` die letzten 4 KB und gibt sie
+  aus, wenn der Prozess mit Fehler endet. Ein per Kontext gekillter Prozess
+  (`fresh=1`, GC) ist der Normalfall und schweigt weiterhin.
 
 ### Volumes
 
@@ -3215,6 +3237,26 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
     gekappt). Browser: `player.js` hatte bisher **gar keinen**
     `vjs.on("error", ...)`-Handler — neu ergänzt, liest `vjs.error()`
     (MediaError-artiges Objekt) aus und meldet `.message`/Code.
+  - **Der Server hängt seinen eigenen Zustand an jede Fehlermeldung**
+    (seit 2026-09-13): `playbackError` ruft `Playback.DiagnoseItem(itemID)`
+    auf und schreibt das Ergebnis sowohl ins Server-Log als auch in
+    `activity_log.detail` (`… [server: session=… alter=… ffmpeg_laeuft=…
+    playlist=… segmente=…]`). Der Client meldet nur eine generische
+    Meldung — ob dahinter eine tote ffmpeg-Session, eine leere Playlist
+    oder gar keine Session steckt, ist wenige Minuten später nicht mehr
+    feststellbar, weil der GC die Session abräumt. **Deshalb im
+    Fehlerpfad erheben, nicht erst bei der Auswertung.** Die
+    Protokollzeile bleibt 180 Tage und ist damit verlässlicher als die
+    rotierenden Container-Logs. `DiagnoseItem` liest nur und schluckt
+    jeden eigenen Fehler — eine Diagnose darf den Fehlerpfad nie
+    zusätzlich zum Scheitern bringen.
+  - **`scripts/diag-playback.sh`** holt Server-Log (ohne
+    Enrichment-Rauschen) + Protokoll für ein Zeitfenster in einem Rutsch:
+    `./scripts/diag-playback.sh 18:37` (Uhrzeit lokal, optional zweites
+    Argument = Fenster in Minuten). Braucht
+    `~/.config/portainer/credentials.env`; demultiplext die
+    8-Byte-Frame-Header der Docker-Log-API, die sonst als Steuerzeichen
+    im Text landen.
   - Neue Protokoll-Zeilen: `stop` → "Wiedergabe beendet", `error` →
     "Wiedergabe-Fehler" (`ACTIVITY_LOG_LABELS`). Detail-Text bei `stop`
     z. B. "Titel (12:34 von 45:00, zu Ende)"/"…, geschlossen"
