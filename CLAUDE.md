@@ -1628,6 +1628,65 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `GET /api/settings` konfiguriert) kennen diese IMDb-ID schlicht nicht —
   kein Software-Bug, der zweite Fund war unabhängig davon.
 
+#### Listenspalten "Zuletzt abgespielt"/"Wiedergaben"/"Hinzugefügt" + Spalten-Auswahl (seit 2026-09-14, LIVE 1.3.26)
+
+User-Wunsch: dieselben drei Zeit-/Zähler-Spalten für Alben UND Titel in den
+Musik-Listenansichten, dazu ein Dropdown zum Ein-/Ausblenden einzelner
+Spalten — **Browser, Mac, Linux** (explizit NICHT iOS/tvOS, dort bleibt die
+Musik-UI unverändert bewusst schlank).
+
+- **Neue Server-Datenspalte `user_item_state.play_count`** (Wiedergabezähler
+  pro User+Item). `Store.TouchLastPlayed` (aufgerufen von
+  `POST /api/items/{id}/played`, das JEDER Client beim Öffnen des Players
+  bereits ruft — derselbe, längst universelle Mechanismus hinter "Zuletzt
+  abgespielt") zählt `play_count` im selben UPSERT hoch, kein neuer
+  Aufrufpfad für irgendeinen Client nötig.
+  `model.Item.PlayCount`/`model.MusicAlbum.PlayCount` (Album = `SUM` über
+  alle Tracks) neu, zusammen mit `model.MusicAlbum.AddedAt` (`MIN` über alle
+  Tracks — wann der erste Titel des Albums in die Bibliothek kam) und
+  `model.MusicAlbum.LastPlayedAt` (`MAX` über alle Tracks, analog zum
+  bereits bestehenden `Item.LastPlayedAt`). Ergänzt in `ListItems`
+  (`items.go`), `ListMusicAlbumTracks` UND `ListMusicAlbumsFiltered`
+  (`music.go`, drei unabhängige SELECTs — siehe frühere Bugs an genau dieser
+  Stelle, z. B. "Genre-Spalte blieb leer", immer weil eine der drei
+  Datenquellen beim ersten Anlauf übersehen wurde).
+  **🔴→✅ Fallstrick beim ersten Testlauf:** `MAX(us.last_played_at)` über
+  eine korrelierte Subquery lieferte bei `modernc.org/sqlite` einen rohen
+  `time.Time.String()`-String INKLUSIVE Monotonic-Clock-Suffix
+  (`"... m=+0.098136418"`) zurück statt eines sauber typisierten DATETIME-
+  Werts, wie es ein direkter Spaltenzugriff (kein Aggregat) liefert — keine
+  der bestehenden `parseDBTime`-Layouts kann diesen variablen Suffix
+  matchen. Fix: `parseDBTime` (`sqlite.go`) schneidet den `" m=..."`-Teil
+  jetzt vorab ab, bevor es die bekannten Layouts probiert. Tests:
+  `internal/store/play_count_test.go`
+  (`TestTouchLastPlayedIncrementsPlayCount`,
+  `TestListMusicAlbumsAggregatesPlayCountAndLastPlayed`).
+- **Browser (`music.js`):** `MUSIC_LIST_CONTEXTS` (Album-Übersicht/
+  Album-Detail/"Alle Titel") bekommen `lastPlayed`/`playCount`/`added` als
+  weitere `reorderable`-Spalten (Labels "Zuletzt gehört"/"Wiedergaben"/
+  "Hinzugefügt"). Neuer `defaultVisible`-Schlüssel pro Kontext: die drei
+  neuen Spalten sind NICHT automatisch für jeden sichtbar (User-Vorgabe,
+  implizit — neue Spalten sollen nicht ungefragt überall auftauchen),
+  sondern nur über den neuen **"☰ Spalten"-Dropdown** zuschaltbar
+  (`#musicColumnsBtn`/`#musicColumnsDropdown` in `index.html`, gleiches
+  Öffnen/Schließen-Muster wie der bestehende Genre-Filter-Dropdown).
+  Sichtbarkeit als explizite Allowlist in `localStorage`
+  (`musicColumns:<context>.visible`, gemerged ins selbe Objekt wie
+  `order`/`widths` — `saveMusicColumnLayout`/`saveMusicColumnVisible` schreiben
+  beide non-destruktiv in dasselbe Storage-Objekt). Der Button selbst wird
+  NICHT statisch ein-/ausgeblendet, sondern zentral: `loadItemsBody()`
+  (`grid.js`) versteckt ihn bei jedem Render-Durchlauf standardmäßig,
+  `renderMusicColumnHeader()` (`music.js`) zeigt ihn nur wieder, wenn dieser
+  Durchlauf tatsächlich eine Spalten-Kopfzeile gerendert hat — dadurch bleibt
+  die Sichtbarkeit exakt an das reale Vorhandensein einer Spalten-Ansicht
+  gekoppelt, unabhängig davon, über welchen der drei Wege (Album-Übersicht
+  als Liste, "Alle Titel", Album-Detail) man dorthin kam.
+- **Nicht angefasst:** das bestehende Reorder-Drag (`wireMusicColumnHeader`)
+  arbeitet über `order.indexOf(spaltenName)` auf dem VOLLEN Order-Array
+  (inkl. gerade ausgeblendeter Spalten) — unabhängig davon, welche Spalten
+  im Header aktuell sichtbar gerendert sind. Ausblenden/Wiedereinblenden
+  einer Spalte verliert dadurch nie ihre zuvor gewählte Position.
+
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
   `ListItemsInCollection` liefen vorher ohne Library-ACL- UND FSK-Prüfung (Non-Admin sah fremde

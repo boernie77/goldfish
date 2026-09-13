@@ -399,11 +399,18 @@ func (s *Store) ListMusicAlbumsFiltered(libraryID, userID int64, genres []string
 	q := `
 		SELECT a.id, a.library_id, a.artist, a.album, a.year, a.genre, a.cover_source,
 		       (SELECT COUNT(*) FROM items i WHERE i.music_album_id = a.id) AS track_count,
-		       EXISTS(SELECT 1 FROM user_music_album_favorites f WHERE f.album_id = a.id AND f.user_id = ?)
+		       EXISTS(SELECT 1 FROM user_music_album_favorites f WHERE f.album_id = a.id AND f.user_id = ?),
+		       (SELECT MIN(i.added_at) FROM items i WHERE i.music_album_id = a.id) AS added_at,
+		       (SELECT MAX(us.last_played_at) FROM items i
+		          LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
+		          WHERE i.music_album_id = a.id) AS last_played_at,
+		       (SELECT COALESCE(SUM(us.play_count), 0) FROM items i
+		          LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
+		          WHERE i.music_album_id = a.id) AS play_count
 		FROM music_albums a
 		WHERE a.library_id = ?
 		  AND EXISTS(SELECT 1 FROM items i WHERE i.music_album_id = a.id)`
-	args := []any{userID, libraryID}
+	args := []any{userID, userID, userID, libraryID}
 	if len(genres) > 0 {
 		ph := make([]string, len(genres))
 		for i, g := range genres {
@@ -422,10 +429,23 @@ func (s *Store) ListMusicAlbumsFiltered(libraryID, userID int64, genres []string
 	for rows.Next() {
 		var a model.MusicAlbum
 		var fav int
-		if err := rows.Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource, &a.TrackCount, &fav); err != nil {
+		var addedAt, lastPlayedAt sql.NullString
+		if err := rows.Scan(&a.ID, &a.LibraryID, &a.Artist, &a.Album, &a.Year, &a.Genre, &a.CoverSource, &a.TrackCount, &fav,
+			&addedAt, &lastPlayedAt, &a.PlayCount); err != nil {
 			return nil, err
 		}
 		a.Favorite = fav == 1
+		a.AddedAt = parseDBTime(addedAt.String)
+		if lastPlayedAt.Valid {
+			// MAX() über eine Subquery-Aggregation liefert bei modernc.org/sqlite
+			// einen rohen String statt eines nativ typisierten DATETIME-Werts
+			// (anders als ein direkter Spaltenzugriff wie in
+			// ListMusicAlbumTracks) — deshalb hier über parseDBTime statt
+			// sql.NullTime, analog zu addedAt oben.
+			if t := parseDBTime(lastPlayedAt.String); !t.IsZero() {
+				a.LastPlayedAt = &t
+			}
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -499,7 +519,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 		       i.mod_time, i.released_at, i.added_at, COALESCE(i.metadata_id, 0),
 		       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
 		       COALESCE(i.genre, ''), COALESCE(i.year, 0),
-		       COALESCE(us.favorite, 0), us.last_played_at
+		       COALESCE(us.favorite, 0), us.last_played_at, COALESCE(us.play_count, 0)
 		FROM items i
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE i.music_album_id = ?
@@ -518,7 +538,7 @@ func (s *Store) ListMusicAlbumTracks(albumID, userID int64) ([]model.Item, error
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb,
 			&it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &it.Year,
-			&favorite, &lastPlayedAt); err != nil {
+			&favorite, &lastPlayedAt, &it.PlayCount); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1

@@ -1428,6 +1428,7 @@ function wire() {
   { const rf = $("#ratingFilter"); if (rf) rf.addEventListener("change", loadItems); }
   setupResolutionDropdown();
   setupGenreDropdown();
+  setupMusicColumnsDropdown();
   $("#flatViewBtn").addEventListener("click", () => {
     state.flatView = !state.flatView;
     $("#flatViewBtn").classList.toggle("active", state.flatView);

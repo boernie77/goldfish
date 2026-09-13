@@ -551,6 +551,15 @@ function renderAlbumRow(a, columns) {
       case "count":
         html += `<span class="track-row-count">${a.trackCount || 0} Titel</span>`;
         break;
+      case "lastPlayed":
+        html += `<span class="track-row-played">${a.lastPlayedAt ? fmtDate(a.lastPlayedAt) : "—"}</span>`;
+        break;
+      case "playCount":
+        html += `<span class="track-row-playcount">${a.playCount || 0}</span>`;
+        break;
+      case "added":
+        html += `<span class="track-row-added">${a.addedAt ? fmtDate(a.addedAt) : "—"}</span>`;
+        break;
       case "fav":
         html += `<button type="button" class="fav-toggle track-row-fav ${a.favorite ? "is-on" : ""}" title="${a.favorite ? "Album aus Favoriten entfernen" : "Album zu Favoriten hinzufügen"}" data-toggle-album-fav>${a.favorite ? "♥" : "♡"}</button>`;
         break;
@@ -746,21 +755,29 @@ const MUSIC_LIST_CONTEXTS = {
   // Gegensatz zu den beiden Track-Listen unten).
   overview: {
     fixedLeading: ["cover"],
-    reorderable: ["title", "artist", "genre", "count"],
+    // "lastPlayed"/"playCount"/"added" seit 2026-09-14 ergänzt (User-Wunsch:
+    // "zuletzt abgespielt, wie oft abgespielt und hinzugefügt noch als
+    // Spalten ... für Alben und Lieder" + Spalten-Auswahl-Dropdown, siehe
+    // musicColumnVisibility* unten). Album-weit aggregiert vom Server
+    // (MAX(last_played_at)/SUM(play_count)/MIN(added_at) über alle Tracks).
+    reorderable: ["title", "artist", "genre", "count", "lastPlayed", "playCount", "added"],
     // "editMeta"/"delete" seit 2026-09-12 ergänzt (User-Wunsch: "in der
     // Listenansicht auch ... Alben löschen können", danach Nachfrage: "jetzt
     // fehlt dort das Bearbeiten Zeichen" — Metadaten-Edit gab es bis dahin
     // nur im Album-Detail-Header, jetzt zusätzlich direkt aus der Übersicht
     // erreichbar, symmetrisch neben dem Lösch-Icon).
     fixedTrailing: ["fav", "editMeta", "delete"],
-    labels: { title: "Album", artist: "Künstler", genre: "Genre", count: "Titel" },
-    defaultWidths: { title: 260, artist: 160, genre: 120, count: 90 },
-    minWidths: { title: 100, artist: 80, genre: 70, count: 60 },
+    labels: { title: "Album", artist: "Künstler", genre: "Genre", count: "Titel", lastPlayed: "Zuletzt gehört", playCount: "Wiedergaben", added: "Hinzugefügt" },
+    defaultWidths: { title: 260, artist: 160, genre: 120, count: 90, lastPlayed: 140, playCount: 100, added: 120 },
+    minWidths: { title: 100, artist: 80, genre: 70, count: 60, lastPlayed: 100, playCount: 70, added: 90 },
     fixedWidths: { cover: 40, fav: 32, editMeta: 32, delete: 32 },
+    // Standardmäßig sichtbar (User-Wunsch: neue Spalten nicht ungefragt allen
+    // aufzwingen) — der Rest bleibt über das Spalten-Dropdown zuschaltbar.
+    defaultVisible: ["title", "artist", "genre", "count"],
   },
   album: {
     fixedLeading: ["track"],
-    reorderable: ["title", "artist", "genre", "year", "duration"],
+    reorderable: ["title", "artist", "genre", "year", "duration", "lastPlayed", "playCount", "added"],
     // "editMeta" seit 2026-09-06 ergänzt (User-Wunsch: "Der Bearbeitungs-
     // button soll auch in der Listenansicht am Ende der Zeile sein") — reiner
     // Icon-Slot wie "fav", kein Spalten-Label nötig (renderMusicColumnHeader
@@ -768,19 +785,21 @@ const MUSIC_LIST_CONTEXTS = {
     // "delete" seit 2026-09-12 daneben ergänzt (User-Wunsch: "neben jeden
     // Bearbeitungsbutton auch ein Löschbutton").
     fixedTrailing: ["fav", "editMeta", "delete"],
-    labels: { title: "Titel", artist: "Künstler", genre: "Genre", year: "Jahr", duration: "Dauer" },
-    defaultWidths: { title: 260, artist: 160, genre: 110, year: 60, duration: 70 },
-    minWidths: { title: 100, artist: 80, genre: 70, year: 50, duration: 50 },
+    labels: { title: "Titel", artist: "Künstler", genre: "Genre", year: "Jahr", duration: "Dauer", lastPlayed: "Zuletzt gehört", playCount: "Wiedergaben", added: "Hinzugefügt" },
+    defaultWidths: { title: 260, artist: 160, genre: 110, year: 60, duration: 70, lastPlayed: 140, playCount: 100, added: 120 },
+    minWidths: { title: 100, artist: 80, genre: 70, year: 50, duration: 50, lastPlayed: 100, playCount: 70, added: 90 },
     fixedWidths: { track: 32, fav: 32, editMeta: 32, delete: 32 },
+    defaultVisible: ["title", "artist", "genre", "year", "duration"],
   },
   all: {
     fixedLeading: ["cover"],
-    reorderable: ["title", "artist", "album", "genre", "year", "lastPlayed"],
+    reorderable: ["title", "artist", "album", "genre", "year", "lastPlayed", "playCount", "added"],
     fixedTrailing: ["fav", "editMeta", "delete"],
-    labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", year: "Jahr", lastPlayed: "Zuletzt gehört" },
-    defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, year: 60, lastPlayed: 140 },
-    minWidths: { title: 100, artist: 80, album: 80, genre: 70, year: 50, lastPlayed: 100 },
+    labels: { title: "Titel", artist: "Künstler", album: "Album", genre: "Genre", year: "Jahr", lastPlayed: "Zuletzt gehört", playCount: "Wiedergaben", added: "Hinzugefügt" },
+    defaultWidths: { title: 280, artist: 160, album: 160, genre: 110, year: 60, lastPlayed: 140, playCount: 100, added: 120 },
+    minWidths: { title: 100, artist: 80, album: 80, genre: 70, year: 50, lastPlayed: 100, playCount: 70, added: 90 },
     fixedWidths: { cover: 40, fav: 32, editMeta: 32, delete: 32 },
+    defaultVisible: ["title", "artist", "album", "genre", "year", "lastPlayed"],
   },
 };
 
@@ -811,20 +830,55 @@ function loadMusicColumnWidths(context) {
   return widths;
 }
 
+// saveMusicColumnLayout/saveMusicColumnVisible MERGEN in das bestehende
+// localStorage-Objekt statt es zu ersetzen — sonst würde ein Resize/Reorder
+// eine zuvor gespeicherte Spalten-Sichtbarkeit überschreiben (und umgekehrt),
+// weil beide denselben Key `musicColumns:<context>` teilen.
 function saveMusicColumnLayout(context, order, widths) {
-  try { localStorage.setItem(musicColumnLayoutKey(context), JSON.stringify({ order, widths })); } catch {}
+  const raw = loadMusicColumnLayoutRaw(context) || {};
+  raw.order = order;
+  raw.widths = widths;
+  try { localStorage.setItem(musicColumnLayoutKey(context), JSON.stringify(raw)); } catch {}
+}
+
+// Spalten-Sichtbarkeit (User-Wunsch 2026-09-14): welche der `reorderable`-
+// Spalten tatsächlich angezeigt werden — unabhängig von ihrer Reihenfolge/
+// Breite (die bleiben auch für ausgeblendete Spalten gespeichert, falls
+// später wieder eingeblendet). Default = `cfg.defaultVisible` (bewusst nicht
+// "alle" — neue Spalten wie Wiedergaben/Hinzugefügt sollen nicht ungefragt
+// bei jedem aufploppen). Als explizite ALLOWLIST gespeichert (nicht als
+// Hidden-Denylist): so bleiben künftig neu hinzugefügte Spalten automatisch
+// unsichtbar, bis der User sie bewusst zuschaltet, statt automatisch mit
+// aufzutauchen.
+function loadMusicColumnVisible(context) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const saved = loadMusicColumnLayoutRaw(context);
+  if (saved && Array.isArray(saved.visible)) {
+    return new Set(saved.visible.filter(c => cfg.reorderable.includes(c)));
+  }
+  return new Set(cfg.defaultVisible || cfg.reorderable);
+}
+
+function saveMusicColumnVisible(context, visibleSet) {
+  const raw = loadMusicColumnLayoutRaw(context) || {};
+  raw.visible = Array.from(visibleSet);
+  try { localStorage.setItem(musicColumnLayoutKey(context), JSON.stringify(raw)); } catch {}
 }
 
 // Komplettes Spalten-Array inkl. fixer Leading/Trailing-Slots in aktueller
-// Reihenfolge — direkt als `columns`-Parameter für renderMusicTrackRow nutzbar.
+// Reihenfolge, NUR die sichtbaren reorderable-Spalten — direkt als
+// `columns`-Parameter für renderMusicTrackRow/renderAlbumRow nutzbar.
 function musicEffectiveColumns(context) {
   const cfg = MUSIC_LIST_CONTEXTS[context];
-  return [...cfg.fixedLeading, ...loadMusicColumnOrder(context), ...cfg.fixedTrailing];
+  const visible = loadMusicColumnVisible(context);
+  const order = loadMusicColumnOrder(context).filter(c => visible.has(c));
+  return [...cfg.fixedLeading, ...order, ...cfg.fixedTrailing];
 }
 
 function musicGridTemplate(context) {
   const cfg = MUSIC_LIST_CONTEXTS[context];
-  const order = loadMusicColumnOrder(context);
+  const visible = loadMusicColumnVisible(context);
+  const order = loadMusicColumnOrder(context).filter(c => visible.has(c));
   const widths = loadMusicColumnWidths(context);
   const parts = [];
   for (const col of cfg.fixedLeading) parts.push(`${cfg.fixedWidths[col]}px`);
@@ -854,13 +908,23 @@ const musicColumnHeaderRefreshers = new WeakMap();
 // Zellrand) + Drag-and-Drop-Reorder (natives HTML5-DnD) für die
 // reorderable-Spalten. Fixe Icon-Slots bekommen nur einen leeren Platzhalter,
 // damit das Grid-Raster mit den Datenzeilen übereinstimmt.
+// currentMusicListContext: welcher Kontext (overview/album/all) zuletzt eine
+// Spalten-Kopfzeile gerendert hat — der "☰ Spalten"-Dropdown (siehe
+// setupMusicColumnsDropdown) braucht das, um zu wissen, welche Spalten er
+// zur Auswahl anbieten soll. Wird pro Render-Durchlauf hier gesetzt, NICHT
+// zurückgesetzt (loadItemsBody in grid.js versteckt den Button stattdessen
+// zentral, siehe dortiger Kommentar) — ein veralteter Wert kann daher nie
+// sichtbar falsch angewendet werden, der Button ist ja versteckt.
+let currentMusicListContext = null;
+
 function renderMusicColumnHeader(context, list) {
   const cfg = MUSIC_LIST_CONTEXTS[context];
+  const visible = loadMusicColumnVisible(context);
   const head = document.createElement("div");
   head.className = "track-row track-row--head track-row--col-head";
   let html = "";
   for (const _ of cfg.fixedLeading) html += `<span class="track-row-head-fixed"></span>`;
-  for (const col of loadMusicColumnOrder(context)) {
+  for (const col of loadMusicColumnOrder(context).filter(c => visible.has(c))) {
     html += `<span class="track-row-head-cell" data-col="${col}">` +
       `<span class="track-row-head-label">${escapeHTML(cfg.labels[col] || col)}</span>` +
       `<span class="col-resize-handle" data-resize="${col}" title="Spaltenbreite ziehen"></span></span>`;
@@ -869,6 +933,11 @@ function renderMusicColumnHeader(context, list) {
   head.innerHTML = html;
   list.appendChild(head);
   wireMusicColumnHeader(head, context, list);
+  // "☰ Spalten"-Button einblenden (User-Wunsch 2026-09-14) — siehe
+  // Kommentar bei currentMusicListContext oben.
+  currentMusicListContext = context;
+  const columnsBtn = $("#musicColumnsBtn");
+  if (columnsBtn) columnsBtn.classList.remove("hidden");
   return head;
 }
 
@@ -957,6 +1026,67 @@ function wireMusicColumnHeader(head, context, list) {
   });
 }
 
+// setupMusicColumnsDropdown: "☰ Spalten"-Auswahl (User-Wunsch 2026-09-14).
+// Gleiches Öffnen/Schließen-Muster wie der Genre-Filter (setupGenreDropdown
+// in app.js) — Klick auf den Button togglet das Panel, ein Klick außerhalb
+// oder auf einen anderen Dropdown schließt es. Der Inhalt (welche Spalten
+// zur Auswahl stehen) hängt vom zuletzt gerenderten Kontext ab
+// (currentMusicListContext, siehe renderMusicColumnHeader).
+function setupMusicColumnsDropdown() {
+  const btn = $("#musicColumnsBtn");
+  const panel = $("#musicColumnsDropdown");
+  if (!btn || !panel) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const wasHidden = panel.classList.contains("hidden");
+    if (wasHidden) {
+      panel.classList.remove("hidden");
+      btn.setAttribute("aria-expanded", "true");
+      renderMusicColumnsDropdownList();
+    } else {
+      panel.classList.add("hidden");
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  panel.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", () => {
+    if (!panel.classList.contains("hidden")) {
+      panel.classList.add("hidden");
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+function renderMusicColumnsDropdownList() {
+  const list = $("#musicColumnsList");
+  if (!list || !currentMusicListContext) return;
+  const context = currentMusicListContext;
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const visible = loadMusicColumnVisible(context);
+  // Reihenfolge in der Auswahlliste = aktuelle Spaltenreihenfolge (nicht die
+  // feste Konfigurationsreihenfolge) — leichter wiederzufinden, welche
+  // Spalte gemeint ist, wenn man sie gerade verschoben hat.
+  const order = loadMusicColumnOrder(context);
+  list.innerHTML = order.map(col => `
+    <label><input type="checkbox" data-music-col="${col}" ${visible.has(col) ? "checked" : ""}> ${escapeHTML(cfg.labels[col] || col)}</label>
+  `).join("");
+  list.querySelectorAll('input[type="checkbox"][data-music-col]').forEach(cb => {
+    cb.addEventListener("change", () => {
+      const col = cb.dataset.musicCol;
+      if (cb.checked) visible.add(col);
+      else visible.delete(col);
+      saveMusicColumnVisible(context, visible);
+      // Kompletter Neuaufbau statt gezieltem Refresh-Callback: der Picker
+      // kennt nur den Kontext-Namen, nicht den DOM-Container der gerade
+      // sichtbaren Liste (Album-Übersicht/"Alle Titel"/Album-Detail sind
+      // unterschiedliche Render-Pfade) — loadItems() baut ohnehin die
+      // gesamte aktuelle Ansicht neu auf, das ist hier einfacher und robuster
+      // als drei verschiedene Refresh-Wege zu unterscheiden.
+      loadItems();
+    });
+  });
+}
+
 // renderMusicTrackRow: gemeinsamer Zeilen-Renderer für alle Musik-
 // Listenansichten (Album-Detail-Liste + "Alle Titel"). `columns` steuert,
 // welche Felder gezeigt werden. Album-Kontext zeigt seit 2026-09-06 auch
@@ -1007,6 +1137,12 @@ function renderMusicTrackRow(it, queue, idx, columns) {
         break;
       case "lastPlayed":
         html += `<span class="track-row-played">${it.lastPlayedAt ? fmtDate(it.lastPlayedAt) : "—"}</span>`;
+        break;
+      case "playCount":
+        html += `<span class="track-row-playcount">${it.playCount || 0}</span>`;
+        break;
+      case "added":
+        html += `<span class="track-row-added">${it.addedAt ? fmtDate(it.addedAt) : "—"}</span>`;
         break;
       case "fav":
         html += `<button type="button" class="fav-toggle track-row-fav ${it.favorite ? "is-on" : ""}" title="${it.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}" data-toggle-fav aria-label="${it.favorite ? "Favorit" : "Kein Favorit"}">${it.favorite ? "♥" : "♡"}</button>`;

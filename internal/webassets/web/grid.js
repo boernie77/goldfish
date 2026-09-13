@@ -107,6 +107,15 @@ async function loadItemsBody() {
   // Screenshot: riesiges Einzel-Poster statt Kachel-Grid). Die
   // Musik-Listen-Renderer setzen sie bei Bedarf selbst wieder.
   grid.classList.remove("track-list-grid");
+  // "☰ Spalten"-Button (User-Wunsch 2026-09-14): zentral verstecken, genau wie
+  // oben bei "track-list-grid" — nur `renderMusicColumnHeader` (music.js)
+  // zeigt ihn wieder, und zwar nur dann, wenn es diesen Durchlauf tatsächlich
+  // eine Spalten-Kopfzeile gerendert hat (Album-/Titel-Listenansicht). So
+  // bleibt die Sichtbarkeit exakt an das reale Vorhandensein einer
+  // Spalten-Ansicht gekoppelt, unabhängig davon, über welchen der drei Wege
+  // (Album-Übersicht als Liste, "Alle Titel", Album-Detail-Trackliste) man
+  // dorthin kam.
+  $("#musicColumnsBtn").classList.add("hidden");
   // Default: keine Folder im Render-Snapshot. Der Standard-Library-Pfad
   // setzt das später auf die echte Folder-Liste; alle anderen Pfade
   // (Favoriten/Duplikate/Suspicious/Interlaced/Person/Collections/Playlists)

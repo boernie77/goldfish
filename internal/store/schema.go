@@ -565,6 +565,15 @@ func (s *Store) migrate() error {
 	if err := addCol("user_item_state", "rating", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Abspielzähler pro User+Item (User-Wunsch 2026-09-14: "wie oft
+	// abgespielt" als Musik-Listenspalte, Browser/Mac/Linux). Wird von
+	// TouchLastPlayed im selben Upsert wie last_played_at hochgezählt —
+	// dieselbe Stelle, die "Zuletzt abgespielt" schon für alle Clients
+	// pflegt (jeder Client ruft POST /api/items/{id}/played beim
+	// Player-Öffnen auf), kein neuer Aufrufpfad nötig.
+	if err := addCol("user_item_state", "play_count", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Musik-Felder (nur kind=music, aus eingebetteten Tags via scanner.probeItem
 	// gelesen). track_no 0 = keine Track-Nummer im Tag gefunden.
 	if err := addCol("items", "artist", "TEXT NOT NULL DEFAULT ''"); err != nil {

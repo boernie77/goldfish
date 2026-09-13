@@ -196,6 +196,11 @@ type Item struct {
 	// sonst "0001-01-01T00:00:00Z" im JSON gehabt (Frontend zeigte das als
 	// "01.01.1" an — User-Bericht 2026-09-04).
 	LastPlayedAt *time.Time `json:"lastPlayedAt,omitempty"`
+	// PlayCount: user_item_state.play_count (pro User) — User-Wunsch
+	// 2026-09-14: "wie oft abgespielt" als Musik-Listenspalte. Wie
+	// LastPlayedAt nur in den Musik-Ladepfaden befüllt (ListItems,
+	// ListMusicAlbumTracks).
+	PlayCount int `json:"playCount,omitempty"`
 }
 
 // MusicAlbum: eine (Artist,Album)-Gruppe innerhalb einer Musik-Bibliothek.
@@ -216,6 +221,14 @@ type MusicAlbum struct {
 	// user_item_state.favorite für einzelne Titel. Nur gesetzt, wenn die
 	// Store-Funktion mit einer UserID aufgerufen wurde.
 	Favorite bool `json:"favorite,omitempty"`
+	// AddedAt: MIN(items.added_at) aller Tracks des Albums — wann der
+	// erste Titel dieses Albums in die Bibliothek kam (User-Wunsch
+	// 2026-09-14: "hinzugefügt" als Musik-Listenspalte, auch für Alben).
+	AddedAt time.Time `json:"addedAt,omitempty"`
+	// LastPlayedAt/PlayCount: pro User aggregiert über alle Tracks des
+	// Albums (MAX bzw. SUM) — dieselben Felder wie bei Item, nur album-weit.
+	LastPlayedAt *time.Time `json:"lastPlayedAt,omitempty"`
+	PlayCount    int        `json:"playCount,omitempty"`
 }
 
 // Person: TMDB-Schauspieler (dedupliziert über tmdb_id).

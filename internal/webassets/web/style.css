@@ -1181,7 +1181,7 @@ body.selection-mode .track-row-select { display: flex; }
    Herz "hing" freischwebend zwischen zwei Zeilen). Erst mit min-width:0 greift
    der bereits vorhandene ellipsis-Trunc bei JEDER Titel-Länge. */
 .track-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.track-row-artist, .track-row-album, .track-row-played, .track-row-count {
+.track-row-artist, .track-row-album, .track-row-played, .track-row-count, .track-row-added, .track-row-playcount {
   color: var(--muted, #888);
   font-size: 13px;
   overflow: hidden;

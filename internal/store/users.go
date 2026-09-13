@@ -469,13 +469,21 @@ func (s *Store) GetResumePosition(userID, itemID int64) (float64, error) {
 	return p.Float64, nil
 }
 
-// TouchLastPlayed setzt user_item_state.last_played_at = now. Erstellt den
-// Per-User-Zustand bei Bedarf. Wird beim Öffnen des Players aufgerufen.
+// TouchLastPlayed setzt user_item_state.last_played_at = now UND zählt
+// play_count um 1 hoch (User-Wunsch 2026-09-14: "wie oft abgespielt" als
+// Musik-Listenspalte). Erstellt den Per-User-Zustand bei Bedarf. Wird beim
+// Öffnen des Players aufgerufen — von JEDEM Client (Browser/Android/Apple/
+// Linux rufen alle POST /api/items/{id}/played beim Player-Start auf, das
+// ist der bestehende, bereits universelle Mechanismus hinter "Zuletzt
+// abgespielt"), daher zählt play_count automatisch plattformübergreifend
+// mit, ohne dass ein Client etwas Neues aufrufen müsste.
 func (s *Store) TouchLastPlayed(userID, itemID int64) error {
 	_, err := s.db.Exec(`
-		INSERT INTO user_item_state(user_id, item_id, last_played_at)
-		VALUES(?, ?, ?)
-		ON CONFLICT(user_id, item_id) DO UPDATE SET last_played_at=excluded.last_played_at
+		INSERT INTO user_item_state(user_id, item_id, last_played_at, play_count)
+		VALUES(?, ?, ?, 1)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET
+			last_played_at = excluded.last_played_at,
+			play_count = play_count + 1
 	`, userID, itemID, time.Now())
 	return err
 }

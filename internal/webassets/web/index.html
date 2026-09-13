@@ -125,6 +125,19 @@
     </label>
     <button id="musicListViewBtn" title="Listenansicht statt Album-Kacheln" class="toggle-btn hidden">☰ Liste</button>
     <button id="musicAllTracksBtn" title="Alle Titel dieser Bibliothek in einer Liste" class="toggle-btn hidden">🎵 Alle Titel</button>
+    <!-- Spalten-Auswahl für die Musik-Listenansichten (Album-Übersicht/Alle
+         Titel/Album-Detail) — User-Wunsch 2026-09-14: welche Spalten
+         (Titel/Künstler/Genre/Jahr/Zuletzt gehört/Wiedergaben/Hinzugefügt/…)
+         sichtbar sind, soll wählbar sein. Sichtbarkeit dieses Buttons wird
+         zentral von renderMusicColumnHeader() gesteuert (music.js), nicht
+         hier statisch — er erscheint nur, wenn tatsächlich eine
+         Spalten-Ansicht gerade gerendert ist. -->
+    <span class="res-dropdown">
+      <button type="button" id="musicColumnsBtn" title="Welche Spalten anzeigen" class="toggle-btn hidden" aria-haspopup="true" aria-expanded="false">☰ Spalten ▾</button>
+      <div id="musicColumnsDropdown" class="res-panel hidden" role="menu">
+        <div id="musicColumnsList" class="genre-dropdown-list"></div>
+      </div>
+    </span>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
     <span class="btn-group">
       <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>

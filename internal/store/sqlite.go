@@ -174,6 +174,18 @@ func parseDBTime(s string) time.Time {
 	if s == "" {
 		return time.Time{}
 	}
+	// Ein Aggregat (MAX/MIN/SUM) über eine DATETIME-Spalte in einer
+	// Subquery verliert bei modernc.org/sqlite die Typ-Affinität der
+	// Spalte — der Treiber liefert dann Go's rohe time.Time.String()-Form
+	// INKLUSIVE des Monotonic-Clock-Suffix ("... m=+0.000123456") zurück,
+	// statt wie bei einem direkten Spaltenzugriff sauber zu konvertieren
+	// (gefunden 2026-09-14 beim Musik-Album-"zuletzt abgespielt"-Aggregat,
+	// music.go ListMusicAlbumsFiltered). Keine der Standard-Layouts unten
+	// kann diesen variablen Suffix matchen — ihn abschneiden macht den Rest
+	// wieder zum bekannten "2006-01-02 15:04:05.999999999 -0700 MST"-Format.
+	if idx := strings.Index(s, " m="); idx != -1 {
+		s = s[:idx]
+	}
 	layouts := []string{
 		time.RFC3339Nano,
 		time.RFC3339,
