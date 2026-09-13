@@ -648,9 +648,24 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 		it.Streams = streams
 	}
 	deinterlace := resolveDeinterlace(r.URL.Query().Get("deinterlace"), playback.IsInterlaced(it))
-	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "")
-	if err != nil {
-		writeError(w, 500, err.Error())
+	// LOOKUP, nicht StartOrGet (gefixt 2026-09-13, Regression aus dem
+	// "andere Sessions desselben Items stoppen"-Fix in Manager.StartOrGet):
+	// ein Segment-Request darf NIE eine neue Session erzeugen. Nach einem
+	// Seek/Resume können noch ein paar bereits vom Client in die Warteschlange
+	// gestellte, ALTE Segment-Requests (mit dem VORHERIGEN start=) eintreffen,
+	// nachdem die alte Session schon (korrekt) gestoppt wurde — mit
+	// StartOrGet erzeugte das dort eine neue, ungewollte Session, die dann
+	// via der neuen "Sessions desselben Items stoppen"-Logik sofort die
+	// gerade erst gestartete ECHTE Session killte. Client fragt dieses
+	// Segment gleich danach wieder an → dieselbe neue Session entsteht
+	// erneut → killt wieder die echte → Ping-Pong bis zum Timeout (User-
+	// Report: Stream-Fehler -16847 "HTTP 500", Log zeigte alternierende
+	// Session-Starts/-Stopps im Sekundentakt). Ein 404 auf eine wirklich
+	// veraltete Segment-Anfrage ist dagegen harmlos — der Client hat diese
+	// Session ohnehin verlassen.
+	sess := s.Playback.LookupSession(it.ID, profile, audioIdx, startSec, deinterlace)
+	if sess == nil {
+		writeError(w, 404, "keine laufende Transcode-Session")
 		return
 	}
 	sess.Touch()

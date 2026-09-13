@@ -2300,6 +2300,34 @@ Musik-UI unverändert bewusst schlank).
   Test (reine Manager-interne Aufräumlogik, vorhandene Session-Tests decken
   die Kernstruktur bereits ab) — Verhalten am echten Server via
   `DiagnoseItem`-Log-Zeile gegenprüfbar.
+  **🔴→✅ Echte Regression durch genau diesen Fix, noch am selben Tag
+  (User-Report Stream-Fehler -16847 "HTTP 500"):** Log zeigte ein
+  Ping-Pong — Session bei start=0 gestoppt → start=261 gestartet →
+  SOFORT wieder start=0 gestoppt → start=261 → ... im Sekundentakt, bis
+  der Client aufgab (nie eine fertige Playlist gesehen). Ursache:
+  `transcodeSegment` (der `.ts`-Segment-Handler) rief bis dahin ebenfalls
+  `StartOrGet` — kann also selbst eine NEUE Session erzeugen. Nach einem
+  Seek/Resume treffen oft noch ein paar bereits vom Client in die
+  Warteschlange gestellte, VERALTETE Segment-Requests mit dem alten
+  `start=` ein, nachdem die alte Session schon korrekt gestoppt wurde —
+  das erzeugte über `StartOrGet` eine neue Session bei diesem alten Wert,
+  und die neue "andere Sessions desselben Items stoppen"-Logik killte
+  daraufhin sofort die gerade erst gestartete ECHTE Session. Der Client
+  fragt das nächste Segment der echten Session gleich danach wieder an →
+  die entsteht neu → killt die (gerade erst wiederbelebte) alte →
+  selbstverstärkendes Ping-Pong. Fix: `transcodeSegment` nutzt jetzt
+  `LookupSession` statt `StartOrGet` (analog zu `transcodeProgress`, das
+  das schon immer richtig gemacht hat, siehe dessen Kommentar) — ein
+  Segment-Request darf grundsätzlich NIE eine Session erzeugen, nur die
+  Playlist-Anfrage (`transcodePlaylist`) darf das. Eine wirklich veraltete
+  Segment-Anfrage bekommt jetzt schlicht 404 (harmlos, der Client hat
+  diese Session ohnehin verlassen) statt eine Geister-Session
+  wiederzubeleben. **Lehre:** bevor `StartOrGet` um neue Nebenwirkungen
+  (wie das Stoppen von Geschwister-Sessions) erweitert wird, IMMER
+  prüfen, welche Aufrufer außer der eigentlichen "Wiedergabe starten"-
+  Stelle diese Funktion sonst noch aus einem anderen Grund (hier: nur um
+  eine Referenz auf eine erwartete, bereits existierende Session zu
+  bekommen) aufrufen — genau dafür ist `LookupSession` da.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.
