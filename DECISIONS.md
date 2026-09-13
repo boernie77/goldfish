@@ -1319,3 +1319,1395 @@ löschen".
   Tests: `internal/store/collections_acl_test.go`. Siehe `feedback_user_isolation_before_deploy`
   (Memory) — wiederkehrendes Muster: neues Feature mit User-sichtbaren Daten ohne ACL-Prüfung.
 
+---
+
+## Bugfix-Chroniken (ausgelagert aus CLAUDE.md, 2026-09-13)
+
+Root-Cause-Erzählungen zu 47 Fixen, die bis zum 2026-09-13 im Volltext in
+CLAUDE.md standen. Die daraus abgeleiteten Regeln und Fallstricke stehen
+weiterhin dort (gekürzt, im jeweiligen Feature-Abschnitt) — hier liegt nur
+die ausführliche Herleitung: wie der Bug sich äußerte, was die erste
+Vermutung war und warum sie nicht stimmte. Gezielt lesen, wenn ein Fix
+erneut aufbricht oder jemand fragt „warum ist das so gebaut".
+
+### Scan-Ausschlüsse — NUR Auto-Scan (seit 2026-09-09, LIVE 1.2.47, korrigiert 1.2.48) — Zeilen 435–448 der alten CLAUDE.md
+
+- **🔴 Erste Version (1.2.47) wirkte auf JEDEN Scan (Auto-Scan UND manuell)
+  — von der ursprünglichen Design-Annahme her bewusst so gebaut, aber vom
+  User explizit korrigiert (2026-09-09):** „bei einem manuellen Scan aber
+  mit dabei sind, egal wo sie gemountet oder gespeichert sind". Hintergrund:
+  ein manueller ⟳-Scan wird bewusst vom Admin ausgelöst, der zu diesem
+  Zeitpunkt selbst weiß, ob die Platte angeschlossen ist — die Schutzlogik
+  ist nur für den UNBEAUFSICHTIGTEN Auto-Scan nötig/gewollt. **Fix (LIVE
+  1.2.48):** `Scanner.Start`/`run` bekamen einen neuen Parameter
+  `respectScanExcludes bool`. `RunAutoScan` (`internal/api/autoscan.go`)
+  übergibt `true`; `startScan`/`startScanAll` (`internal/api/scan.go`,
+  manueller ⟳-Button UND „Alle Bibliotheken scannen") übergeben `false` —
+  bei `false` bleibt `excludedFolders` im Scanner leer, wodurch der
+  Walk-Skip UND der Orphan-Schutz weiter unten automatisch zu No-Ops werden
+  (keine eigene Verzweigung nötig).
+
+### Benutzer & Zugriff — Zeilen 579–593 der alten CLAUDE.md
+
+- **🔴 FSK-Altersfreigabe griff bei KEINER eingeloggten Session (Bug,
+  gefixt 2026-09-02):** `Store.GetSession` — die Query, die `currentUser(r)`
+  bei JEDEM authentifizierten Request befüllt — hat `max_age_rating` schlicht
+  NICHT mitgeladen. Jeder `me.MaxAgeRating`-Check (`requireAgeAllowed`,
+  `ListItems`-Filter, Collections-ACL) sah dadurch IMMER `nil`, unabhängig
+  vom tatsächlichen DB-Wert — eine für einen Kinder-Account gesetzte FSK-16-
+  Grenze hatte de facto NIE eine Wirkung. Nur der einmalige Login-Query
+  (`GetUserByName`) hatte das Feld korrekt gesetzt, wurde aber danach nie
+  wieder gelesen (Session-Cookie trägt nur den Token, nicht den User selbst).
+  Fix: `GetSession` lädt jetzt `max_age_rating` (und `can_download`, s.u.)
+  mit. Test: `internal/store/users_test.go
+  TestGetSessionCarriesMaxAgeRatingAndCanDownload`. **Bei jeder künftigen
+  Änderung an der `users`-Tabelle/`model.User`: prüfen, ob `GetSession`
+  (und nicht nur `GetUserByName`/`GetUser`) das neue Feld auch mitlädt** —
+  das ist der eigentliche Angriffspunkt für `currentUser(r)`.
+
+### Benutzer & Zugriff — Zeilen 604–614 der alten CLAUDE.md
+
+- **🔴 „Manuell zuordnen" (🔍) + „Zuordnung bestätigen" (✅) waren KEINE
+  Admin-Funktionen (Bug, gefixt 2026-09-02):** `player.js` zeigte beide
+  Buttons im Detail-Dialog für JEDEN eingeloggten User (nur nach Library-Kind
+  gefiltert, nicht nach `state.me.isAdmin`). Serverseitig war
+  `POST /items/{id}/metadata` bereits korrekt `requireAdmin`-geschützt (ein
+  Klick eines Non-Admins wäre also nur mit 403 gescheitert), aber
+  `PUT /items/{id}/confirm` (Bestätigen) hatte GAR KEINEN Admin-Schutz — jeder
+  eingeloggte User konnte `metadata_confirmed` direkt per API togglen. Fix:
+  Route jetzt `requireAdmin(s.confirmItemMetadata)`; beide Buttons in
+  `player.js` prüfen jetzt zusätzlich `state.me.isAdmin`.
+
+
+### Trickplay (Hover-Vorschau) — Zeilen 682–771 der alten CLAUDE.md
+
+- **🔴 ACL-Leak: globaler Trickplay-Statustoast zeigte Dateinamen fremder
+  Bibliotheken an JEDEN eingeloggten User (Bug, gefixt 2026-09-07, User-
+  Report mit Screenshot: Familienaccount "Börnie" sah im Statusbar-Toast
+  einen Titel aus der gesperrten Bibliothek "a"):** `GET /api/trickplay/status`
+  war absichtlich NICHT `requireAdmin` (Kommentar „Aktivierung admin-only,
+  Konsum für alle", Design-Entscheidung aus der Trickplay-Erstversion) —
+  lieferte den kompletten Worker-Status inkl. `currentTitle`/`currentItemId`
+  (Titel des GERADE bibliotheksübergreifend verarbeiteten Items) an jeden
+  authentifizierten Request, ohne Admin- oder Library-ACL-Prüfung. Frontend
+  (`app.js boot()`) pollte diesen Endpoint für JEDEN eingeloggten User
+  automatisch alle 30s + bei laufendem Job alle 2s. **Gleiches Muster an
+  zwei weiteren Stellen gefunden und im selben Zug gefixt:** `GET
+  /api/scan/status` (`model.ScanStatus.Current` = aktueller Datei-Pfad,
+  bibliotheksübergreifend) und `GET /api/enrich/refresh-all-status`
+  (`RefreshAllStatus.Current` = Titel des gerade TMDB-aktualisierten Items)
+  — beide ebenfalls „Trigger admin-only, Status für alle", beide ebenfalls
+  ohne ACL-Bezug zum abfragenden User. **Zusätzlich war `currentTitle` ein
+  zweites Mal komplett UNAUTHENTIFIZIERT über `GET /api/health` sichtbar**
+  (Kommentar „Hilfreich für Außen-Checks … ohne Auth") — jeder im Internet
+  hätte den Dateinamen des gerade verarbeiteten Items einer beliebigen,
+  auch privaten/gesperrten Bibliothek sehen können, ganz ohne Login. Fix:
+  alle drei Status-Endpoints (`/trickplay/status`, `/scan/status`,
+  `/enrich/refresh-all-status`) jetzt `requireAdmin`; `currentTitle`/
+  `currentItemId` komplett aus der `/api/health`-Antwort entfernt (nur noch
+  aggregierte Zahlen, kein Item-Bezug); Frontend pollt alle drei Endpoints
+  in `boot()` nur noch innerhalb eines `if (state.me.isAdmin)`-Blocks.
+  Siehe [[feedback_user_isolation_before_deploy]] — wiederkehrendes Muster:
+  Hintergrund-Worker-Status wird als „harmlose Diagnose-Info" behandelt und
+  dabei die ACL-Prüfung vergessen, obwohl er Dateinamen preisgibt.
+  **Zusätzlich im selben Zug (User-Vorgabe "Benutzer dürfen gar keine
+  Toast sehen, und den Button Scan brauchen die eigentlich auch nicht"):**
+  der `⟳ Scan`-Button + Dropdown (`.scan-group` in `index.html`) war für
+  JEDEN eingeloggten User sichtbar, obwohl `POST /scan/*` schon immer
+  `requireAdmin` war — ein Klick eines Non-Admins endete also nur in einem
+  403, brachte aber nie einen Mehrwert. `renderUserMenu()` (`admin.js`)
+  blendet `.scan-group` jetzt wie die übrigen Admin-Elemente per
+  `state.me.isAdmin` aus. **Mac/iOS/tvOS-App und Android-App geprüft**
+  (User-Vorgabe "kontrollieren, dass in den 3 bzw 4 Clients sowas nicht
+  sichtbar ist") — keiner der beiden nativen Clients ruft
+  `/trickplay/status`, `/scan/status` oder `/enrich/refresh-all-status`
+  überhaupt auf (beide haben laut eigener CLAUDE.md-Doku „kein Admin" —
+  keine Nutzerverwaltung, kein Library-Manager, kein Scan, keine Whisper-UI),
+  betroffen war ausschließlich der Browser-Client.
+  **Nachtrag (LIVE 1.2.16):** die Sort-Dropdown-Wartungsfilter „Duplikate",
+  „🔀 Mehrere Versionen", „≈ Ähnliche Dateinamen", „Ohne TMDB-Zuordnung",
+  „Alle Unbestätigten", „⚠ Verdächtige Zuordnungen", „🪤 Nur Interlaced"
+  (`data-admin-only="1"` in `index.html`, Sichtbarkeits-Check in `grid.js`
+  neben dem bestehenden `data-kinds`-Filter) sind ebenfalls admin-only —
+  reine Aufräum-/Zuordnungs-Werkzeuge, kein Browsing-Feature für normale
+  User. **„♡ Nur Favoriten" bleibt bewusst sichtbar** (User-Rückfrage
+  explizit bestätigt) — liegt zwar mitten in diesem Options-Block, ist
+  aber ein normales Nutzer-Feature. Kein Backend-ACL-Fix nötig (diese
+  Ansichten sind ohnehin auf `state.currentLibrary` gescoped, für die der
+  User schon Zugriff haben muss) — rein UI-Decluttering.
+  **🔴→✅ Nachtrag (LIVE 1.2.51, 2026-09-09, User-Auftrag "nochmal genau
+  prüfen, dass Benutzer strikt getrennt sind"):** exakt dasselbe Muster war
+  bei ZWEI weiteren Worker-Status-Endpoints übersehen worden, die beim
+  ursprünglichen Fix (1.2.x oben) nicht mit durchgegangen waren —
+  `GET /api/whisper/status` (liefert `currentTitle`/`currentItemId` des
+  gerade per Whisper transkribierten Items) und `GET /api/introskip/status`
+  (liefert `currentLibraryId`/`currentFolder` des gerade analysierten
+  Serien-Ordners) waren beide OHNE `requireAdmin` erreichbar — jeder
+  eingeloggte Non-Admin bekam dadurch über die globale
+  `#whisperStatus`-Statusleiste UND über Toast/Glocke
+  (`checkWhisperJobCompletions` in `whisper.js`) den Titel eines Items
+  angezeigt, das gerade von einem ADMIN per Whisper transkribiert wurde —
+  unabhängig von der eigenen Library-ACL. Whisper-Generierung selbst war
+  schon immer `requireAdmin` (`POST /items/{id}/generate-subtitle`), nur
+  der KONSUM-Status nicht — exakt das „Aktivierung admin-only, Konsum für
+  alle"-Muster von oben. Fix: beide Endpoints (+ `/api/whisper/download-status`,
+  gleiche Klasse, nur aus der admin-only Whisper-Settings-Dialog heraus
+  aufgerufen) jetzt `requireAdmin`; `startWhisperGlobalPoll()` in `app.js`
+  läuft nur noch innerhalb desselben `if (state.me.isAdmin)`-Blocks wie
+  `checkScanActive`/`checkTrickplayWorker` (vorher unconditional für jeden
+  eingeloggten User gestartet). `introSkipWorkerStatus` hatte noch gar
+  keinen Frontend-Consumer (totes, aber erreichbares Leck) — trotzdem
+  gefixt. Gefunden durch systematisches Durchgehen ALLER
+  `setInterval`/Polling-Stellen in `internal/webassets/web/*.js` gegen die
+  zugehörigen Server-Handler (Muster: grep nach `currentTitle`/
+  `currentItemId`/`currentFolder`-Feldern in Go-Structs, dann prüfen ob der
+  Endpoint `requireAdmin` trägt UND ob der Frontend-Call innerhalb eines
+  `isAdmin`-Gates liegt — beide Seiten separat prüfen, ein admin-gated
+  Endpoint mit ungated Frontend-Poll ist nur eine Fehlermeldung in der
+  Konsole wert, aber ein ungated Endpoint mit „nur im Admin-UI sichtbar"
+  ist der eigentliche Leak, weil jeder die URL direkt aufrufen kann).
+  Item-/Library-scoped Endpoints (`/transcode/{id}/progress`,
+  `/download/{id}/compat-status`, `/items/{id}/subtitle-jobs`,
+  `/items/move/status`) im selben Zug gegengeprüft — alle bereits korrekt
+  per `requireLibAccess`/`requireAdmin` abgesichert, kein weiterer Fund.
+  Siehe [[feedback_user_isolation_before_deploy]].
+
+### Intro-Erkennung ("Skip Intro", seit 2026-08-11, Algorithmus v2 seit 2026-08-13) — Zeilen 927–947 der alten CLAUDE.md
+
+- **🔴 Aktivierte Serien starteten teils NIE (Bug, gefixt 2026-09-06,
+  User-Report "Intro-Erkennung startet nicht"):** `setIntroSkipFolder`
+  (`internal/api/introskip.go`) rief `Store.UpsertIntroSkipJob` bis dahin
+  fälschlich nur INNERHALB von `body.Enabled && body.Season != nil` auf.
+  Ein reiner Checkbox-Toggle OHNE `season`-Feld — genau das, was jeder
+  einzelne Zeilen-Klick im Dialog UND „☑ Alle auswählen"
+  (`setAllIntroSkipFolders` in introskip.js) senden — aktivierte den Ordner
+  zwar (Zeile in `intro_skip_folders` existiert), legte aber NIE einen
+  `intro_skip_jobs`-Eintrag an: der Worker hatte für diesen Ordner schlicht
+  nichts zu tun, "startet nie", ohne jede Fehlermeldung. Live-Diagnose per
+  claude-in-chrome direkt gegen den echten Server fand 6 von 218 aktivierten
+  Serien einer Bibliothek ohne jeden `jobStatus`. Fix: `UpsertIntroSkipJob`
+  läuft jetzt bei JEDEM `Enabled=true`, unabhängig vom `season`-Feld — nur
+  das season-spezifische `SetIntroSkipFolderSeason` bleibt an
+  `Season != nil` gekoppelt (das war der korrekte Teil des ursprünglichen
+  Season-Zeiger-Fixes vom 2026-08-13, verhinderte ein versehentliches
+  Zurücksetzen einer Staffel-Beschränkung — siehe Season-Abschnitt oben,
+  unverändert). Einmaliger Backfill `backfillIntroSkipMissingJobs`
+  (`cmd/goldfish/main.go`, Settings-Gate `intro_skip_missing_jobs_backfill_v1`)
+  holt für alle bereits aktivierten, aber job-losen Ordner den Job
+  nachträglich nach.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1110–1121 der alten CLAUDE.md
+
+- **🔴→✅ Selbstbetitelte Alben blieben dauerhaft ohne Genre/Jahr (gefixt
+  2026-09-08, LIVE 1.2.29, User-Frage "läuft die Erkennung noch?"):**
+  `Store.PendingMusicMetadataAlbums` trug denselben `artist != album`-
+  Ausschluss wie die Cover-Suche (`PendingMusicAlbums`) — dort sinnvoll
+  (dort bedeutet `artist == album` "kein echtes Album-Tag, Ordnername als
+  Notlösung"), für Genre/Jahr aber falsch: selbstbetitelte Alben ("Aerosmith"
+  von Aerosmith, "Bon Jovi" von Bon Jovi, "Audioslave" von Audioslave, …) sind
+  ein normaler, häufiger Fall und wurden dadurch dauerhaft (kein Log, kein
+  Retry) von der MusicBrainz-Suche ausgeschlossen. Live-Diagnose (DB-Kopie +
+  Go/modernc.org-sqlite lokal ausgewertet, siehe `feedback_sqlite_debug_technique`)
+  fand 69 betroffene Alben, `metadata_fetched_at` seit 2026-09-06 unverändert.
+  Ausschluss bleibt bewusst NUR in `PendingMusicAlbums` (Cover-Suche).
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1179–1187 der alten CLAUDE.md
+
+- **🔴 Suchtreffer spielten den vorherigen Track (Bug, gefixt 2026-09-04):**
+  `state.playQueue` wurde nur von `renderAlbumTracks`/`renderAllTracksList`
+  gesetzt — der generische Rendering-Pfad in `grid.js` (normale Ordner-
+  Navigation UND Suche) ließ es unangetastet. Ein Klick auf einen Suchtreffer
+  fiel in `cards.js`s Fallback (`queue = state.playQueue.length ? … : [it]`)
+  dadurch auf die ALTE Queue vom zuletzt geöffneten Album zurück, `indexOf(it)`
+  fand den Suchtreffer darin nicht (→ `-1` → Index 0) — es spielte der erste
+  Track der alten Queue statt des angeklickten Titels. Fix: `grid.js` setzt
+  `state.playQueue = searching ? items : merged` bei jedem generischen Render.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1188–1200 der alten CLAUDE.md
+
+- **🔴 Mini-Player spielte oft gar nicht / stark verzögert (Bug, gefixt
+  2026-09-04):** zwei Ursachen in `music.js`. (1) Ein Doppelklick auf eine
+  Kachel feuert zwei "click"-Events → zwei überlappende
+  `musicPlayCurrent()`-Aufrufe, deren `await api(/api/playback/…)`-Antworten
+  in beliebiger Reihenfolge zurückkamen und sich gegenseitig mit
+  `vjs.src()`/`vjs.play()` überschrieben (Video.js bricht den laufenden
+  Ladevorgang dabei mit einem lautlos verschluckten `AbortError` ab). Fix:
+  `musicState.playSeq`-Sequenz-Token, nur der jeweils NEUESTE Aufruf darf noch
+  `src()`/`play()` ausführen (gleiches Muster wie `state.loadSeq` in
+  `grid.js`). (2) `vjs.src()`/`vjs.play()` direkt nach `musicEnsureVjs()`
+  auf einer FRISCH erzeugten Video.js-Instanz lief teils ins Leere, weil die
+  Tech (Html5) noch nicht initialisiert war — jetzt in `vjs.ready(() => {…})`
+  gewrappt (feuert sofort, wenn der Player schon bereit ist, sonst verzögert).
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1221–1248 der alten CLAUDE.md
+
+- **🔴 Wurzel des "lange Verzögerung + Wiedergabefehler"-Bugs (behoben
+  2026-09-04):** MP3/FLAC/M4A-Dateien mit eingebettetem Cover (ID3-APIC o.ä.)
+  liefern in ffprobe einen ZUSÄTZLICHEN "video"-Stream für das Bild
+  (`disposition.attached_pic=1`, meist Codec mjpeg/png, 1 Frame). Der Scanner
+  setzte diesen fälschlich als `items.video_codec` — `playback.Decide()` hielt
+  die Datei dadurch für ein VIDEO statt reines Audio und erzwang einen
+  unnötigen, für ein Einzelbild sinnlosen HLS-Transcode: lange Startverzögerung
+  + kaputte Wiedergabe ("Failed to set MediaSource duration" in der Konsole).
+  Live im Browser reproduziert (DevTools Network zeigte `/api/transcode/…`
+  statt `/api/stream/…` für eine ganz normale MP3). Fix: `Scanner.probeItem`
+  überspringt Streams mit `attached_pic=1` jetzt beim Setzen von
+  VideoCodec/Width/Height. Einmaliger Backfill (`music_cover_art_videocodec_fix_v1`)
+  räumt bereits falsch gescannte Musik-Items per Codec-Namens-Heuristik auf
+  (kein erneuter ffprobe-Call nötig — mjpeg/png/bmp/gif/tiff/ppm/webp kommen
+  in Musik-Bibliotheken nie als echtes Video vor).
+- **🔴 Zweiter, tatsächlich ausschlaggebender Teil desselben Bugs:** selbst
+  nach dem Cover-Art-Fix blieb die Wiedergabe hängen (`readyState=0` für
+  immer, per `javascript_tool`/DevTools direkt am `<video>`-Element
+  verifiziert, obwohl der zugrunde liegende `fetch()` auf `/api/stream/{id}`
+  in ~80ms fertig war). Ursache: `mimeForExt()` (`internal/api/stream.go`,
+  `streamDirect`-Handler) kannte NUR Video-Extensions (mp4/mov/mkv/webm/avi/
+  wmv) — jede Musikdatei bekam den Fallback `application/octet-stream` als
+  `Content-Type`. Browser lehnen es ab, ein `<video>`/`<audio>`-Element mit
+  diesem MIME-Type zu decodieren (kein MIME-Sniffing für Medienelemente),
+  das Element bleibt für immer bei `readyState=0` — kein Fehler-Event, kein
+  Timeout, einfach dauerhaft "lädt". Fix: `mimeForExt` um
+  mp3→audio/mpeg, m4a/m4b→audio/mp4, aac→audio/aac, ogg/opus→audio/ogg,
+  wav→audio/wav, flac→audio/flac ergänzt.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1284–1303 der alten CLAUDE.md
+
+- **🔴 Weitere UI-Bugs gefixt (2026-09-04, LIVE 1.0.64):**
+  `Store.ListMusicAlbumTracks` lud `favorite`/`last_played_at` nie (kein
+  `user_item_state`-JOIN) — ein in der Album-Ansicht favorisierter Track
+  sprang beim nächsten Album-Fetch (z.B. Sortierungswechsel) wieder auf
+  "nicht favorisiert" zurück, obwohl die DB korrekt war. "Nur Favoriten"
+  zeigte in der normalen Album-Übersicht immer die flache Track-Liste
+  (Item-Favorit) statt favorisierter ALBEN (`user_music_album_favorites`) —
+  Album-Favoriten waren über den Filter nie auffindbar; jetzt zeigt „Nur
+  Favoriten" im Album-Root gefilterte Album-Kacheln, nur bei explizit
+  aktiviertem „Alle Titel" weiterhin gefilterte Tracks.
+  `.track-row-fav.fav-toggle` erbte ungewollt `position:absolute` von der
+  generischen Kachel-Overlay-Klasse `.fav-toggle` (Herz "hing" losgelöst im
+  nächsten positionierten Vorfahren) — jetzt explizit auf normalen
+  Inline-Fluss zurückgesetzt. Fehlendes `min-width:0` auf
+  `.track-row-title`/`-artist`/`-album`/`-played` ließ lange Titel die
+  1fr-Spalte über die Zeilenbreite hinaus sprengen (Grid-Kinder haben
+  implizit `min-width:auto` = Inhaltsbreite bei `white-space:nowrap`).
+  Bulk-Auswahl (☑) hatte in der Listenansicht kein sichtbares
+  Checkbox-Element (`.track-row-select`, analog `.card-select`, gemeinsamer
+  `data-item-id`-Selektor in `toggleSelection`/`selectAllVisible`).
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1304–1313 der alten CLAUDE.md
+
+- **🔴 Genre war für ALLE Alben leer (gefixt 2026-09-05, LIVE 1.0.67):**
+  `music_albums.genre` existierte im Schema, aber der Scanner las das
+  Genre-Tag nie aus (nur artist/album/track/title). Fix: neue Spalte
+  `items.genre` (Zwischenlager), Scanner liest sie jetzt mit,
+  `GroupMusicAlbums` aggregiert `MAX(genre)` pro (artist,album)-Gruppe und
+  schreibt sie auch NACHTRÄGLICH nach (vorher nur `ON CONFLICT DO NOTHING`
+  beim ersten Anlegen). Album-Header zeigt das Genre jetzt neben Künstler/
+  Jahr. **Bereits gescannte Dateien brauchen einen vollständigen Rescan**
+  (force=true) der Musik-Bibliothek, damit ffprobe das Tag nachliefert —
+  ein inkrementeller Scan probet unveränderte Dateien nicht erneut.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1314–1382 der alten CLAUDE.md
+
+- **🔴 Musical-/Soundtrack-Alben zerfielen in eine Kachel PRO TRACK
+  (User-Report 2026-09-05, zwei Fix-Runden):** "Das Phantom der Oper"
+  zeigte für jeden Titel eine eigene Album-Kachel mit eigenem Cover statt
+  EINEM Album mit allen Liedern.
+  - **Runde 1 (LIVE 1.0.76, reichte NICHT):** Vermutung war ein fehlendes
+    `album_artist`-Tag — Scanner-Priorität von `lookupTag(tags, "artist",
+    "album_artist")` auf `lookupTag(tags, "album_artist", "artist")`
+    umgedreht (+ unabhängig gefundener Determinismus-Bug in `lookupTag`
+    selbst behoben, iterierte vorher `tags` in Go's randomisierter
+    Map-Reihenfolge statt die `keys`-Priorität zu respektieren; Test:
+    `internal/scanner/scanner_test.go`). **User meldete danach "hat nicht
+    geklappt".**
+  - **Live-Diagnose (per claude-in-chrome direkt gegen die echten Tracks):**
+    Root Cause war etwas anderes als angenommen — es gibt in diesen
+    Dateien GAR KEIN "album_artist"-Tag, das "artist"-Tag enthält
+    stattdessen pro Track eine ANDERE Kombination/Reihenfolge aller
+    beteiligten Sänger (z. B. Track 5: "Peter Hofmann, Andrew Lloyd
+    Webber, Anna Maria Kaufmann, …", Track 7: "Thomas Schulze"). Bei
+    Compilations/Musicals/Klassik ist das "artist"-Tag pro Track
+    strukturell unzuverlässig für die Gruppierung — Runde 1 fiel deshalb
+    einfach auf denselben unzuverlässigen Wert zurück.
+  - **Runde 2 (LIVE 1.0.77, tatsächlicher Fix):** `Store.GroupMusicAlbums`
+    (`internal/store/music.go`) gruppiert seither PRIMÄR über den
+    **physischen Elternordner** der Datei (`musicGroupKey`), nicht mehr
+    über das rohe `(artist,album)`-Tag-Paar — ein Ordner ist so gut wie
+    immer EIN Album, unabhängig davon wie inkonsistent die Tags sind.
+    `canonicalAlbumFields` bestimmt daraus GENAU EINEN Artist-/Album-/
+    Genre-Wert für die ganze Ordner-Gruppe: uneinheitlicher Artist
+    innerhalb der Gruppe → **"Verschiedene Interpreten"** statt eines
+    zufällig "gewinnenden" Einzelnamens; fehlt jeder Album-Tag in der
+    Gruppe → letzter Ordnername als Titel-Fallback (macht das in CLAUDE.md
+    schon lange behauptete, aber nie tatsächlich implementierte
+    "Ordnername als Fallback" jetzt real wahr). Dateien direkt im
+    Bibliotheks-Root ohne Unterordner (kein gemeinsamer Ordner zum Bündeln)
+    behalten bewusst das alte reine `(artist,album)`-Tag-Verhalten —
+    verhindert, dass völlig unabhängige lose Singles im Root
+    zusammengeworfen werden. Tests:
+    `internal/store/music_grouping_test.go` (4 Szenarien: inkonsistenter
+    Artist im Ordner, fehlendes Album-Tag, Root-Level-Fallback,
+    konsistenter Artist bleibt unverändert).
+  - **Kein Rescan nötig für Runde 2** (anders als Runde 1) — die Gruppierung
+    arbeitet rein auf bereits in der DB gespeicherten `items.artist/album/
+    genre`-Werten, kein erneutes ffprobe-Tag-Lesen nötig. Ein normaler
+    (auch inkrementeller) Scan der Musik-Bibliothek reicht, um
+    `GroupMusicAlbums` mit dem neuen Algorithmus erneut laufen zu lassen
+    (`Scanner.run` ruft es am Ende JEDES Musik-Scans auf, unabhängig von
+    `force`).
+  - **Lektion:** bei einem gemeldeten Fix, der laut User "nicht geklappt"
+    hat, IMMER zuerst mit Live-Daten (claude-in-chrome + direkter
+    `fetch()`-Aufruf gegen die eigene API im Browser-Kontext) verifizieren,
+    welchen Tag-Wert die Datei tatsächlich hat, statt eine zweite
+    Vermutung auf der ersten aufzubauen — die ursprüngliche Diagnose
+    ("fehlendes album_artist-Tag") war plausibel, aber schlicht falsch für
+    diese konkreten Dateien.
+  - **🔴→✅ Korrektur (2026-09-06):** die Annahme "alte, verwaiste
+    music_albums-Zeilen sind harmlose Karteileichen, kein Cleanup nötig"
+    aus Runde 2 war FALSCH — `ListMusicAlbums` filterte nie nach
+    Track-Anzahl, verwaiste Zeilen (kein Item zeigt mehr per
+    `music_album_id` drauf) erschienen dadurch als sichtbare "0 Titel"-
+    Kacheln (User-Report). Doppelter Fix: `ListMusicAlbums` filtert jetzt
+    zusätzlich per `EXISTS(SELECT 1 FROM items i WHERE i.music_album_id =
+    a.id)`, UND `GroupMusicAlbums` räumt am Ende jedes Laufs verwaiste
+    Zeilen der eigenen Library aktiv per `DELETE ... WHERE id NOT IN
+    (SELECT DISTINCT music_album_id FROM items ...)` weg — verhindert
+    unbegrenztes Anwachsen von `music_albums`/`user_music_album_favorites`
+    über mehrere Rescans/Algorithmus-Wechsel hinweg (Favoriten auf einer
+    verwaisten Zeile verschwinden automatisch mit, `ON DELETE CASCADE`).
+    Test: `internal/store/music_grouping_test.go
+    TestGroupMusicAlbumsCleansUpOrphanedAlbums`.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1431–1450 der alten CLAUDE.md
+
+  **🔴 Vergrößern (Resize) funktionierte zunächst nicht, Verschieben (Reorder)
+  schon (Bug, gefixt noch am selben Tag):** zwei unabhängige Ursachen.
+  (1) Der Resize-Handle war `position:absolute; right:-6px` — ragte damit in
+  den `gap:10px` zwischen den Grid-Spalten hinein, wo der Head-Container
+  selbst über ihm lag (`document.elementFromPoint` an der berechneten
+  Handle-Mitte traf nie den Handle, nur den Container — live per
+  `claude-in-chrome`/`javascript_tool` verifiziert). Fix: Handle liegt jetzt
+  als normales Flex-Kind (`flex:0 0 10px`) IM Zellfluss, keine absolute
+  Positionierung mehr — Klickfläche = tatsächliche Bounding-Box. (2) Reorder
+  lief über natives HTML5-`draggable="true"` auf der Kopfzelle — ein
+  Resize-Versuch, der auf einem Kind-Element INNERHALB einer draggable-Zelle
+  beginnt, wird vom Browser als Drag-Kandidat des Elternteils erkannt und
+  unterdrückt danach reguläre `mousemove`-Events komplett (bestätigt: selbst
+  mit explizitem `draggable="false"` auf dem Handle kam nicht einmal das
+  `mousedown` an). Fix: Reorder läuft jetzt über dasselbe reine
+  mousedown/mousemove/mouseup-Tracking wie Resize, kein natives DnD mehr
+  (`REORDER_THRESHOLD` von 4px Mausbewegung, bevor ein Drag als Reorder statt
+  Klick gilt). Getestet mit echten OS-Level-Mausereignissen (nicht nur
+  synthetischen `dispatchEvent`-Aufrufen, die kein natives Drag auslösen und
+  den Bug deshalb zunächst verdeckten).
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1460–1468 der alten CLAUDE.md
+
+  **🔴 Spalte blieb trotzdem leer (Bug, gefixt noch am selben Tag):** die
+  tatsächliche Datenquelle für die Album-Detail-Trackliste im Frontend ist
+  NICHT `ListItems`, sondern `Store.ListMusicAlbumTracks`
+  (`GET /api/albums/{id}`) — ein dritter, unabhängiger SELECT, der beim
+  ersten Fix übersehen wurde und `i.genre` ebenfalls nicht lud. Live per
+  claude-in-chrome verifiziert (API lieferte `genre` korrekt für
+  `/api/items?genre=`, aber nicht für `/api/albums/{id}`, für dasselbe
+  Item). Test: `TestListMusicAlbumTracksIncludesGenre` in
+  `internal/store/music_edit_metadata_test.go`.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1486–1498 der alten CLAUDE.md
+
+  **🔴 Erster Anlauf war fehlerhaft (Bug, noch am selben Tag gefixt, User-
+  Report mit Screenshot: "An Innocent Man" von Billy Joel [1983] zeigte
+  Jahr "2026"):** die erste Version nutzte bewusst KEINE neue Spalte,
+  sondern `items.released_at` (dieselbe Quelle wie der "Veröffentlicht"-
+  Sort) — das füllt der Scanner aber IMMER mit mindestens der Datei-mtime
+  (`extractReleaseTime`-Fallback), zeigte dadurch bei praktisch jedem
+  frisch gescannten Track das Kopierdatum statt des echten
+  Erscheinungsjahrs. Fix: eigene, zuverlässig unterscheidbare Spalte
+  (0 = "kein Jahr-Tag gefunden") statt der mtime-verseuchten
+  `released_at`-Wiederverwendung. Bestehende Bibliotheken brauchen einen
+  Rescan, damit der Scanner die Tags nachträglich liest (inkrementeller
+  Scan reicht — unveränderte Dateien werden dabei NICHT neu geprobet, nur
+  ein `force=true`-Rescan liest bereits bekannte Dateien erneut).
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1522–1598 der alten CLAUDE.md
+
+  **🔴 Button war zunächst gar nicht erreichbar (Bug, gefixt noch am selben
+  Tag, User-Report "ich sehe bei der Musik keinen Button zum Bearbeiten der
+  Metadaten"):** ein Klick auf eine Musik-Kachel/-Zeile ruft IMMER
+  `musicPlayAlbum()` auf und öffnet NIE `openDetail()` (siehe „Persistenter
+  Mini-Player" oben — Musik startet Wiedergabe direkt, kein Video-Detail-
+  Dialog). Der neue Formular-Zweig war also für Admins technisch fertig,
+  aber es gab keinen Weg, ihn überhaupt zu öffnen. Fix: eigener ✏-Overlay-
+  Button, admin-only, NUR bei Musik-Items — in der Kachel-Ansicht
+  (`.edit-toggle`, `top:66 left:6`, cards.js) UND in beiden Track-
+  Listenansichten (neuer `editMeta`-Slot in `MUSIC_LIST_CONTEXTS.fixedTrailing`,
+  nach „fav", views.js) am Zeilenende. Beide Klick-Handler setzen
+  `state.currentItem` + rufen `openEditMetaDialog()` direkt, mit
+  `stopPropagation()` gegen das sonst auslösende Abspielen. Dieselbe
+  Vererbungsfalle wie beim `.fav-toggle` in Listenzeilen (die generische
+  Kachel-Overlay-Klasse ist `position:absolute`) — `.track-row-edit.edit-
+  toggle` setzt das analog zu `.track-row-fav.fav-toggle` explizit auf
+  normalen Inline-Fluss zurück.
+  **🔴→✅ "Speichern" schien nichts zu tun — nur "Abbrechen" ging (Bug,
+  gefixt 2026-09-10, LIVE 1.3.5, User-Report "ich kann nur Abbrechen
+  klicken", präzisiert im Gespräch zu "er speichert das Jahr, nur der
+  Dialog schließt nicht"):** der Wert wurde korrekt gespeichert (PUT-Call
+  lief durch), aber der Musik-Zweig von `handleEditMetaSubmit` rief danach
+  exakt denselben `openDetail(fresh)`-Aufruf wie der Film/Serien-Zweig
+  auf — kopiert, ohne die eigene Konvention zu beachten. `openDetail()`
+  öffnet `#detailDialog` (Poster/Plot/Cast-Layout), für das ein Musik-
+  Track keine sinnvollen Daten hat, UND die App hält sich sonst überall
+  strikt an "ein Klick auf eine Musik-Kachel/-Zeile ruft NIE openDetail()
+  auf" (siehe „Persistenter Mini-Player" oben). Der zweite Dialog öffnete
+  sich optisch direkt über dem gerade per `.close()` geschlossenen
+  `editMetaDialog` — für den User nicht von "schließt nicht" zu
+  unterscheiden. Fix: Musik-Zweig ruft nach dem Speichern nur noch
+  `loadItems()` + Toast auf, kein `openDetail()` mehr.
+  **✅ Album-Metadaten bearbeiten (seit 2026-09-11, LIVE 1.3.8, User-Wunsch:
+  "Wenn ich beim Album das Jahr zum Beispiel eintrage, dann soll es
+  natürlich auch für die Titel übernommen werden")** — nimmt die oben
+  beschriebene bewusste Lücke zurück. Alben bleiben weiterhin ein reines
+  Aggregat (`GroupMusicAlbums`/`canonicalAlbumFields`), es gibt also
+  keine eigene Album-Zeile zum Editieren — stattdessen schreibt
+  `Store.UpdateMusicAlbumMetadata(albumID, artist, album, genre, year)`
+  (`internal/store/music.go`) die vier Felder per
+  `UPDATE items ... WHERE music_album_id = ?` auf ALLE Tracks des Albums
+  gleichzeitig (`year=0` lässt das Jahr unverändert, exakt wie beim
+  Track-Edit) und stößt danach `GroupMusicAlbums` erneut an, damit die
+  Aggregation neu berechnet wird. Endpoint `PUT /api/albums/{id}/metadata`
+  (admin-only, `internal/api/music.go updateMusicAlbumMetadata`) prüft
+  `requireLibAccess` über die Library des Albums. Frontend: neuer
+  ✏-Button im Album-Detail-Header (neben dem ♥-Favoriten-Button, admin-only)
+  öffnet `#editAlbumMetaDialog` (Künstler/Album/Genre/Jahr,
+  `openEditAlbumMetaDialog`/`handleEditAlbumMetaSubmit` in `music.js`) —
+  eigener Dialog/Speicherpfad, getrennt vom Track-Edit-Dialog, weil es
+  serverseitig kein eigenes Album-Metadaten-Objekt gibt. Kein separater
+  Entry-Point auf der Album-Kachel/-Übersichtszeile (bewusst nur EIN
+  Einstiegspunkt, der Album-Detail-Header ist ohnehin bei jedem Album
+  erreichbar).
+  **🔴→✅ Album zeigte ein Jahr/Genre, einzelne Tracks daraus blieben aber
+  leer (Bug, gefixt 2026-09-11, LIVE 1.3.9, User-Report "N Sync UK Version"
+  → Song "Tearin' Up My Heart" ohne Jahr, obwohl das Album eins zeigt)**:
+  `items.year`/`items.genre` kommen AUSSCHLIESSLICH aus dem eigenen
+  Datei-Tag des jeweiligen Tracks — das Album-Jahr/-Genre ist dagegen ein
+  reines Aggregat der ganzen Ordner-Gruppe (`canonicalAlbumFields`: erster
+  nicht-leerer Wert gewinnt) bzw. kommt vom MusicBrainz-Fallback
+  (`ApplyMusicBrainzMetadata`). Dieser Aggregat-Wert wurde bisher NIE auf
+  Geschwister-Tracks zurückgeschrieben, die selbst kein eigenes Tag hatten
+  — ein Track ohne Jahr-Tag im selben Album wie ein Track MIT Jahr-Tag
+  zeigte deshalb dauerhaft "—", obwohl der Album-Header korrekt ein Jahr
+  anzeigte. (Genre hatte dieses Problem in der Praxis seltener, weil
+  `ApplyMusicBrainzMetadata` es bereits separat propagierte — aber NUR für
+  den MusicBrainz-Pfad, nicht für aus Tags aggregierte Album-Werte.) Fix:
+  `GroupMusicAlbums` (`internal/store/music.go`) liest nach dem
+  Upsert-Schritt pro Gruppe den AKTUELLEN Album-Jahr-/Genre-Wert (nicht nur
+  den aus dieser Gruppe frisch berechneten — deckt so auch ein
+  nachträglich per MusicBrainz oder manuellem Album-Edit gesetztes
+  Jahr/Genre ab) und schreibt ihn auf alle Tracks der Gruppe mit
+  `year = 0`/`genre = ''`. Läuft bei JEDEM `GroupMusicAlbums`-Aufruf, also
+  bei jedem (auch inkrementellen) Scan der Musik-Bibliothek — kein
+  `force=true`-Rescan nötig, reine SQL-Nachbereitung auf bereits in der DB
+  stehenden Werten, kein erneutes Tag-Lesen erforderlich.
+
+### Musik-Bibliotheken (seit 2026-09-04) — Zeilen 1599–1630 der alten CLAUDE.md
+
+- **🔴 IMDb-Zuordnung schlug bei obfuskierten Dateinamen fehl (Bug, gefixt
+  2026-09-06, User-Report mit Screenshot: Datei „gb-100jamamoihwage-1080p",
+  Fehler „Konnte Staffel/Episode aus Dateiname nicht ermitteln")**:
+  `handleMatchImdb` (`matching.js`) parste im TV-Zweig stur NOCHMAL
+  `S(\d{1,2})E(\d{1,3})` aus `item.title` — ignorierte dabei komplett die im
+  selben Dialog sichtbaren `#matchSeason`/`#matchEpisode`-Eingabefelder, die
+  laut `openMatchItem`-Kommentar GENAU für diesen Fall gedacht sind ("User
+  kann manuell korrigieren, wenn der Dateiname nichts hergibt"). Bei einem
+  Dateinamen ganz ohne SxxExx-Muster (Release-Obfuskation) blieben die
+  Felder zwar sichtbar und ausfüllbar, wurden aber nie ausgelesen — jede
+  manuelle Eingabe dort war wirkungslos. Fix: Season/Episode kommen jetzt
+  primär aus den Formularfeldern, das Datei-Parsing ist nur noch Fallback
+  falls die Felder leer sind.
+  **🔴 Zweiter, tieferliegender Bug im selben Flow (gefixt 2026-09-06,
+  direkt danach entdeckt):** selbst mit korrekt übermittelten Season/
+  Episode-Werten ignorierte der Server (`setItemMetadata`,
+  `internal/api/tmdb.go`) sie im IMDb-Zweig komplett — rief immer
+  `Enrich.EnrichByIMDbID` auf, das bei einem TV-Treffer nur SHOW-Metadata
+  liefert (kein Episode-Konzept) und hätte das Item fälschlich an die ganze
+  Show statt an die konkrete Episode gebunden. Fix: bei
+  `tmdbType=episode` wird die Show-ID jetzt zuerst über
+  `client.FindByIMDb` aufgelöst (funktioniert auch, wenn die IMDb-ID einer
+  einzelnen Folge gehört — TMDB liefert dafür `tv_episode_results[0].show_id`,
+  die Parent-Show), danach exakt derselbe `FetchEpisodeMetadata(showID,
+  season, episode)`-Call wie beim normalen numerischen-TMDB-ID-Pfad. Kein
+  OMDb-Fallback für diesen Zweig — OMDb kennt kein Season/Episode-Konzept.
+  **Live-Diagnose des konkreten User-Falls** (`tt42958561`, Server-Log via
+  SSH geprüft: `[tmdb.FindByIMDb] tt42958561 -> movies=0 tv=0 episodes=0
+  seasons=0`): reines Datenproblem, TMDB **und** OMDb (beide laut
+  `GET /api/settings` konfiguriert) kennen diese IMDb-ID schlicht nicht —
+  kein Software-Bug, der zweite Fund war unabhängig davon.
+
+
+### Listenspalten "Zuletzt abgespielt"/"Wiedergaben"/"Hinzugefügt" + Spalten-Auswahl (seit 2026-09-14, LIVE 1.3.26) — Zeilen 1653–1663 der alten CLAUDE.md
+
+  **🔴→✅ Fallstrick beim ersten Testlauf:** `MAX(us.last_played_at)` über
+  eine korrelierte Subquery lieferte bei `modernc.org/sqlite` einen rohen
+  `time.Time.String()`-String INKLUSIVE Monotonic-Clock-Suffix
+  (`"... m=+0.098136418"`) zurück statt eines sauber typisierten DATETIME-
+  Werts, wie es ein direkter Spaltenzugriff (kein Aggregat) liefert — keine
+  der bestehenden `parseDBTime`-Layouts kann diesen variablen Suffix
+  matchen. Fix: `parseDBTime` (`sqlite.go`) schneidet den `" m=..."`-Teil
+  jetzt vorab ab, bevor es die bekannten Layouts probiert. Tests:
+  `internal/store/play_count_test.go`
+  (`TestTouchLastPlayedIncrementsPlayCount`,
+  `TestListMusicAlbumsAggregatesPlayCountAndLastPlayed`).
+
+### Merge-Duplikate — Zeilen 1803–1840 der alten CLAUDE.md
+
+  **🔴 Bug direkt beim ersten Test gefunden (gefixt noch am selben Tag):**
+  Auswahl über Suchtreffer hinweg (genau der "A Complete Unknown"-Fall, Dateien
+  in zwei verschiedenen Bibliotheken Filme+Bluray) meldete "0 ausgewählt"
+  trotz sichtbar angehakter Kacheln — `appendSearchResultCards` gruppiert PRO
+  BIBLIOTHEK (siehe dort), aber beide Aufrufer (`renderHomeBranch` in der
+  Startseiten-Suche, der `searching`-Zweig in `loadItemsBody`) setzten
+  `state.lastRenderedItems` VORHER aus einem separaten, library-übergreifenden
+  `groupVariants(items)`-Aufruf. Hat eine Zuordnung Dateien in mehreren
+  Bibliotheken, fasst dieser äußere Aufruf sie zu WENIGER Einträgen zusammen
+  als tatsächlich als eigene Kacheln gerendert werden — `state.selection`
+  enthielt zwar die angeklickten IDs korrekt, aber `selectedItems()` filtert
+  gegen `lastRenderedItems`, das die fehlende ID nie enthielt. Fix:
+  `appendSearchResultCards` ist jetzt die alleinige Quelle für
+  `state.lastRenderedItems` im Such-Modus, setzt es selbst aus exakt den
+  Items, die es tatsächlich als Kachel rendert.
+  **🔴 Zweiter Bug, vom User beim eigenen Test gefunden:** eine ausgewählte
+  Kachel kann bereits mehrere Dateien bündeln (`groupVariants()` legt die
+  Geschwister in `it._variants` ab, `it.id` ist nur der Repräsentant).
+  `bulkMerge()` schickte bisher NUR die Repräsentanten-IDs der Auswahl — bei
+  einer bereits gruppierten ×N-Kachel bekam dadurch nur die sichtbare Datei
+  die neue gemeinsame Zuordnung, ihre bis dahin korrekt gruppierten
+  Geschwister blieben auf der ALTEN metadata_id hängen und wurden aus ihrer
+  eigenen, vorher richtigen Gruppe herausgerissen — sichtbar als "Merge
+  hat nichts bewirkt, es bleiben 2 Kacheln". Fix: `bulkMerge()` sammelt jetzt
+  alle `_variants`-IDs jeder Auswahl ein, nicht nur die des Repräsentanten.
+  **🔴 Dritter Bug, selber Fall:** nach dem korrekten Merge (3 Dateien, eine
+  davon über `variant_split=true` versteckt fehlerhaft als eigene Kachel
+  ausgeblendet — separat gefixt, s.u.) zeigte die Kachel korrekt "×3", aber
+  das Varianten-Dropdown im Detail-Dialog listete nur 2 Einträge.
+  `openDetail()` (player.js) übernahm ein vom Grid mitgegebenes
+  `item._variants` ungeprüft, sobald es `.length > 1` hatte — `groupVariants()`
+  gruppiert aber nur INNERHALB der gerade geladenen (oft bibliotheksgescopten)
+  Liste, enthält also nie Geschwister aus einer ANDEREN Bibliothek. Der
+  ×N-Badge kommt dagegen aus dem server-seitig über ALLE Bibliotheken
+  gezählten `variantCount` — beide Quellen liefen auseinander. Fix:
+  `openDetail()` holt die Varianten nicht mehr aus dem Grid-Kontext, sondern
+  IMMER frisch über `/api/items/{id}/variants` (die einzige wirklich
+  vollständige, bibliotheksübergreifende Quelle).
+
+### UI — Zeilen 1962–1972 der alten CLAUDE.md
+
+  **🔴 Custom-Metadaten ohne Poster zeigten trotzdem den Dateinamen (Bug,
+  gefixt 2026-09-06, User-Report mit Screenshot: 12 per Custom-Metadaten
+  betitelte "Terra X History"-Folgen zeigten weiterhin ihre kryptischen
+  Release-Dateinamen als Kachel-Titel):** der Titel-Override
+  (`title = it.metadata.title`) saß bisher NUR im `posterPath`-Zweig von
+  `renderCard` — ein Item MIT Metadaten, aber OHNE Poster (Custom-Match ohne
+  hochgeladenes Bild, oder ein TMDB-Treffer ohne Poster-URL) fiel in den
+  reinen Thumbnail-`else`-Zweig, der `title` nie anfasste. Betrifft nicht nur
+  den hier gemeldeten Fall, sondern jede Custom-Zuordnung ohne Poster-Upload
+  (auch Privat-Libs, `POST .../metadata-manual`). Fix: derselbe
+  Title/Jahr-Override läuft jetzt auch im Non-Poster-`else`-Zweig.
+
+### UI — Zeilen 2042–2076 der alten CLAUDE.md
+
+  **🔴 Filter ging beim Rein-und-Wieder-Rausnavigieren verloren (Bug, gefixt
+  2026-09-06, User-Report: "Wenn ich bei Serien nach Buchstabe filtere, und
+  dann in eine Serie rein gehe, und dann wieder raus, dann ist der
+  Buchstabenfilter weg. Der soll jedoch bleiben"):** der Reset in
+  `loadItems()` (grid.js) feuerte bisher bei JEDER `navKey()`-Änderung — ein
+  reiner Rundgang Library-Root → Serien-Ordner → zurück zum Library-Root
+  sind DREI verschiedene navKeys, jeder Schritt löschte den Filter. Der
+  Filter ist aber an die BIBLIOTHEK gebunden, nicht an den exakten navKey.
+  Fix: neue `navLibraryKey(key)` (app.js) reduziert einen navKey auf seinen
+  Bibliotheks-/Kontext-Teil (`"lib:7:Billions:s1"` → `"lib:7"`) — der Reset
+  vergleicht jetzt NUR diesen Teil, bleibt also über Ordner/Staffel/Album-
+  Wechsel INNERHALB derselben Bibliothek erhalten und feuert nur noch beim
+  echten Wechsel in eine andere Bibliothek oder einen anderen Top-Level-
+  Kontext (Home/Sammlungen/Playlists/Person-Filter — dort bleibt das alte
+  Verhalten: kompletter navKey-Vergleich, da `navLibraryKey` für
+  Nicht-`"lib:"`-Keys den Key unverändert durchreicht).
+  **🔴→✅ Zweite Runde, noch am selben Tag (User-Korrektur: "Da läuft was
+  schief... Der Buchstabenfilter soll erhalten bleiben, wenn man wieder
+  zurück geht. In den Ordner/Serie wenn man reingeht, darf kein Filter
+  greifen"):** die erste Fix-Version behielt zwar den Filter-WERT über die
+  ganze Bibliothek hinweg, wendete ihn aber weiterhin blind auf JEDES Grid
+  an — beim Reingehen in eine Serie wurden dadurch praktisch alle Episoden
+  ausgeblendet (Episodentitel starten selten mit demselben Buchstaben wie
+  der Show-Name). Fix: neuer State `state.alphaFilterScopeKey` (app.js) —
+  merkt sich den `navKey()`, an dem der Filter per Sidebar-Klick GESETZT
+  wurde. `applyAlphaFilter()` (läuft nach jedem Render, auch nach reiner
+  Navigation) blendet Kacheln nur noch aus, wenn `state.alphaFilterScopeKey
+  === navKey()` — also exakt an der Stelle, wo der User ihn gesetzt hat
+  (typischerweise die Serien-Übersicht einer Library), nicht mehr in jedem
+  Ordner darunter oder danach. Der WERT (`state.alphaFilter`) selbst bleibt
+  weiterhin bibliotheksweit erhalten (siehe `navLibraryKey`-Reset oben) und
+  wird beim Zurücknavigieren zum ursprünglichen navKey automatisch wieder
+  sichtbar aktiv — inkl. Banner- und Sidebar-Aktiv-Markierung, die jetzt
+  ebenfalls zentral in `applyAlphaFilter()` statt verstreut in
+  `setAlphaFilter()` gepflegt werden.
+
+### Staffel-Ansicht für Serien — Zeilen 2351–2451 der alten CLAUDE.md
+
+  **🔴→✅ Nach manueller Serien-Zuordnung blieb die Staffel-Ansicht
+  dauerhaft deaktiviert (Bug, gefixt 2026-09-10, LIVE 1.3.2, User-Report
+  „Wenn ich eine Serie manuell zuordne, werden die Folgen danach nicht zu
+  Staffeln gruppiert"):** hatte der User denselben Ordner VOR der Zuordnung
+  schon mal geöffnet (typisch: Ordner ohne TMDB-Match anklicken → obiger
+  Fallback greift → `seasonView:<libID>:<folder>="0"` wird persistiert),
+  blieb dieser Per-Ordner-Override nach der manuellen Zuordnung über den
+  Matching-Dialog unverändert stehen — `applyMatch()`/`handleMatchImdb()`
+  (`matching.js`) riefen nach erfolgreichem Folder-Match zwar `loadItems()`
+  neu auf, löschten aber nie den alten „keine Staffeln"-Eintrag.
+  `seasonViewEffective()` (`app.js`) las weiterhin `false` für diesen
+  Ordner, obwohl der Server inzwischen (nach dem serverseitigen
+  Episode-Matching) echte Staffeldaten geliefert hätte — Ergebnis: flache
+  Dateiliste statt Staffel-Kacheln, dauerhaft, bis der User manuell im
+  „🔤 Anzeige"-Menü o.ä. nachhilft. Fix: beide Folder-Match-Zweige
+  (`tgt.type === "folder"` in `applyMatch`/`handleMatchImdb`) löschen den
+  `seasonView:<libID>:<folder>`-Key per `localStorage.removeItem` direkt
+  nach erfolgreichem `POST .../folders/metadata`, bevor `loadItems()`
+  läuft — kein neuer Scan nötig (Season/Episode werden ohnehin live aus dem
+  Dateinamen geparst, siehe `matchItem` in `internal/enrich/matching.go`).
+  **Bekannte Restlücke:** Dateien, deren Name kein SxxExx-Muster hergibt,
+  bleiben unabhängig davon ungruppiert (weder der synchrone
+  `UnmatchedEpisodeFiles`-Fallback in `internal/api/series.go` noch das
+  asynchrone Matching in `matchItem` können ohne erkennbares Muster eine
+  Episode zuordnen) — das ist ein Namensschema-Problem, kein Bug dieses Fixes.
+  **🔴→✅ Nachkorrektur (LIVE 1.3.3, noch am selben Tag):** obiger Fix reicht
+  nur für NEUE Zuordnungen ab diesem Zeitpunkt — bereits VOR dem Fix
+  entstandene `seasonView:<libID>:<folder>="0"`-Merker (der Sackgassen-
+  Fallback selbst ist seit Monaten live, betrifft potenziell jede Serie, die
+  jemals in diese Sackgasse gelaufen ist) blieben weiterhin für immer hängen,
+  weil `matching.js` sie nur schreibseitig bei einer neuen Aktion aufräumt.
+  User-Report bestätigte das direkt: zwei bereits vor dem Fix zugeordnete
+  Serien blieben trotz korrekt gesetzter `season`/`episode` in der DB
+  weiterhin ungruppiert. Fix: `grid.js` (im selben Block, der `hasSeasons`
+  aus der Seasons-API berechnet) räumt den Merker jetzt zusätzlich
+  LESESEITIG auf — liefert die API tatsächlich Staffeln, aber der
+  Pro-Ordner-Merker steht noch auf `"0"`, wird er als veraltet erkannt
+  (er wird an KEINER anderen Stelle im Code je auf `"0"` gesetzt außer im
+  Sackgassen-Fallback selbst) und entfernt; `state.seasonView` wird danach
+  über `seasonViewEffective()` neu berechnet (fällt auf den Library-Default
+  zurück, überschreibt also nicht eine bewusst library-weit ausgeschaltete
+  Staffel-Ansicht). Heilt sich dadurch für JEDE betroffene Bestandsserie
+  automatisch beim nächsten Öffnen — kein manueller Browser-Console-Eingriff
+  oder `localStorage.clear()` nötig.
+  **Bleibender Info-Header im Fallback (seit 2026-09-06, User-Wunsch: „bei
+  nicht zugeordneten Serien soll auch so ein Infofenster aufgehen, mit den
+  gleichen Buttons"):** der Toast allein verschwindet nach wenigen Sekunden
+  ohne bleibenden Hinweis. `grid.js` merkt sich beim Fallback in
+  `state.pendingShowInfoHeader` entweder `data.show` (Ordner IST TMDB-
+  zugeordnet, nur keine erkennbare Staffel-Struktur — Tatort/Terra-X-Fall)
+  oder `{unmatched:true, folder}` (showTmdbId===0, gar keine Zuordnung) und
+  stellt danach — NACH dem `grid.innerHTML=""` des normalen Ordner-
+  Renderings, sonst sofort wieder gelöscht — einen Header voran:
+  `renderShowHeader(data.show, null)` (voller Header inkl. ALLER Buttons:
+  TMDB neu laden/Poster ändern/Episoden neu zuordnen/Zuordnung entfernen)
+  im ersten Fall, `renderUnmatchedFolderHeader(folder)` (views.js, Header mit
+  „🔍 Serie zuordnen…" + „🖼 Poster hochladen") im zweiten. `showOut` trägt
+  seit diesem Feature zusätzlich `showTmdbId` (0 bei einem reinen Custom-
+  Eintrag ohne echtes TMDB-Match) — `renderShowHeader` blendet „↻ TMDB neu
+  laden"/„⚠ Episoden neu zuordnen" aus, wenn `showTmdbId` fehlt, „🖼 Poster
+  ändern"/„🚫 Zuordnung entfernen" bleiben immer sichtbar (funktionieren
+  generisch über `metadataId`, unabhängig vom TMDB-Match).
+  **🖼 Poster auch bei komplett unzugeordneten Serien (seit 2026-09-06,
+  User-Wunsch: „ich will auch bei unzugeordneten Serien ein Poster
+  hinzufügen können"):** `renderUnmatchedFolderHeader`s „🖼 Poster
+  hochladen"-Button legt bei Klick zuerst per
+  `POST /api/libraries/{id}/folders/metadata-manual` (`createCustomFolderMetadata`
+  in `internal/api/tmdb.go`, Pendant zu `createCustomMetadata` — dort für
+  ein Item, hier für den ganzen Ordner) einen `tmdb_type="custom"`-Metadata-
+  Eintrag an (`TMDBID = -time.Now().UnixNano()` für Eindeutigkeit, Titel =
+  Ordnername) und verknüpft ihn per `SetFolderMetadata`, dann öffnet er den
+  bestehenden `openPosterPicker(metadataId, onApplied)`-Dialog darauf (der
+  TMDB-Tab bleibt dort leer, der Upload-Teil funktioniert unverändert
+  generisch). **`seriesSeasons`-Handler liefert jetzt auch im
+  `showTmdbId===0`-Early-Return ein `show`-Objekt**, wenn
+  `Store.GetFolderMetadataID` (bewusst OHNE `tmdb_type`-Filter, anders als
+  `ShowTMDBForFolder`/`ShowMetadataIDForFolder`, die nur `tv` matchen) eine
+  Zuordnung findet — sonst wäre der gerade hochgeladene Custom-Titel/Poster
+  beim nächsten Öffnen des Ordners nicht mehr sichtbar gewesen (nur
+  `metadataId`/`title`/`posterPath`, keine Seasons/Cast — die gibt's nur
+  bei echtem TMDB-Match).
+  **Bekannte Einschränkung:** die wiederverwendeten Show-Header-Buttons
+  (TMDB neu laden etc.) rufen bei Erfolg weiterhin `renderSeasonFolders`/
+  `renderSeasonEpisodes` direkt auf statt `loadItems()` — im Fallback-
+  Kontext (Season-View bereits deaktiviert) kann das kurzzeitig ein leeres
+  Season-Grid statt der normalen Dateiliste zeigen, bis erneut navigiert
+  wird. Kein Crash, nur ein UX-Rest, der bei Bedarf durch Umstellen auf
+  `loadItems()` als gemeinsamen Refresh-Pfad behoben werden könnte.
+  **🔴 Header verschwand nach dem ersten Öffnen wieder (Bug, gefixt noch am
+  selben Tag, User-Report "ich sehe den Poster-Button nicht"):** der ganze
+  Block inkl. Info-Header-Logik hing an `if (state.seasonView && …)`. Der
+  Fallback selbst persistiert `seasonView:<lib>:<folder>="0"` — beim
+  NÄCHSTEN Öffnen desselben Ordners war `state.seasonView` dadurch schon
+  `false`, der komplette Block (nicht nur die Staffel-Kachel-Darstellung)
+  wurde übersprungen, der Header erschien nur beim allerersten Aufruf. Fix:
+  der Seasons-API-Call + die Header-Entscheidung laufen jetzt IMMER für
+  TV-Ordner (unabhängig von `state.seasonView`); nur ob Staffel-KACHELN
+  oder die normale Liste gerendert werden, hängt weiter vom Toggle ab. Der
+  Auto-Disable-Toast feuert weiterhin nur beim ÜBERGANG true→false (Guard
+  `&& state.seasonView` vor dem Umschalten), sonst hätte er bei jedem
+  Öffnen erneut auftauchen können.
+
+### Metadaten-Bestätigung + Verdächtige Zuordnungen — Zeilen 2572–2610 der alten CLAUDE.md
+
+- **🔴 "Zuordnung entfernen" hielt nicht — Ordner wurde binnen Minuten vom
+  periodischen Enrichment-Worker automatisch wieder (falsch) gematcht
+  (gefixt 2026-09-06):** User-Report direkt nach dem Feature oben: "Terra X"
+  war Minuten nach dem manuellen Entfernen schon wieder zugeordnet — diesmal
+  auf "Terra X History" statt "Terra Xpress", also erneut falsch. Root
+  Cause war ein VORBESTEHENDER Bug, der durch das neue Feature erst
+  sichtbar wurde, an ZWEI unabhängigen Stellen im 5-Minuten-Worker
+  (`internal/enrich/worker.go runOnce` → `enrichFolders` UND `enrichItems`):
+  beide prüften nur, ob der Ordner (noch) eine `metadata_id` hat, NIE ob
+  bereits ein bewusster Versuch (mit Ergebnis "NULL") stattgefunden hat.
+  - **`Store.PendingFolders`** (SQL): `LEFT JOIN folder_metadata fm ...
+    WHERE fm.metadata_id IS NULL` — bei einem LEFT JOIN ist `fm.metadata_id`
+    NICHT NUR NULL, wenn GAR KEINE Zeile existiert, sondern AUCH, wenn eine
+    Zeile existiert und ihr `metadata_id` NULL ist (TMDB fand nichts, ODER
+    Admin hat entfernt). Fix: Bedingung auf `fm.folder IS NULL` geändert —
+    `folder_metadata` hat `PRIMARY KEY (library_id, folder)`, beide NOT
+    NULL, `fm.folder` ist daher ein zuverlässiger "Zeile existiert
+    überhaupt"-Indikator, unabhängig vom `metadata_id`-Wert. Das war
+    ursprünglich SCHON ALS BUG vorhanden (der Code-Kommentar bei
+    `matchShow`s NULL-Write sagt explizit "damit wir nicht endlos
+    retry'en") — nur bis jetzt nie aufgefallen, weil vor "🚫 Zuordnung
+    entfernen" der einzige Weg zu einer NULL-Zeile ein gescheiterter
+    TMDB-Suchversuch war (seltener Fall, kaum beobachtet).
+  - **`enrichItems`/`enrichFolderSync`** (über `matchItem`,
+    `internal/enrich/worker.go`): prüfte nur `showMetaID == 0` (aus
+    `GetFolderMetadataID`, das „keine Zeile" und „Zeile mit NULL" NICHT
+    unterscheiden KANN) und löste bei 0 sofort erneut `matchShow` aus.
+    Fix: neue `Store.FolderMetadataRowExists(libID, folder)` — liefert
+    `true`, sobald irgendeine Zeile existiert (Wert egal). `matchItem`
+    triggert `matchShow` jetzt NUR NOCH, wenn GAR KEINE Zeile existiert;
+    existiert eine (auch mit NULL), gibt es einen Fehler zurück
+    ("bewusst unmatched (kein Auto-Retry)") statt erneut zu suchen.
+  - Beide Fixe zusammen sind nötig — `enrichFolders` läuft VOR `enrichItems`
+    in jedem `runOnce()`-Zyklus und hätte den Ordner sonst weiterhin allein
+    schon wieder gematcht, selbst mit nur einem der beiden Fixe.
+  - Tests: `internal/store/folder_metadata_test.go` (`PendingFolders`
+    ignoriert eine bewusst-NULL-Zeile, `FolderMetadataRowExists`
+    unterscheidet beide Fälle direkt).
+
+
+### Playback — Zeilen 2644–2676 der alten CLAUDE.md
+
+- **🔴 Dateien mit eingebettetem Cover-Bild spielten nur ein 1-Frame-
+  Standbild statt des echten Films (Bug, gefixt 2026-09-07, User-Report
+  "Immer Ärger mit 40"/"Vielleicht lieber morgen" — WMV-Dateien mit
+  eingebettetem `mjpeg`-Thumbnail, `disposition.attached_pic=1`):**
+  `internal/playback/ffmpeg.go` (Transcode) UND `internal/download/prepare.go`
+  (Compat-Download) bauten den ffmpeg-Befehl mit `-map "0:v:0"`
+  (klein-`v`) — ffmpegs Stream-Specifier `v` zählt EINFACH alle
+  Video-Streams durch, ein vorangestellter Cover-Thumbnail-Stream (z. B.
+  Index 0 = mjpeg 320×180 attached_pic) gilt dabei als "Video-Stream 0"
+  und wurde statt des echten Films (z. B. Index 2 = `wmv1` 1280×720)
+  transcodiert/kopiert. Fix: Großbuchstabe `-map "0:V:0"` — ffmpegs
+  Stream-Specifier `V` bedeutet explizit "Video, OHNE attached
+  pictures/Thumbnails/Cover-Art". `internal/scanner/scanner.go` hatte
+  dieselbe Ausnahme für die Metadaten-Erkennung (VideoCodec/Width/Height)
+  schon seit dem Musik-Cover-Art-Fix vom 2026-09-04 (`disposition
+  .attached_pic == 1 → continue`), aber NUR dort — beim tatsächlichen
+  Transcode/Download-ffmpeg-Aufruf fehlte die gleiche Ausnahme bisher.
+  Erklärt auch die **falsche Auflösungs-Anzeige (z. B. "180p" statt
+  "720p")** bei betroffenen Dateien — reines Datenproblem aus der Scan-
+  Zeit VOR dem 2026-09-04-Fix, kein separater Bug: `Store.UpsertItem`
+  überschreibt `width`/`height` nur bei einem erneuten (Force-)Scan, ein
+  inkrementeller Scan probet unveränderte Dateien nie erneut. Betroffene
+  Bibliotheken brauchen einmal **`?force=true`**, damit der Scanner
+  Video-Codec/Auflösung mit der schon länger korrekten Logik neu ermittelt.
+  `download/prepare.go`s `convVersion` (Cache-Invalidierung für
+  Compat-Downloads) auf **5** erhöht, damit eine vor diesem Fix erzeugte
+  (kaputte, nur-Cover-Bild-)Download-Kopie verworfen und neu erzeugt wird.
+  **Nicht betroffen:** Trickplay-Sprite-Generierung und die
+  Thumbnail-Extraktion beim Scan — beide rufen ffmpeg ohne explizites
+  `-map` auf, ffmpegs automatische Stream-Auswahl ohne `-map` wählt den
+  Video-Stream nach einer Auflösungs/Bitrate-Heuristik, nicht nach
+  Reihenfolge, und griff dadurch schon vorher korrekt zum echten Film statt
+  zum kleinen Thumbnail.
+
+### Shuffle-Play — Zeilen 2821–2827 der alten CLAUDE.md
+
+  **🔴 War kurzzeitig live kaputt (Commit `9723b9b` fixt `a96624f`):** der
+  else-Zweig rief sich versehentlich selbst rekursiv auf (Tippfehler bei
+  einem `sed`-Bulk-Replace) — jeder Zufalls-Klick auf eine NICHT-Musik-
+  Bibliothek endete in "Maximum call stack size exceeded" statt den Player
+  zu öffnen. **Lektion: nach einem `sed`/Skript-Bulk-Replace IMMER die
+  Funktionsdefinition selbst mit angrep-en**, nicht nur die Call-Sites —
+  ein zu breiter Suchstring kann die eigene Implementierung mittreffen.
+
+### Transcode-Seek (Capture-Handler + Session-Restart) — Zeilen 2916–2983 der alten CLAUDE.md
+
+  **🔴→✅ Der ursprüngliche No-Op-Patch wirkte NICHT zuverlässig (User-Report
+  2026-09-10, "flackert/springt bei transcodierten Videos, bei Direct Play
+  nicht" — LIVE 1.2.52):** reines `sb.update = wrapperFn` reicht nicht.
+  Video.js' `SeekBar` (verifiziert gegen den exakten gepinnten Build
+  `video.js@8.17.3`) registriert ihre `update`-Methode bereits im
+  KONSTRUKTOR direkt als Event-Listener
+  (`this.on(player, ["timeupdate","durationchange"], this.update)`) —
+  synchron beim Bau der ControlBar, also BEVOR `syncTranscodeDisplays()`
+  überhaupt läuft. `on(target, event, fn)` hält die Funktions-REFERENZ zum
+  Bindungszeitpunkt fest, keinen dynamischen Property-Lookup — ein
+  späteres `sb.update = ...` ändert an diesem bereits registrierten
+  Listener nichts. Der native Handler feuerte dadurch bei JEDEM
+  `timeupdate` (mehrmals pro Sekunde) unverändert weiter und schrieb die
+  falsche (relative) Breite, im Wechsel mit dem RAF-Loop — exakt das
+  beobachtete Flackern. Fix (`player-transcode-seek.js`): den
+  ORIGINAL-Listener explizit per `vjs.off(["timeupdate","durationchange"],
+  origUpdate)` entfernen (identische Funktionsreferenz, `off` matched wie
+  `on` per strikter Gleichheit) und durch einen eigenen, modusabhängigen
+  Listener ersetzen (`vjs.on([...], guardedUpdate)`), der im Transcode-Modus
+  gar nichts aufruft, sonst 1:1 `origUpdate.apply(sb, args)`. **Nicht live
+  im Browser verifizierbar in dieser Session** (bekannte
+  claude-in-chrome-Einschränkung, `document.visibilityState` bleibt im
+  MCP-Tab „hidden", `<video>` lädt dadurch nie echt — siehe „GoldfishTV"-
+  Abschnitt) — Fix basiert auf Analyse des tatsächlichen gepinnten
+  Video.js-Bundles (per curl heruntergeladen, `SeekBar`-Konstruktor +
+  `enableInterval_`/`this.setInterval(this.update,30)` durchgelesen), nicht
+  nur Vermutung. **Sollte vom User im echten Browser gegengeprüft werden**
+  — falls das Flackern weiterhin auftritt, als nächstes prüfen, ob
+  `vjs.off()` den Listener tatsächlich entfernt (z.B. `console.log` der
+  Listener-Anzahl vor/nach, oder ob Video.js' `on(target,type,fn)`-Overload
+  die Funktion intern nochmal wrapped statt der rohen Referenz — dann
+  müsste der Original-Listener stattdessen über die SeekBar-Komponente
+  selbst `sb.off(vjs, [...], origUpdate)` entfernt werden statt über `vjs`).
+  **User-Bestätigung (2026-09-10): Flackern behoben.** Direkter
+  Folgewunsch danach: „ein kleiner Punkt zeigt die aktuelle Stelle" — im
+  **Pill-Skin** (`style.css`) verschluckte `overflow: hidden` auf
+  `.vjs-progress-holder` (nur dort für die runde Pillenform gesetzt,
+  eigentlich unnötig, da `.vjs-load-progress`/`.vjs-play-progress` bereits
+  `border-radius: inherit` selbst tragen) Video.js' eingebauten
+  Scrubber-Punkt (`.vjs-play-progress:before`, per Default-CSS mit
+  `right:-.5em` leicht über den Balkenrand hinaus positioniert — im
+  SVG-Icon-Modus stattdessen ein `.vjs-svg-icon`-Kindknoten). Fix (LIVE
+  1.2.53): `overflow: hidden` vom Holder entfernt (Pillenform bleibt über
+  die Kind-Elemente erhalten) + der Punkt selbst als expliziter weißer
+  Kreis mit Schatten gestylt (`color: transparent` verbirgt den
+  ursprünglichen Font-Icon-Glyphen, `.vjs-svg-icon svg { display: none }`
+  im SVG-Modus), statt sich auf den dezenten Video.js-Default zu
+  verlassen. Betraf **nur den Pill-Skin** — der Standard-Skin setzte nie
+  `overflow:hidden` auf den Holder. Keine JS-Änderung nötig: der Punkt
+  hängt per CSS am rechten Rand von `.vjs-play-progress` selbst, dessen
+  Breite sowohl Direct Play (nativ) als auch Transcode (unser RAF-Loop
+  oben) bereits korrekt setzen.
+  **🔴→✅ Nachkorrektur (User-Report 2026-09-10: "nicht auf der Zeitleiste,
+  sondern schneidet ihn tangenzial. Der Punkt ist unter der Leiste. Und er
+  ist mir zu groß", LIVE 1.3.1):** `width`/`height` auf einem
+  `:before`-Pseudo-Element OHNE `display:block` bewirken bei Browsern
+  schlicht gar nichts — `:before`/`:after` sind standardmäßig `inline`,
+  und Inline-Boxen (nicht ersetzte Elemente) ignorieren explizite
+  Breiten-/Höhenangaben komplett. Der sichtbare Kreis kam beim ersten
+  Versuch dadurch weiterhin nur aus dem UNVERÄNDERTEN Glyphen-Kasten des
+  Original-Font-Icons (Video.js' eigene `line-height:.35em`-Positionierung,
+  für einen Text-Glyphen gedacht, nicht für einen zentrierten Punkt) — mein
+  `width:11px;height:11px` griff nie. Fix: `content:""` (kein Glyph mehr),
+  `display:block`, komplett eigene Positionierung
+  (`position:absolute;top:50%;right:0;transform:translate(50%,-50%)` —
+  zentriert den Punkt exakt AUF dem Balkenende statt daneben/darunter),
+  kleiner (8px statt 11px). Gleiches Prinzip für den `.vjs-svg-icon`-
+  Kindknoten im SVG-Icon-Modus.
+
+### Performance — Zeilen 3008–3031 der alten CLAUDE.md
+
+  **🔴 Reichte bei sehr vielen Kacheln nicht (Bug, gefixt 2026-09-06,
+  User-Report "ich bin immer ganz oben, das hatten wir schon einmal
+  besser"):** bei Ansichten mit hunderten Kacheln (z. B. 219 Serien in der
+  TV-Bibliotheks-Übersicht) liefert `content-visibility:auto` +
+  `contain-intrinsic-size` beim allerersten Layout-Pass nur eine GESCHÄTZTE
+  Höhe für off-screen-Kacheln — der doppelte rAF reicht nicht immer, bis der
+  Browser genug Kacheln tatsächlich vermessen hat, damit die Seite schon
+  hoch genug für die Ziel-Scroll-Position ist. `scrollTo` clampt dann auf
+  die zu diesem frühen Zeitpunkt noch zu kleine maximale Scroll-Höhe — ohne
+  weiteren Versuch bleibt die Seite dauerhaft dort hängen, auch nachdem der
+  Inhalt seine finale Höhe erreicht hat. Fix: ein zusätzlicher, einmaliger
+  Korrektur-Versuch nach 200ms (nur wenn `window.scrollY` die gespeicherte
+  Position noch nicht erreicht hat UND der User inzwischen nicht bereits
+  weiternavigiert ist — `state.lastNavKey === targetKey`-Check verhindert,
+  dass ein verzögerter Restore einen erst später geöffneten, anderen navKey
+  trifft). **Nicht End-to-End live verifizierbar in dieser Session** —
+  `document.visibilityState` ist im claude-in-chrome-MCP-Tab "hidden",
+  wodurch `requestAnimationFrame` browserseitig gedrosselt/pausiert wird und
+  das Timing-Verhalten dort nicht reproduzierbar testbar ist (der reine
+  State-Save-Teil wurde bestätigt: `scrollPositions`-Map enthielt nach
+  Navigation korrekt den vorherigen scrollY-Wert). Der Fix ist rein additiv
+  (ein zusätzlicher späterer Korrekturversuch, kein Eingriff in den
+  bestehenden Pfad) — sollte im echten, fokussierten Browser des Users
+  bestätigt werden.
+
+### Filter-UI — Zeilen 3065–3080 der alten CLAUDE.md
+
+  **🔴 Wirkte zunächst nicht in der Musik-Album-Übersicht (Bug, gefixt noch
+  am selben Tag):** die Standard-Ansicht einer Musik-Bibliothek ist die
+  Album-Kachel-Übersicht (`GET /api/libraries/{id}/albums`), NICHT der
+  generische `/api/items`-Pfad, den `ItemFilter.Genres` bedient — der Filter
+  lief dort also komplett ins Leere (live per `claude-in-chrome` verifiziert:
+  gleiche Trefferzahl mit und ohne `genre=`-Query-Param). Fix:
+  `Store.ListMusicAlbumsFiltered(libraryID, userID, genres)` (neue Funktion,
+  `ListMusicAlbums` ist jetzt ein dünner Wrapper ohne Filter — bewahrt die
+  alte 2-Arg-Signatur für bestehende Aufrufer/Tests) filtert zusätzlich per
+  `a.genre IN (...)` auf `music_albums.genre` (die bereits aggregierte
+  Album-Genre-Spalte, kein LIKE nötig wie bei `items.genre`/Multi-Genre-
+  Strings). `listAlbums`-Handler + alle drei Frontend-Album-Fetch-Stellen in
+  `grid.js` (Übersicht/Favoriten/"Alle Titel") hängen den Filter jetzt mit an
+  (`musicGenreQS()`-Helper in app.js für den Albums-Endpoint, der anders als
+  `/api/items` keine URLSearchParams vorab baut). Test:
+  `internal/store/music_albums_genre_filter_test.go`.
+
+### Person-Filter (Schauspieler-Klick) — Zeilen 3215–3232 der alten CLAUDE.md
+
+- **🔴 Scroll-Position ging beim Rein/Raus verloren, wenn eine Serien-Kachel
+  in der Filmografie geöffnet wurde (Bug, gefixt 2026-09-08, User-Wunsch:
+  „möchte an der gleichen Stelle wieder rauskommen")**: `navKey()` (`app.js`)
+  lieferte für die Filmografie-Übersicht UND die per Show-Kachel geöffnete
+  Episoden-Unteransicht (`state.personFilterShow`, siehe
+  `renderPersonShowCard` in `cards.js`) denselben Key `"person:<tmdbId>"`.
+  Ein Klick auf eine Serie speicherte die Filmografie-Scrollposition zwar
+  korrekt unter diesem Key, der kurze Rücksprung aus der Episodenliste
+  überschrieb sie aber sofort wieder (meist mit ~0, da die Episodenliste kurz
+  ist) — man landete beim endgültigen Verlassen des Person-Filters immer
+  ganz oben. Fix: analog zu den `lib:`-Keys (die Folder/Staffel/Album-Tiefe
+  im Key kodieren) bekommt die Show-Unteransicht jetzt einen eigenen Suffix
+  (`"person:<tmdbId>:show:<libraryId>:<folder>"`), beide Ebenen landen
+  dadurch in getrennten `state.scrollPositions`-Slots. Der einfache
+  Fall (Schauspieler öffnen → direkt zurück, ohne Serien-Zwischenstopp) war
+  bereits vorher korrekt (openPersonView/clearPersonView in player.js laufen
+  beide durch den normalen `loadItems()`-Scroll-Save/Restore-Pfad).
+
+
+### Sammlungs-Komplett-Badge — Zeilen 3265–3280 der alten CLAUDE.md
+
+  **🔴 Bug + Fix am selben Tag:** die erste Version verlangte ein konkretes
+  ZUKÜNFTIGES Datum (`release_date > date('now')`) — ein Part mit leerem
+  `release_date` (typisch bei früh angekündigten Fortsetzungen, die bei TMDB
+  schon ein Poster, aber noch kein Datum haben, real beobachtet: „Den of
+  Thieves 3" in der „Criminal Squad"-Sammlung) fiel dadurch durchs Raster und
+  zählte als „fehlt wirklich" statt „noch nicht erschienen" — Sammlung blieb
+  trotz vollständigem Bestand als unvollständig markiert. Fix: Bedingung ist
+  jetzt `release_date IS NULL OR release_date = '' OR release_date > date('now')`.
+  Enrichment (`internal/enrich/worker.go`, Collection-Parts-Fetch) überspringt
+  Parts nur, wenn SOWOHL `release_date` ALS AUCH `poster_path` leer sind
+  (reine TMDB-Platzhalter ohne jede Info) — ein Part mit nur fehlendem Datum
+  aber vorhandenem Poster bleibt als „Bald"-Kachel sichtbar.
+  Frontend: `renderCollectionPartCard` (`cards.js`) zeigt für solche Teile
+  ein blaues „Bald"-Badge (`.missing-badge--upcoming`) statt des roten
+  „Fehlt"-Badges — rein kosmetisch, ändert nichts an der Vollständigkeits-Logik.
+  Test: `internal/store/collections_acl_test.go TestCollectionsUnreleasedParts`.
+
+### Download & Löschen — Zeilen 3497–3522 der alten CLAUDE.md
+
+  **🔴→✅ Downscale konnte die Datei GRÖSSER als das Original machen (Bug,
+  gefixt noch am selben Tag, convVersion 6, User-Report: ein YouTube-Video
+  mit effizient kodierten ~1,9 Mbps wurde auf "480p" gestellt — traf
+  serverseitig aber auf den ERSTEN Katalog-Eintrag "480p-hq · 2 Mbps" (drei
+  Bitraten-Stufen pro Auflösung in `playback.Profiles`) — 273 MB Original
+  → 315 MB "optimierter" Download trotz Auflösungs-Downscale auf 480p):**
+  `needsDownscale` entscheidet nur, OB überhaupt runtergerechnet wird
+  (Höhe- oder Bitrate-Cap überschritten) — die tatsächlich für den Encode
+  verwendete Ziel-Bitrate war bisher ungeprüft der rohe Katalogwert, auch
+  wenn der über der (schon bekannten) Quell-Bitrate lag. Fix: neue
+  `clampProfileToSource(profile, itemBitrateKbps)` — kappt `VideoKbps` auf
+  die Quell-Bitrate, wenn die niedriger als der Katalogwert ist (nur die
+  tatsächliche Encode-Bitrate, NICHT die `needsDownscale`-Entscheidung
+  selbst, und NICHT der Cache-Dateiname — der bleibt beim gewählten
+  Profil-ID). Test: `TestClampProfileToSource`.
+  **🔴→✅ Zweite Runde, noch am selben Tag (convVersion 7, User meldete beim
+  erneuten Test immer noch eine zu große Datei: 273 MB Original → 293 statt
+  < 273 MB):** der erste Fix klemmte `profile.VideoKbps` direkt auf
+  `itemBitrateKbps` — aber `it.BitrateKbps` (`Item.BitrateKbps`) kommt aus
+  ffprobes `format.bit_rate` (`internal/scanner/scanner.go`), das ist die
+  GESAMTE Container-Bitrate (Video **+** Audio), keine reine Video-Bitrate.
+  Die neue, per Profil zugeteilte Audiospur kam dadurch oben drauf und hob
+  die Summe wieder über die Quelle. Fix: `clampProfileToSource` zieht jetzt
+  erst `profile.AudioKbps` von der Quell-Gesamtbitrate ab, bevor der Rest
+  als Video-Zieldeckel dient (Sicherheits-Untergrenze 200 kbps gegen ein
+  degeneriertes Ziel bei sehr niedriger Quell-Bitrate).
+
+### Download & Löschen — Zeilen 3561–3579 der alten CLAUDE.md
+
+  **🔴→✅ Audio-only-Dateien (Musik-Bibliotheken) schlugen mit `?compat=1`
+  IMMER fehl (Bug, gefixt 2026-09-11, LIVE 1.3.10, User-Report über die
+  neue Mac-App-Musik-Download-Funktion: "SOS" von ABBA Gold, eine ganz
+  normale mp3, lieferte 500 "Stream map '0:V:0' matches no streams"):**
+  dieses ganze Package ist auf VIDEO-Kompatibilität zugeschnitten (siehe
+  Paket-Kommentar), die schnelle "ist eh schon passend"-Kurzentscheidung
+  in `plan()` kannte aber nur den mp4/mov/m4v+h264+aac-Fall — jede Audio-
+  Datei (mp3, m4a, flac, …) fiel dadurch immer in den Remux-Pfad, der
+  bedingungslos `-map 0:V:0` setzt (Großbuchstabe, schließt Cover-Art
+  bewusst aus, siehe `convVersion=5`-Historie) — bei einer Datei OHNE
+  jeden Videostream matcht das nichts, ffmpeg bricht sofort ab. Der
+  Browser hat das nie ausgelöst (fragt Musik-Downloads immer OHNE
+  `?compat=1` an), der neue Mac-App-Musik-Download (siehe
+  `project_feature_apple_music_player`-Memory) war der erste Aufrufer,
+  der diesen Pfad für Audio überhaupt erreicht hat. Fix: `plan()` liefert
+  jetzt `needsPrep=false` (Originaldatei direkt ausliefern) sobald
+  `videoCodecHint == ""` (Scanner-Konvention "kein Videostream in der
+  Datei") — Audio-Formate brauchen für den Download keine MP4-Remux-
+  Behandlung, AVFoundation spielt mp3/m4a/aac nativ.
+
+### Aktivitäts-Protokoll & Backup/Restore (seit 2026-09-02) — Zeilen 3709–3721 der alten CLAUDE.md
+
+  - **🔴→✅ "play" wurde anfangs doppelt geloggt (Bug, gefixt noch am
+    selben Tag, User-Report: "Jetzt habe ich aber 2x Wiedergabe gestartet
+    im Protokoll stehen!"):** `GET /api/playback/{id}` dient ZWEI Zwecken —
+    tatsächlicher Wiedergabe-Start UND reines Vorab-Laden der Stream-Liste
+    fürs Detail-Dialog-Dropdown (Ton/Untertitel/Qualität). Ein automatisches
+    Log direkt im GET-Handler feuerte für BEIDE Fälle — allein das Öffnen
+    des Detail-Dialogs erzeugte schon einen Eintrag, tatsächliches
+    Abspielen direkt danach einen zweiten. Fix: kein Auto-Log mehr im GET;
+    stattdessen client-getriggertes `POST /api/playback/{id}/start`
+    (`stream.go playbackStart`, exakt symmetrisch zu `stop`/`error`) — nur
+    von den tatsächlichen Play-Auslösern aufgerufen (`player.js
+    applyPlayback`, `music.js` Track-Start, `PlayerView.setUp`), NIE vom
+    reinen Stream-Info-Prefetch.
+
+### Verschieben in andere Ordner / Bibliotheken (seit 2026-07-12) — Zeilen 3953–3972 der alten CLAUDE.md
+
+  **🔴 Eigentlicher Root Cause, gefunden beim ersten Live-Test (LIVE 1.2.46):**
+  Verschieben tat schon VOR diesem Async-Umbau nichts — nicht "langsam",
+  sondern ein stiller `TypeError` ganz am Funktionsanfang von
+  `handleMoveSubmit`. `const submitBtn = e.target.querySelector('button[type="submit"]')`
+  fand den Button nicht mehr, seit `normalizeModalLayout` (siehe „Dialoge
+  (.modal) haben seit 2026-09-01 einen fixen Kopf + Fuß" oben) ihn beim
+  ersten `showModal()` strukturell aus dem `<form>` heraus in einen
+  separaten Footer verschiebt (bleibt nur über `form="moveForm"` verknüpft,
+  submitted zwar weiterhin dasselbe Formular, ist aber kein Kind mehr davon).
+  `submitBtn` war dadurch `null`, `submitBtn.disabled = true` warf sofort —
+  die Funktion brach ab, BEVOR der `fetch()` je losging. Erklärt auch,
+  warum die Server-Diagnose beim User-Report keinerlei Spur fand (weder
+  CPU/IO noch `rename_history` noch `activity_log`): der Request wurde nie
+  abgeschickt. Fix: `#moveSubmitBtn`-ID auf dem Button, Lookup per
+  `$("#moveSubmitBtn")` statt `e.target.querySelector(...)` — unabhängig
+  von der DOM-Restrukturierung. **Bekanntes Muster für JEDEN künftigen
+  `.modal-flex`-Dialog:** ein Button-Lookup relativ zu `e.target`/`form`
+  bricht, sobald `normalizeModalLayout` ihn aus dem Formular herauslöst —
+  IMMER per ID/`document`-Lookup referenzieren, nie per
+  `formElement.querySelector(...)`.
+
+### Refactor-Serien im Volltext (ausgelagert aus CLAUDE.md, 2026-09-13)
+
+Die vollständigen Schritt-für-Schritt-Protokolle der Code-Review 2026-09-06
+und des Frontend-Modul-Splits 2026-04-30. Beide Serien sind abgeschlossen;
+die daraus abgeleiteten Konventionen stehen in CLAUDE.md.
+
+## Code-Review 2026-09-06 (Clean-Code/SOLID/Performance/Security, User-Auftrag)
+
+User-Auftrag: vollständige Codebasis (Go-Backend + JS-Frontend) auf Lesbarkeit,
+DRY/SOLID, Performance/Sicherheit, Fehlerbehandlung prüfen; Modularisierung
+NUR intern (weitere Go-Dateien im selben Package bzw. weitere JS-Module) —
+**explizit KEINE separaten Repos/Go-Module** (Goldfish bleibt bewusst Single-
+Binary/Single-Container, siehe Projektbeschreibung oben).
+
+**Sofort behobene, konkrete Funde (LIVE):**
+- **cards.js:769 — XSS-Lücke:** `subtitle` (u. a. roher Musik-Artist-Tag)
+  landete ungeschützt in `innerHTML`, während `title` an jeder anderen Stelle
+  konsequent durch `escapeHTML()` läuft. Fix: `escapeHTML(subtitle)`.
+- **cards.js `renderCard` — DRY-Verstoß**, selbst in dieser Session
+  eingeführt (siehe "Kachel-Overlay"-Abschnitt oben, Custom-Metadaten-Titel-
+  Fix): Titel-/Jahr-Override stand doppelt (posterPath-Zweig UND neuer
+  Non-Poster-Zweig). Zusammengeführt zu einem einzigen, von der Bild-URL-
+  Ermittlung entkoppelten Override-Block.
+- **scanner.go — `lookupTag`-Fallstrick, selbst in dieser Session
+  eingeführt:** `lookupTag` vergleicht ausschließlich gegen kleingeschriebene
+  Keys (baut eine lowercase-Lookup-Map). Der neue Jahr-Tag-Aufruf übergab
+  `"TYER", "TDRC"` in Großschreibung — hätten NIE gematcht. Auf `"tyer",
+  "tdrc"` korrigiert.
+- **biome-Autofixes (sicher, einzeln verifiziert):** `let`→`const` wo nie
+  reassigned, `function(){}`→Arrow-Function wo kein `this` im Rumpf
+  verwendet wird, unnötige Regex-Escapes. **Warnung für künftige Sessions:**
+  `biome lint --write` NICHT blind vertrauen — die `noUnusedVariables`-Regel
+  kennt das global-Window-Scope-Modulmuster dieses Projekts nicht und hätte
+  (laut Diagnose-Vorschau, NICHT tatsächlich geschrieben) `appPrompt` in
+  `_appPrompt` umbenannt — das hätte den globalen Aufruf aus anderen Modulen
+  gebrochen. Jede vorgeschlagene Änderung einzeln gegen die Datei prüfen,
+  bevor sie übernommen wird.
+
+**Strukturanalyse (Ergebnis, noch NICHT umgesetzt — größerer Umbau, braucht
+eigene Session(s) mit Tests nach jedem Schritt):**
+
+*Backend, größter Kandidat `internal/store/sqlite.go` (3091 Zeilen):* passt
+zum bereits etablierten Muster (`music.go`/`stats.go`/`users.go`/
+`collections.go`/`introskip.go` sind schon eigene Dateien) — sqlite.go ist
+der nie ausgelagerte Rest. Vorschlag: `schema.go` (migrate()-Funktion),
+`items.go` (ListItems/UpsertItem/GetItemFor/CountItems/attachMetadata/
+attachVariantCounts), `folders.go`, `metadata.go`, `trickplay_status.go`,
+`settings.go`, `libraries.go` — reine Datei-Umzüge, keine Signatur-/API-
+Änderung. Nebenfund: `attachMetadata`/`attachVariantCounts` schlucken
+DB-Fehler komplett ohne Logging (`sqlite.go` ~1861/~1926) — sollten
+mindestens `log.Printf` bekommen. `internal/enrich/worker.go` (1103 Zeilen):
+`matchItem` (~185 Zeilen) ist die größte Einzelfunktion des Backends,
+Kandidat für `matching.go`-Auslagerung. `internal/tmdb/client.go`,
+`internal/api/tmdb.go`, `internal/api/items.go`, `internal/store/
+collections.go`, `internal/scanner/scanner.go` wurden geprüft und sind
+strukturell in Ordnung (je eine zusammenhängende Domäne, Größe kommt von
+fachlicher Breite, nicht Vermischung) — keine Aufteilung nötig.
+
+*Frontend, schärfster Einzelfund:* `grid.js loadItemsBody` ist **1206
+Zeilen in einer einzigen Funktion** (fast die ganze Datei) — eine
+If/Switch-Kette über alle Anzeige-Modi (Playlist/Home/Sammlungen/
+Season-View/Musik/Standard). Läuft bei praktisch jeder Navigation, größter
+Lesbarkeits-Hebel im gesamten Frontend. Vorschlag: Dispatcher +
+`loadItemsForPlaylist`/`loadItemsForHome`/`loadItemsForSeasonView`/
+`loadItemsForMusic`/`loadItemsDefault`. `views.js renderBreadcrumb`
+(~480 Zeilen) ist eine ähnliche, kleinere God-Function. `player.js`
+(2250 Zeilen) hat vier sauber abgrenzbare Unterthemen (Detail-Dialog,
+Trickplay-Hover, Untertitel, Transcode-Seek/Buffer-Gate — letztere beiden
+decken sich exakt mit eigenen CLAUDE.md-Abschnitten), Kandidaten für
+`player-detail.js`/`player-trickplay.js`/`player-subtitles.js`/
+`player-buffer.js`. `views.js`' Musik-Views (~530 Zeilen, `renderAlbumTiles`
+bis `renderMusicTrackRow`) gehören fachlich zu `music.js`, nicht `views.js`.
+`views.js`' Trickplay-Admin-Toolbar (Ende der Datei) ist fehlplatziert,
+gehört zu `matching.js`, wo der Rest der Trickplay-Verwaltung schon liegt.
+`admin.js` ist bereits klar organisiert, kein akuter Bedarf.
+
+**Priorisierte Reihenfolge für einen künftigen Umbau** (Impact vs. Risiko):
+1. ✅ **sqlite.go → schema.go** (LIVE 1.2.8) — `migrate()` (640 Zeilen,
+   alle CREATE-TABLE/addCol) reine Funktionsverschiebung, keine Logik-
+   /Signaturänderung. sqlite.go: 3091 → 2457 Zeilen. Nebenfund im selben
+   Schritt: `attachMetadata`/`attachVariantCounts` schluckten DB-Fehler
+   ohne jeden Kommentar — jetzt explizit als bewusstes Soft-Fail
+   dokumentiert (Poster/×N-Badge fehlen dann einfach, kein harter Fehler).
+   **Wichtige Korrektur zum ursprünglichen Plan:** `log.Printf` wurde
+   NICHT ergänzt — das `store`-Package importiert nirgendwo `"log"`
+   (Store-Methoden loggen grundsätzlich nie selbst, das ist Aufgabe der
+   Aufrufer). Ein Logging-Import hier hätte diese Konvention gebrochen.
+2. ✅ **grid.js loadItemsBody in benannte Handler zerlegen** (LIVE 1.2.9) —
+   beim genauen Lesen waren es **16 Branches statt der ursprünglich
+   angenommenen 7** (tpFailedView/homeView/currentPlaylist/playlistsRoot/
+   collectionsView/personFilter/multiversion/simnames/suspicious/
+   interlaced/duplicates/favoritesFlat/FLAT_SORTS-Library/music/
+   Standard-Grid). 15 davon (alle außer der Staffel-Ansicht) wurden per
+   Skript **mechanisch** (Python, kein manuelles Copy-Paste — Risiko einer
+   Übertragungs-Fehlers bei ~1200 Zeilen war zu hoch) in verschachtelte
+   `async function render<Name>()`-Funktionen extrahiert, `loadItemsBody`
+   selbst ist jetzt ein reiner Dispatcher aus 15 `if (cond) return await
+   render...();`-Zeilen. Verschachtelt (nicht Top-Level), damit sie
+   `grid`/`stale`/`mySeq`/`lib`/`sort`/`matchMode`/`musicFlatLib`/
+   `isMusicFlatLib`/`FLAT_SORTS`/`flatSort` weiterhin per Closure sehen —
+   **keine einzige Parameter-Signatur geändert, keine Variable neu
+   referenziert**, reine Textverschiebung. Verifiziert per Multiset-Diff
+   (sortierte Zeilen alt vs. neu) — exakt nur die 15 geänderten
+   Dispatch-Zeilen + 15 neue Funktions-Wrapper unterscheiden sich, sonst
+   ist der Inhalt Zeile für Zeile identisch.
+   **Staffel-Ansicht (Season-View, ~984–1027) bewusst NICHT extrahiert:**
+   einziger Branch mit echtem Fallthrough (setzt bei fehlender
+   Staffel-Struktur `state.pendingShowInfoHeader` und läuft dann WEITER in
+   den Musik-Check und das Standard-Grid) — das passt nicht zum
+   "if (cond) return await fn()"-Dispatcher-Muster, ohne die
+   Fallthrough-Semantik selbst umzubauen (siehe „Automatischer Fallback
+   bei fehlenden Staffel-Daten" oben). Bleibt zusammen mit der
+   Bibliotheks-/Sort-Vorberechnung (`lib`/`sort`/`matchMode`) und den
+   `FLAT_SORTS`/`musicFlatLib`-Konstanten inline im Dispatcher-Körper.
+   `grid.js`: 1302 → 1340 Zeilen (mehr, nicht weniger — Funktions-Wrapper
+   + Doku-Kommentar kosten Zeilen, der Lesbarkeits-Gewinn liegt in der
+   Struktur, nicht in der Kürze). Live getestet: Home, Sammlungen,
+   Playlist-Root + einzelne Playlist, Person-Filter, normales
+   Filme/Serien-Grid, Staffel-Ansicht (Tatort — Fallback-Pfad),
+   Musik-Album-Übersicht.
+3. ✅ **sqlite.go → metadata.go + trickplay_status.go** (LIVE 1.2.10) —
+   Grenzen diesmal nicht per Hand gesucht, sondern per kleinem Go-AST-Tool
+   (`go/parser`, Zeilen-Offsets aller Top-Level-`FuncDecl`s inkl.
+   Doc-Kommentar) exakt bestimmt — sicherer als Klammer-Zählen von Hand bei
+   ~2500 Zeilen Go. `trickplay_status.go` (300 Zeilen): `SetTrickplayFolder`
+   bis `ListTrickplayFolders` (13 Funktionen). `metadata.go` (443 Zeilen):
+   `UpsertMetadata` bis `PendingFolders` (21 Funktionen) — `nullInt`/
+   `nullTime` (generische Helper, keine Metadata-Spezifika) bleiben bewusst
+   in sqlite.go. sqlite.go: 2457 → 1738 Zeilen. Verifiziert per Multiset-Diff
+   (sortierte Zeilen alt vs. neu-3-Dateien-kombiniert) — einzige
+   Unterschiede sind die neuen Datei-Header/Package/Import-Zeilen selbst,
+   kein Code verloren oder verändert. `go build`/`go vet`/`go test ./...`
+   grün. Reine Backend-Datei-Verschiebung ohne API-Auswirkung — kein
+   Browser-Live-Test nötig (anders als Schritt 2), Test-Suite deckt
+   `internal/store` ab.
+4. ✅ **views.js Musik-Views → music.js** (LIVE 1.2.11) — Ziel war laut
+   ursprünglichem Vorschlag ein neues `music-views.js`, aber es gibt
+   bereits ein passendes Modul `music.js` (Mini-Player) in der
+   Lade-Reihenfolge — Funktionen dort ergänzt statt eine weitere Datei
+   + einen weiteren `<script>`-Tag anzulegen. Verschobener Block (529
+   Zeilen, `renderAlbumTiles` bis `renderMusicTrackRow` inkl. der
+   Spalten-Resize/Reorder-Helfer): views.js 1965 → 1435 Zeilen, music.js
+   290 → 825 Zeilen. Ladereihenfolge-Unbedenklichkeit: alle Funktionen
+   sind einfache globale `function`-Deklarationen (kein ES-Module), erst
+   NACH `DOMContentLoaded`/`boot()` aufgerufen — zu dem Zeitpunkt haben
+   alle `<script defer>`-Tags bereits ausgeführt, `music.js` lädt zwar
+   nach `views.js`/`grid.js` in `index.html`, das spielt aber keine Rolle
+   (bestehendes Projekt-Muster, kein Sonderfall). Verifiziert per
+   Multiset-Diff (views.js+music.js alt vs. neu) — nur neue Kommentarzeilen
+   unterscheiden sich. Live getestet: Musik-Album-Übersicht (Kacheln +
+   Liste), Album-Detail-Tracklist, „Alle Titel", Spalten-Resize/Reorder.
+5. ✅ **player.js → player-buffer.js/player-transcode-seek.js/player-trickplay.js**
+   (LIVE 1.2.12) — drei klar abgrenzbare, per Kommentar-Header bereits
+   vormarkierte Blöcke extrahiert: `player-trickplay.js` (108 Zeilen,
+   Trickplay-Hover-Plugin inkl. seinem eigenen `trickplayState`-WeakMap),
+   `player-transcode-seek.js` (212 Zeilen, `syncTranscodeDisplays` +
+   `formatPlayerTime` + `attachSeekRestart` + `restartTranscodeAt`),
+   `player-buffer.js` (479 Zeilen, Startpuffer-Gate + Pause-Prefetch +
+   Buffer-Overlay inkl. `pausePrefetchTimer`/`pausePrefetchSeen`/
+   `forcedDurationState`). Vor dem Schneiden alle modul-scoped
+   `const`/`let`-Deklarationen (`grep -n "^const \|^let "`) durchsucht,
+   um sicherzustellen, dass jede mit ihren tatsächlichen Nutzern in
+   dieselbe neue Datei wandert (kein Modul-Grenzen-Bruch trotz weiterhin
+   globalem window-Scope). player.js: 2250 → 1475 Zeilen. Drei neue
+   `<script defer>`-Tags in `index.html` zwischen `player.js` und
+   `admin.js` ergänzt (`go:embed all:web` fasst sie automatisch mit).
+   Verifiziert per Multiset-Diff (nur neue Datei-Header unterscheiden
+   sich). Live-Test im Browser bestätigte Detail-Dialog/Resume-Dialog/
+   Modus-Dropdowns/Cast-Token-Fetch/Buffer-Overlay-Statuszeile/HLS-
+   Playlist-Polling (`/api/transcode/…/progress` lief korrekt +342s→+812s
+   hoch) — die eigentliche Pixel-Wiedergabe (`<video>` zeigt ein Bild)
+   ließ sich in dieser Session NICHT verifizieren: `document
+   .visibilityState` ist im claude-in-chrome-Tab dauerhaft `"hidden"`
+   (bestätigt per `javascript_tool`, reproduziert in einem komplett
+   frischen zweiten Tab, sowohl bei Direct Play als auch Transcode) —
+   Chrome defers dadurch das eigentliche Laden der Videodatei komplett
+   (`readyState=0`/`networkState=LOADING` für immer, **null** Netzwerk-
+   Requests an `/api/stream/…` trotz korrekt gesetztem `<video src>` +
+   `autoplay`). Bekannte, bereits an anderer Stelle in CLAUDE.md
+   dokumentierte Umgebungseinschränkung (siehe „GoldfishTV"-Abschnitt:
+   „document.visibilityState ist im claude-in-chrome-MCP-Tab 'hidden'"),
+   kein Bug dieses Refactors — Beweis: der komplette Multiset-Diff zeigt
+   nirgendwo eine inhaltliche Änderung an `vjs.src()`/Player-Erzeugung
+   (die bleiben unverändert in player.js). Echte Pixel-Wiedergabe sollte
+   bei Gelegenheit einmal vom User selbst im echten Browser gegengeprüft
+   werden — nicht erneut per claude-in-chrome versuchen, das Ergebnis ist
+   umgebungsbedingt vorhersagbar negativ.
+6. ✅ **enrich/worker.go → matching.go** (LIVE 1.2.13) — der Ziel-Block war
+   bereits ein einziger zusammenhängender, unveränderter Abschnitt
+   (`enrichFolders`/`enrichItems`/`matchShow`/`matchItem`, Zeilen 262–533)
+   ohne modul-scoped `var`/`const` (nur `type`-Deklarationen im
+   Worker-struct, unberührt) — einfachster Schritt der ganzen Serie.
+   worker.go: 1103 → 829 Zeilen, matching.go: 289 Zeilen. Verifiziert per
+   Multiset-Diff (nur neue Datei-Header/Imports unterscheiden sich) +
+   `go build`/`go vet`/`go test ./...` grün (kein `enrich`-Package-Test
+   vorhanden, war schon vorher so). Reine Backend-Verschiebung ohne
+   API-Auswirkung, kein Browser-Live-Test nötig (wie Schritt 3).
+7. ✅ **Rest von sqlite.go → items.go/folders.go/libraries.go/settings.go**
+   (LIVE 1.2.14, letzter Schritt der Serie) — die verbliebenen ~1700
+   Zeilen waren KEIN sauber zusammenhängender Block mehr (Bibliotheks-
+   und Item-Funktionen liegen verschachtelt, z. B. `CountItems`
+   zwischen zwei `libraries`-Funktionen), daher per Skript anhand der
+   go/parser-Zeilenbereiche in 4 thematische Buckets sortiert:
+   `libraries.go` (239 Zeilen, 11 Funktionen: Bibliotheks-CRUD, Multi-
+   Path, Sortierung), `items.go` (997 Zeilen, 20 Funktionen: Item-CRUD,
+   `ListItems`-Hauptquery, Suche, `attachMetadata`/`attachVariantCounts`),
+   `folders.go` (321 Zeilen, 8 Funktionen: TV-Top-Level-Folder-Navigation,
+   Auto-Merge gleicher Show), `settings.go` (24 Zeilen, 2 Funktionen:
+   Key-Value-Settings). `sqlite.go` selbst bleibt als schlanker Kern
+   (204 Zeilen: `Store`-Struct, `Open`/`Close`, NATSORT-Collation-
+   Registrierung) — von ursprünglich **3091 Zeilen zu Beginn dieser
+   Modularisierungs-Serie auf 204 Zeilen**. Verifiziert per bereinigtem
+   Multiset-Diff (Leerzeilen/Package-/Import-/Kommentarzeilen beidseitig
+   rausgefiltert, dann sortiert verglichen) — **exakt null** übrig
+   gebliebene Differenz, jede Import-Korrektur einzeln anhand echter
+   Compiler-Fehler vorgenommen (nicht geraten). `go build`/`go vet`/
+   `go test ./...` grün. Reine Backend-Verschiebung, kein Browser-Test
+   nötig.
+   **Damit ist die komplette 7-Punkte-Prioritätenliste der Code-Review
+   2026-09-06 abgearbeitet** (Versionen 1.2.8 bis 1.2.14, jeder Schritt
+   einzeln deployed + verifiziert, kein einziger Rollback nötig).
+
+**Golint/biome-Bestandsaufnahme** (nicht alles behoben, nur dokumentiert):
+`golangci-lint run ./...` fand 20 Funde (10 errcheck — meist unkritisches
+`defer x.Close()`, 8 staticcheck-Stilhinweise, 2 unused: `scanner.go
+musicExt` und `api/subtitle_gen.go maskKey` sind toter Code, vorbestehend).
+`biome lint` über alle 19 JS-Module: 128× `noUnusedVariables`, 192×
+`useOptionalChain`, 115× `useTemplate` (alles Stil, überwiegend
+FIXABLE-aber-nicht-blind-anzuwenden, siehe Warnung oben), 33×
+`noDoubleEquals` (`==`/`!=` statt `===`/`!==` — echte Typkoerzitions-
+Risikoklasse, aber nicht pauschal automatisierbar, jede Stelle einzeln
+prüfen). Kein akuter Handlungsbedarf, aber als Fundgrube für künftige
+Aufräum-Sessions hier vermerkt.
+
+## Refactor-Abschluss 2026-04-30 (Frontend-Modul-Split, fertig)
+
+**Phase 1 — Linter-Findings (live):** kleine Bugs gefixt — poster-edit
+ineffassign, scanner nilerr-Annotation, mp4probe int64-Overflow-Schutz,
+3× ST1005-Errors klein, sqlite Close-Errcheck — plus echter Parser-Bug
+(„Mad MAX" wurde zu „Mad Fury Road" weil `max` in reTrash stand;
+`max`/`nf`/`dv` raus).
+
+**Phase 2 — Tests (live):** erste Test-Suite des Projekts.
+- `internal/nameparser/parser_test.go` — 88,8 % Coverage, 60+ Cases inkl.
+  Decision-Log-Edge-Cases (Year-as-Title, numerische Episoden,
+  Doppelfolgen, Sample-Skip, etc.).
+- `internal/playback/decider_test.go` — Decider 100 % Coverage.
+
+**Phase 3 — Frontend-Modul-Split (live, abgeschlossen):**
+- 13 Module aus app.js extrahiert: helpers, dialogs, api, cast,
+  player-components, cards, views, grid, player, admin, playlists,
+  scan, matching. Siehe „Frontend-Modul-Layout" oben.
+- app.js: **7531 → 1371 Zeilen (−82 %)**.
+- Jeder Modul-Schritt: eigener Branch, einzeln gemerged + im Browser
+  live getestet.
+
+**Tools eingerichtet (bleiben):**
+- `golangci-lint` und `biome` (homebrew) — vor groesseren Refactors laufen lassen.
+- `scripts/check-frontend.sh` — `node --check` ueber alle web/*.js. Wird in
+  pre-commit-Hook (`scripts/install-git-hooks.sh`) und in CI
+  (`.github/workflows/deploy.yml`) ausgefuehrt. Hat bereits 2 Bugs gefangen
+  („deutsche Anfuehrungszeichen mit ASCII-`"` mittendrin"). **Niemals
+  ueberspringen bei JS-Aenderungen.**
+
+**Pattern fuer Frontend-Modul-Aenderungen** (nicht mehr fuer geplante
+Splits, aber falls man weitere Aufteilung braucht):
+1. `git checkout -b code-review/<name>-<date>`
+2. Block-Boundaries via `grep -n "^// --- "` finden
+3. Datei via `awk` extrahieren + Header-Kommentar dazu
+4. app.js trimmen mit `awk` (Multi-Block-Trims: ALLE in_block=0-Resets
+   vor der generischen Skip-Aktion!) + Breadcrumb-Kommentar
+5. `<script src="/<name>.js" defer>` in `index.html` an der richtigen
+   Position der Lade-Reihenfolge
+6. `./scripts/check-frontend.sh && go build ./... && go test ./...`
+7. Commit mit `refactor(frontend): …` Prefix, Push branch
+8. „merge" beim User abfragen → ff-only auf main → push → Auto-Deploy
+
+**Backend-Roadmap (eigener Track, nicht teil des Refactors):**
+- Native iOS/iPadOS/macOS-App fuer Offline-Wiedergabe (siehe
+  project_roadmap_offline-Memory) — separat, eigene Session.
+
+### Erledigte TODOs (ausgelagert aus CLAUDE.md, 2026-09-13)
+
+Beide Punkte waren abgehakt; die Dauerregel zum öffentlichen Repo steht
+jetzt im Kopf von CLAUDE.md.
+
+## TODO
+
+- [x] **✅ Repo ist seit 2026-09-05 ÖFFENTLICH** (Open-Source, MIT-Lizenz) —
+  `github.com/boernie77/goldfish`, verifiziert per `gh repo view` (`visibility:
+  PUBLIC`). Modulpfad bewusst NICHT anonymisiert (war nur "optional" markiert,
+  jetzt mit öffentlichem Repo unter demselben Pfad ohnehin hinfällig — eine
+  Umbenennung wäre nur noch sinnlose Churn). Topics gesetzt: `golang`,
+  `homelab`, `jellyfin-alternative`, `media-server`, `unraid`, `vaapi`, `go`,
+  `self-hosted`, `sqlite`, `streaming`, `tmdb`. Vorbereitung (Lizenz/NOTICE.md,
+  sanitisiertes CLAUDE.md, `.env.example`, `install.sh` E2E-getestet,
+  Datenschutz-/Git-Historie-Check) war bereits vorher abgeschlossen, siehe
+  Memory `project_installer_e2e_test.md`.
+  **Konsequenz für jede künftige Session:** das Repo ist jetzt live-öffentlich
+  einsehbar — bei JEDER Änderung zusätzlich zum bestehenden CLAUDE.md-
+  Sanitisierungsstandard prüfen, ob committeter Code/Kommentare versehentlich
+  echte Namen/E-Mails/interne IPs/Secrets enthalten (nicht mehr nur
+  theoretisch relevant, sondern sofort für jeden sichtbar).
+
+- [x] **✅ Echte Folgen-Zusammenführung für Serien in getrennten Ordnern**
+  (LIVE 1.3.4, 2026-09-10) — User-Wunsch 2026-09-05 aufgegriffen, aber
+  anders gelöst als ursprünglich skizziert: statt Dateien physisch zu
+  verschieben (Jellyfin-Stil, hätte die Move-Infrastruktur wiederverwendet)
+  wollte der User **ausdrücklich KEIN Verschieben auf Disk** — stattdessen
+  virtuelles Multi-Folder-Browsing, siehe „Serienübersicht — Auto-Merge
+  doppelter Serien-Ordner" oben (`MergedFolderNames`,
+  `SeriesOwnedEpisodes(folders []string)`). Löst den konkreten
+  Auslöser-Fall ("Two and a Half Men" mit S01/S02 in zwei physischen
+  Ordnern) vollständig, ohne Dateisystem-Änderung. Ein UI zum manuellen
+  "diese zwei Ordner gehören zusammen"-Markieren (für Fälle, die NICHT
+  bereits über `folder_metadata.metadata_id` automatisch erkannt werden)
+  ist damit weiterhin nicht gebaut — bisher kein konkreter Bedarf dafür,
+  da die automatische Erkennung über die gemeinsame TMDB-Zuordnung den
+  praktischen Fall abdeckt.
+
+
