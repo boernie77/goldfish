@@ -1687,6 +1687,44 @@ Musik-UI unverändert bewusst schlank).
   im Header aktuell sichtbar gerendert sind. Ausblenden/Wiedereinblenden
   einer Spalte verliert dadurch nie ihre zuvor gewählte Position.
 
+#### Sortierung per Klick auf die Spaltenüberschrift (seit 2026-09-13)
+
+- User-Wunsch: "warum klappt die Sortierung der Spalten nicht so, wie in
+  der Linux App, indem man auf den Kopf der Spalte klickt" — GoldfishLinux
+  nutzt für dieselbe Listenansicht ein natives `Gtk.ColumnView`, dessen
+  Spalten von Haus aus per Klick auf die Überschrift sortieren
+  (`ColumnSpec.sort_key` in `widgets/column_list.py` im Linux-Repo). Der
+  Browser hatte für seine (nachgebaute) Spalten-Kopfzeile bisher NUR
+  Resize+Reorder, keinerlei Klick-Sortierung.
+- `MUSIC_LIST_CONTEXTS[context].valueOf` (neu, `music.js`) — pro
+  reorderable Spalte ein Getter `(row) => wert`, analog zu `sort_key` dort
+  (Album-Übersicht liest vom Album-Objekt, Album-Detail/„Alle Titel" vom
+  Track-Objekt). `sortTypes` markiert numerische/Datums-Spalten (Rest =
+  Text, `localeCompare` mit `sensitivity:"base"`). Fixe Icon-Slots (cover/
+  track/fav/editMeta/delete) haben keinen Getter → nicht sortierbar, wie
+  bei der Linux-App der ebenfalls fixen `actions`-Spalte.
+- `loadMusicSort`/`saveMusicSort` persistieren Spalte+Richtung im selben
+  `musicColumns:<context>`-localStorage-Objekt wie Order/Widths/Visible
+  (`sortCol`/`sortDir`, non-destruktiv gemergt). `musicSortRows(context,
+  rows)` sortiert das übergebene Array **in place** — bewusst, weil
+  dieselbe Array-Referenz auch als `state.playQueue`/
+  `state.lastRenderedItems` dient: die Wiedergabe-Reihenfolge (Shuffle-
+  Next etc.) folgt dadurch automatisch der sichtbaren Sortierung, exakt
+  wie `ColumnList.visible_rows()` in der Linux-App über ihr
+  `Gtk.SortListModel`.
+- **Klick vs. Reorder-Drag laufen über denselben mousedown/mousemove/
+  mouseup-Handler** (siehe Kommentar bei `wireMusicColumnHeader` zu genau
+  diesem Muster) — `onUp()` unterscheidet nur noch zusätzlich: kein
+  `dragging` (Maus blieb unter dem `REORDER_THRESHOLD`) UND die Spalte hat
+  einen `valueOf`-Getter → `toggleMusicSort()` statt Reorder. Erster Klick
+  sortiert aufsteigend, zweiter Klick auf DIESELBE Spalte dreht auf
+  absteigend um (wie `Gtk.ColumnView`), Klick auf eine andere Spalte
+  beginnt immer wieder aufsteigend. Aktive Sortierspalte zeigt einen
+  ▲/▼-Pfeil (`renderMusicColumnHeader`, CSS `.track-row-head-cell.sorted`/
+  `.track-row-head-sort-arrow`).
+- Gilt für alle drei Kontexte (Album-Übersicht als Liste, Album-Detail-
+  Tracklist, „Alle Titel") — dieselbe Infrastruktur wie Resize/Reorder.
+
 ### Sammlungen (TMDB-Collections)
 - **✅ ACL + FSK abgesichert (2026-09-02)** — `ListCollections`/`GetCollectionParts`/
   `ListItemsInCollection` liefen vorher ohne Library-ACL- UND FSK-Prüfung (Non-Admin sah fremde

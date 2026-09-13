@@ -326,6 +326,7 @@ function renderAlbumTiles(grid, albums, listView, searchActive) {
     // haben als Tracks (kein trackNo/Dauer, dafür Titelzahl).
     const rerenderRows = () => {
       list.innerHTML = "";
+      musicSortRows("overview", albums);
       const head = renderMusicColumnHeader("overview", list);
       head.classList.add("track-row--album"); // CSS-Fallback-Grid-Template teilen
       const columns = musicEffectiveColumns("overview");
@@ -684,6 +685,7 @@ function renderAlbumTracks(grid, data, listView) {
     // seit 2026-09-06 breiten-/reihenfolge-verschiebbar (musicColumns:album).
     const rerenderRows = () => {
       list.innerHTML = "";
+      musicSortRows("album", tracks);
       renderMusicColumnHeader("album", list);
       const columns = musicEffectiveColumns("album");
       tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, columns)));
@@ -723,6 +725,7 @@ function renderAllTracksList(grid, tracks, emptyMessage) {
   // (musicColumns:all, siehe MUSIC_LIST_CONTEXTS).
   const rerenderRows = () => {
     list.innerHTML = "";
+    musicSortRows("all", tracks);
     renderMusicColumnHeader("all", list);
     const columns = musicEffectiveColumns("all");
     tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, columns)));
@@ -774,6 +777,17 @@ const MUSIC_LIST_CONTEXTS = {
     // Standardmäßig sichtbar (User-Wunsch: neue Spalten nicht ungefragt allen
     // aufzwingen) — der Rest bleibt über das Spalten-Dropdown zuschaltbar.
     defaultVisible: ["title", "artist", "genre", "count"],
+    // Klick auf die Kopfzeile sortiert (seit 2026-09-13, User-Wunsch: "wie in
+    // der Linux-App, indem man auf den Kopf der Spalte klickt") — analog zu
+    // GTK ColumnView dort (jede nicht-feste Spalte hat einen sort_key, siehe
+    // GoldfishLinux widgets/column_list.py). `valueOf` liefert den Rohwert je
+    // Zeile, `sortTypes` steuert numerischen vs. text-basierten Vergleich.
+    valueOf: {
+      title: a => a.album, artist: a => a.artist, genre: a => a.genre,
+      count: a => a.trackCount, lastPlayed: a => a.lastPlayedAt,
+      playCount: a => a.playCount, added: a => a.addedAt,
+    },
+    sortTypes: { count: "number", playCount: "number", lastPlayed: "date", added: "date" },
   },
   album: {
     fixedLeading: ["track"],
@@ -790,6 +804,12 @@ const MUSIC_LIST_CONTEXTS = {
     minWidths: { title: 100, artist: 80, genre: 70, year: 50, duration: 50, lastPlayed: 100, playCount: 70, added: 90 },
     fixedWidths: { track: 32, fav: 32, editMeta: 32, delete: 32 },
     defaultVisible: ["title", "artist", "genre", "year", "duration"],
+    valueOf: {
+      title: it => it.title, artist: it => it.artist, genre: it => it.genre,
+      year: it => it.year, duration: it => it.durationSec,
+      lastPlayed: it => it.lastPlayedAt, playCount: it => it.playCount, added: it => it.addedAt,
+    },
+    sortTypes: { year: "number", duration: "number", playCount: "number", lastPlayed: "date", added: "date" },
   },
   all: {
     fixedLeading: ["cover"],
@@ -800,6 +820,11 @@ const MUSIC_LIST_CONTEXTS = {
     minWidths: { title: 100, artist: 80, album: 80, genre: 70, year: 50, lastPlayed: 100, playCount: 70, added: 90 },
     fixedWidths: { cover: 40, fav: 32, editMeta: 32, delete: 32 },
     defaultVisible: ["title", "artist", "album", "genre", "year", "lastPlayed"],
+    valueOf: {
+      title: it => it.title, artist: it => it.artist, album: it => it.album, genre: it => it.genre,
+      year: it => it.year, lastPlayed: it => it.lastPlayedAt, playCount: it => it.playCount, added: it => it.addedAt,
+    },
+    sortTypes: { year: "number", playCount: "number", lastPlayed: "date", added: "date" },
   },
 };
 
@@ -865,6 +890,68 @@ function saveMusicColumnVisible(context, visibleSet) {
   try { localStorage.setItem(musicColumnLayoutKey(context), JSON.stringify(raw)); } catch {}
 }
 
+// Sortierung per Klick auf die Spaltenüberschrift (seit 2026-09-13, User-
+// Wunsch: "wie in der Linux-App, indem man auf den Kopf der Spalte klickt").
+// Persistiert im selben localStorage-Objekt wie Reihenfolge/Breite/
+// Sichtbarkeit (musicColumns:<context>), analog saveMusicColumnLayout/
+// saveMusicColumnVisible — non-destruktives Merge in dasselbe Objekt.
+function loadMusicSort(context) {
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const raw = loadMusicColumnLayoutRaw(context);
+  if (raw && raw.sortCol && cfg.valueOf && cfg.valueOf[raw.sortCol]) {
+    return { col: raw.sortCol, dir: raw.sortDir === "desc" ? "desc" : "asc" };
+  }
+  return null;
+}
+
+function saveMusicSort(context, col, dir) {
+  const raw = loadMusicColumnLayoutRaw(context) || {};
+  raw.sortCol = col;
+  raw.sortDir = dir;
+  try { localStorage.setItem(musicColumnLayoutKey(context), JSON.stringify(raw)); } catch {}
+}
+
+// Sortiert `rows` IN PLACE nach der aktuell für `context` gespeicherten
+// Spalte/Richtung (No-op ohne aktive Sortierung). Bewusst in-place statt
+// eine Kopie zurückzugeben: `rows` ist bei den Aufrufern dieselbe Referenz,
+// die auch als state.playQueue/state.lastRenderedItems dient — die
+// Wiedergabe-Reihenfolge (Shuffle-Next etc.) folgt dadurch automatisch der
+// sichtbaren Sortierung, wie es die Linux-App über ihr Gtk.SortListModel
+// ebenfalls tut (visible_rows() dort).
+function musicSortRows(context, rows) {
+  const sort = loadMusicSort(context);
+  if (!sort) return rows;
+  const cfg = MUSIC_LIST_CONTEXTS[context];
+  const getter = cfg.valueOf[sort.col];
+  const type = (cfg.sortTypes && cfg.sortTypes[sort.col]) || "text";
+  const dirMul = sort.dir === "desc" ? -1 : 1;
+  rows.sort((ra, rb) => {
+    const va = getter(ra), vb = getter(rb);
+    let cmp;
+    if (type === "number") {
+      cmp = (Number(va) || 0) - (Number(vb) || 0);
+    } else if (type === "date") {
+      cmp = String(va || "").localeCompare(String(vb || ""));
+    } else {
+      cmp = String(va || "").localeCompare(String(vb || ""), "de", { sensitivity: "base" });
+    }
+    return cmp * dirMul;
+  });
+  return rows;
+}
+
+// toggleMusicSort: Klick-Handler-Ziel aus wireMusicColumnHeader. Erster Klick
+// auf eine Spalte sortiert aufsteigend, ein zweiter Klick auf dieselbe Spalte
+// dreht auf absteigend um (wie GTK ColumnView) — Klick auf eine ANDERE Spalte
+// beginnt immer wieder bei aufsteigend.
+function toggleMusicSort(context, col, list) {
+  const current = loadMusicSort(context);
+  const dir = (current && current.col === col && current.dir === "asc") ? "desc" : "asc";
+  saveMusicSort(context, col, dir);
+  const refresh = musicColumnHeaderRefreshers.get(list);
+  if (refresh) refresh();
+}
+
 // Komplettes Spalten-Array inkl. fixer Leading/Trailing-Slots in aktueller
 // Reihenfolge, NUR die sichtbaren reorderable-Spalten — direkt als
 // `columns`-Parameter für renderMusicTrackRow/renderAlbumRow nutzbar.
@@ -922,11 +1009,15 @@ function renderMusicColumnHeader(context, list) {
   const visible = loadMusicColumnVisible(context);
   const head = document.createElement("div");
   head.className = "track-row track-row--head track-row--col-head";
+  const sort = loadMusicSort(context);
   let html = "";
   for (const _ of cfg.fixedLeading) html += `<span class="track-row-head-fixed"></span>`;
   for (const col of loadMusicColumnOrder(context).filter(c => visible.has(c))) {
-    html += `<span class="track-row-head-cell" data-col="${col}">` +
-      `<span class="track-row-head-label">${escapeHTML(cfg.labels[col] || col)}</span>` +
+    const sortable = !!(cfg.valueOf && cfg.valueOf[col]);
+    const active = sortable && sort && sort.col === col;
+    const arrow = active ? `<span class="track-row-head-sort-arrow">${sort.dir === "desc" ? "▼" : "▲"}</span>` : "";
+    html += `<span class="track-row-head-cell${sortable ? " sortable" : ""}${active ? " sorted" : ""}" data-col="${col}" title="${sortable ? "Klicken zum Sortieren, ziehen zum Verschieben" : ""}">` +
+      `<span class="track-row-head-label">${escapeHTML(cfg.labels[col] || col)}</span>${arrow}` +
       `<span class="col-resize-handle" data-resize="${col}" title="Spaltenbreite ziehen"></span></span>`;
   }
   for (const _ of cfg.fixedTrailing) html += `<span class="track-row-head-fixed"></span>`;
@@ -1008,7 +1099,13 @@ function wireMusicColumnHeader(head, context, list) {
         document.removeEventListener("mouseup", onUp);
         cell.classList.remove("dragging");
         if (overCell) overCell.classList.remove("drag-over");
-        if (!dragging || !overCell) return;
+        if (!dragging) {
+          // Klick ohne nennenswerte Mausbewegung = Sortier-Klick (analog GTK
+          // ColumnView in der Linux-App, siehe toggleMusicSort oben).
+          if (cfg.valueOf && cfg.valueOf[sourceCol]) toggleMusicSort(context, sourceCol, list);
+          return;
+        }
+        if (!overCell) return;
         const targetCol = overCell.dataset.col;
         const order = loadMusicColumnOrder(context);
         const from = order.indexOf(sourceCol);

@@ -1119,6 +1119,12 @@ body.selection-mode .track-row-select { display: flex; }
   white-space: nowrap;
   align-self: center;
 }
+/* Klick-zum-Sortieren (seit 2026-09-13, analog GTK ColumnView in der
+   Linux-App) — .sorted markiert die aktuell aktive Spalte optisch, der
+   Pfeil zeigt die Richtung. Reorder-Drag bleibt unverändert möglich (Klick
+   ohne Bewegung sortiert, Ziehen verschiebt, siehe wireMusicColumnHeader). */
+.track-row-head-cell.sorted { color: var(--fg, #eee); }
+.track-row-head-sort-arrow { margin-left: 3px; font-size: 9px; align-self: center; color: #3b82f6; }
 /* Handle liegt bewusst IM normalen Flex-Fluss der Zelle (nicht absolut über
    den Rand hinausragend) — eine absolute Positionierung mit negativem
    right-Offset ragte in den Grid-Gap zwischen den Spalten hinein, wo sie
