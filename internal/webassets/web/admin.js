@@ -770,12 +770,57 @@ async function openMoveDialog(ctx) {
   input.select();
 }
 
+// Zwischenfenster vor jedem geräteübergreifenden Verschieben (User-Wunsch
+// 2026-09-13, Auslöser: 126 Dateien landeten unbemerkt nur innerhalb
+// desselben Datenträgers statt wie erwartet auf einem anderen — weil ein
+// Move innerhalb derselben Library den physischen Quellordner bewusst nie
+// wechselt, siehe Server-CLAUDE.md "Verschieben"). Ruft
+// POST /api/items/move-preview auf (rührt nichts an) und fragt bei
+// anyCrossDevice=true nach:
+//   Ja                              → {allowCrossDevice:true, targetLibraryId (unverändert)}
+//   Nein → "Auf gleicher Quelle…"    → {allowCrossDevice:false, targetLibraryId: ctx.libId}
+//   Nein → "Abbrechen"               → null (Aufrufer bricht komplett ab)
+async function resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId) {
+  let preview;
+  try {
+    preview = await api(`/api/items/move-preview`, {
+      method: "POST",
+      body: JSON.stringify({ ids, targetFolder, targetLibraryId }),
+    });
+  } catch {
+    // Preview fehlgeschlagen (z.B. Netzwerk-Hänger) — normal weiterversuchen;
+    // der Server bricht selbst mit "CROSS_DEVICE" ab, falls nötig, statt den
+    // Admin hier komplett auszusperren.
+    return { targetLibraryId, allowCrossDevice: false };
+  }
+  if (!preview.anyCrossDevice) {
+    return { targetLibraryId, allowCrossDevice: false };
+  }
+  const goAhead = await appConfirm(
+    "Mindestens eine Datei würde dabei auf einen ANDEREN Datenträger kopiert — nicht nur innerhalb desselben Laufwerks verschoben. Je nach Dateigröße kann das dauern. Wirklich physisch verschieben?",
+    { title: "Datenträgerwechsel", okLabel: "Ja, physisch verschieben", cancelLabel: "Nein" }
+  );
+  if (goAhead) {
+    return { targetLibraryId, allowCrossDevice: true };
+  }
+  const stayOnSource = await appConfirm(
+    "Stattdessen auf demselben Datenträger verschieben (Ziel bleibt innerhalb der aktuellen Quelle, keine andere Bibliothek)?",
+    { title: "Verschieben abbrechen?", okLabel: "Auf gleicher Quelle verschieben", cancelLabel: "Abbrechen" }
+  );
+  if (!stayOnSource) return null;
+  // Exakt das Verhalten, das am 2026-09-13 unbeabsichtigt passierte: innerhalb
+  // derselben Library bleibt der physische Root immer der aktuelle (siehe
+  // executeMove-Kommentar im Server) — hier jetzt ein bewusster, expliziter
+  // dritter Weg statt eines stillen Nebeneffekts.
+  return { targetLibraryId: ctx.libId, allowCrossDevice: false };
+}
+
 async function handleMoveSubmit(e) {
   e.preventDefault();
   const ctx = state.moveContext;
   if (!ctx) return;
   const targetFolder = $("#moveFolderInput").value.trim();
-  const targetLibraryId = Number($("#moveLibrarySelect").value);
+  let targetLibraryId = Number($("#moveLibrarySelect").value);
   // NICHT e.target.querySelector(...) — normalizeModalLayout (helpers.js)
   // löst den Submit-Button beim ersten showModal() strukturell aus dem
   // <form> heraus in einen separaten Footer (bleibt nur über form="moveForm"
@@ -783,12 +828,20 @@ async function handleMoveSubmit(e) {
   // ist unabhängig von dieser Restrukturierung. (War davor ein stiller
   // TypeError ganz am Funktionsanfang — Verschieben tat scheinbar nichts.)
   const submitBtn = $("#moveSubmitBtn");
+  const ids = ctx.mode === "single" ? [ctx.item.id] : ctx.ids;
   submitBtn.disabled = true;
+  const decision = await resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId);
+  if (!decision) {
+    submitBtn.disabled = false;
+    return; // User hat im Zwischenfenster abgebrochen
+  }
+  targetLibraryId = decision.targetLibraryId;
+  const allowCrossDevice = decision.allowCrossDevice;
   try {
     if (ctx.mode === "single") {
       await api(`/api/items/${ctx.item.id}/move`, {
         method: "POST",
-        body: JSON.stringify({ targetFolder, targetLibraryId }),
+        body: JSON.stringify({ targetFolder, targetLibraryId, allowCrossDevice }),
       });
       showToast("Verschoben", { kind: "success" });
       $("#moveDialog").close();
@@ -799,7 +852,7 @@ async function handleMoveSubmit(e) {
       showToast(`Verschieben von ${ctx.ids.length} Datei${ctx.ids.length === 1 ? "" : "en"} gestartet…`, { kind: "info" });
       await api(`/api/items/move`, {
         method: "POST",
-        body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId }),
+        body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId, allowCrossDevice }),
       });
       // Server verschiebt asynchron im Hintergrund (kann bei vielen/großen
       // Dateien lange dauern) — Dialog bleibt offen und pollt den Fortschritt,
@@ -814,7 +867,13 @@ async function handleMoveSubmit(e) {
       loadItems();
     }
   } catch (err) {
-    appAlert("Verschieben fehlgeschlagen: " + err.message);
+    // "CROSS_DEVICE": seltener Race-Fall — Zustand hat sich zwischen der
+    // Preview oben und dem eigentlichen Move geändert (z.B. gleichzeitiger
+    // zweiter Move-Versuch). Klartext statt des rohen Server-Codes.
+    const msg = err.message === "CROSS_DEVICE"
+      ? "Verschieben abgebrochen: die Datei liegt jetzt doch auf einem anderen Datenträger als erwartet. Bitte erneut versuchen."
+      : "Verschieben fehlgeschlagen: " + err.message;
+    appAlert(msg);
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Verschieben";

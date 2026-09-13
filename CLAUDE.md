@@ -3862,6 +3862,90 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   `GET /api/libraries/{id}/all-folders` (alle admin-only). Frontend:
   `openMoveDialog()`/`loadMoveFolderList()`/`handleMoveSubmit()` in `admin.js`.
 
+#### Zwischenfenster bei Datenträgerwechsel (seit 2026-09-13, LIVE 1.3.24)
+
+- **Auslöser:** User verschob 126 Dateien von einer externen Unassigned-
+  Devices-Platte ("Big18", Teil der Multi-Path-Library „a") — laut Log
+  erfolgreich ("126 verschoben, 0 fehlgeschlagen"), aber die Dateien blieben
+  physisch auf Big18. Root Cause (siehe „Root-Auflösung" oben): ein Move
+  INNERHALB derselben Library wechselt bewusst nie den physischen
+  Quellordner — das Ziel „Jdownloader" wurde als Unterordner INNERHALB von
+  Big18 angelegt, nicht auf dem Array, wo der User es erwartet hatte. Kein
+  Bug in dem Sinne (die Design-Entscheidung war schon dokumentiert), aber
+  für den User völlig unsichtbar — er bemerkte es nur, weil 126 Dateien in
+  nur ein paar Sekunden "verschoben" waren (zu schnell für einen echten
+  Platten-übergreifenden Kopiervorgang).
+  **Zusätzlich echter Bug dabei gefunden:** selbst ein Move, der bewusst auf
+  eine ANDERE Library mit physisch anderem Datenträger zielt, hätte bis
+  dahin schlicht mit einem rohen `os.Rename`-Fehler abgebrochen — `os.Rename`
+  kann keine Datenträgergrenzen überqueren (`EXDEV`), und es gab keinerlei
+  Fallback auf echtes Kopieren+Löschen.
+- **Fix, zwei Teile:**
+  1. **`internal/rename/rename.go`**: `RenameOnDisk(old, new,
+     allowCrossDevice bool)` — bei `os.Rename`-Fehler `EXDEV` UND
+     `allowCrossDevice=false` liefert es `ErrCrossDevice` (rührt nichts an);
+     bei `allowCrossDevice=true` folgt `copyAndRemove()` (echtes
+     `io.Copy` + `Sync` + Quelle löschen, räumt eine unvollständige
+     Zieldatei bei Fehlern auf). Neue `IsCrossDevice(oldPath, newDir)`
+     vergleicht die Device-IDs (`syscall.Stat_t.Dev`) OHNE etwas
+     anzufassen — läuft bei einem noch nicht angelegten `newDir` (die
+     Zielordner existieren vor `executeMove`s `os.MkdirAll` oft noch nicht)
+     zum nächsten existierenden Vorfahren hoch.
+  2. **Neuer Preflight-Endpoint `POST /api/items/move-preview`**
+     (admin-only, `moveItemsPreview` in `admin_rename.go`, gemeinsame
+     `resolveMoveTarget()`-Zielauflösung mit `executeMove` — extrahiert aus
+     dem alten `executeMove`, KEINE Verhaltensänderung an der eigentlichen
+     Root-Auflösung selbst). Nimmt dieselbe Body-Form wie
+     `POST /api/items/move` (`ids`, `targetFolder`, `targetLibraryId`),
+     liefert pro Item `{id, crossDevice, error?}` + `anyCrossDevice`,
+     OHNE irgendetwas zu verschieben.
+  `moveItem`/`moveItemsBulk` haben ein neues Body-Feld
+  `allowCrossDevice bool` (Default false) — ohne das bricht ein
+  Datenträger-übergreifender Move serverseitig mit `code=409`/
+  `msg="CROSS_DEVICE"` ab, statt unbestätigt zu kopieren (Verteidigung
+  gegen den Fall, dass der Client die Preview übersprungen hat oder sich
+  der Zustand zwischen Preview und Ausführung geändert hat).
+- **Frontend (`admin.js`):** `handleMoveSubmit()` ruft VOR dem eigentlichen
+  Move immer erst `resolveMoveConfirmation()` auf (neue Funktion), die
+  `/api/items/move-preview` abfragt. Bei `anyCrossDevice=false` (der
+  Normalfall) passiert nichts Sichtbares — direkt weiter wie bisher. Bei
+  `anyCrossDevice=true` zwei nacheinander gestellte `appConfirm()`-Dialoge
+  (User-Vorgabe, exakte Wortwahl):
+  1. „Wirklich physisch verschieben?" — Ja → `allowCrossDevice:true`,
+     Ziel-Bibliothek bleibt wie vom User gewählt.
+  2. Bei Nein: „Auf gleicher Quelle verschieben?" (OK) vs. „Abbrechen"
+     (Cancel) — OK setzt `targetLibraryId` explizit auf `ctx.libId` (die
+     Quell-Library) zurück und `allowCrossDevice:false`: **exakt** das
+     Verhalten, das beim Auslöser-Vorfall unbeabsichtigt geschah, jetzt
+     aber als bewusste, informierte Wahl statt eines stillen
+     Nebeneffekts. Cancel bricht komplett ab (kein Request geht raus).
+  Ein `CROSS_DEVICE`-Serverfehler (der seltene Race-Fall: Zustand hat sich
+  zwischen Preview und Move geändert) zeigt einen verständlichen Text statt
+  des rohen Codes.
+  Undo (`renameUndo`) und der einfache Auto-/Manual-Rename-Pfad
+  (`executeRename`, immer selbes Verzeichnis) rufen `RenameOnDisk`
+  unverändert mit `false` bzw. (Undo, bewusst) `true` auf — ein Undo eines
+  bereits gerecordeten, Geräte-übergreifenden Moves darf ohne erneutes
+  Zwischenfenster zurücklaufen, der User hat mit dem Undo-Klick schon
+  entschieden.
+- **Einmalige manuelle Korrektur der 126 betroffenen Dateien** (nicht über
+  die App, weil ein Move innerhalb derselben Library den physischen Root
+  strukturell nie wechselt — das hätte auch das neue Zwischenfenster nicht
+  geändert, siehe „Root-Auflösung" oben): Dateien wurden per SSH direkt auf
+  dem Server von Big18 auf das Array verschoben (`mv`, cross-device-fähig)
+  und `items.path` für die betroffenen 126 Zeilen direkt per SQL
+  aktualisiert (`rel_path` blieb gleich, nur der physische Präfix
+  wechselte). Kein `rename_history`-Eintrag für diese manuelle Korrektur
+  angelegt (kein Undo über die App-UI dafür verfügbar) — bewusste
+  Ausnahme, keine Vorlage für künftige Wartungsaktionen.
+- Tests: `internal/rename/rename_test.go`
+  (`TestIsCrossDevice_SameFilesystem`,
+  `TestIsCrossDevice_NonExistentTargetDirWalksUpToExistingAncestor`,
+  `TestCopyAndRemove`, bestehende `RenameOnDisk`-Tests auf die neue
+  Parameter-Signatur angepasst). Echtes `EXDEV` lässt sich in der
+  Test-Suite nicht simulieren (bräuchte zwei echte Mounts) — die
+  Copy-Fallback-Logik selbst (`copyAndRemove`) ist aber direkt getestet.
+
 ### TMDB-Integration
 - Suche & Detail für Filme, Serien, Episoden (deutsche Sprache).
 - Match-Strategie: Name-Parser → TMDB-Search → Jahres-Score → Auto-Match; Fallback manuell.

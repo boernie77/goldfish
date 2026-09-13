@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -135,7 +136,7 @@ func (s *Server) executeRename(it *model.Item, triggeredBy string) (int64, strin
 		// Datei traegt bereits den Wunschnamen → no-op, kein History-Eintrag.
 		return 0, target, "", 0
 	}
-	if err := rename.RenameOnDisk(it.Path, target); err != nil {
+	if err := rename.RenameOnDisk(it.Path, target, false); err != nil {
 		return 0, "", "Rename auf Disk fehlgeschlagen: " + err.Error(), 500
 	}
 	// rel_path: Library-relativer Teil. Wir bauen ihn neu, indem wir den
@@ -146,7 +147,7 @@ func (s *Server) executeRename(it *model.Item, triggeredBy string) (int64, strin
 		// DB-Update fehlgeschlagen → Datei ist umbenannt, DB veraltet.
 		// Best-effort Rollback der Disk-Operation, damit das Item weiter
 		// abspielbar bleibt.
-		_ = rename.RenameOnDisk(target, it.Path)
+		_ = rename.RenameOnDisk(target, it.Path, false)
 		return 0, "", "DB-Update fehlgeschlagen: " + err.Error(), 500
 	}
 	return histID, target, "", 0
@@ -175,14 +176,18 @@ func (s *Server) renameUndo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Reverse-Rename auf Disk
-	if err := rename.RenameOnDisk(entry.NewPath, entry.OldPath); err != nil {
+	// true: ein Undo kann einen frueheren, bereits gerecordeten Move rueckgaengig
+	// machen — der ueberquert dieselbe Geraete-Grenze zwangslaeufig ein zweites
+	// Mal, ein erneutes Zwischenfenster waere hier sinnlos (der User hat mit
+	// dem expliziten Undo-Klick schon entschieden).
+	if err := rename.RenameOnDisk(entry.NewPath, entry.OldPath, true); err != nil {
 		writeError(w, 500, "Reverse-Rename fehlgeschlagen: "+err.Error())
 		return
 	}
 	if err := s.Store.MarkRenameUndone(id); err != nil {
 		// Disk wurde zurueckgerollt, DB-Update fehlgeschlagen — neuer Versuch
 		// das Disk-Rename wieder vorwaerts zu fahren, damit DB+Disk konsistent.
-		_ = rename.RenameOnDisk(entry.OldPath, entry.NewPath)
+		_ = rename.RenameOnDisk(entry.OldPath, entry.NewPath, true)
 		writeError(w, 500, "DB-Update fehlgeschlagen: "+err.Error())
 		return
 	}
@@ -301,6 +306,12 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		TargetFolder    string `json:"targetFolder"`
 		TargetLibraryID int64  `json:"targetLibraryId"`
+		// AllowCrossDevice: User hat im Zwischenfenster (Client) explizit
+		// bestätigt, dass wirklich auf einen anderen Datenträger kopiert
+		// werden soll (siehe rename.RenameOnDisk-Kommentar). Ohne das bricht
+		// ein Move über Datenträger-Grenzen mit code=409/"CROSS_DEVICE" ab,
+		// statt es unbestätigt einfach zu tun.
+		AllowCrossDevice bool `json:"allowCrossDevice"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiger Body")
@@ -311,7 +322,7 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	histID, target, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move")
+	histID, target, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move", body.AllowCrossDevice)
 	if code != 0 {
 		writeError(w, code, msg)
 		return
@@ -344,12 +355,17 @@ func (s *Server) moveItem(w http.ResponseWriter, r *http.Request) {
 //     Multi-Path-Ziel-Libraries landet die Datei immer im ersten Quellordner —
 //     der User kann sie danach bei Bedarf per erneutem Move innerhalb der
 //     Ziel-Library weiter verschieben.
-func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder, triggeredBy string) (int64, string, string, int) {
+//
+// resolveMoveTarget berechnet NUR den Zielordner/die Ziel-Library, OHNE
+// etwas anzufassen — gemeinsam genutzt von executeMove (tatsächlicher Move)
+// und moveItemsPreview (Zwischenfenster-Check, siehe dort). Liefert
+// (destLibraryID, newDir, trimmedTargetFolder, errMsg, httpStatusCode).
+func (s *Server) resolveMoveTarget(it *model.Item, targetLibraryID int64, targetFolder string) (int64, string, string, string, int) {
 	targetFolder = strings.Trim(strings.TrimSpace(targetFolder), "/")
 	// Traversal-Schutz: keine ".."-Segmente, kein Backslash.
 	for _, seg := range strings.Split(targetFolder, "/") {
 		if seg == ".." || strings.ContainsAny(seg, "\\\x00") {
-			return 0, "", "ungültiger Zielordner", 400
+			return 0, "", "", "ungültiger Zielordner", 400
 		}
 	}
 	destLibraryID := it.LibraryID
@@ -361,25 +377,33 @@ func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder
 		relSlash := filepath.ToSlash(it.RelPath)
 		root = strings.TrimSuffix(filepath.ToSlash(it.Path), "/"+relSlash)
 		if root == filepath.ToSlash(it.Path) {
-			return 0, "", "Item-Pfad/RelPath inkonsistent — Move abgebrochen", 500
+			return 0, "", "", "Item-Pfad/RelPath inkonsistent — Move abgebrochen", 500
 		}
 	} else {
 		paths, err := s.Store.LibraryPaths(destLibraryID)
 		if err != nil {
-			return 0, "", "Ziel-Bibliothek konnte nicht gelesen werden: " + err.Error(), 500
+			return 0, "", "", "Ziel-Bibliothek konnte nicht gelesen werden: " + err.Error(), 500
 		}
 		if len(paths) > 0 {
 			root = paths[0]
 		} else {
 			lib, err := s.Store.GetLibrary(destLibraryID)
 			if err != nil || lib == nil {
-				return 0, "", "Ziel-Bibliothek nicht gefunden", 404
+				return 0, "", "", "Ziel-Bibliothek nicht gefunden", 404
 			}
 			root = lib.Path
 		}
 	}
-	base := filepath.Base(it.Path)
 	newDir := filepath.Join(root, targetFolder)
+	return destLibraryID, newDir, targetFolder, "", 0
+}
+
+func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder, triggeredBy string, allowCrossDevice bool) (int64, string, string, int) {
+	destLibraryID, newDir, targetFolder, msg, code := s.resolveMoveTarget(it, targetLibraryID, targetFolder)
+	if code != 0 {
+		return 0, "", msg, code
+	}
+	base := filepath.Base(it.Path)
 	newPath := filepath.Join(newDir, base)
 	if newPath == it.Path && destLibraryID == it.LibraryID {
 		return 0, it.Path, "", 0 // schon dort — no-op
@@ -394,12 +418,22 @@ func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder
 	if err := os.MkdirAll(newDir, 0o755); err != nil {
 		return 0, "", "Zielordner konnte nicht angelegt werden: " + err.Error(), 500
 	}
-	if err := rename.RenameOnDisk(it.Path, newPath); err != nil {
+	if err := rename.RenameOnDisk(it.Path, newPath, allowCrossDevice); err != nil {
+		if errors.Is(err, rename.ErrCrossDevice) {
+			// Client fragt vorher per /api/items/move-preview nach — landet
+			// dieser Fall trotzdem hier (z.B. Zustand hat sich zwischen
+			// Preview und Ausführung geändert), bricht der Move sauber ab
+			// statt unbestätigt zu kopieren.
+			return 0, "", "CROSS_DEVICE", 409
+		}
 		return 0, "", "Verschieben auf Disk fehlgeschlagen: " + err.Error(), 500
 	}
 	histID, err := s.Store.RecordMove(it.ID, it.Path, newPath, it.RelPath, newRelPath, it.LibraryID, destLibraryID, triggeredBy)
 	if err != nil {
-		_ = rename.RenameOnDisk(newPath, it.Path)
+		// Revert: dieselbe Grenze, die wir gerade schon überquert haben —
+		// hier ist "true" kein neuer User-Entscheid, sondern schlicht die
+		// einzig sinnvolle Rückabwicklung derselben Aktion.
+		_ = rename.RenameOnDisk(newPath, it.Path, true)
 		return 0, "", "DB-Update fehlgeschlagen: " + err.Error(), 500
 	}
 	return histID, newPath, "", 0
@@ -455,9 +489,10 @@ var currentMoveJob = &moveBulkJob{}
 // Fortschritt via GET /api/items/move/status pollbar.
 func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		IDs             []int64 `json:"ids"`
-		TargetFolder    string  `json:"targetFolder"`
-		TargetLibraryID int64   `json:"targetLibraryId"`
+		IDs              []int64 `json:"ids"`
+		TargetFolder     string  `json:"targetFolder"`
+		TargetLibraryID  int64   `json:"targetLibraryId"`
+		AllowCrossDevice bool    `json:"allowCrossDevice"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiger Body")
@@ -490,7 +525,7 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 				job.mu.Unlock()
 				continue
 			}
-			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move")
+			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, "move", body.AllowCrossDevice)
 			job.mu.Lock()
 			job.done++
 			if code != 0 {
@@ -520,6 +555,64 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 // moveBulkStatus liefert den Fortschritt des zuletzt gestarteten Bulk-Moves.
 func (s *Server) moveBulkStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, currentMoveJob.snapshot())
+}
+
+// moveItemsPreview beantwortet VOR einem echten Move (Einzel- oder Bulk),
+// ob er auf einen anderen Datenträger kopieren würde — rührt nichts an
+// (kein RenameOnDisk, kein DB-Update). Client zeigt bei anyCrossDevice=true
+// ein Zwischenfenster, BEVOR überhaupt ein Move-Request losgeht (User-Wunsch
+// 2026-09-13, Auslöser: 126 Dateien landeten unbemerkt nur innerhalb
+// desselben Datenträgers statt wie erwartet auf dem Array, weil ein Move
+// innerhalb derselben Library bewusst nie den physischen Quellordner
+// wechselt — siehe executeMove-Kommentar).
+func (s *Server) moveItemsPreview(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs             []int64 `json:"ids"`
+		TargetFolder    string  `json:"targetFolder"`
+		TargetLibraryID int64   `json:"targetLibraryId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiger Body")
+		return
+	}
+	if len(body.IDs) == 0 {
+		writeError(w, 400, "keine Items ausgewählt")
+		return
+	}
+	if body.TargetLibraryID > 0 {
+		if !s.requireLibAccess(w, r, body.TargetLibraryID) {
+			return
+		}
+	}
+	type itemResult struct {
+		ID          int64  `json:"id"`
+		CrossDevice bool   `json:"crossDevice"`
+		Error       string `json:"error,omitempty"`
+	}
+	results := make([]itemResult, 0, len(body.IDs))
+	anyCrossDevice := false
+	for _, id := range body.IDs {
+		it, err := s.Store.GetItem(id)
+		if err != nil || it == nil {
+			results = append(results, itemResult{ID: id, Error: "nicht gefunden"})
+			continue
+		}
+		_, newDir, _, msg, code := s.resolveMoveTarget(it, body.TargetLibraryID, body.TargetFolder)
+		if code != 0 {
+			results = append(results, itemResult{ID: id, Error: msg})
+			continue
+		}
+		cross, err := rename.IsCrossDevice(it.Path, newDir)
+		if err != nil {
+			results = append(results, itemResult{ID: id, Error: err.Error()})
+			continue
+		}
+		if cross {
+			anyCrossDevice = true
+		}
+		results = append(results, itemResult{ID: id, CrossDevice: cross})
+	}
+	writeJSON(w, 200, map[string]any{"results": results, "anyCrossDevice": anyCrossDevice})
 }
 
 // listAllFolders: alle Ordnerpfade (jede Ebene) einer Bibliothek, für die

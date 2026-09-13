@@ -137,7 +137,7 @@ func TestRenameOnDisk_Success(t *testing.T) {
 	src := filepath.Join(dir, "old.mkv")
 	dst := filepath.Join(dir, "new.mkv")
 	must(t, os.WriteFile(src, []byte("data"), 0o644))
-	if err := RenameOnDisk(src, dst); err != nil {
+	if err := RenameOnDisk(src, dst, false); err != nil {
 		t.Fatalf("RenameOnDisk failed: %v", err)
 	}
 	if _, err := os.Stat(src); !os.IsNotExist(err) {
@@ -152,7 +152,7 @@ func TestRenameOnDisk_NoOpWhenSamePath(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "same.mkv")
 	must(t, os.WriteFile(src, []byte{}, 0o644))
-	if err := RenameOnDisk(src, src); err != nil {
+	if err := RenameOnDisk(src, src, false); err != nil {
 		t.Errorf("Same path should be no-op, got error: %v", err)
 	}
 }
@@ -163,15 +163,88 @@ func TestRenameOnDisk_TargetExists(t *testing.T) {
 	dst := filepath.Join(dir, "dst.mkv")
 	must(t, os.WriteFile(src, []byte{}, 0o644))
 	must(t, os.WriteFile(dst, []byte{}, 0o644))
-	if err := RenameOnDisk(src, dst); err == nil {
+	if err := RenameOnDisk(src, dst, false); err == nil {
 		t.Errorf("Erwarte Fehler weil Ziel existiert")
 	}
 }
 
 func TestRenameOnDisk_SourceMissing(t *testing.T) {
 	dir := t.TempDir()
-	if err := RenameOnDisk(filepath.Join(dir, "nope"), filepath.Join(dir, "x")); err == nil {
+	if err := RenameOnDisk(filepath.Join(dir, "nope"), filepath.Join(dir, "x"), false); err == nil {
 		t.Errorf("Erwarte Fehler weil Quelle fehlt")
+	}
+}
+
+func TestIsCrossDevice_SameFilesystem(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "a.mkv")
+	must(t, os.WriteFile(src, []byte("data"), 0o644))
+	sub := filepath.Join(dir, "sub")
+	must(t, os.MkdirAll(sub, 0o755))
+	cross, err := IsCrossDevice(src, sub)
+	if err != nil {
+		t.Fatalf("IsCrossDevice failed: %v", err)
+	}
+	if cross {
+		t.Errorf("erwartet: kein Datenträgerwechsel innerhalb desselben TempDir")
+	}
+}
+
+func TestIsCrossDevice_NonExistentTargetDirWalksUpToExistingAncestor(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "a.mkv")
+	must(t, os.WriteFile(src, []byte("data"), 0o644))
+	// newDir existiert noch nicht (executeMove legt ihn erst per MkdirAll an,
+	// NACHDEM der Preflight-Check schon gelaufen ist) — IsCrossDevice muss
+	// trotzdem funktionieren, indem es zum nächsten existierenden Vorfahren
+	// hochläuft.
+	notYetCreated := filepath.Join(dir, "brandnew", "nested")
+	cross, err := IsCrossDevice(src, notYetCreated)
+	if err != nil {
+		t.Fatalf("IsCrossDevice failed: %v", err)
+	}
+	if cross {
+		t.Errorf("erwartet: kein Datenträgerwechsel, beide Pfade liegen im selben TempDir")
+	}
+}
+
+// TestRenameOnDisk_CrossDeviceWithoutConfirmation kann echtes EXDEV nicht
+// simulieren (bräuchte zwei separate Mounts) — deckt aber ab, dass ein
+// normaler, NICHT-cross-device Move mit allowCrossDevice=false weiterhin
+// den schnellen os.Rename-Pfad nimmt und funktioniert (Regressionsschutz:
+// die neue EXDEV-Fallunterscheidung darf den Normalfall nicht anfassen).
+func TestRenameOnDisk_NormalMoveUnaffectedByCrossDeviceParam(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "a.mkv")
+	dst := filepath.Join(dir, "b.mkv")
+	must(t, os.WriteFile(src, []byte("data"), 0o644))
+	if err := RenameOnDisk(src, dst, false); err != nil {
+		t.Fatalf("RenameOnDisk failed: %v", err)
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Errorf("Zieldatei sollte existieren: %v", err)
+	}
+}
+
+func TestCopyAndRemove(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "a.mkv")
+	dst := filepath.Join(dir, "sub", "b.mkv")
+	must(t, os.MkdirAll(filepath.Dir(dst), 0o755))
+	content := []byte("hello world")
+	must(t, os.WriteFile(src, content, 0o644))
+	if err := copyAndRemove(src, dst); err != nil {
+		t.Fatalf("copyAndRemove failed: %v", err)
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Errorf("Quelldatei sollte nach copyAndRemove nicht mehr existieren")
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("Zieldatei nicht lesbar: %v", err)
+	}
+	if string(got) != string(content) {
+		t.Errorf("Inhalt weicht ab: got %q, want %q", got, content)
 	}
 }
 
