@@ -39,6 +39,7 @@ type Store struct {
 
 func Open(path string) (*Store, error) {
 	registerNaturalCollation()
+	registerUnaccentFunction()
 	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err

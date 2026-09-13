@@ -292,27 +292,39 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		args = append(args, exclArgs...)
 	}
 	if f.Search != "" {
-		pattern := "%" + f.Search + "%"
+		// Diakritika-tolerant (User-Wunsch): "senorita" soll auch "Señorita"
+		// finden. UNACCENT() ist eine registrierte SQLite-Funktion (siehe
+		// unaccent.go), die auf beiden Seiten des Vergleichs dieselbe
+		// NFD-Zerlegung+Mn-Entfernung anwendet — die Suchanfrage selbst wird
+		// hier in Go schon einmal gefaltet, spart pro Zeile einen Aufruf.
+		// SQLite LIKE ist für den verbleibenden ASCII-Bereich bereits
+		// case-insensitive, ein zusätzliches LOWER() ist deshalb nicht nötig.
+		pattern := "%" + unaccent(f.Search) + "%"
 		// Suche auf Schauspielernamen ist teuer (LIKE auf people.name = Full-
 		// Scan, plus EXISTS pro Item). Erst ab 3 Zeichen mit dazunehmen —
 		// bei 1-2 Buchstaben sind die Cast-Treffer eh nicht hilfreich.
 		if len(f.Search) >= 3 {
 			q += ` AND (
-				i.title LIKE ?
-				OR COALESCE(m.title, '') LIKE ?
-				OR i.artist LIKE ?
-				OR i.album LIKE ?
+				UNACCENT(i.title) LIKE ?
+				OR UNACCENT(COALESCE(m.title, '')) LIKE ?
+				OR UNACCENT(COALESCE(i.artist, '')) LIKE ?
+				OR UNACCENT(COALESCE(i.album, '')) LIKE ?
 				OR EXISTS (
 					SELECT 1 FROM metadata_cast mc
 					JOIN people p ON p.id = mc.person_id
-					WHERE p.name LIKE ?
+					WHERE UNACCENT(p.name) LIKE ?
 					  AND (mc.metadata_id = i.metadata_id
 					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
 				)
 			)`
 			args = append(args, pattern, pattern, pattern, pattern, pattern)
 		} else {
-			q += ` AND (i.title LIKE ? OR COALESCE(m.title, '') LIKE ? OR i.artist LIKE ? OR i.album LIKE ?)`
+			q += ` AND (
+				UNACCENT(i.title) LIKE ?
+				OR UNACCENT(COALESCE(m.title, '')) LIKE ?
+				OR UNACCENT(COALESCE(i.artist, '')) LIKE ?
+				OR UNACCENT(COALESCE(i.album, '')) LIKE ?
+			)`
 			args = append(args, pattern, pattern, pattern, pattern)
 		}
 	}

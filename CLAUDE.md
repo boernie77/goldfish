@@ -1908,6 +1908,26 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   `renderSearchShowCard` in `cards.js`), Klick öffnet den Serien-Ordner —
   Filme/Privatvideos bleiben Einzelkacheln. Gilt für Library-Suche UND
   Home-View-Global-Suche.
+- **Akzent-/Diakritika-unempfindlich (seit 2026-09-13, LIVE 1.3.23,
+  User-Wunsch: "senorita" soll auch "Señorita" finden, gilt für ALLE
+  Plattformen/Server):** rein server-seitig gelöst, damit Browser/Android/
+  Apple/Linux automatisch alle profitieren — kein Client ruft eine eigene
+  lokale Textsuche auf, alle delegieren an `GET /api/items?search=`.
+  `internal/store/unaccent.go` registriert `UNACCENT(x)` als eigene
+  deterministische SQLite-Skalarfunktion (analog `registerNaturalCollation`/
+  `COLLATE NATSORT`): NFD-Zerlegung → alle Unicode-`Mn`-Zeichen
+  (Kombinationszeichen) entfernen → NFC. `ItemFilter.Search`s LIKE-Klausel
+  (`internal/store/items.go`) wrapt `i.title`/`m.title`/`i.artist`/
+  `i.album`/`p.name` (Cast-Suche) jeweils mit `UNACCENT(...)`, der Go-seitige
+  Suchbegriff selbst läuft ebenfalls durch `unaccent()` — SQLite braucht so
+  kein zusätzliches `LOWER()` (LIKE ist für den verbleibenden ASCII-Bereich
+  ohnehin case-insensitive). Test: `internal/store/unaccent_test.go`.
+  **Nebenbei-Fund beim Umsetzen:** `go get golang.org/x/text@latest` hätte
+  `go.mod`s `go`-Direktive von 1.24.0 auf 1.26.0 angehoben (bricht das
+  `golang:1.24-bookworm`-Docker-Pin) — sofort per `git diff go.mod`
+  bemerkt und stattdessen `golang.org/x/text v0.17.0` (schon länger
+  transitive Abhängigkeit, braucht selbst nur `go 1.18`) als direkte
+  Abhängigkeit gepinnt.
 - **Alphabet-Sidebar rechts** (`#alphaSidebar`, seit 2026-07-12 immer sichtbar):
   zeigt A-Z + `#`, unabhängig vom Sort-Feld — wirkt als **Filter** (nicht
   Scroll-Sprung): `jumpToLetter()` → `setAlphaFilter()` blendet Kacheln, die
