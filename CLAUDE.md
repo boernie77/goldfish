@@ -2274,6 +2274,32 @@ Musik-UI unverändert bewusst schlank).
 ### Playback
 - **Direct Play**: mp4/mov mit h264/aac → Originaldatei per HTTP-Range.
 - **Transcode** (auto bei inkompatiblen Formaten): HLS, H.264/AAC.
+- **🔴→✅ Zwei gleichzeitige hw=true-Transcode-Sessions desselben Items nach
+  Seek/Tonspur-Wechsel (gefixt 2026-09-13):** User-Report per Mac-App-
+  Screenshot: `Stream-Fehler (-12888): Playlist File unchanged for longer
+  than 1.5 * target duration"`. Live-Diagnose per `docker logs` fand die
+  neue `[playback] FEHLER`-Zeile (siehe „Gerät + Wiedergabe-Ende/-Fehler"
+  weiter unten) mit der `DiagnoseItem`-Auflösung darin: ZWEI parallel
+  laufende Sessions desselben Items — eine bei Start=0/Default-Audio
+  (2m16s alt), eine bei Start=45.7s/Audio=1 (56s alt, die gerade aktive,
+  die den Timeout auslöste). Root Cause:
+  `internal/api/stream.go`s `fresh=1`-Pfad ruft `Manager.StopSession` nur
+  für EXAKT denselben Session-Key (identisches `itemID+profile+audioIdx+
+  startSec+deinterlace`) auf — ein Seek (ändert `startSec`) ODER ein
+  Tonspur-Wechsel (ändert `audioIdx`) erzeugt aber zwangsläufig einen
+  ANDEREN Key, wofür `StopSession` nie griff. Die alte Session lief bis
+  zum reinen 5-Minuten-Inaktivitäts-GC einfach weiter — zwei parallele
+  `hw=true`-Encodes teilen sich denselben Intel-iGPU-VAAPI-Encoder und
+  fallen dabei sichtbar zurück, bis der Client den Timeout auslöst. Fix:
+  `Manager.StartOrGet` (`internal/playback/ffmpeg.go`) stoppt jetzt, sobald
+  eine wirklich NEUE Session gestartet wird (kein exakter Cache-Hit),
+  zuerst ALLE anderen bereits laufenden Sessions DESSELBEN Items — es gibt
+  konzeptionell immer nur einen aktiven Player pro Item (kein
+  Picture-in-Picture/Multi-Stream), ein neuer Session-Key desselben Items
+  ist also immer ein Ersatz, nie ein zusätzlicher Zuschauer. Kein neuer
+  Test (reine Manager-interne Aufräumlogik, vorhandene Session-Tests decken
+  die Kernstruktur bereits ab) — Verhalten am echten Server via
+  `DiagnoseItem`-Log-Zeile gegenprüfbar.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.

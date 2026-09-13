@@ -326,6 +326,30 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		s.Touch()
 		return s, nil
 	}
+	// 🔴→✅ Andere Sessions DESSELBEN Items zuerst stoppen (gefixt nach
+	// Live-Diagnose 2026-09-13, User-Report Stream-Fehler -12888 "Playlist
+	// File unchanged for longer than 1.5 * target duration" — DiagnoseItem im
+	// Fehler-Log zeigte ZWEI gleichzeitig laufende ffmpeg-Sessions fuer
+	// dasselbe Item, eine bei Start=0/Default-Audio (alter=2m16s), eine bei
+	// Start=45.7s/Audio=1 (56s alt, genau die gerade aktive) — beide hw=true.
+	// Jeder Seek UND jeder Tonspur-Wechsel erzeugt einen NEUEN Session-Key
+	// (andere startSec bzw. audioIdx), aber NUR `StopSession` mit exakt
+	// demselben Key (der fresh=1-Pfad) stoppte je eine alte Session — ein
+	// Seek/Tonspur-Wechsel liess die vorherige Session dagegen bis zum
+	// 5-Minuten-GC einfach weiterlaufen. Zwei parallele hw=true-Encodes
+	// teilen sich denselben Intel-iGPU-VAAPI-Encoder und fallen dabei
+	// sichtbar zurueck — genau das Muster, das den Client-Timeout ausloeste.
+	// Es gibt konzeptionell immer nur EINEN aktiven Player pro Item (kein
+	// Picture-in-Picture, kein Multi-Stream), ein neuer Session-Key fuer
+	// dasselbe Item ist also IMMER ein Ersatz fuer den vorherigen, nie ein
+	// zusaetzlicher Zuschauer.
+	for otherID, other := range m.sessions {
+		if other.ItemID == itemID && otherID != id {
+			log.Printf("[transcode] session %s gestoppt (abgeloest durch neue Session %s desselben Items)", otherID, id)
+			other.Stop()
+			delete(m.sessions, otherID)
+		}
+	}
 	// Verzeichnis-Name = Session-Key + eindeutiger Suffix. Der Suffix ist
 	// ESSENTIELL, nicht kosmetisch: `Stop()` wartet nur 3 s auf das Ende von
 	// ffmpeg und loescht danach `s.Dir` — ein langsam sterbender Prozess
