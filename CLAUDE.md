@@ -2395,6 +2395,27 @@ Musik-UI unverändert bewusst schlank).
 - **Buffer-Overlay** zeigt `<Auflösung> · [Server +N s ·] Buffer +M s`
   (Server-Offset nur beim Transcode). Auflösung aus `video.videoWidth/Height`
   (tatsächliche Render-Auflösung).
+  **🔴→✅ "Server +Ns" war nach jedem Seek/Resume falsch berechnet (gefixt
+  2026-09-13, User-Report "Buffer springt zwischen 51 und 0, Video stockt
+  kurz"):** `player-buffer.js poll()` rechnete `serverAhead = pos - cur` mit
+  `pos` = ABSOLUTE Position (`Session.Position()` = `StartSec + transkodierte
+  Sekunden`) und `cur` = `vjs.currentTime()`, das aber RELATIV zur aktuellen
+  Session ist (startet bei 0 nach jedem Seek-Restart/Von-Anfang-Play — die
+  Playlist selbst trägt keine absoluten Zeitstempel, siehe
+  `restartTranscodeAt`). Live per Browser-Konsole verifiziert (User-Session
+  bei `virtualOffset=716.88`, `currentTime=663.69` — deutlich unterschiedliche
+  Bezugspunkte). Nach einem Seek/Resume war der angezeigte Wert dadurch um
+  `virtualOffset` zu hoch. Fix: `cur` wird jetzt vor dem Vergleich um
+  `state.playback.virtualOffset` erhöht (`cur = vjs.currentTime() +
+  offset`). **Nicht abschließend als DIE Ursache des exakten "51/0"-Musters
+  bestätigt** (das Muster selbst ließ sich nicht reproduzieren/per Screenshot
+  einfangen, laut User "nicht immer, nicht immer bei 51s") — der Frame-
+  Mismatch ist aber unabhängig davon ein echter, jetzt behobener Bug in
+  diesem Code. Bei einem erneuten Auftreten: dieselbe Live-Konsolen-Diagnose
+  (virtualOffset/currentTime + direkter Fetch auf `/api/transcode/{id}/
+  progress`) wiederholen — Firefox' Konsole verschluckt mehrzeilig
+  eingefügten Code teils falsch (Klammer-Autocomplete), einzeilige Snippets
+  ohne Template-Strings verwenden.
 - **Zwei Darstellungsmodi** (Toggle via `positionBufferOverlay(vjs)` beim
   Player-Open und bei `fullscreenchange`):
   - **Docked** (eingebetteter Player, Default): Element sitzt außerhalb der

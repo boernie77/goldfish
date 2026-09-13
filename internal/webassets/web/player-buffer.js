@@ -378,7 +378,18 @@ function startBufferDisplay(item, mode, profile, audioIdx) {
     try {
       const d = await api(url);
       const pos = Number(d.positionSec || 0);
-      const cur = state.vjs ? state.vjs.currentTime() : 0;
+      // `d.positionSec` ist ABSOLUT (Server: StartSec + bereits transkodierte
+      // Sekunden, siehe Session.Position() in ffmpeg.go), `vjs.currentTime()`
+      // ist dagegen RELATIV zur aktuellen Session (0 bei jedem Seek-Restart/
+      // Von-Anfang-Play, siehe restartTranscodeAt — die Playlist selbst trägt
+      // keine absoluten Zeitstempel). Ohne den Offset dazwischenzurechnen
+      // zeigte "Server +Ns" nach jedem Seek/Resume einen um ~virtualOffset
+      // zu hohen Wert (User-Report 2026-09-13: Buffer-Anzeige "sprang
+      // zwischen 51 und 0" bei einem Video, das bei 716s fortgesetzt wurde —
+      // beim (nicht reproduzierbaren) Live-Check nicht mehr live bestätigt,
+      // aber dieser Frame-Mismatch ist unabhängig davon ein echter Bug).
+      const offset = (state.playback && state.playback.virtualOffset) || 0;
+      const cur = (state.vjs ? state.vjs.currentTime() : 0) + offset;
       const serverAhead = Math.max(0, pos - cur);
       if (d.done) {
         transcodeDone = true;
