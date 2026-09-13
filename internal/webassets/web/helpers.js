@@ -150,6 +150,36 @@ function resLabel(it) {
 const ICON_TRASH_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
 const ICON_FILM_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>';
 
+// ICON_PLAYLIST_SVG: Liste mit Play-Pfeil — dasselbe Motiv, das alle nativen
+// Clients fuer Playlists nutzen (Apple `music.note.list`, Android
+// `Icons.Filled.PlaylistPlay`, Linux `playlist-symbolic`). Ersetzt das
+// frueher hier verwendete Klemmbrett-Emoji, das mit keinem davon zusammenpasst.
+// Als SVG statt Emoji, weil es fuer "Liste + Play" schlicht kein Emoji gibt.
+const ICON_PLAYLIST_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><line x1="3" y1="6" x2="15" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="11" y2="18"></line><polygon points="17 14 22 17 17 20" fill="currentColor" stroke="none"></polygon></svg>';
+
+// ICON_COLUMNS_SVG: drei Spalten — fuer die Spalten-Auswahl der Musiklisten.
+// Entspricht Materials `view_column`; als Emoji gibt es dafuer nichts
+// Eindeutiges (das frueher genutzte ☰ meint eine Liste, nicht Spalten).
+const ICON_COLUMNS_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><rect x="3" y="4" width="4.5" height="16" rx="1"></rect><rect x="9.75" y="4" width="4.5" height="16" rx="1"></rect><rect x="16.5" y="4" width="4.5" height="16" rx="1"></rect></svg>';
+
+// ICON_GRID_SVG / ICON_LIST_SVG: Ziel-Zustand des Album-Umschalters. Der
+// Button zeigt IMMER das Icon dessen, was ein Klick bewirkt (User-Vorgabe
+// 2026-09-13) — steht die Ansicht auf Kacheln, zeigt er die Liste, und
+// umgekehrt. Deshalb zwei Icons statt eines festen.
+const ICON_GRID_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>';
+const ICON_LIST_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none"></circle><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none"></circle><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"></circle></svg>';
+
+// syncMusicListViewBtn: haelt Icon + Tooltip des Album-Umschalters am
+// State. Wird von jeder Stelle gerufen, die `state.musicListView` aendert.
+function syncMusicListViewBtn() {
+  const b = document.getElementById("musicListViewBtn");
+  if (!b) return;
+  const toList = !state.musicListView;           // was ein Klick jetzt bewirkt
+  b.innerHTML = toList ? ICON_LIST_SVG : ICON_GRID_SVG;
+  b.title = toList ? "Als Liste anzeigen" : "Als Kacheln anzeigen";
+  b.setAttribute("aria-label", b.title);
+}
+
 // escapeHTML: minimal-sichere HTML-Escape fuer Strings, die wir in
 // innerHTML interpolieren. Nicht fuer Attribute (dort waeren noch andere
 // Codepoints relevant) — fuer unseren Use-Case (Titel/Texte als Body-Text)

@@ -164,7 +164,7 @@ body { display: flex; justify-content: center; padding: 24px; }
     (Staffel 1, Staffel 2, …) statt aller Folgen einzeln, inklusive Kennzeichnung fehlender
     Folgen, die man noch nicht hat.</dd>
 
-    <dt>☑ Auswählen</dt>
+    <dt>☑ (Mehrfach-Auswahl)</dt>
     <dd>Aktiviert den Mehrfachauswahl-Modus: auf jeder Kachel erscheint eine Checkbox,
     und eine Leiste unten erlaubt Sammel-Aktionen (Favorit setzen, als gesehen markieren,
     zu einer Playlist hinzufügen, herunterladen, verschieben oder — nur Administrator —
@@ -174,18 +174,26 @@ body { display: flex; justify-content: center; padding: 24px; }
     <dd>Blendet eine Buchstabenleiste am rechten Rand ein/aus, mit der man direkt zu
     Titeln springen kann, die mit einem bestimmten Buchstaben beginnen.</dd>
 
-    <dt>🎲 Zufall / 🎯</dt>
+    <dt>🎲 (Zufall) / 🎯</dt>
     <dd>🎲 startet sofort ein zufälliges Video aus der aktuellen Auswahl (Bibliothek,
     Ordner, Suchergebnis, …) — im Player gibt es dann ⏮/⏭-Knöpfe, um durch weitere
     Zufallstitel zu blättern. Der 🎯-Knopf daneben öffnet einen Ordner-Auswahl-Dialog,
     mit dem man die Zufallswiedergabe gezielt auf bestimmte Ordner oder sogar mehrere
     Bibliotheken gleichzeitig einschränken kann (z. B. „nur Kinderfilme").</dd>
 
-    <dt>⟳ Scan (nur Administrator)</dt>
+    <dt>⟳ (Scan, nur Administrator)</dt>
     <dd>Durchsucht die Bibliothek erneut nach neuen/geänderten/gelöschten Dateien.
     Der kleine ▾-Pfeil daneben öffnet weitere Varianten: nur den aktuellen Ordner statt
     der ganzen Bibliothek, „force" (alles komplett neu einlesen statt nur Änderungen),
     oder gleich alle Bibliotheken auf einmal.</dd>
+
+    <dt>🎵 / <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><rect x="3" y="4" width="4.5" height="16" rx="1"></rect><rect x="9.75" y="4" width="4.5" height="16" rx="1"></rect><rect x="16.5" y="4" width="4.5" height="16" rx="1"></rect></svg> / Kacheln-Liste-Umschalter (nur Musik-Bibliotheken)</dt>
+    <dd>🎵 zeigt alle Titel der Bibliothek in einer einzigen langen Liste statt nach
+    Alben getrennt. Der Umschalter daneben wechselt zwischen Album-Kacheln und einer
+    kompakten Liste — <strong>er zeigt immer das Symbol dessen, was ein Klick bewirkt</strong>
+    (sieht man gerade Kacheln, zeigt er eine Liste, und umgekehrt). <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><rect x="3" y="4" width="4.5" height="16" rx="1"></rect><rect x="9.75" y="4" width="4.5" height="16" rx="1"></rect><rect x="16.5" y="4" width="4.5" height="16" rx="1"></rect></svg> öffnet die
+    Spaltenauswahl der Listenansicht: dort lässt sich ein- und ausblenden, welche Spalten
+    (Künstler, Album, Genre, Jahr, Zuletzt gehört, Wiedergaben, Hinzugefügt …) erscheinen.</dd>
 
     <dt>🔔 Glocke</dt>
     <dd>Sammelt Benachrichtigungen, aktuell vor allem über fertiggestellte oder
@@ -195,6 +203,12 @@ body { display: flex; justify-content: center; padding: 24px; }
     <dd>Öffnet das <a href="#menu">Menü</a> — siehe unten, eigener Abschnitt.</dd>
   </dl>
 
+  <p class="note">
+    Die Schaltflächen der Werkzeugleiste zeigen aus Platzgründen nur ihr Symbol, ohne
+    Beschriftung. Wenn unklar ist, was eine davon tut: mit dem Mauszeiger kurz darauf
+    stehen bleiben — dann erscheint ein Hinweistext.
+  </p>
+
   <h2 id="reiter">Die Reiterleiste (Startseite / Bibliotheken / Sammlungen / Playlists)</h2>
   <p>Direkt unter der Werkzeugleiste liegt eine Reihe von Reitern:</p>
   <ul>
@@ -202,10 +216,10 @@ body { display: flex; justify-content: center; padding: 24px; }
     <a href="#startseite">eigener Abschnitt</a> unten.</li>
     <li><strong>Eine Schaltfläche pro Bibliothek</strong> (z. B. „🎬 Filme", „📺 Serien",
     „📼 Urlaubsvideos") — öffnet genau diese Bibliothek als Kachel-Raster.</li>
-    <li><strong>📚 Sammlungen</strong> — zeigt automatisch erkannte Film-Reihen (z. B. „James
+    <li><strong>📚</strong> (Sammlungen) — zeigt automatisch erkannte Film-Reihen (z. B. „James
     Bond", „Star Wars") als eigene Kacheln, jeweils mit einem grünen „✓ komplett"-Abzeichen,
     wenn man wirklich alle Teile im Bestand hat.</li>
-    <li><strong>📋 Playlists</strong> — eigene, frei zusammengestellte Wiedergabelisten
+    <li><strong><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em" aria-hidden="true"><line x1="3" y1="6" x2="15" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="11" y2="18"></line><polygon points="17 14 22 17 17 20" fill="currentColor" stroke="none"></polygon></svg></strong> (Playlists) — eigene, frei zusammengestellte Wiedergabelisten
     (siehe „+ Neue Playlist" dort).</li>
   </ul>
   <p class="note">
@@ -382,7 +396,7 @@ body { display: flex; justify-content: center; padding: 24px; }
 
   <h3 id="menu-autoscan">🕐 Auto-Scan (Administrator)</h3>
   <p>
-    Statt jedes Mal manuell auf „⟳ Scan" zu klicken, lassen sich hier beliebig viele
+    Statt jedes Mal manuell auf „⟳" zu klicken, lassen sich hier beliebig viele
     zeitgesteuerte Scan-Aufgaben einrichten — jede mit eigenem Zeitplan (täglich um eine
     feste Uhrzeit, alle N Stunden, oder wöchentlich an einem bestimmten Wochentag), eigener
     Ziel-Bibliothek (oder „alle") und der Wahl zwischen einem schnellen inkrementellen Scan

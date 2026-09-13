@@ -1254,12 +1254,15 @@ function renderLibNav() {
   if (!nav) return;
   nav.innerHTML = "";
 
-  const make = (label, isActive, onClick, title) => {
+  // `html` = true fuer die reinen Icon-Buttons (Sammlungen/Playlists): deren
+  // Markup enthaelt ein SVG bzw. soll ohne Beschriftung auskommen. Der
+  // Tooltip ist dann die einzige Erklaerung, deshalb dort auch aria-label.
+  const make = (label, isActive, onClick, title, html) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "lib-nav-btn" + (isActive ? " is-active" : "");
-    b.textContent = label;
-    if (title) b.title = title;
+    b.className = "lib-nav-btn" + (isActive ? " is-active" : "") + (html ? " icon-only" : "");
+    if (html) b.innerHTML = label; else b.textContent = label;
+    if (title) { b.title = title; if (html) b.setAttribute("aria-label", title); }
     b.addEventListener("click", onClick);
     return b;
   };
@@ -1279,8 +1282,8 @@ function renderLibNav() {
 
   // Sammlungen + Playlists
   nav.appendChild(sep());
-  nav.appendChild(make("📚 Sammlungen", !!state.collectionsView, goCollectionsView, "Sammlungen"));
-  nav.appendChild(make("📋 Playlists", !!(state.playlistsView || state.currentPlaylist), goPlaylistsView, "Playlists"));
+  nav.appendChild(make("📚", !!state.collectionsView, goCollectionsView, "Sammlungen", true));
+  nav.appendChild(make(ICON_PLAYLIST_SVG, !!(state.playlistsView || state.currentPlaylist), goPlaylistsView, "Playlists", true));
 }
 
 // navKey: stabiler String, der den aktuellen Grid-Kontext beschreibt.
@@ -1464,6 +1467,7 @@ function wire() {
   $("#musicListViewBtn").addEventListener("click", () => {
     state.musicListView = !state.musicListView;
     $("#musicListViewBtn").classList.toggle("active", state.musicListView);
+    syncMusicListViewBtn();
     try { localStorage.setItem("musicListView", state.musicListView ? "1" : "0"); } catch {}
     loadItems();
   });
@@ -1999,6 +2003,7 @@ function glassTextColor(hex) {
   }
   $("#flatViewBtn").classList.toggle("active", state.flatView);
   $("#musicListViewBtn").classList.toggle("active", state.musicListView);
+  syncMusicListViewBtn();   // Icon initial passend zum gespeicherten Zustand
   await Promise.all([loadHealth(), loadSettings(), loadLibraries()]);
   // Beim ersten Laden: Startseite zeigen. loadLibraries() setzt implizit
   // die erste Library als aktuell — wir überschreiben, damit der User die

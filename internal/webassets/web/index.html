@@ -123,8 +123,8 @@
         </div>
       </span>
     </label>
-    <button id="musicListViewBtn" title="Listenansicht statt Album-Kacheln" class="toggle-btn hidden">☰ Liste</button>
-    <button id="musicAllTracksBtn" title="Alle Titel dieser Bibliothek in einer Liste" class="toggle-btn hidden">🎵 Alle Titel</button>
+    <button id="musicListViewBtn" title="Als Liste anzeigen" aria-label="Als Liste anzeigen" class="toggle-btn icon-only hidden"></button>
+    <button id="musicAllTracksBtn" title="Alle Titel dieser Bibliothek in einer Liste" aria-label="Alle Titel" class="toggle-btn icon-only hidden">🎵</button>
     <!-- Spalten-Auswahl für die Musik-Listenansichten (Album-Übersicht/Alle
          Titel/Album-Detail) — User-Wunsch 2026-09-14: welche Spalten
          (Titel/Künstler/Genre/Jahr/Zuletzt gehört/Wiedergaben/Hinzugefügt/…)
@@ -133,18 +133,18 @@
          hier statisch — er erscheint nur, wenn tatsächlich eine
          Spalten-Ansicht gerade gerendert ist. -->
     <span class="res-dropdown">
-      <button type="button" id="musicColumnsBtn" title="Welche Spalten anzeigen" class="toggle-btn hidden" aria-haspopup="true" aria-expanded="false">☰ Spalten ▾</button>
+      <button type="button" id="musicColumnsBtn" title="Welche Spalten anzeigen" aria-label="Spalten wählen" class="toggle-btn icon-only hidden" aria-haspopup="true" aria-expanded="false"></button>
       <div id="musicColumnsDropdown" class="res-panel hidden" role="menu">
         <div id="musicColumnsList" class="genre-dropdown-list"></div>
       </div>
     </span>
-    <button id="selectModeBtn" title="Mehrfach-Auswahl" class="toggle-btn">☑ Auswählen</button>
+    <button id="selectModeBtn" title="Mehrfach-Auswahl" aria-label="Mehrfach-Auswahl" class="toggle-btn icon-only">☑</button>
     <span class="btn-group">
-      <button id="shuffleBtn" title="Zufällige Wiedergabe">🎲 Zufall</button>
+      <button id="shuffleBtn" title="Zufällige Wiedergabe" aria-label="Zufällige Wiedergabe" class="icon-only">🎲</button>
       <button id="shuffleScopeBtn" title="Ordner für Zufallswiedergabe auswählen" aria-haspopup="true">🎯</button>
     </span>
     <span class="btn-group scan-group">
-      <button id="scanBtn" title="Bibliothek scannen (inkrementell)">⟳ Scan</button>
+      <button id="scanBtn" title="Bibliothek scannen (inkrementell)" aria-label="Bibliothek scannen" class="icon-only">⟳</button>
       <button id="scanMenuBtn" title="Weitere Scan-Optionen" aria-haspopup="true">▾</button>
       <div id="scanMenu" class="dropdown scan-dropdown hidden">
         <button data-scan="folder" data-scope="folder">Aktueller Ordner (inkrementell)</button>

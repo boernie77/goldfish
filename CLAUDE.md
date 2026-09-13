@@ -2773,6 +2773,39 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   · 📋 Playlist · ⬇ Download · 🗑 Löschen.
 - Download-Bulk triggert sequentielle `<a download>`-Clicks mit 400ms Abstand.
 
+### Icon-Buttons in der Werkzeugleiste (seit 2026-09-13, LIVE 1.3.31)
+
+- User-Vorgabe: „nur als Icon vorhanden sein, das spart Platz". Betroffen:
+  ☑ Auswählen, 🎲 Zufall, ⟳ Scan, 📚 Sammlungen, Playlists sowie in
+  Musik-Bibliotheken 🎵 Alle Titel, der Kachel/Listen-Umschalter und die
+  Spaltenwahl. Gemeinsame Klasse **`.icon-only`** (quadratisch, 34 px bzw.
+  36 px in der Lib-Nav) — feste Breite, weil Emoji und SVG sonst
+  unterschiedlich breit sitzen und die Reihe unruhig wirkt.
+- **⚠ Jeder `.icon-only`-Button MUSS `title` UND `aria-label` tragen.** Ohne
+  sichtbaren Text ist der Tooltip die einzige Erklärung für die Maus — und
+  ohne `aria-label` ist der Button für Tastatur/Screenreader komplett
+  namenlos.
+- **Playlists nutzen ein eigenes SVG** (`ICON_PLAYLIST_SVG` in `helpers.js`):
+  Liste mit Play-Pfeil — dasselbe Motiv wie in allen nativen Clients
+  (Apple `music.note.list`, Android `Icons.Filled.PlaylistPlay`, Linux
+  `playlist-symbolic`). Das frühere 📋 (Klemmbrett) passte zu keinem davon.
+  Für „Liste + Play" gibt es kein Emoji, deshalb SVG — gleiches Muster wie
+  `ICON_TRASH_SVG`/`ICON_FILM_SVG`. Ebenso `ICON_COLUMNS_SVG` (drei Spalten,
+  analog Materials `view_column`) für die Spaltenwahl; das vorher genutzte
+  ☰ meint eine Liste, nicht Spalten.
+- **Der Album-Umschalter zeigt immer das Icon dessen, was ein Klick bewirkt**
+  (User-Vorgabe): Kachelansicht → Listen-Icon, Listenansicht → Kachel-Icon.
+  `syncMusicListViewBtn()` (`helpers.js`) hält Icon + Tooltip am State und
+  MUSS von jeder Stelle gerufen werden, die `state.musicListView` ändert
+  (aktuell: Klick-Handler + `boot()` für den aus localStorage
+  wiederhergestellten Zustand).
+- `renderLibNav`s `make()` nimmt ein `html`-Flag — Icon-Buttons brauchen
+  `innerHTML` (SVG), Text-Buttons bleiben bei `textContent`.
+- **`anleitung.html` wurde mitgepflegt** (kein automatischer Abgleich, siehe
+  „📖 Anleitung"): Button-Überschriften tragen den Zweck jetzt in Klammern,
+  dazu ein Hinweis auf die Tooltips und ein neuer Absatz zu den
+  Musik-Schaltflächen.
+
 ### Topbar-Navigation
 - Drei gleich große Icon-Buttons links in der Topbar: **🏠 Home**,
   **📚 Sammlungen**, **📋 Playlists**. Alle mit Klasse `.nav-icon-btn`

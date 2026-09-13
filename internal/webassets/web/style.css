@@ -2575,6 +2575,36 @@ details.hint p { margin: 6px 0; }
   border-color: #3b82f6;
 }
 
+/* .icon-only — Buttons, die nur ihr Icon zeigen (User-Vorgabe 2026-09-13:
+   "nur als Icon vorhanden sein, das spart Platz"). Betrifft Auswählen,
+   Zufall, Scan, Sammlungen, Playlists sowie in Musik-Bibliotheken
+   Alle-Titel, den Kachel/Listen-Umschalter und die Spaltenwahl.
+
+   Quadratisch statt breit: ohne Beschriftung wirkt das seitliche Padding
+   der Textvariante unruhig. Die Breite entspricht der Höhe, damit die
+   Buttons in einer Reihe ein gleichmäßiges Raster ergeben — Emoji und SVG
+   sind unterschiedlich breit, ohne feste Maße säße jedes Icon anders.
+
+   WICHTIG: Ein Icon allein sagt nicht, was es tut. Jeder .icon-only-Button
+   MUSS title + aria-label tragen (Tooltip für die Maus, Name für
+   Screenreader) — sonst ist er für Tastatur/Screenreader namenlos. */
+.icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 34px;
+  width: 34px;
+  padding-inline: 0;
+  line-height: 1;
+}
+/* Die Lib-Nav-Buttons sind etwas höher als die Toolbar-Buttons. */
+.lib-nav-btn.icon-only { min-width: 36px; width: 36px; }
+/* Der Umschalter tauscht sein Icon aus (Kacheln <-> Liste). Ohne feste
+   Größe springt der Button beim Wechsel, weil die SVGs minimal
+   unterschiedlich breit sind. */
+.icon-only svg { display: block; }
+
 /* Slider-Switch — iOS-Style An/Aus-Toggle.
    Markup-Pattern:
      <label class="switch-row">

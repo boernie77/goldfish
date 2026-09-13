@@ -1028,6 +1028,9 @@ function renderMusicColumnHeader(context, list) {
   // Kommentar bei currentMusicListContext oben.
   currentMusicListContext = context;
   const columnsBtn = $("#musicColumnsBtn");
+  // Icon erst hier setzen: helpers.js ist zwar frueher geladen, aber der
+  // Button wird ohne Inhalt ausgeliefert (Markup kennt die SVG-Konstante nicht).
+  if (columnsBtn && !columnsBtn.firstChild) columnsBtn.innerHTML = ICON_COLUMNS_SVG;
   if (columnsBtn) columnsBtn.classList.remove("hidden");
   return head;
 }
