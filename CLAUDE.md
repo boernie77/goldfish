@@ -2410,6 +2410,32 @@ Musik-UI unverändert bewusst schlank).
   Server:** die beiden verwaisten ffmpeg-Prozesse hatten (Docker ohne
   eigenes PID-Namespace) dieselben PIDs wie am Unraid-Host sichtbar —
   direkt per `kill -TERM <pid>` beendet, Last fiel sofort auf 0,4 % CPU.
+  **🔴→✅ Fünfte Runde, noch am selben Tag (LIVE 1.3.38) — der 1.3.37-Fix
+  griff nicht immer, Live-Kontrolle direkt nach dem Deploy fand SOFORT eine
+  weitere verwaiste Session:** `docker top` zeigte eine ffmpeg-Session mit
+  516 % CPU, `activity_log` bestätigte per `stop`-Eintrag, dass der Client
+  sie bereits vor Minuten explizit beendet hatte. Server-Log entlarvte die
+  exakte Race: `session … gestoppt (Client meldet Wiedergabe-Ende)` gefolgt
+  **eine Sekunde später** von `start session=…` für DIESELBE Session-ID.
+  Ursache: eine noch im Flug befindliche Playlist-/Segment-Anfrage der
+  gerade geschlossenen Wiedergabe (Netzwerk-Race — GStreamer/VHS puffern
+  beim Umschalten typischerweise noch einen Request voraus) traf kurz NACH
+  `StopAllForItem` ein und erzeugte über `transcodePlaylist`→`StartOrGet`
+  eine frische Session desselben Items — die nie wieder einen Stop bekam
+  (der Client hatte dieses Item bereits als geschlossen abgehakt), lief
+  also bis zum 30-Min-Idle-GC einfach weiter. Beobachtet beim Linux-App-
+  Shuffle-Stresstest (viele Play/Stop-Zyklen in Sekundenbruchteilen —
+  maximiert die Trefferchance für genau diese Race), aber plattform-
+  unabhängig möglich. Fix: `Manager.stoppedAt map[int64]time.Time`
+  (`internal/playback/ffmpeg.go`) — `StopAllForItem` trägt den Zeitpunkt
+  ein, `StartOrGet` verweigert eine ECHTE Neu-Erzeugung (kein Cache-Hit)
+  für dasselbe Item innerhalb von `stopSuppressWindow` (3 s, komfortabel
+  über der beobachteten ~1s-Race, ohne einen absichtlichen Sofort-Replay
+  spürbar zu blockieren — in der Praxis nie so schnell erneut angeklickt)
+  mit einem Fehler statt eines neuen ffmpeg-Starts. `transcodePlaylist`
+  antwortet in diesem Fall mit dem bereits vorhandenen 500-Fehlerpfad —
+  eine stray Anfrage der geschlossenen Session bekommt einen harmlosen
+  Fehler statt eine Geister-Session zu erzeugen.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.

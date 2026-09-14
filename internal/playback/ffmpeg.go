@@ -84,6 +84,9 @@ type Manager struct {
 	// lief das Fenster ab und die naechste VHS-Reload killte die laufende
 	// Session, Wiedergabe stallte zyklisch.
 	freshTokens map[string]string
+	// stoppedAt: Zeitpunkt des letzten expliziten Client-Stops (StopAllForItem)
+	// pro Item. Siehe stopSuppressWindow unten in StartOrGet.
+	stoppedAt map[int64]time.Time
 }
 
 func NewManager(cacheDir string, hw HWAccel) *Manager {
@@ -94,6 +97,7 @@ func NewManager(cacheDir string, hw HWAccel) *Manager {
 		cacheDir:       cacheDir,
 		hw:             hw,
 		freshTokens: map[string]string{},
+		stoppedAt:   map[int64]time.Time{},
 	}
 	go m.gcLoop()
 	return m
@@ -185,6 +189,17 @@ func (m *Manager) StopAllForItem(itemID int64) {
 			delete(m.sessions, id)
 		}
 	}
+	// Live beobachtet (2026-09-14, direkt nach der ersten StopAllForItem-
+	// Version): eine bereits im Flug befindliche Playlist-/Segment-Anfrage
+	// der GERADE geschlossenen Session (Netzwerk-Race, z. B. GStreamer
+	// puffert beim Umschalten noch einen Request voraus) traf oft SOFORT
+	// (~1s) NACH diesem Stop hier ein und erzeugte über StartOrGet eine
+	// neue Session desselben Items — die dann NIE wieder einen Stop bekam
+	// (der Client hat dieses Item bereits als geschlossen abgehakt) und bis
+	// zum 30-Min-Idle-GC mit voller Last weiterlief. `stoppedAt` markiert
+	// den Zeitpunkt; StartOrGet verweigert eine echte Neu-Erzeugung fuer
+	// dieses Item innerhalb von stopSuppressWindow.
+	m.stoppedAt[itemID] = time.Now()
 }
 
 // SessionAge liefert die Lebensdauer der existierenden Session zur Key oder
@@ -347,6 +362,15 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	if s, ok := m.sessions[id]; ok {
 		s.Touch()
 		return s, nil
+	}
+	// stopSuppressWindow: verweigert eine echte Neu-Erzeugung kurz nach einem
+	// per StopAllForItem gemeldeten expliziten Client-Stop desselben Items —
+	// siehe Kommentar dort. 3s deckt die beobachtete Race (~1s) komfortabel
+	// ab, ohne einen absichtlichen sofortigen Replay durch den User spuerbar
+	// zu blockieren (in der Praxis nie so schnell erneut angeklickt).
+	const stopSuppressWindow = 3 * time.Second
+	if t, ok := m.stoppedAt[itemID]; ok && time.Since(t) < stopSuppressWindow {
+		return nil, fmt.Errorf("wiedergabe wurde gerade beendet, bitte kurz warten")
 	}
 	// 🔴 2026-09-13: Ein erster Versuch, hier andere Sessions DESSELBEN Items
 	// SOFORT zu stoppen, wurde noch am selben Tag wieder entfernt — Live-
