@@ -147,6 +147,10 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	filename := filepath.Base(it.Path)
 	modTime := info.ModTime()
 	if playPath != it.Path {
+		// Zugriffs-Uhr der Cache-Kopie zuruecksetzen, BEVOR ServeContent den
+		// Handler fuer die Dauer der Uebertragung belegt. Schuetzt laufende und
+		// unterbrochene Downloads vor dem Aufraeumer (internal/download/cleanup.go).
+		download.MarkServed(playPath)
 		// Formatangepasste Kopie ist immer .mp4, unabhängig vom Original-Container.
 		base := strings.TrimSuffix(filename, filepath.Ext(filename))
 		// Nur wenn WIRKLICH runtergerechnet wurde (Cache-Pfad trägt den

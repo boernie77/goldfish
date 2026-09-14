@@ -748,8 +748,17 @@ func (r *ringBuffer) String() string {
 // sessionDirPattern matcht die Verzeichnisse, die StartOrGet anlegt
 // (`<item>-<profil>-a<n>-<start>-d<0|1>-<suffix>`). Bewusst eng gefasst:
 // im selben cacheDir liegen auch `downloads/` und `trailers/`, die NIEMALS
-// angefasst werden duerfen.
-var sessionDirPattern = regexp.MustCompile(`^\d+-.+-a-?\d+-\d+-d[01]-[a-z0-9]+$`)
+// angefasst werden duerfen — beide beginnen nicht mit `<ziffern>-` und koennen
+// daher gar nicht matchen (abgesichert in session_dir_test.go).
+//
+// `-d<0|1>` und der Suffix sind OPTIONAL, weil beide erst nachtraeglich
+// eingefuehrt wurden (der Suffix am 2026-09-13 gegen kollidierende
+// ffmpeg-Schreibzugriffe). Aeltere Laeufe legten `<item>-<profil>-a<n>-<start>`
+// bzw. `…-d0` an — ohne die optionalen Gruppen war der Aufraeumer fuer genau
+// diese Altbestaende blind: am 2026-09-14 lagen 268 von 269 Verzeichnissen im
+// alten Schema und damit rund 119 GB dauerhaft im Cache, die nie jemand
+// geloescht haette.
+var sessionDirPattern = regexp.MustCompile(`^\d+-.+-a-?\d+-\d+(-d[01])?(-[a-z0-9]+)?$`)
 
 // cleanStaleSessionDirs entfernt Transcode-Verzeichnisse frueherer Laeufe.
 // Noetig, seit jede Session einen eindeutigen Pfad bekommt: nach einem

@@ -197,6 +197,7 @@ func main() {
 	}()
 	go srv.RunAutoScan(workerCtx)
 	go srv.RunAutoBackup(workerCtx)
+	go srv.RunDownloadCacheCleanup(workerCtx)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

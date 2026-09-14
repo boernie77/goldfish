@@ -317,8 +317,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Playlist-Anfrage. **`cleanStaleSessionDirs` beim Manager-Start räumt
   verwaiste Verzeichnisse weg** — sein `sessionDirPattern` ist bewusst eng
   gefasst, weil im selben `cacheDir` auch `downloads/` und `trailers/` liegen,
-  die NIEMALS angefasst werden dürfen. Tests:
+  die NIEMALS angefasst werden dürfen (beide beginnen nicht mit `<ziffern>-`
+  und können daher gar nicht matchen). Tests:
   `internal/playback/session_dir_test.go`.
+  **⚠ `-d<0|1>` und der Suffix sind im Muster OPTIONAL** (seit 2026-09-14) —
+  beide kamen erst nachträglich dazu, der Aufräumer selbst zusammen mit dem
+  Suffix. Ohne die optionalen Gruppen war er für JEDES vorher angelegte
+  Verzeichnis blind: am 2026-09-14 lagen **268 von 269** Session-Ordnern im
+  alten Schema (`183130-orig-a-1-378-d0`, noch älter `21819-orig-a-1-0`) und
+  damit rund **119 GB** dauerhaft im Cache, die nie jemand gelöscht hätte.
+  Regel daraus: **wer das Namensschema der Session-Verzeichnisse ändert, muss
+  im selben Zug prüfen, ob `sessionDirPattern` den Altbestand noch matcht** —
+  sonst wächst der Cache still und unbegrenzt. `TestSessionDirPatternMatchesLegacyDirs`
+  hält die Alt-Schemata fest.
 - **ffmpeg-stderr landet im Log** (seit 2026-09-13): der Transcode-Prozess
   läuft mit `-loglevel error`, sein stderr wurde vorher per `io.Discard`
   komplett verworfen — scheiterte eine Wiedergabe, stand NICHTS im Log und die
@@ -3314,6 +3325,31 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Byte-Download. Opt-in per Query-Param, damit Browser/Android (die die
   Original-Datei wollen) unverändert bleiben — nur die Mac/iOS-App
   (`GoldfishClient.downloadFileURL`) fragt das an.
+  **Cache-Fristen (seit 2026-09-14, `internal/download/cleanup.go`):** der
+  Download-Cache hatte bis dahin ÜBERHAUPT keine Aufräumung — eine einmal
+  erzeugte Kopie lag für immer dort, auch eine nie abgeholte. Gefunden bei
+  87 GB in 23 Dateien, darunter eine 46-GB-Kopie, die nachweislich nie
+  übertragen wurde. `Server.RunDownloadCacheCleanup` (`internal/api/
+  download_cleanup.go`, gestartet in `main.go` neben `RunAutoScan`/
+  `RunAutoBackup`) läuft beim Start und danach stündlich:
+  - **nie ausgeliefert → 3 Tage** nach Erzeugung (Datei-mtime),
+  - **ausgeliefert → 1 Tag** nach dem LETZTEN Zugriff (`cacheMeta.ServedAt`).
+
+  **⚠ Bewusst Fristen statt „sofort nach dem Abholen löschen"** (war die
+  ursprüngliche User-Idee): der Server kann „vollständig abgeholt" nicht
+  erkennen. Clients holen die Datei in vielen Range-Häppchen und setzen nach
+  einem Abbruch genau dort wieder auf — ein Löschen beim ersten ausgelieferten
+  Byte würde jeden laufenden Transfer zerstören (bei 46 GB läuft der über
+  Stunden). `MarkServed` setzt die Uhr bei jedem Request zurück (gedrosselt auf
+  einen Schreibzugriff pro 5 min, sonst tausende Sidecar-Writes pro Download),
+  wodurch laufende und unterbrochene Downloads automatisch geschützt sind.
+  **`.tmp.`-Dateien werden nie angefasst** — eine laufende Konvertierung heißt
+  `<id>.mp4.tmp.<ns>.mp4` und endet ebenfalls auf `.mp4`.
+  Ein fehlendes `servedAt` (Bestandsdatei) zählt als „nie abgeholt" —
+  User-Entscheidung 2026-09-14: eine gelöschte Kopie kostet nur Rechenzeit,
+  keine Daten, das Original liegt unangetastet unter `/media`.
+  Protokolliert als `job`/`download_cache_cleanup`, EIN Eintrag pro Lauf.
+  Tests: `internal/download/cleanup_test.go`.
   **Robust gegen 99-%-Hänger bei Resume:** `internal/download` hat eine
   `prepRegistry` (detachable single-flight pro `outPath`) — der Konvertierungs-
   Lauf läuft mit `context.Background()` (+2h-Cap) auch weiter, wenn der Client

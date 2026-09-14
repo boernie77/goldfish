@@ -1176,6 +1176,7 @@ const ACTIVITY_LOG_LABELS = {
   // Formatanpassung (`?compat=1`) lange laeuft und auch dann Serverlast
   // erzeugt, wenn die fertige Datei nie abgeholt wird.
   download_start: "Download gestartet", download_prepare: "Download: Formatanpassung gestartet",
+  download_cache_cleanup: "Download-Cache aufgeräumt",
   trickplay_retry_failed: "Trickplay: Fehler erneut versucht", trickplay_delete_all: "Trickplay: alles gelöscht",
   ocr_run_all: "OCR: alle erzeugen", ocr_retry_failed: "OCR: Fehler erneut versucht",
   ocr_folder_toggle: "OCR: Ordner umgeschaltet", ocr_enabled_toggle: "OCR: global umgeschaltet",

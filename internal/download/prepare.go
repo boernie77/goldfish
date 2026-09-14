@@ -108,6 +108,11 @@ type cacheMeta struct {
 	SourceModTime int64 `json:"sourceModTime"`
 	SourceSize    int64 `json:"sourceSize"`
 	ConvVersion   int   `json:"convVersion"`
+	// ServedAt: Unix-Sekunden des letzten Mals, dass diese Kopie ausgeliefert
+	// wurde (0 = noch nie). Grundlage fuer die Cache-Fristen in cleanup.go —
+	// siehe MarkServed. Ein fehlendes Feld in einem alten Sidecar entspricht
+	// 0 und damit "nie abgeholt", genau wie gewollt.
+	ServedAt int64 `json:"servedAt,omitempty"`
 }
 
 // Progress ist der Zustand der server-seitigen Formatanpassung für ein Item —

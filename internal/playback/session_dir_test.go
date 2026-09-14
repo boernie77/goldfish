@@ -54,6 +54,25 @@ func TestSessionDirPatternMatchesRealSessionDirs(t *testing.T) {
 	}
 }
 
+// Verzeichnisse aus der Zeit VOR dem eindeutigen Suffix (2026-09-13) und vor
+// dem `-d<0|1>`-Segment muessen ebenfalls matchen — sonst raeumt der Startup-
+// Cleanup sie nie weg. Genau das war der Fall: 268 solcher Verzeichnisse mit
+// zusammen ~119 GB lagen dauerhaft im Cache (gefunden 2026-09-14).
+func TestSessionDirPatternMatchesLegacyDirs(t *testing.T) {
+	for _, name := range []string{
+		"183130-orig-a-1-378-d0",       // mit -d0, ohne Suffix
+		"21819-orig-a-1-0",             // ohne -d0, ohne Suffix
+		"227502-480p-hq-a1-1859-d0",    // Profil-ID mit Bindestrich
+		"21819-1080p-a1-0-d0",          //
+		"22465-orig-a-1-1283-d1",       // deinterlace
+		"229928-orig-a1-0-d0-dlxk3p9q", // neues Schema bleibt selbstverstaendlich
+	} {
+		if !sessionDirPattern.MatchString(name) {
+			t.Errorf("sessionDirPattern matcht Altbestand %q NICHT — bliebe fuer immer liegen", name)
+		}
+	}
+}
+
 // Kern des fresh=1-Fixes: zwei aufeinanderfolgende Sessions mit identischem
 // Key duerfen NIE denselben Pfad bekommen. Sonst schreibt ein noch sterbendes
 // ffmpeg (Stop() wartet nur 3 s) in das Verzeichnis der neuen Session.
