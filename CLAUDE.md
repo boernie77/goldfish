@@ -2359,6 +2359,25 @@ Musik-UI unverändert bewusst schlank).
   werden — hier hätte ein zweiter Blick auf die Client-Seite (warum zwei
   Requests?) VOR dem Server-Fix vermutlich den echten Bug gefunden und
   dieses Hin und Her vermieden.
+  **🔴→✅ 2026-09-14, dritte Runde — kompletter Verzicht auf Aufräumung war
+  seinerseits ein echtes Problem:** User-Report "Container hängt, über 60%
+  Last, kein anderer Dienst läuft". Live-Diagnose per `docker top` fand
+  **11 gleichzeitig laufende `hw=true`-ffmpeg-Prozesse** bei nur einer
+  Handvoll Items — u. a. FÜNF parallele Sessions für dasselbe Video bei
+  Start-Offsets 0/286/680/1074/1648 (jeder Sprung im Player-Zeitstrahl
+  hatte seit dem Revert oben eine neue Session erzeugt, die vorherige lief
+  aber einfach die vollen 5 Minuten GC-Inaktivität weiter — bei aktivem
+  Spulen sammeln sich so beliebig viele parallele Hardware-Encodes an).
+  **Fix, als Kompromiss zwischen beiden Extremen:** `StartOrGet` stoppt
+  andere Sessions desselben Items jetzt wieder, aber nur wenn sie
+  `siblingStopGracePeriod` (10 s) alt sind — jung genug für die eingangs
+  beschriebene Doppelrequest-Race lässt der Grace-Zeitraum unangetastet
+  (das Ping-Pong dort spielte sich innerhalb von 1-4 Sekunden ab), eine
+  wirklich verlassene Session aus echtem Spulen wird aber binnen 10 s statt
+  5 Minuten abgeräumt. Das Mac-App-seitige Doppelrequest-Problem selbst
+  (siehe App-CLAUDE.md, `setupGeneration`-Guard) bleibt davon unberührt —
+  dieser Fix ist eine reine Server-Absicherung, unabhängig davon ob der
+  Client sich korrekt verhält.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.

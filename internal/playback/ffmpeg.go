@@ -326,21 +326,37 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		s.Touch()
 		return s, nil
 	}
-	// 🔴 2026-09-13: Der Versuch, hier andere Sessions DESSELBEN Items sofort
-	// zu stoppen (gegen das "zwei parallele hw=true-Encodes"-Problem, siehe
-	// Git-Historie), wurde noch am selben Tag wieder ENTFERNT — Live-
+	// 🔴 2026-09-13: Ein erster Versuch, hier andere Sessions DESSELBEN Items
+	// SOFORT zu stoppen, wurde noch am selben Tag wieder entfernt — Live-
 	// Diagnose zeigte, dass der Mac-App-Client beim Player-Start teils
 	// wiederholt ZWEI verschiedene Playlist-Requests (start=0 UND die echte
-	// Resume-Position) im Sekundentakt hintereinander schickt. Das sofortige
-	// gegenseitige Stoppen fuehrte dabei zu einem sich selbst verstaerkenden
+	// Resume-Position) im Sekundentakt hintereinander schickt. Ein SOFORTIGES
+	// gegenseitiges Stoppen fuehrte dabei zu einem sich selbst verstaerkenden
 	// Ping-Pong (Session A stoppt B, B's naechster Request stoppt A, …), bei
 	// dem NIE eine Playlist fertig wird, bevor die Session schon wieder
-	// gekillt ist — Client bekommt HTTP 404/500 statt Video (schlimmer als
-	// das urspruengliche Problem, ein bloss vorruebergehendes Puffer-
-	// Stocken). Das eigentliche "zwei parallele Encodes"-Problem bleibt
-	// vorerst bewusst ungeloest (faellt bis zum 5-Minuten-Inaktivitaets-GC
-	// zurueck) — ein Fix muesste zuerst klaeren, WARUM der Client diese
-	// doppelten Requests schickt, statt serverseitig blind zu stoppen.
+	// gekillt ist — Client bekam HTTP 404/500 statt Video.
+	//
+	// 🔴→✅ 2026-09-14: Ohne JEDE Aufraeumung haeufte sich das Gegenteil an —
+	// Live-Diagnose nach einem User-Report ("Container haengt, 60%+ Last")
+	// fand per `docker top` ELF gleichzeitig laufende hw=true-ffmpeg-Prozesse
+	// fuer nur eine Handvoll Items (u. a. FUENF parallele Sessions fuer
+	// dasselbe Video bei verschiedenen Start-Offsets 0/286/680/1074/1648 —
+	// jeder Sitzungswechsel durch Spulen im Player liess die vorherige
+	// Session einfach 5 Minuten lang unbeaufsichtigt weiterlaufen, jede fuer
+	// sich ein volles Hardware-Encode). Kompromiss statt der beiden Extreme:
+	// eine andere Session DESSELBEN Items wird nur gestoppt, wenn sie bereits
+	// laenger als `siblingStopGracePeriod` lebt — jung genug, dass eine
+	// schnelle Doppelanfrage-Race (wie beim Ping-Pong oben) nicht dazwischen-
+	// funkt, aber weit unter dem 5-Minuten-GC, damit echtes Spulen im Player
+	// nicht mehr auf Kosten von Bergen paralleler Encodes geht.
+	const siblingStopGracePeriod = 10 * time.Second
+	for otherID, other := range m.sessions {
+		if other.ItemID == itemID && otherID != id && time.Since(other.StartedAt) >= siblingStopGracePeriod {
+			log.Printf("[transcode] session %s gestoppt (abgeloest durch neue Session %s desselben Items, alter=%s)", otherID, id, time.Since(other.StartedAt).Round(time.Second))
+			other.Stop()
+			delete(m.sessions, otherID)
+		}
+	}
 	// Verzeichnis-Name = Session-Key + eindeutiger Suffix. Der Suffix ist
 	// ESSENTIELL, nicht kosmetisch: `Stop()` wartet nur 3 s auf das Ende von
 	// ffmpeg und loescht danach `s.Dir` — ein langsam sterbender Prozess
