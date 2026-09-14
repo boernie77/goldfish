@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/boernie77/goldfish/internal/download"
+	"github.com/boernie77/goldfish/internal/model"
 	"github.com/boernie77/goldfish/internal/playback"
 )
 
@@ -91,6 +92,19 @@ func (s *Server) downloadItem(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.requireDownloadAllowed(w, r) {
 		return
+	}
+
+	// Protokollieren, WER was herunterlädt (User-Wunsch 2026-09-14). Anlass:
+	// eine stundenlang laufende Formatanpassung eines 4K-Remux war im
+	// Aktivitäts-Protokoll nirgends sichtbar — Downloads waren die einzige
+	// teure Nutzeraktion ohne jede Spur, das Gerät liess sich hinterher nicht
+	// mehr zuordnen. Bewusst NUR beim ERSTEN Request der Übertragung: ein
+	// Resume schickt `Range: bytes=<offset>-` und würde sonst pro Fortsetzung
+	// eine weitere Zeile erzeugen (gleiche Konvention wie "ein Eintrag pro
+	// Lauf, nicht pro Datei" bei Scan/OCR).
+	if rng := r.Header.Get("Range"); rng == "" || strings.HasPrefix(rng, "bytes=0-") {
+		s.logDownload(r, it, r.URL.Query().Get("profile"), "download_start",
+			r.URL.Query().Get("compat") == "1")
 	}
 
 	playPath := it.Path
@@ -185,4 +199,28 @@ func sanitizeASCII(s string) string {
 		out = append(out, c)
 	}
 	return string(out)
+}
+
+// logDownload schreibt einen Aktivitäts-Protokoll-Eintrag für einen Download
+// bzw. dessen (teure) server-seitige Formatanpassung. Gemeinsam genutzt von
+// `downloadItem` und `downloadCompatStatus`, damit beide Auslöser denselben
+// Detail-Text erzeugen — die Vorbereitung läuft detached weiter, auch wenn der
+// Client danach nie die fertige Datei abholt, und ist deshalb eigenständig
+// protokollwürdig.
+func (s *Server) logDownload(r *http.Request, it *model.Item, profileID, action string, compat bool) {
+	me := currentUser(r)
+	var uid int64
+	name := ""
+	if me != nil {
+		uid, name = me.ID, me.Username
+	}
+	how := "Original"
+	if compat {
+		how = "angepasst"
+		if p := playback.ProfileByID(profileID); p.ID != "" && p.ID != "orig" {
+			how = "angepasst, " + p.ID
+		}
+	}
+	detail := fmt.Sprintf("%q (%s)", it.Title, how)
+	_ = s.Store.LogActivity(uid, name, "download", action, detail, deviceLabel(r))
 }

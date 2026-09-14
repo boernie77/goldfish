@@ -1162,9 +1162,11 @@
   <p class="hint" style="margin-top:0">
     Wer sich an-/abgemeldet hat, was manuell bearbeitet oder ausgelöst wurde
     (Zuordnungen, Umbenennungen, Löschungen, Einstellungen, Scans, Trickplay/
-    OCR-Läufe, …) sowie welche Videos angesehen wurden. Ein ausgelöster Lauf
-    (z. B. Scan oder OCR) erzeugt genau eine Zeile für den ganzen Lauf, nicht
-    eine pro Datei.
+    OCR-Läufe, …) sowie welche Videos angesehen und welche heruntergeladen
+    wurden. Ein ausgelöster Lauf (z. B. Scan oder OCR) erzeugt genau eine Zeile
+    für den ganzen Lauf, nicht eine pro Datei. Bei Downloads steht eine eigene
+    Zeile für die Formatanpassung, weil die auch dann Serverlast erzeugt, wenn
+    die fertige Datei nie abgeholt wird.
   </p>
   <div class="row" style="gap:8px;margin-bottom:10px">
     <label style="font-size:13px">Kategorie
@@ -1172,6 +1174,7 @@
         <option value="">Alle</option>
         <option value="auth">Anmeldung</option>
         <option value="playback">Wiedergabe</option>
+        <option value="download">Downloads</option>
         <option value="admin">Administration</option>
         <option value="job">Hintergrund-Läufe</option>
       </select>

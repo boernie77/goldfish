@@ -3377,7 +3377,7 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   die komplette Datenbank zu sichern und im Bedarfsfall wiedereinzuspielen.
 - **Neue Tabelle `activity_log`** (`internal/store/sqlite.go`):
   `id, at, user_id, username, category, action, detail`. `category` ∈
-  `auth|playback|admin|job`. `LogActivity`/`ListActivityLog` in
+  `auth|playback|download|admin|job`. `LogActivity`/`ListActivityLog` in
   `internal/store/activity_log.go` — Pagination über `beforeId` (id-basierter
   Cursor), Retention: bei ~1 von 200 Inserts werden Einträge `> 180 Tage`
   gelöscht (kein eigener Hintergrund-Worker nötig).
@@ -3403,6 +3403,39 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   denselben Handler laufen), Trickplay-Retry/Alles-löschen, OCR-Run-All/
   Retry-Failed/Ordner- und Global-Toggle, Intro-Erkennung-Ordner-Toggle,
   Backup-Download/-Restore.
+- **Downloads (Kategorie `download`, seit 2026-09-14, User-Wunsch „Downloads
+  sollen bitte auch protokolliert werden"):** Anlass war eine über eine Stunde
+  laufende `?compat=1`-Formatanpassung eines 4K-Remux, die den Server sichtbar
+  ausbremste und im Protokoll **nirgends** auftauchte — Benutzer und Gerät
+  ließen sich hinterher nicht mehr feststellen. Zwei getrennte Aktionen, beide
+  über den gemeinsamen Helper `Server.logDownload`
+  (`internal/api/delete_download.go`):
+  - `download_start` (`downloadItem`) — der eigentliche Transfer. Bewusst NUR
+    beim ERSTEN Request: ein Resume schickt `Range: bytes=<offset>-`, sonst
+    entstünde pro Fortsetzung eine weitere Zeile (gleiche „ein Eintrag pro
+    Lauf"-Konvention wie bei Scan/OCR).
+  - `download_prepare` (`downloadCompatStatus`, nur im `p.State == "idle"`-Zweig,
+    also genau dann, wenn hier wirklich ein `StartPrep` ausgelöst wird) — die
+    teure Formatanpassung. **Eigener Eintrag, weil sie detached weiterläuft**
+    (`context.Background()`, siehe „Download & Löschen"): sie erzeugt auch dann
+    stundenlang Last, wenn der Client die fertige Datei nie abholt, und wäre
+    ohne diese Zeile weiterhin unzuordenbar.
+  Detail-Text ist `"Titel" (Original)` bzw. `"Titel" (angepasst[, <profil>])`.
+  **Der Browser fordert nie `compat=1` an** (kein Treffer in
+  `internal/webassets/web/`), GoldfishLinux nur bei explizit gewähltem Profil
+  (`downloads.py`: `compat=bool(profile)`) — ein `download_prepare` OHNE
+  Profil-Zusatz stammt daher praktisch immer von einer Apple-App.
+- **`[transcode] neue session …`-Logzeile mit Benutzer + Gerät** (seit
+  2026-09-14, `transcodePlaylist` in `internal/api/stream.go`): die bestehende
+  `[transcode] start`-Zeile in `internal/playback/ffmpeg.go` kann das nicht
+  leisten — das Manager-Paket sieht keinen `*http.Request`. Ein Client, der
+  `POST /playback/{id}/start` nicht ruft (ältere App-Stände), hinterließ dadurch
+  **gar keine** Spur, wer eine Session gestartet hat. Die Zeile läuft nur, wenn
+  `LookupSession` nil liefert, also wirklich eine neue Session entsteht — sonst
+  würde jeder VHS-Playlist-Reload (alle ~4 s) das Log fluten. Bewusst NUR ins
+  Server-Log, nicht ins `activity_log`: dort steht der Wiedergabe-Start bereits
+  als `play`, eine zweite Zeile pro Seek wäre genau das Pro-Datei-Rauschen, das
+  der User für dieses Protokoll ausdrücklich nicht wollte.
 - **API:** `GET /api/admin/activity-log?category=&username=&beforeId=&limit=`
   — admin-only. `username` ist exakter Match (kein LIKE), gespeist aus dem
   bestehenden `GET /api/users` (voller Admin-Endpoint, bewusst nicht das

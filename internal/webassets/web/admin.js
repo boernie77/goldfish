@@ -1172,6 +1172,10 @@ const ACTIVITY_LOG_LABELS = {
   metadata_confirm: "Zuordnung bestätigt/gelöst", metadata_manual_match: "Manuelle Zuordnung",
   metadata_unmatch: "Zuordnung entfernt",
   scan_run: "Scan gestartet",
+  // Downloads (seit 2026-09-14): zwei getrennte Aktionen, weil die
+  // Formatanpassung (`?compat=1`) lange laeuft und auch dann Serverlast
+  // erzeugt, wenn die fertige Datei nie abgeholt wird.
+  download_start: "Download gestartet", download_prepare: "Download: Formatanpassung gestartet",
   trickplay_retry_failed: "Trickplay: Fehler erneut versucht", trickplay_delete_all: "Trickplay: alles gelöscht",
   ocr_run_all: "OCR: alle erzeugen", ocr_retry_failed: "OCR: Fehler erneut versucht",
   ocr_folder_toggle: "OCR: Ordner umgeschaltet", ocr_enabled_toggle: "OCR: global umgeschaltet",

@@ -482,6 +482,22 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 			s.Playback.StopSession(it.ID, profile, audioIdx, startSec, deinterlace)
 		}
 	}
+	// Wer startet hier eigentlich einen Transcode? Die `[transcode] start`-Zeile
+	// in internal/playback kennt weder Benutzer noch Geraet — das Manager-Paket
+	// sieht keinen Request. Genau das fehlte am 2026-09-14, als eine ueber
+	// 40 Minuten laufende 4K-Session niemandem zuzuordnen war: ein Client, der
+	// `POST /playback/{id}/start` nicht ruft (aeltere App-Staende), hinterlaesst
+	// sonst ueberhaupt keine Spur. Deshalb hier mitloggen — und NUR, wenn
+	// wirklich eine neue Session entsteht, nicht bei jedem VHS-Playlist-Reload
+	// derselben Session (sonst waere das Log im Sekundentakt zu.)
+	if s.Playback.LookupSession(it.ID, profile, audioIdx, startSec, deinterlace) == nil {
+		who := "unbekannt"
+		if me := currentUser(r); me != nil {
+			who = me.Username
+		}
+		log.Printf("[transcode] neue session item=%d %q benutzer=%s geraet=%q",
+			it.ID, it.Title, who, deviceLabel(r))
+	}
 	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "")
 	if err != nil {
 		writeError(w, 500, "ffmpeg start: "+err.Error())

@@ -47,6 +47,15 @@ func (s *Server) downloadCompatStatus(w http.ResponseWriter, r *http.Request) {
 	cacheDir := filepath.Join(s.ConfigDir, "cache", "downloads")
 	p := download.Status(cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec, profile, it.Height, it.BitrateKbps)
 	if p.State == "idle" {
+		// Hier — und nur hier — wird eine neue Formatanpassung angestossen.
+		// Das ist der eigentlich teure Vorgang (ffmpeg über die ganze Datei,
+		// bei einem 4K-Remux über eine Stunde) und laeuft detached weiter,
+		// auch wenn der Client nie die fertige Datei abholt. Deshalb ein
+		// eigener Protokoll-Eintrag, getrennt vom spaeteren `download_start`:
+		// sonst erzeugt jemand stundenlange Serverlast, ohne dass sich
+		// hinterher Benutzer oder Geraet zuordnen liessen (User-Wunsch
+		// 2026-09-14, genau dieser Fall war eingetreten).
+		s.logDownload(r, it, r.URL.Query().Get("profile"), "download_prepare", true)
 		p = download.StartPrep(s.HW, cacheDir, it.ID, it.Path, it.Container, it.VideoCodec, it.AudioCodec, profile, it.Height, it.BitrateKbps)
 	}
 	writeJSON(w, 200, p)
