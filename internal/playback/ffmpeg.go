@@ -21,8 +21,8 @@ import (
 type Profile struct {
 	ID        string
 	Label     string
-	MaxHeight int    // 0 = Original
-	VideoKbps int    // 0 = Qualitäts-basiert (QP 23)
+	MaxHeight int // 0 = Original
+	VideoKbps int // 0 = Qualitäts-basiert (QP 23)
 	AudioKbps int
 }
 
@@ -52,11 +52,24 @@ func ProfileByID(id string) Profile {
 }
 
 // Session manages one ffmpeg transcode that produces an HLS playlist.
+// sessionSpec haelt alles, was zum Starten einer Sitzung noetig ist. Getrennt
+// gespeichert, damit dieselbe Sitzung per `RetryWithSoftwareDecode` mit
+// identischen Werten neu aufgesetzt werden kann.
+type sessionSpec struct {
+	itemID      int64
+	inputPath   string
+	profile     Profile
+	audioIdx    int
+	startSec    float64
+	deinterlace bool
+	audioOnly   bool
+}
+
 type Session struct {
 	ID        string
 	ItemID    int64
 	Profile   string
-	AudioIdx  int  // -1 = default (erster Audio-Stream)
+	AudioIdx  int // -1 = default (erster Audio-Stream)
 	Dir       string
 	StartSec  float64
 	StartedAt time.Time // Wall-Clock-Zeit beim Session-Erzeugen — fresh=1-Idempotenz
@@ -65,7 +78,17 @@ type Session struct {
 	lastUsed  time.Time
 	mu        sync.Mutex
 	done      chan struct{}
+
+	spec sessionSpec
+	// softwareDecode: diese Sitzung dekodiert bewusst per CPU, weil die
+	// Grafikeinheit an der Datei gescheitert ist. Verhindert eine Endlos-
+	// Wiederholung — ein zweiter Rueckfall ist nicht moeglich.
+	softwareDecode bool
 }
+
+// UsesSoftwareDecode meldet, ob diese Sitzung bereits per CPU dekodiert. Der
+// API-Handler entscheidet damit, ob sich ein Rueckfall noch lohnt.
+func (s *Session) UsesSoftwareDecode() bool { return s.softwareDecode }
 
 type Manager struct {
 	mu       sync.Mutex
@@ -93,9 +116,9 @@ func NewManager(cacheDir string, hw HWAccel) *Manager {
 	_ = os.MkdirAll(cacheDir, 0o755)
 	cleanStaleSessionDirs(cacheDir)
 	m := &Manager{
-		sessions:       map[string]*Session{},
-		cacheDir:       cacheDir,
-		hw:             hw,
+		sessions:    map[string]*Session{},
+		cacheDir:    cacheDir,
+		hw:          hw,
 		freshTokens: map[string]string{},
 		stoppedAt:   map[int64]time.Time{},
 	}
@@ -413,13 +436,70 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	// index.m3u8 und die seg*.ts-Nummern kollidieren. Der Client bekommt eine
 	// korrupte Playlist und meldet einen Datenstromfehler — bei `fresh=1`
 	// (Seek / neuer Player-Open) genau der Pfad, der das ausloest.
+	return m.startLocked(id, sessionSpec{
+		itemID:      itemID,
+		inputPath:   inputPath,
+		profile:     profile,
+		audioIdx:    audioIdx,
+		startSec:    startSec,
+		deinterlace: deinterlace,
+		audioOnly:   audioOnly,
+	}, false)
+}
+
+// RetryWithSoftwareDecode setzt eine gescheiterte Sitzung noch einmal auf,
+// diesmal mit Dekodieren per CPU.
+//
+// Noetig seit der Umstellung auf Hardware-Decode (2026-09-14): scheitert die
+// Grafikeinheit an einer Datei — exotischer oder beschaedigter Datenstrom, ein
+// Codec, den der Decoder dieser Hardware nicht kann —, liefert ffmpeg gar
+// keine Playlist und die Wiedergabe waere tot. Dieser Pfad hatte nie einen
+// Rueckfall (anders als `internal/download`, das ihn seit jeher hat), deshalb
+// kommt er hier zusammen mit dem Hardware-Decode dazu.
+//
+// Genau EIN Versuch: eine Sitzung, die bereits per CPU dekodiert, wird
+// abgelehnt. Sonst entstuende bei einer wirklich kaputten Datei eine
+// Endlosschleife aus Neustarts.
+func (m *Manager) RetryWithSoftwareDecode(s *Session) (*Session, error) {
+	if s == nil {
+		return nil, errors.New("keine Sitzung")
+	}
+	m.mu.Lock()
+	if s.softwareDecode {
+		m.mu.Unlock()
+		return nil, errors.New("dekodiert bereits per CPU")
+	}
+	if cur, ok := m.sessions[s.ID]; !ok || cur != s {
+		// Inzwischen abgeloest (Seek, GC, anderer Player) — dann ist diese
+		// Sitzung nicht mehr unser Problem.
+		m.mu.Unlock()
+		return nil, errors.New("Sitzung nicht mehr aktuell")
+	}
+	delete(m.sessions, s.ID)
+	id, spec := s.ID, s.spec
+	m.mu.Unlock()
+
+	// Stop() wartet bis zu 3 s auf das Ende von ffmpeg — bewusst OHNE Mutex,
+	// sonst blockiert das jede andere Sitzung so lange mit.
+	s.Stop()
+
+	log.Printf("[transcode] session %s: Hardware-Decode gescheitert, neuer Versuch per CPU", id)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.startLocked(id, spec, true)
+}
+
+// startLocked legt Verzeichnis und ffmpeg-Prozess an und traegt die Sitzung
+// ein. Der Aufrufer MUSS m.mu halten.
+func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) (*Session, error) {
 	dir := filepath.Join(m.cacheDir, id+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	args := m.buildArgs(inputPath, dir, profile, audioIdx, startSec, deinterlace, audioOnly)
+	args := m.buildArgs(spec.inputPath, dir, spec.profile, spec.audioIdx, spec.startSec,
+		spec.deinterlace, spec.audioOnly, softwareDecode)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	// stderr NICHT verwerfen: ffmpeg laeuft mit `-loglevel error`, hier landet
 	// also nur echtes Fehlerhaftes — und genau das fehlte bisher komplett im
@@ -430,7 +510,9 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	cmd.Stderr = errBuf
 	cmd.Stdout = io.Discard
 
-	log.Printf("[transcode] start session=%s profile=%s audio=%d hw=%v start=%.1fs deinterlace=%v", id, profile.ID, audioIdx, m.hw.Available, startSec, deinterlace)
+	log.Printf("[transcode] start session=%s profile=%s audio=%d hw=%v decode=%s start=%.1fs deinterlace=%v",
+		id, spec.profile.ID, spec.audioIdx, m.hw.Available,
+		map[bool]string{true: "cpu", false: "hardware"}[softwareDecode], spec.startSec, spec.deinterlace)
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return nil, err
@@ -438,17 +520,19 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 
 	now := time.Now()
 	s := &Session{
-		ID:        id,
-		ItemID:    itemID,
-		Profile:   profile.ID,
-		AudioIdx:  audioIdx,
-		Dir:       dir,
-		StartSec:  startSec,
-		StartedAt: now,
-		Cmd:       cmd,
-		cancel:    cancel,
-		lastUsed:  now,
-		done:      make(chan struct{}),
+		ID:             id,
+		ItemID:         spec.itemID,
+		Profile:        spec.profile.ID,
+		AudioIdx:       spec.audioIdx,
+		Dir:            dir,
+		StartSec:       spec.startSec,
+		StartedAt:      now,
+		Cmd:            cmd,
+		cancel:         cancel,
+		lastUsed:       now,
+		done:           make(chan struct{}),
+		spec:           spec,
+		softwareDecode: softwareDecode,
 	}
 	go func() {
 		err := cmd.Wait()
@@ -466,7 +550,13 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	return s, nil
 }
 
-func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool) []string {
+// buildArgs baut die ffmpeg-Kommandozeile einer Transcode-Sitzung.
+//
+// `softwareDecode` erzwingt das Dekodieren per CPU. Normalfall ist seit
+// 2026-09-14 der Hardware-Decode (VAAPI); dieser Schalter ist der
+// Rueckfallweg, wenn die Grafikeinheit an einer Datei scheitert — siehe
+// `Manager.RetryWithSoftwareDecode`.
+func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace, audioOnly, softwareDecode bool) []string {
 	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
 
 	if startSec > 0 {
@@ -514,10 +604,52 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 
 	switch m.hw.Selected {
 	case BackendVAAPI:
-		// VAAPI-Pfad: HW-Deinterlace via deinterlace_vaapi vor scale_vaapi.
-		// Reihenfolge: hwupload → format=nv12 + hwupload → deinterlace → scale.
-		// Da unsere Standard-Chain Software-scale + hwupload ist, sieht das so aus:
-		// scaleFilter (CPU) + format=nv12,hwupload + (optional) deinterlace_vaapi.
+		if !softwareDecode {
+			// Hardware-Decode (seit 2026-09-14). Vorher lief NUR das Encoden
+			// auf der Grafikeinheit, dekodiert wurde per CPU — bei 4K-Material
+			// der mit Abstand teuerste Teil. Am laufenden Server gemessen,
+			// 60 s aus einem 3840x2160-HEVC, profile=orig, sonst im Leerlauf:
+			//
+			//     Software-Decode + hwupload (alt): 186 s CPU-Zeit, 33 s Wanduhr
+			//     -hwaccel vaapi + scale_vaapi (neu):  6 s CPU-Zeit, 18 s Wanduhr
+			//
+			// Faktor 31. Genau dieser Fall (ein 4K-Remux bei profile=orig)
+			// hielt eine einzelne Sitzung dauerhaft bei ~570 % CPU.
+			//
+			// Die Bilder bleiben die ganze Kette ueber Flaechen der
+			// Grafikeinheit: erst entflimmern, dann skalieren, dann encoden —
+			// kein Herunterladen in den Hauptspeicher, kein `hwupload`.
+			// `format=nv12` erzwingt 8 Bit: eine 10-Bit-HDR-Quelle liefert
+			// sonst 10-Bit-Flaechen, die `h264_vaapi` nicht encodieren kann
+			// (dieselbe Notwendigkeit wie in internal/trickplay).
+			//
+			// Scheitert der Hardware-Decoder an einer Datei, springt
+			// `RetryWithSoftwareDecode` ein — ohne den waere die Wiedergabe
+			// solcher Dateien tot, denn dieser Pfad hatte nie einen Rueckfall.
+			chain := make([]string, 0, 2)
+			if deinterlace {
+				chain = append(chain, "deinterlace_vaapi=mode=motion_adaptive")
+			}
+			if p.MaxHeight > 0 {
+				chain = append(chain, fmt.Sprintf(
+					"scale_vaapi=w=-2:h=%d:force_original_aspect_ratio=decrease:format=nv12", p.MaxHeight))
+			} else {
+				// Ohne Groessenaenderung bleibt scale_vaapi trotzdem noetig —
+				// allein wegen der 8-Bit-Wandlung.
+				chain = append(chain, "scale_vaapi=format=nv12")
+			}
+			args = append(args,
+				"-vaapi_device", m.hw.VAAPIDevice,
+				"-hwaccel", "vaapi",
+				"-hwaccel_output_format", "vaapi",
+				"-i", input,
+				"-vf", strings.Join(chain, ","),
+				"-c:v", "h264_vaapi",
+			)
+			break
+		}
+		// Rueckfallweg: dekodieren per CPU, skalieren per CPU, dann auf die
+		// Grafikeinheit laden. Bis 2026-09-14 der einzige Weg.
 		vaapiPost := "format=nv12,hwupload"
 		if deinterlace {
 			vaapiPost += ",deinterlace_vaapi=mode=motion_adaptive"
@@ -703,6 +835,14 @@ func (s *Session) Done() bool {
 }
 
 // WaitForPlaylist blocks until the playlist file exists (up to timeout).
+// ErrFFmpegDiedEarly: der Prozess hat aufgegeben, BEVOR ueberhaupt eine
+// Playlist entstand. Das unterscheidet einen echten Fehlschlag (Codec, den die
+// Hardware nicht kann; beschaedigte Datei) von einem blossen Zeitueberlauf, bei
+// dem ffmpeg noch arbeitet. Nur beim echten Fehlschlag lohnt der Rueckfall auf
+// CPU-Decode — bei einem Zeitueberlauf wuerde ein Neustart die Sache nur
+// schlimmer machen.
+var ErrFFmpegDiedEarly = errors.New("ffmpeg beendet, bevor Playlist erstellt wurde")
+
 func (s *Session) WaitForPlaylist(timeout time.Duration) error {
 	playlist := filepath.Join(s.Dir, "index.m3u8")
 	deadline := time.Now().Add(timeout)
@@ -712,7 +852,7 @@ func (s *Session) WaitForPlaylist(timeout time.Duration) error {
 		}
 		select {
 		case <-s.done:
-			return errors.New("ffmpeg beendet, bevor Playlist erstellt wurde")
+			return ErrFFmpegDiedEarly
 		case <-time.After(100 * time.Millisecond):
 		}
 	}

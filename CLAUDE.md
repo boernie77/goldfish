@@ -2447,6 +2447,35 @@ Musik-UI unverändert bewusst schlank).
   antwortet in diesem Fall mit dem bereits vorhandenen 500-Fehlerpfad —
   eine stray Anfrage der geschlossenen Session bekommt einen harmlosen
   Fehler statt eine Geister-Session zu erzeugen.
+- **⚠ Hardware-Decode im Transcode-Pfad (seit 2026-09-14) — MIT zwingendem
+  Rückfall:** bis dahin lief nur das ENCODEN auf der iGPU, dekodiert wurde per
+  CPU. Am laufenden Server gemessen (60 s aus einem 3840×2160-HEVC,
+  `profile=orig`, sonst Leerlauf):
+
+  | Weg | CPU-Zeit | Wanduhr |
+  |---|---|---|
+  | Software-Decode + `hwupload` (alt) | **186 s** | 33 s |
+  | `-hwaccel vaapi` + `scale_vaapi` (neu) | **6 s** | 18 s |
+
+  Faktor 31 — genau der Fall, der eine einzelne Session dauerhaft bei ~570 %
+  CPU hielt. Die Bilder bleiben die ganze Kette über GPU-Flächen:
+  `deinterlace_vaapi` → `scale_vaapi` → `h264_vaapi`, kein `hwupload` mehr.
+  **`format=nv12` im `scale_vaapi` ist Pflicht** (8-Bit-Zwang, sonst scheitert
+  `h264_vaapi` an 10-Bit-HDR) — auch OHNE Größenänderung, dann als
+  `scale_vaapi=format=nv12`. **`deinterlace_vaapi` MUSS vor `scale_vaapi`**
+  stehen (auf voller Auflösung entflimmern).
+
+  **⚠⚠ `Manager.RetryWithSoftwareDecode` ist KEIN Komfort, sondern Pflicht:**
+  die iGPU dekodiert laut `vainfo` nur MPEG2, H.264, HEVC (Main/Main10/Main12/
+  422) und VP9 — **kein AV1**, kein VC-1, kein MPEG-4. Real gegengeprüft: eine
+  AV1-Datei (alle yt-dlp-Downloads sind AV1) bricht mit `Failed to inject frame
+  into filter network: Function not implemented` ab. Ohne Rückfall wäre jedes
+  AV1-Video unabspielbar. Der Rückfall greift NUR bei
+  `playback.ErrFFmpegDiedEarly` (ffmpeg stirbt, bevor eine Playlist entsteht) —
+  bei einem reinen Timeout arbeitet ffmpeg noch, ein Neustart würde schaden.
+  Genau EIN Versuch (`Session.softwareDecode`), sonst Endlosschleife bei
+  kaputten Dateien. Verdrahtet in `transcodePlaylist`.
+  Tests: `internal/playback/hwdecode_test.go`.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.

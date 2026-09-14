@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -158,7 +159,7 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 		"profiles":          playback.Profiles,
 		"streams":           streams,
 		"interlaced":        isInterlaced,
-		"deinterlace":       deinterlaceParam, // gewählter Modus (auto/on/off)
+		"deinterlace":       deinterlaceParam,  // gewählter Modus (auto/on/off)
 		"deinterlaceActive": deinterlaceActive, // ob ffmpeg ihn tatsächlich anwendet
 	}
 	switch chosen.Mode {
@@ -504,8 +505,22 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := sess.WaitForPlaylist(20 * time.Second); err != nil {
-		writeError(w, 500, "playlist: "+err.Error())
-		return
+		// Rueckfall auf CPU-Decode: seit 2026-09-14 dekodiert der VAAPI-Pfad
+		// per Grafikeinheit. Scheitert die an dieser Datei, gibt ffmpeg sofort
+		// auf, ohne je eine Playlist zu schreiben — ohne diesen zweiten
+		// Versuch waere die Wiedergabe damit tot. NUR bei ErrFFmpegDiedEarly:
+		// ein blosser Zeitueberlauf heisst, dass ffmpeg noch arbeitet, da
+		// wuerde ein Neustart nur schaden.
+		if errors.Is(err, playback.ErrFFmpegDiedEarly) && !sess.UsesSoftwareDecode() {
+			if retry, rerr := s.Playback.RetryWithSoftwareDecode(sess); rerr == nil {
+				sess = retry
+				err = sess.WaitForPlaylist(20 * time.Second)
+			}
+		}
+		if err != nil {
+			writeError(w, 500, "playlist: "+err.Error())
+			return
+		}
 	}
 
 	// Playlist einlesen und Segment-URIs um die Query-Parameter ergänzen.
