@@ -76,6 +76,14 @@ type AudioStream struct {
 //	    hob die Summe wieder über die Quelle (User meldete beim erneuten Test
 //	    immer noch eine zu große Datei, 273 MB Original → 293 statt < 273 MB).
 //	    Fix zieht `profile.AudioKbps` vorher ab.
+// ACHTUNG, bewusste Ausnahme von der Regel "bei JEDER buildArgs-Änderung
+// hochzählen" (CLAUDE.md): der HW-Decode-Umbau vom 2026-09-14 ändert den WEG,
+// nicht das ERGEBNIS — beide Varianten liefern dieselbe Auflösung, dasselbe
+// Pixelformat und dieselbe Zielbitrate (mit ffprobe gegengeprüft: 853x480 bzw.
+// 1280x720, je yuv420p). Ein Hochzählen würde alle vorhandenen Kopien
+// verwerfen und stundenlange Neuberechnungen auslösen, ohne dass eine davon
+// fehlerhaft wäre. Die Regel zielt auf Korrektheitsänderungen; hier greift sie
+// nicht.
 const convVersion = 7
 
 // h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
@@ -136,6 +144,7 @@ type prepJob struct {
 	err     error
 	totalMS atomic.Int64 // Gesamtlaufzeit der Quelle in ms (aus ffprobe); 0 = unbekannt
 	doneMS  atomic.Int64 // fortlaufender ffmpeg-Fortschritt in ms (aus -progress)
+	waiting atomic.Bool  // true, solange der Job auf einen freien Platz wartet
 	started time.Time
 	ended   time.Time
 }
@@ -164,6 +173,25 @@ func (j *prepJob) percent() int {
 	return int(p)
 }
 
+// maxConcurrentPreps begrenzt, wie viele Formatanpassungen GLEICHZEITIG laufen
+// dürfen. Vorher gab es keine Grenze: jeder Status-Poll für ein weiteres Item
+// startete sofort einen weiteren ffmpeg. Am 2026-09-14 liefen dadurch drei
+// Anpassungen desselben 4K-Remux parallel und zogen den Server über eine
+// Stunde auf 1700 % CPU (von 2000 %), während im Wohnzimmer die Wiedergabe
+// stockte.
+//
+// Eins, nicht zwei: ein einzelner Lauf sättigt hier bereits sechs Kerne und
+// den Video-Encoder der iGPU. Parallele Läufe erhöhen den Gesamtdurchsatz
+// deshalb nicht — sie verteilen dieselbe Rechenzeit nur auf mehr Läufe, sodass
+// ALLE später fertig werden und nebenher nichts mehr flüssig abspielt.
+const maxConcurrentPreps = 1
+
+// prepSlots ist die Warteschlange: ein Platz wird belegt, solange ein Lauf
+// tatsächlich rechnet. Bewusst NICHT um `start()` selbst gelegt — der Job wird
+// sofort angelegt und ist für den Client sichtbar ("wird vorbereitet"), er
+// beginnt nur später zu rechnen.
+var prepSlots = make(chan struct{}, maxConcurrentPreps)
+
 type prepRegistry struct {
 	mu     sync.Mutex
 	jobs   map[string]*prepJob
@@ -185,6 +213,14 @@ func (r *prepRegistry) start(key string, fn func(*prepJob) (string, error)) *pre
 	r.mu.Unlock()
 
 	go func() {
+		// Auf einen freien Platz warten. Der Job steht zu diesem Zeitpunkt
+		// bereits in r.jobs, die Statusabfrage meldet also "wird vorbereitet"
+		// statt eines Fehlers — nur eben ohne Fortschritt, bis er dran ist.
+		j.waiting.Store(true)
+		prepSlots <- struct{}{}
+		j.waiting.Store(false)
+		defer func() { <-prepSlots }()
+
 		j.path, j.err = fn(j)
 		j.ended = time.Now()
 		close(j.done)
@@ -384,6 +420,12 @@ func Status(cacheDir string, itemID int64, sourcePath, container, videoCodecHint
 		}
 		return Progress{State: "ready", Percent: 100}
 	default:
+		// Wartet der Lauf noch auf einen freien Platz, das auch sagen — sonst
+		// steht die Anzeige scheinbar grundlos minutenlang bei 0 %.
+		if j.waiting.Load() {
+			return Progress{State: "preparing", Percent: 0,
+				Message: "wartet, bis eine andere Anpassung fertig ist"}
+		}
 		return Progress{State: "preparing", Percent: j.percent()}
 	}
 }
@@ -558,13 +600,29 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioS
 	h264Reencode := videoCodec == "h264" && videoNeedsReencode(videoCodec, videoPixFmt)
 
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-nostdin"}
-	// "Optimierte Downloads" (User-Wunsch 2026-09-11, Plex-Vorbild): reine
-	// Downscale-Läufe skalieren per CPU-Filter + anschließendem `hwupload`
-	// (identisches Muster wie der Streaming-Transcode in
-	// `internal/playback/ffmpeg.go` — "Software-scaling ist billig und
-	// funktioniert mit beliebigen Input-Codecs") statt per HW-Decode — daher
-	// hier bewusst KEIN `hwaccelDecodeArgs`.
-	if needsReencode && !forceSoftware && !h264Reencode && !downscale {
+	// Hardware-Decode, wann immer das Video ohnehin neu encodet wird.
+	//
+	// Downscale-Läufe waren davon bis 2026-09-14 AUSGENOMMEN — sie
+	// dekodierten in Software und skalierten per CPU-Filter. Bei kleinen
+	// Quellen ist das egal, bei einem 4K-Remux ruiniert es den Server:
+	// gemessen am laufenden System, 60 s Material aus einem 3840x2160-HEVC,
+	// ansonsten im Leerlauf:
+	//
+	//     Software-Decode + CPU-scale : 157 s CPU-Zeit, 16 s Wanduhr
+	//     HW-Decode + scale_vaapi     :   5 s CPU-Zeit,  6 s Wanduhr
+	//
+	// Faktor 31 weniger Rechenzeit bei identischem Ergebnis (beide 853x480
+	// bzw. 1280x720, beide yuv420p — gegengeprüft mit ffprobe). Drei solche
+	// Läufe parallel hielten den Server über eine Stunde bei 1700 % von
+	// 2000 %, während die Wiedergabe im Wohnzimmer stockte.
+	//
+	// NUR für VAAPI umgestellt: der NVENC-Pfad ist hier nicht gemessen (keine
+	// NVIDIA-Karte im Einsatz) und bleibt beim bisherigen Weg.
+	hwDecode := needsReencode && !forceSoftware && !h264Reencode
+	if downscale && hw.Selected != playback.BackendVAAPI {
+		hwDecode = false
+	}
+	if hwDecode {
 		args = append(args, hwaccelDecodeArgs(hw)...)
 	}
 	// Vor -i: (a) großzügiges Probing, damit ffmpeg ALLE Tonspuren einer großen
@@ -627,7 +685,7 @@ func buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt string, audioS
 		// Quell-Codec (siehe `plan()`/`needsDownscale`). Selbes Skalierungs-
 		// und Encoder-Muster wie der Streaming-Transcode
 		// (`internal/playback/ffmpeg.go Manager.buildArgs`).
-		args = append(args, downscaleVideoArgs(hw, profile, forceSoftware)...)
+		args = append(args, downscaleVideoArgs(hw, profile, forceSoftware, hwDecode)...)
 	case videoCodec == "hevc":
 		if videoTag == "hvc1" {
 			args = append(args, "-c:v", "copy")
@@ -699,7 +757,21 @@ func videoEncodeArgs(hw playback.HWAccel) []string {
 // funktioniert mit beliebigen Input-Codecs"). `force_original_aspect_ratio=
 // decrease` verhindert ein Hochskalieren, falls die Quelle (entgegen der DB-
 // Metadaten, z. B. nach einem Rescan-Rückstand) tatsächlich schon kleiner ist.
-func downscaleVideoArgs(hw playback.HWAccel, profile playback.Profile, forceSoftware bool) []string {
+// downscaleRateArgs liefert die Bitraten-Begrenzung für den Video-Encoder.
+// Ausgelagert, weil der VAAPI-Pfad sie seit dem HW-Decode-Umbau an zwei
+// Stellen braucht und die Werte NICHT auseinanderlaufen dürfen.
+func downscaleRateArgs(profile playback.Profile) []string {
+	if profile.VideoKbps <= 0 {
+		return []string{"-qp", "20"}
+	}
+	return []string{
+		"-b:v", fmt.Sprintf("%dk", profile.VideoKbps),
+		"-maxrate", fmt.Sprintf("%dk", profile.VideoKbps*3/2),
+		"-bufsize", fmt.Sprintf("%dk", profile.VideoKbps*2),
+	}
+}
+
+func downscaleVideoArgs(hw playback.HWAccel, profile playback.Profile, forceSoftware, hwDecode bool) []string {
 	scaleFilter := ""
 	if profile.MaxHeight > 0 {
 		scaleFilter = fmt.Sprintf("scale=-2:%d:force_original_aspect_ratio=decrease", profile.MaxHeight)
@@ -710,6 +782,27 @@ func downscaleVideoArgs(hw playback.HWAccel, profile playback.Profile, forceSoft
 	}
 	switch backend {
 	case playback.BackendVAAPI:
+		if hwDecode {
+			// Die Bilder liegen dank `-hwaccel_output_format vaapi` bereits
+			// als GPU-Flächen vor: auf der GPU skalieren, kein Herunterladen,
+			// kein `hwupload`. `-vaapi_device` steht in diesem Fall schon vor
+			// `-i` (hwaccelDecodeArgs) und darf hier NICHT erneut kommen.
+			//
+			// `format=nv12` im Filter erzwingt 8-Bit-Ausgabe. Ohne das liefert
+			// scale_vaapi bei einer 10-Bit-HDR-Quelle 10-Bit-Flächen, die
+			// h264_vaapi nicht encodieren kann — dieselbe Notwendigkeit wie in
+			// internal/trickplay/worker.go, dort mit demselben Kommentar.
+			args := []string{}
+			if profile.MaxHeight > 0 {
+				args = append(args, "-vf", fmt.Sprintf(
+					"scale_vaapi=w=-2:h=%d:force_original_aspect_ratio=decrease:format=nv12",
+					profile.MaxHeight))
+			} else {
+				args = append(args, "-vf", "scale_vaapi=format=nv12")
+			}
+			args = append(args, "-c:v", "h264_vaapi")
+			return append(args, downscaleRateArgs(profile)...)
+		}
 		vf := "format=nv12,hwupload"
 		if scaleFilter != "" {
 			vf = scaleFilter + "," + vf

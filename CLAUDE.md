@@ -3325,6 +3325,48 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Byte-Download. Opt-in per Query-Param, damit Browser/Android (die die
   Original-Datei wollen) unverändert bleiben — nur die Mac/iOS-App
   (`GoldfishClient.downloadFileURL`) fragt das an.
+  **⚠ Höchstens EINE Formatanpassung gleichzeitig (seit 2026-09-14,
+  `maxConcurrentPreps` in `prepare.go`):** vorher gab es keine Grenze — jeder
+  `compat-status`-Poll für ein weiteres Item startete sofort einen weiteren
+  ffmpeg. Am 2026-09-14 liefen dadurch drei Anpassungen desselben 4K-Remux
+  parallel und hielten den Server über eine Stunde bei **1700 % von 2000 %**,
+  während die Wiedergabe stockte. `prepSlots` (gepufferter Channel) sitzt
+  INNERHALB der Goroutine von `prepRegistry.start`, nicht um sie herum: der
+  Job wird sofort angelegt und ist für den Client als „wird vorbereitet"
+  sichtbar, er beginnt nur später zu rechnen (`prepJob.waiting` → eigene
+  Meldung „wartet, bis eine andere Anpassung fertig ist"). **Eins, nicht
+  zwei** — ein Lauf sättigt bereits mehrere Kerne und den iGPU-Encoder,
+  parallele Läufe erhöhen den Durchsatz nicht, sondern verzögern alle.
+  Tests: `internal/download/prepare_queue_test.go`.
+
+  **⚠ Hardware-Decode auch beim Herunterrechnen (seit 2026-09-14):** bis dahin
+  waren Downscale-Läufe bewusst vom HW-Decode ausgenommen (Software-Decode +
+  CPU-`scale` + `hwupload`). Bei kleinen Quellen belanglos, bei einem
+  4K-HEVC-Remux ruinös. **Am laufenden Server gemessen** (60 s Material,
+  3840×2160 HEVC, Server sonst im Leerlauf):
+
+  | Weg | CPU-Zeit | Wanduhr |
+  |---|---|---|
+  | Software-Decode + CPU-scale (alt) | **157 s** | 16 s |
+  | `-hwaccel vaapi` + `scale_vaapi` (neu) | **5 s** | 6 s |
+
+  Faktor 31 weniger Rechenzeit, Ergebnis identisch (beide 853×480 bzw.
+  1280×720, je `yuv420p` — mit ffprobe gegengeprüft). **`format=nv12` im
+  `scale_vaapi` ist Pflicht** — ohne das liefert der Filter bei einer
+  10-Bit-HDR-Quelle 10-Bit-Flächen, die `h264_vaapi` nicht encodieren kann
+  (dieselbe Notwendigkeit wie in `internal/trickplay/worker.go`).
+  `-vaapi_device` darf dann NICHT mehr hinter `-i` stehen, es kommt bereits
+  aus `hwaccelDecodeArgs` vor `-i`. **Nur der VAAPI-Pfad wurde umgestellt** —
+  NVENC ist nicht gemessen (keine NVIDIA-Karte im Einsatz) und bleibt
+  unverändert. Der `forceSoftware`-Rückfall in `runPrep` greift weiterhin.
+  **`convVersion` wurde bewusst NICHT erhöht** (Ausnahme von der Regel, im
+  Code begründet): der Umbau ändert den Weg, nicht das Ergebnis — ein
+  Hochzählen hätte alle vorhandenen Kopien verworfen und stundenlange
+  Neuberechnungen ausgelöst, ohne dass eine davon fehlerhaft wäre.
+  Tests: `internal/download/prepare_hwdecode_test.go` (hält die gemessene
+  Kommandozeile fest, inkl. „genau ein `-vaapi_device`" und „kein `hwupload`
+  mehr").
+
   **Cache-Fristen (seit 2026-09-14, `internal/download/cleanup.go`):** der
   Download-Cache hatte bis dahin ÜBERHAUPT keine Aufräumung — eine einmal
   erzeugte Kopie lag für immer dort, auch eine nie abgeholte. Gefunden bei
