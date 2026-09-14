@@ -165,6 +165,28 @@ func (m *Manager) StopSession(itemID int64, profile Profile, audioIdx int, start
 	}
 }
 
+// StopAllForItem beendet JEDE laufende Transcode-Session eines Items,
+// unabhängig von Profil/Start-Offset — aufgerufen wenn der Client aktiv
+// „Wiedergabe beendet" meldet (POST /playback/{id}/stop). Ohne das lief eine
+// gerade geschlossene Session bis zu 30 Minuten (sessionIdleTimeout, s. o.)
+// mit voller Encoder-Last weiter, obwohl niemand mehr zusieht — ffmpeg
+// transcodiert ohne Gegendruck vom Client so schnell wie die Hardware
+// hergibt, nicht nur in Echtzeit. Live beobachtet (2026-09-14): zwei
+// Sessions liefen >500 % CPU je, mehrere Minuten nachdem der Client den
+// Stop bereits gemeldet hatte, weil bis dahin nur geloggt, aber nie
+// gestoppt wurde.
+func (m *Manager) StopAllForItem(itemID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, s := range m.sessions {
+		if s.ItemID == itemID {
+			log.Printf("[transcode] session %s gestoppt (Client meldet Wiedergabe-Ende)", id)
+			s.Stop()
+			delete(m.sessions, id)
+		}
+	}
+}
+
 // SessionAge liefert die Lebensdauer der existierenden Session zur Key oder
 // (false, _), wenn keine läuft. Wird vom Playlist-Handler genutzt, um
 // `fresh=1` idempotent zu machen: VHS holt EVENT-Playlists periodisch neu

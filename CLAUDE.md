@@ -2378,6 +2378,38 @@ Musik-UI unverändert bewusst schlank).
   (siehe App-CLAUDE.md, `setupGeneration`-Guard) bleibt davon unberührt —
   dieser Fix ist eine reine Server-Absicherung, unabhängig davon ob der
   Client sich korrekt verhält.
+  **🔴→✅ Vierte Runde (LIVE 1.3.37, 2026-09-14) — geschlossene Sessions ohne
+  Geschwister blieben bis zu 30 Min. auf voller Last:** User-Report "auch
+  hier hat Goldfish eine hohe Last, auch nachdem kein Video mehr abgespielt
+  wird" (Anlass: Shuffle-Play-Stresstest in Firefox unter Linux — der
+  Aktivitäts-Log-Eintrag "Browser · Linux" wurde anfangs fälschlich als
+  native GoldfishLinux-App-Aktivität gedeutet, siehe
+  [[project_feature_goldfish_linux]] — tatsächlich lief der Test im
+  Browser, nicht in der nativen App). Live-Diagnose per `docker top` fand
+  ZWEI ffmpeg-Sessions mit 519%/567% CPU, **6-8 Minuten NACHDEM** der
+  Client für beide Items bereits `POST /playback/{id}/stop` gemeldet hatte
+  (per `activity_log` verifiziert: "stop"-Eintrag lag klar vor dem
+  Diagnose-Zeitpunkt). Root Cause: `playbackStop` (`internal/api/
+  stream.go`) hat den Wiedergabe-Stopp bis dahin NUR protokolliert
+  (`LogActivity`) — die zugehörige ffmpeg-Session lief unberührt weiter,
+  bis entweder eine Geschwister-Session desselben Items sie ablöste (siehe
+  drei Runden oben, greift nur bei WIEDERHOLTEM Abspielen desselben Items)
+  oder der reine Idle-GC nach `sessionIdleTimeout` (30 Min., bewusst
+  hochgesetzt für AppleTV-Pausen-Toleranz, siehe Kommentar dort) sie
+  abräumte. Ein einmalig abgespieltes und dann geschlossenes Item OHNE
+  jeden weiteren Zugriff blieb dadurch bis zu 30 Minuten mit voller
+  Encoder-Last aktiv — ffmpeg transcodiert ohne Gegendruck vom Client so
+  schnell wie die Hardware hergibt, nicht in Echtzeit. Fix: neue
+  `Manager.StopAllForItem(itemID)` (`internal/playback/ffmpeg.go`) beendet
+  JEDE laufende Session eines Items unabhängig von Profil/Start-Offset;
+  `playbackStop` ruft sie direkt nach dem Log-Eintrag auf. Deckt sowohl den
+  "ended"- als auch den "closed"-Reason ab (beide sind ein echtes,
+  bewusstes Wiedergabe-Ende, siehe „Gerät + Wiedergabe-Ende/-Fehler"
+  weiter unten) — kein Einfluss auf `fresh=1`/Seek-Restarts, die laufen
+  über eigene, unveränderte Code-Pfade. **Sofortmaßnahme auf dem Live-
+  Server:** die beiden verwaisten ffmpeg-Prozesse hatten (Docker ohne
+  eigenes PID-Namespace) dieselben PIDs wie am Unraid-Host sichtbar —
+  direkt per `kill -TERM <pid>` beendet, Last fiel sofort auf 0,4 % CPU.
 - **⚠ `-map "0:V:0"` (GROSS-V) in `playback/ffmpeg.go` UND
   `download/prepare.go`** — klein-`v` zählt einfach alle Video-Streams durch
   und greift bei einer Datei mit eingebettetem Cover (`attached_pic=1`, z. B.

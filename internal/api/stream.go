@@ -271,6 +271,11 @@ func (s *Server) playbackStop(w http.ResponseWriter, r *http.Request) {
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "stop", detail, deviceLabel(r))
 	}
+	// Laufende Transcode-Session(en) dieses Items sofort beenden, statt bis
+	// zu 30 Min. auf den Idle-GC zu warten — ffmpeg encodiert ohne
+	// Gegendruck vom Client so schnell wie moeglich weiter, eine „vergessene"
+	// Session kostet also volle Last, obwohl niemand mehr zusieht.
+	s.Playback.StopAllForItem(it.ID)
 	w.WriteHeader(204)
 }
 
