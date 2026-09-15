@@ -1240,12 +1240,23 @@ async function refreshActivityLog(reset) {
         <td style="white-space:nowrap;font-size:12px;color:#94a3b8">${escapeHTML(dt)}</td>
         <td style="font-size:12px">${escapeHTML(e.username || "—")}</td>
         <td style="font-size:12px">${escapeHTML(label)}</td>
-        <td style="font-size:12px">${escapeHTML(e.detail || "")}</td>
-        <td style="font-size:12px;color:#94a3b8">${escapeHTML(e.device || "—")}</td>
+        <td style="font-size:12px;word-break:break-word">${escapeHTML(e.detail || "")}</td>
+        <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${escapeHTML(e.device || "—")}</td>
       </tr>`;
   }).join("");
+  // Details-Spalte hat keine feste Breite (Dateinamen/Pfade sind beliebig lang) —
+  // ohne table-layout:fixed + explizite Breiten auf den ÜBRIGEN Spalten quetscht
+  // der Browser bei Auto-Layout die kurze "Gerät"-Spalte auf fast nichts zusammen,
+  // sobald Details lang wird (User-Report 2026-09-15: "Gerätespalte abgeschnitten").
   const table = `
-    <table style="width:100%;border-collapse:collapse">
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <colgroup>
+        <col style="width:130px">
+        <col style="width:100px">
+        <col style="width:140px">
+        <col>
+        <col style="width:130px">
+      </colgroup>
       <thead>
         <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334">
           <th style="padding:6px 4px">Zeit</th>
