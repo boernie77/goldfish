@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -721,6 +722,21 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 	}
 	sess.Touch()
 	path := filepath.Join(sess.Dir, seg)
+	// Kurze Wartetoleranz, falls ffmpeg das Segment noch nicht fertig
+	// geschrieben hat (User-Report 2026-09-15: Stream-Fehler -12938/HTTP 404
+	// direkt nach Session-Start, Diagnose zeigte `ffmpeg_laeuft=true,
+	// playlist=false, segmente=0` — die Session existiert und arbeitet, nur
+	// das erste Segment war noch nicht auf Disk). Ohne das schlägt jede
+	// Anfrage, die knapp vor dem ersten geschriebenen Segment eintrifft,
+	// sofort fehl statt kurz zu warten — betrifft vor allem VAAPI-Encoder-
+	// Anlaufzeit bei 4K-Quellen. Bricht NICHT die 2026-09-13-Fixes: es wird
+	// keine neue Session erzeugt/gestoppt, nur auf eine Datei einer bereits
+	// laufenden gewartet. Für eine wirklich veraltete Session (Datei kommt
+	// nie) bleibt es beim harmlosen 404 nach Ablauf der Frist.
+	if !waitForSegmentFile(r.Context(), path, 4*time.Second) {
+		writeError(w, 404, "Segment noch nicht bereit")
+		return
+	}
 	w.Header().Set("Content-Type", "video/mp2t")
 	// Einmal geschriebene Segmente ändern sich für die Lebensdauer der Session
 	// nicht mehr — der Browser darf sie cachen. max-age deckt sich mit
@@ -732,6 +748,28 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 	// die Leitung zu müssen.
 	w.Header().Set("Cache-Control", "private, max-age=1800")
 	http.ServeFile(w, r, path)
+}
+
+// waitForSegmentFile pollt, ob path existiert — bis zu timeout, alle 100ms.
+// Bricht sofort ab, wenn der Client die Anfrage abbricht (Context-Cancel).
+func waitForSegmentFile(ctx context.Context, path string, timeout time.Duration) bool {
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+			if _, err := os.Stat(path); err == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isSafeSegment(name string) bool {
