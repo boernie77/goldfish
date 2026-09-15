@@ -1,5 +1,45 @@
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ WebVTT-Untertitel wurden nicht eingeblendet + Sidecar-Dateien komplett unsichtbar (2026-09-15)
+
+- **User-Meldung:** „kann Goldfish webvtt Untertitel verarbeiten?" — bei den
+  Videos eines bestimmten Kanal-Ordners in einer Privat-Bibliothek „gibt es
+  webvtt, aber die werden bisher nicht angezeigt".
+- **Bestandsaufnahme am laufenden Server** (Goldfish-API mit dem
+  `?session=<token>`-Fallback, kein Shell-Zugriff nötig): der Kanal-Ordner
+  enthält 17 Items, alle `av1`/`opus` (yt-dlp-Downloads). **13 davon
+  haben eine EINGEBETTETE `webvtt`-Spur** (`language=deu`, `title=German`,
+  Stream-Index 2), 4 haben gar keine Untertitel-Spur. `GET
+  /api/subtitle/193767/2.vtt` lieferte auf Anhieb gültiges, korrekt
+  übersetztes WebVTT — die Server-Seite war also nie das Problem.
+- **Ursache 1 (erklärt die 13 eingebetteten):** zwei konkurrierende
+  `change`-Handler auf `#subSelect`, plus Handler-Akkumulation über den
+  Player-Reuse-Pfad. Details + abgeleitete Regel in CLAUDE.md
+  („⚠ #subSelect darf nur EINEN Change-Handler haben"). Kurz: der
+  `player.js`-Handler trug `vjs`/`item`/`subs` in einer Closure und wurde bei
+  jedem weiteren Video ein zweites, drittes … Mal angehängt, weil der
+  Reuse-Pfad nur das `dataset`-Flag löschte statt den Listener zu entfernen.
+  `applySubtitleChoice` ist async und räumt als Erstes alle Text-Tracks ab —
+  ein veralteter Aufruf mit der ID eines früher geöffneten Videos gewann
+  regelmäßig das Rennen, lief in einen 404 und hinterließ keinen Track.
+  Reproduzierbar erst ab dem ZWEITEN im selben Tab geöffneten Video, was die
+  Meldung „manchmal" erklärt.
+  Das Protokoll (`activity_log`, Gerät „Firefox · Linux") hat die Eingrenzung
+  auf den Browser überhaupt erst möglich gemacht — ohne die Geräte-Spalte wäre
+  zuerst die native Linux-App verdächtig gewesen.
+- **Ursache 2 (die 4 ohne eingebettete Spur):** Untertitel-DATEIEN neben dem
+  Video waren strukturell unsichtbar — `supportedExt` im Scanner kennt nur
+  Video-/Audio-Endungen, und es gab repo-weit keine Stelle, die im Medienordner
+  nach `.vtt`/`.srt` gesucht hätte. Neues Feature, siehe CLAUDE.md
+  „Sidecar-Untertitel".
+- **Lehre:** „Kann X das Format?" ist im Zweifel drei verschiedene Fragen —
+  eingebettete Spur, erzeugte Datei, Sidecar-Datei. Hier war das Format
+  (WebVTT) von Anfang an voll unterstützt, die eine Hälfte des Problems lag im
+  Frontend-Eventhandling und die andere darin, dass eine ganze QUELLE fehlte.
+  Erst die Trennung „welche 13 Dateien haben was, welche 4 nicht" hat beide
+  Ursachen sichtbar gemacht; eine einzelne Beispieldatei hätte in die Irre
+  geführt.
+
 ### ✅ Papierkorb-Icon zu hoch + A-Z-Leiste beginnt erst bei C (2026-07-12)
 - **Symptom 1:** Nach der Umstellung von Emoji auf SVG-Mask (siehe Tofu-Box-
   Eintrag unten) saß das Papierkorb-Icon im Player deutlich zu hoch,

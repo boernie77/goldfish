@@ -142,6 +142,21 @@ func (s *Server) playbackInfo(w http.ResponseWriter, r *http.Request) {
 			Title:    "📝 " + whisperLangLabel(lang) + " (OCR)",
 		})
 	}
+	// Sidecar-Untertitel: Untertitel-DATEIEN neben der Videodatei
+	// (`Film.de.vtt` von yt-dlp, `Film.en.srt` aus einem Rip). Der Scanner
+	// erfasst nur eingebettete Spuren, deshalb hier zur Abfragezeit suchen —
+	// siehe internal/api/subtitles_sidecar.go. Index + Sortierung müssen zu
+	// `subtitleVTT` passen, das dieselbe Liste erneut aufbaut.
+	for si, sc := range findSidecarSubs(it.Path) {
+		streams = append(streams, model.ItemStream{
+			Index:    sidecarIndexBase + si,
+			Type:     "subtitle",
+			Codec:    "webvtt-sidecar",
+			Language: sc.Language,
+			Title:    sidecarSubLabel(sc),
+			IsForced: sc.Forced,
+		})
+	}
 	isInterlaced := playback.IsInterlaced(it)
 	deinterlaceParam := q.Get("deinterlace")
 	if deinterlaceParam == "" {

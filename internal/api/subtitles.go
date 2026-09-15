@@ -59,8 +59,26 @@ func (s *Server) subtitleVTT(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	idxStr := chi.URLParam(r, "idx")
-	if _, err := strconv.Atoi(idxStr); err != nil {
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil {
 		writeError(w, 400, "ungültiger Stream-Index")
+		return
+	}
+
+	// Sidecar-Untertitel (Datei neben dem Video) tragen synthetische Indizes
+	// ab sidecarIndexBase und liegen nicht im Container — sie werden nicht per
+	// `-map` extrahiert, sondern direkt ausgeliefert bzw. einmalig gewandelt.
+	// Die Liste wird hier identisch zu `playbackInfo` erneut aufgebaut; sie ist
+	// nach Pfad sortiert und damit stabil, solange der Ordnerinhalt gleich
+	// bleibt (siehe Kopfkommentar in subtitles_sidecar.go).
+	if idx >= sidecarIndexBase {
+		found := findSidecarSubs(it.Path)
+		pos := idx - sidecarIndexBase
+		if pos >= len(found) {
+			writeError(w, 404, "Untertitel-Datei nicht gefunden")
+			return
+		}
+		s.serveSidecarSubtitle(w, r, id, found[pos], idxStr)
 		return
 	}
 

@@ -85,6 +85,11 @@ const BITMAP_SUB_CODECS = new Set([
 function isBitmapSub(codec) {
   return BITMAP_SUB_CODECS.has((codec || "").toLowerCase());
 }
+// Untertitel-Spuren, deren `title` der Server selbst formuliert hat (mit Emoji
+// und Sprachnamen) — bei denen waere der Codec im Dropdown nur Rauschen.
+const SERVER_LABELLED_SUB_CODECS = new Set([
+  "webvtt-generated", "webvtt-ocr", "webvtt-sidecar",
+]);
 
 function streamChannelsLabel(n) {
   if (!n) return "";
@@ -1020,9 +1025,10 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
       if (t.language) parts.push(t.language.toUpperCase());
       if (t.title) parts.push(t.title);
       if (t.isForced) parts.push("Forced");
-      // Codec nur bei echten Text-Subs zeigen — bei unseren erzeugten ist der
-      // Titel (📝 … (OCR) / 🎤 … (KI)) schon aussagekräftig.
-      if (t.codec !== "webvtt-ocr" && t.codec !== "webvtt-generated") parts.push(t.codec || "");
+      // Codec nur bei echten eingebetteten Text-Subs zeigen — bei unseren
+      // erzeugten (📝 … (OCR) / 🎤 … (KI)) und bei Sidecar-Dateien
+      // (📄 … (Datei)) ist der Titel schon aussagekräftig.
+      if (!SERVER_LABELLED_SUB_CODECS.has(t.codec)) parts.push(t.codec || "");
       o.textContent = parts.filter(Boolean).join(" · ");
       subSel.appendChild(o);
     }
@@ -1132,8 +1138,6 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
         try { vjs.removeRemoteTextTrack(rtt[i]); } catch {}
       }
     }
-    const subSelReuse = $("#subSelect");
-    if (subSelReuse) delete subSelReuse.dataset.subHandlerAttached;
     vjs.src({ src: info.url, type: srcType });
     // currentTime explizit setzen, sonst „erinnert" sich der wiederverwendete
     // Player an die letzte Position des vorherigen Streams. Direct Play:
@@ -1362,12 +1366,37 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   }
 
   // Subtitle-Verwaltung: Track laden + Change-Handler auf dem Dropdown
+  state.playback.playingItem = item;
   applySubtitleChoice(vjs, item, subs);
-  const subSelEl = $("#subSelect");
-  if (subSelEl && !subSelEl.dataset.subHandlerAttached) {
-    subSelEl.dataset.subHandlerAttached = "1";
-    subSelEl.addEventListener("change", () => applySubtitleChoice(vjs, item, subs));
-  }
+  wireSubSelectOnce();
+}
+
+// wireSubSelectOnce haengt den #subSelect-Change-Handler GENAU EINMAL an.
+//
+// ⚠ Der Handler darf `vjs`/`item`/`subs` NICHT aus einer Closure mitnehmen:
+// #subSelect ist ein statisches DOM-Element, das jeden Player-Open ueberlebt.
+// Vorher wurde bei jedem Open ueber den Reuse-Pfad ein WEITERER Listener
+// angehaengt (das dataset-Flag wurde dort geloescht, der alte Listener aber
+// nie entfernt) — nach dem zweiten Video feuerten mehrere Handler mit den
+// Daten VERSCHIEDENER Items gleichzeitig. Weil applySubtitleChoice async ist
+// (fetch) und als Erstes alle Text-Tracks abraeumt, gewann ein veralteter
+// Aufruf regelmaessig das Rennen: er holte `/api/subtitle/<altes Item>/…`
+// (404 → Fehler-Toast) und der korrekte Track war wieder weg. Sichtbares
+// Symptom: "Untertitel werden nicht angezeigt", obwohl die Spur im Dropdown
+// stand und der Server sie korrekt liefert.
+function wireSubSelectOnce() {
+  const el = $("#subSelect");
+  if (!el || el.dataset.subHandlerAttached) return;
+  el.dataset.subHandlerAttached = "1";
+  el.addEventListener("change", () => {
+    const vjs = state.vjs;
+    if (!vjs || (typeof vjs.isDisposed === "function" && vjs.isDisposed())) return;
+    const info = state.playback || {};
+    const item = info.playingItem || state.currentItem;
+    if (!item) return;
+    const subs = (info.streams || []).filter(st => st.type === "subtitle" && !isBitmapSub(st.codec));
+    applySubtitleChoice(vjs, item, subs);
+  });
 }
 
 // vttShiftTimestamps verschiebt alle Cue-Zeiten in einem WebVTT-Text um

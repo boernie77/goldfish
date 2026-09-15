@@ -1652,30 +1652,13 @@ function wire() {
     const dei = $("#deinterlaceSelect").value;
     applyPlayback(state.currentItem, mode, profile, audio ? Number(audio) : null, dei);
   });
-  $("#subSelect").addEventListener("change", () => {
-    if (!state.currentItem) return;
-    // Untertitel wechseln — Player selbst bleibt, nur Text-Track umschalten
-    const vjs = state.vjs;
-    if (!vjs) return;
-    // alle Remote-Tracks entfernen, dann ggf. den gewählten neu setzen
-    const existing = vjs.remoteTextTracks();
-    for (let i = existing.length - 1; i >= 0; i--) {
-      vjs.removeRemoteTextTrack(existing[i]);
-    }
-    const choice = $("#subSelect").value;
-    if (choice) {
-      const streams = (state.playback && state.playback.streams) || [];
-      const sub = streams.find(s => String(s.index) === choice);
-      const label = (sub && sub.title) || (sub && sub.language && sub.language.toUpperCase()) || "Untertitel";
-      vjs.addRemoteTextTrack({
-        kind: "subtitles",
-        src: `/api/subtitle/${state.currentItem.id}/${choice}.vtt`,
-        srclang: (sub && sub.language) || "und",
-        label: label,
-        default: true,
-      }, false);
-    }
-  });
+  // Kein eigener #subSelect-Handler mehr hier: die Untertitel-Umschaltung
+  // laeuft ausschliesslich ueber wireSubSelectOnce()/applySubtitleChoice() in
+  // player.js. Der frueher hier liegende Zweit-Handler hat denselben Event
+  // parallel behandelt, aber ohne WebVTT-Pruefung, ohne Zeitstempel-Shift im
+  // Transcode-Modus und mit der falschen URL fuer erzeugte (KI/OCR) und
+  // Sidecar-Untertitel — beide Handler haben sich gegenseitig die Text-Tracks
+  // weggeraeumt.
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-close]");
     if (btn) btn.closest("dialog").close();

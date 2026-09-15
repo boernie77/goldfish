@@ -3239,6 +3239,80 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Bibliotheks-Checkboxen + Job-Tabs, `.tp-tab`-Klassen wiederverwendet,
   5-s-Poll solange offen).
 
+### Sidecar-Untertitel (Untertitel-DATEIEN neben dem Video, seit 2026-09-15)
+
+- **Zweck:** Untertitel, die als eigene Datei im Medienordner liegen
+  (`Film.de.vtt`, `Film.en.srt`) — der typische yt-dlp-Fall ohne
+  `--embed-subs`. Der Scanner indexiert nur Video-/Audio-Endungen
+  (`supportedExt`), diese Dateien waren daher für Goldfish **komplett
+  unsichtbar**: sie standen in keinem Dropdown und es gab keinen Weg, sie zu
+  laden. Eingebettete Textspuren im Container waren nie betroffen (die erfasst
+  ffprobe beim Scan in `item_streams`).
+- **Erkennung zur ABFRAGEZEIT, nicht beim Scan** (`internal/api/subtitles_sidecar.go`,
+  `findSidecarSubs`): gleiche Konvention wie die erzeugten KI-/OCR-Untertitel,
+  die ebenfalls per `os.Stat` in `playbackInfo` gefunden werden. Eine
+  nachträglich hinzugelegte `.vtt` wirkt dadurch **sofort, ohne Rescan**.
+  Kostenpunkt ist EIN `os.ReadDir` des Videoordners pro `playbackInfo`-Aufruf.
+- **Unterstützte Endungen:** `.vtt`, `.srt`, `.ass`, `.ssa`. `.sub` fehlt
+  absichtlich — MicroDVD ist frame-basiert (bräuchte die Bildrate) bzw. bei
+  `.idx/.sub` bildbasiert, beides nichts für einen blinden ffmpeg-Durchlauf.
+- **Namenskonvention:** gleicher Ordner, gleicher Dateiname-Stamm wie das
+  Video, danach optionale Tokens: Sprache (`de`/`deu`/`ger`/`german`, auch
+  `de-DE`/`en-orig` von yt-dlp) und Zusätze (`forced`, `sdh`, `cc`, `hi`,
+  `default`, `full`, `orig`, `auto`, `und`). Sprachcodes werden auf die
+  3-Buchstaben-Form normalisiert, die ffprobe auch für eingebettete Spuren
+  liefert — dadurch greifen die Sprachnamen-Tabellen aller Clients unverändert.
+- **⚠ JEDES Token nach dem Stamm muss erkannt sein, sonst wird die Datei
+  verworfen.** Ein reiner Präfix-Vergleich greift in flachen Ordnern zu weit:
+  `Film.2.de.vtt` gehört zu `Film.2.mkv`, beginnt aber ebenfalls mit `Film.`
+  und würde sonst zusätzlich bei `Film.mkv` als Untertitel auftauchen.
+- **⚠ Kein Unterordner-Support** (`Subs/`, Plex-Konvention): dort heißen die
+  Dateien typischerweise `2_German.srt` und tragen den Videonamen gar nicht,
+  das ist ein anderes Problem. Bewusst offen gelassen.
+- **KEINE Client-Änderung nötig** — das war die Entwurfsvorgabe: die Spuren
+  bekommen synthetische Stream-Indizes ab **`sidecarIndexBase = 2200`**
+  (oberhalb Whisper 2000+ und OCR 2100+) und werden vom BESTEHENDEN
+  `GET /api/subtitle/{id}/{idx}.vtt` ausgeliefert, auf das alle Clients für
+  jeden Codec außer `webvtt-generated`/`webvtt-ocr` ohnehin zurückfallen.
+  `subtitleVTT` verzweigt bei `idx >= sidecarIndexBase` auf
+  `serveSidecarSubtitle`: `.vtt` geht unverändert raus, `.srt`/`.ass`/`.ssa`
+  wandelt ffmpeg einmalig nach `$SubsDir/{itemID}/sidecar-{idx}.vtt` (neu
+  gewandelt, wenn die Quelldatei neuer als der Cache ist — eine korrigierte
+  `.srt` soll nicht ewig überdeckt bleiben). Codec im Stream-Eintrag:
+  `webvtt-sidecar`, Titel `📄 Deutsch (Datei)` (analog 🎤 KI / 📝 OCR).
+- **⚠ Die Indizes müssen zwischen `playbackInfo` und der späteren
+  `/api/subtitle/...`-Anfrage stabil bleiben** — `findSidecarSubs` sortiert
+  deshalb nach Dateipfad und `subtitleVTT` baut dieselbe Liste erneut auf.
+  Ändert sich der Ordnerinhalt zwischen beiden Aufrufen, zeigt die Auswahl im
+  schlimmsten Fall auf die Nachbardatei; ein erneutes Öffnen des Players heilt
+  das. (Gleiche Klasse von Annahme wie die feste Sprachreihenfolge bei OCR.)
+- **Cache-Control ist bewusst kürzer** (300 s statt der 24 h bei extrahierten
+  eingebetteten Spuren): eine Datei im Medienordner kann jederzeit ersetzt
+  werden, ohne dass sich die Item-ID ändert.
+- Tests: `internal/api/subtitles_sidecar_test.go` (yt-dlp-Namen mit `#`/
+  Leerzeichen, Release-Namen mit vielen Punkten im Stamm, Forced/SDH,
+  Groß-/Kleinschreibung, Abgrenzung gegen das Sidecar eines Nachbar-Videos).
+
+### ⚠ #subSelect darf nur EINEN Change-Handler haben (gefixt 2026-09-15)
+
+`#subSelect` ist ein statisches DOM-Element und überlebt jeden Player-Open.
+Bis 1.3.42 hingen dort ZWEI Handler: einer in `app.js` (alt, ohne
+WebVTT-Prüfung, ohne Zeitstempel-Shift, mit falscher URL für KI-/OCR-Spuren)
+und `applySubtitleChoice` in `player.js` — und der `player.js`-Handler wurde
+über den Reuse-Pfad bei JEDEM weiteren Video erneut angehängt (das
+`dataset`-Flag wurde dort gelöscht, der alte Listener aber nie entfernt).
+Er trug `vjs`/`item`/`subs` in einer **Closure**, sodass nach dem zweiten
+Video mehrere Handler mit den Daten verschiedener Items gleichzeitig feuerten.
+Weil `applySubtitleChoice` async ist und als Erstes alle Text-Tracks abräumt,
+gewann ein veralteter Aufruf regelmäßig das Rennen: er holte
+`/api/subtitle/<altes Item>/…` (404 → Fehler-Toast) und der korrekte Track war
+wieder weg. Sichtbares Symptom: „Untertitel werden nicht angezeigt", obwohl
+die Spur im Dropdown stand und der Server sie korrekt lieferte.
+**Regel:** Handler auf statischen Dialog-Elementen genau einmal anhängen
+(`wireSubSelectOnce`, gleiches Muster wie `wireIntroSkipOverlayOnce`) und den
+Kontext IMMER aus `state` lesen (`state.playback.playingItem`,
+`state.playback.streams`), nie aus einer Closure. Chronik: DECISIONS.md.
+
 ### Glocke / Benachrichtigungen (seit 2026-05-05)
 
 - 🔔-Button in der Topbar (`.bell-btn`) neben dem Zahnrad.
