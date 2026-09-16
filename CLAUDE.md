@@ -182,7 +182,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
-# 🐧 Linux-App (GoldfishLinux, seit 2026-09-12, v1 ungetestet auf echtem Linux)
+# 🐧 Linux-App (GoldfishLinux, seit 2026-09-12, läuft auf echtem Linux)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt außer Android/Apple auch einen **nativen Linux-Desktop-Client**
@@ -197,8 +197,10 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 > nutzt `/api/auth/login`, `/api/libraries`, `/api/libraries/{id}/folders`,
 > `/api/items`, `/api/playback/{id}` + den `?session=<token>`-Query-Fallback,
 > `/api/download/{id}`, `/api/items/{id}/watched|favorite`.
-> **Konnte in der Entwicklungsumgebung (macOS) nicht auf echtem
-> GTK4/libadwaita getestet werden** — nur `py_compile`/`pyflakes` sauber.
+> **Wird seit v0.1.7 auf einem echten Linux-Rechner entwickelt und geprüft**
+> (Stand 2026-09-16: v0.1.48). Die frühere Warnung „nur auf macOS gebaut,
+> nie auf echtem GTK4 gelaufen" gilt nicht mehr — sie hatte damals zu einer
+> falschen Fehlerdiagnose geführt, siehe CLAUDE.md des Linux-Repos.
 
 ---
 
@@ -211,9 +213,12 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 > Repo (NICHT Teil von GoldfishAndroid, auch wenn der komplette data/di-
 > Layer von dort übernommen und paket-umbenannt wurde).
 >
-> **Stand: nur Grundgerüst** — Login-Screen + Bibliotheks-Liste, kein
-> Item-Browsing/Player/Downloads. Erster `./gradlew assembleDebug`-Build
-> lief erfolgreich, **noch nie auf Emulator oder echtem Gerät getestet.**
+> **Stand: Kern-Flow komplett, auf echtem Gerät verifiziert** (Fire TV
+> Stick 4K Max, ADB-over-WiFi): Login, Startbildschirm, Bibliotheks-
+> Browsing, Infoseite, Staffel-/Episodenansicht, Suche, Sammlungen/
+> Playlists und echte HLS-Wiedergabe via ExoPlayer/media3 laufen. Vier
+> Geräte-Feedback-Runden sind durchgearbeitet. Offen: Trailer-Wiedergabe,
+> Downloads/Offline und Musik (bewusst Prio 3).
 >
 > **Die volle Architektur/aktueller-Stand steht in der CLAUDE.md dieses
 > App-Repos** (nicht mehr hier) — bei jeder Änderung, die diese App
@@ -328,6 +333,61 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 - Transcode-Sessions werden pro `(itemID, profileID, startSec)` gehalten und nach
   5 min Inaktivität per GC-Loop beendet; Cache unter
   `/config/cache/{sessionID}-{suffix}/`.
+- **🔴 Harte Obergrenze gleichzeitiger Video-Transcodes (seit 2026-09-17,
+  v1.4.1) — der wichtigste Stabilitätsschutz des Servers.** Ein User-Test am
+  2026-09-16 („wie viele 4K-Transcodes schafft die iGPU?") ergab: **vier
+  liefen stabil, acht rissen den GESAMTEN Unraid-Host mit** — kompletter
+  Reboot nötig, nicht nur ein Container-Neustart. Ursache: `StartOrGet`
+  startete bis dahin **bedingungslos** für jede Anfrage einen weiteren
+  ffmpeg-Prozess; es gab überhaupt kein Limit. Jetzt zwei unabhängige
+  Verteidigungslinien, **beide sind nötig**:
+  1. **App-Limit** (`Manager.maxSessions`, Default `playback.DefaultMaxSessions`
+     = 4, einstellbar im Zahnrad-Menü → Einstellungen, persistiert als
+     `settings.max_transcodes`). Am Limit liefert `StartOrGet`
+     `ErrTooManySessions`, der API-Layer macht daraus **HTTP 503 +
+     `Retry-After: 30`** mit einer für Endnutzer lesbaren Meldung (bewusst
+     kein 500 — es ist ein temporärer Zustand). **Eine abgelehnte Wiedergabe
+     ist immer besser als ein toter Server.**
+  2. **Container-Deckel** in `docker-compose.yml` (`mem_limit`, `cpus`,
+     `cpu_shares`). Fängt alles ab, was die App nicht kennt (ffmpeg-Ausreißer,
+     Speicherleck, Worker parallel zu Wiedergaben). Ohne das darf der
+     Container beliebig RAM ziehen, bis der Host-OOM-Killer zuschlägt — und
+     der trifft nicht zwingend nur ffmpeg.
+     **LIVE eingetragen in Portainer-Stack 37 am 2026-09-17** (vorher
+     nachgemessen: `Memory: 0`, `NanoCpus: 0` — der Container lief komplett
+     ohne Grenzen). Gesetzte Werte am Referenz-Host (Tower, Unraid 7.2,
+     **20 Kerne / 31,2 GB RAM**): `mem_limit: 12g`, `cpus: 14.0`,
+     `cpu_shares: 512`. Verifiziert per Docker-Inspect nach dem Redeploy
+     (`Memory: 12884901888`, `NanoCpus: 14000000000`).
+     **⚠ KEIN `memswap_limit` auf Unraid** — `docker info` meldet dort
+     `SwapLimit: false`, die Option erzeugt nur eine Warnung.
+     **⚠ Beim Stack-Redeploy IMMER das bestehende `Env`-Array mitschicken**
+     (GET `/api/stacks/37` → `s.Env` → in den PUT-Body), sonst sind die vier
+     OIDC-Variablen weg und SSO antwortet mit 503. Portainer 2.39 verlangt
+     zusätzlich einen **CSRF-Token**: aus dem `x-csrf-token`-Response-Header
+     einer vorherigen GET-Anfrage lesen und als `X-CSRF-Token`-Header
+     mitsenden, sonst kommt „403 Forbidden — CSRF token not found".
+
+  **Bewusste Details, nicht „aufräumen":** der Limit-Check sitzt NACH dem
+  Sibling-Cleanup (dort frei gewordene Plätze zählen mit, sonst scheitert
+  simples Spulen fälschlich) und NACH dem `m.sessions[id]`-Treffer (eine
+  BESTEHENDE Session weiterzubenutzen ist nie limitiert, sonst bricht ein
+  laufender Film beim nächsten Playlist-Reload ab). **Reine Audio-Sessions
+  (Musik) zählen nicht mit** (`activeVideoSessionsLocked`) — Musik darf
+  keinen Filmplatz wegnehmen. Tests: `internal/playback/session_limit_test.go`.
+- **⚠ Der eindeutige Suffix der Session-Verzeichnisse darf NICHT nur aus
+  einem Zeitstempel bestehen** (gefixt 2026-09-17): er war
+  `time.Now().UnixNano()` — und das ist NICHT kollisionsfrei, weil die
+  Uhr-Auflösung plattformabhängig ist. `TestSessionDirsAreUniquePerStart`
+  schlug deshalb reproduzierbar fehl (auf macOS liefern zwei unmittelbar
+  aufeinanderfolgende Aufrufe denselben Wert). Bei einer Kollision entsteht
+  exakt wieder der Zustand, gegen den der Suffix eingeführt wurde: altes und
+  neues ffmpeg schreiben in DASSELBE Verzeichnis → korrupte Playlist. Jetzt
+  zusätzlich ein monotoner `atomic.Uint64`-Zähler (`sessionDirName`). Der
+  Test prüft seither die **echte Produktionsfunktion** — vorher hatte er eine
+  eigene Kopie der Formel nachgebaut und dadurch den Bug verdeckt: **Tests
+  nie gegen eine nachgebaute Kopie der zu prüfenden Logik schreiben.**
+  Die Key-Bildung liegt jetzt zentral in `sessionKey()`.
 - **⚠ Das Session-Verzeichnis trägt einen eindeutigen Suffix — nicht entfernen**
   (seit 2026-09-13): `Session.Stop()` wartet nur **3 s** auf das Ende von
   ffmpeg und löscht danach `s.Dir`. Ein langsam sterbender Prozess (HEVC-Decode
@@ -1036,7 +1096,7 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   dieser Sandbox heraus getestetes yt-dlp/YouTube-Verhalten ist NICHT
   repräsentativ für das Verhalten vom echten Server aus** — im Zweifel
   direkt im laufenden Container testen (`docker exec videoplayer …`, SSH
-  root@192.168.2.140:2202, siehe `infra_unraid.md`-Memory).
+  root@<UNRAID-LAN-IP>:2202, siehe `infra_unraid.md`-Memory).
 
 ### Musik-Bibliotheken (seit 2026-09-04)
 - Neuer Bibliothekstyp `kind=music` neben movies/tv/private (Admin-UI:

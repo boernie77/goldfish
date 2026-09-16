@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -110,7 +111,27 @@ type Manager struct {
 	// stoppedAt: Zeitpunkt des letzten expliziten Client-Stops (StopAllForItem)
 	// pro Item. Siehe stopSuppressWindow unten in StartOrGet.
 	stoppedAt map[int64]time.Time
+	// maxSessions: harte Obergrenze gleichzeitiger VIDEO-Transcodes. 0 =
+	// unbegrenzt (nur fuer Tests; im Betrieb setzt main.go immer einen Wert).
+	// Siehe ErrTooManySessions und den Limit-Block in StartOrGet.
+	maxSessions int
 }
+
+// ErrTooManySessions meldet, dass das konfigurierte Limit gleichzeitiger
+// Transcodes erreicht ist. Der API-Layer uebersetzt das in HTTP 503 mit einer
+// verstaendlichen Meldung — bewusst KEIN 500, damit Clients es als temporaer
+// erkennen und ein Retry sinnvoll ist.
+var ErrTooManySessions = errors.New("zu viele gleichzeitige Transcodes")
+
+// DefaultMaxSessions ist die Voreinstellung fuer gleichzeitige Video-Transcodes.
+//
+// 🔴 Hintergrund (User-Test 2026-09-16): beim Ausloten, wie viele 4K-Transcodes
+// die iGPU schafft, liefen VIER gleichzeitig stabil — ACHT rissen den GESAMTEN
+// Unraid-Host mit (nicht nur den Container: kompletter Reboot noetig). Vorher
+// gab es ueberhaupt kein Limit; StartOrGet startete bedingungslos fuer jede
+// Anfrage einen weiteren ffmpeg-Prozess. Vier ist deshalb die belegte
+// Stabilitaetsgrenze dieser Hardware und damit der Default.
+const DefaultMaxSessions = 4
 
 func NewManager(cacheDir string, hw HWAccel) *Manager {
 	_ = os.MkdirAll(cacheDir, 0o755)
@@ -121,6 +142,7 @@ func NewManager(cacheDir string, hw HWAccel) *Manager {
 		hw:          hw,
 		freshTokens: map[string]string{},
 		stoppedAt:   map[int64]time.Time{},
+		maxSessions: DefaultMaxSessions,
 	}
 	go m.gcLoop()
 	return m
@@ -133,6 +155,49 @@ func (m *Manager) SetHWAccel(hw HWAccel) {
 	m.mu.Lock()
 	m.hw = hw
 	m.mu.Unlock()
+}
+
+// SetMaxSessions setzt die Obergrenze gleichzeitiger Video-Transcodes zur
+// Laufzeit (Zahnrad-Menue → Einstellungen). Bereits laufende Sessions werden
+// NICHT gekillt, wenn der Wert gesenkt wird — das Limit wirkt erst auf die
+// naechste Neu-Anfrage, damit niemandem mitten im Film das Bild abreisst.
+func (m *Manager) SetMaxSessions(n int) {
+	if n < 0 {
+		n = 0
+	}
+	m.mu.Lock()
+	m.maxSessions = n
+	m.mu.Unlock()
+}
+
+// activeVideoSessionsLocked zaehlt laufende Transcodes, die die Grafikeinheit
+// belasten. Reine Audio-Sessions (Musikwiedergabe) sind ausgenommen: sie
+// kodieren nur eine Tonspur, kosten weder GPU-Speicher noch nennenswert CPU
+// und duerfen deshalb nicht dazu fuehren, dass ein Film abgelehnt wird.
+// Der Aufrufer MUSS m.mu halten.
+func (m *Manager) activeVideoSessionsLocked() int {
+	n := 0
+	for _, s := range m.sessions {
+		if !s.spec.audioOnly {
+			n++
+		}
+	}
+	return n
+}
+
+// ActiveVideoSessions liefert die Zahl laufender Video-Transcodes (fuer
+// /api/health und die Auslastungsanzeige).
+func (m *Manager) ActiveVideoSessions() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.activeVideoSessionsLocked()
+}
+
+// MaxSessions liefert die aktuell konfigurierte Obergrenze (0 = unbegrenzt).
+func (m *Manager) MaxSessions() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.maxSessions
 }
 
 // sessionIdleTimeout: wie lange eine Transcode-Session ohne jeden Touch()
@@ -363,6 +428,17 @@ func (m *Manager) LookupSession(itemID int64, profile Profile, audioIdx int, sta
 	return nil
 }
 
+// sessionKey bildet den Schluessel einer Transcode-Sitzung. Bewusst EINE
+// Stelle: Verzeichnisname, Map-Schluessel und Tests muessen exakt dieselbe
+// Formel benutzen (der Startup-Cleanup matcht per sessionDirPattern darauf).
+func sessionKey(itemID int64, profileID string, audioIdx int, startSec float64, deinterlace bool) string {
+	dei := 0
+	if deinterlace {
+		dei = 1
+	}
+	return fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profileID, audioIdx, int(startSec), dei)
+}
+
 // StartOrGet returns an existing session for the item or starts a new one.
 // Sessions werden pro (Item, Profil, Audio-Stream, Start-Offset, Deinterlace) gehalten.
 // audioIdx = -1 → default (erster Audio-Stream). Sonst ffprobe-Stream-Index.
@@ -370,18 +446,16 @@ func (m *Manager) LookupSession(itemID int64, profile Profile, audioIdx int, sta
 // Filter-Chain eingebaut (für interlaced Content wie alte TV-Captures).
 // audioOnly: true für Musik-Items ohne Video-Stream (kind=music) — buildArgs
 // überspringt dann komplett den Video-Filter/Hwaccel-Zweig. Ändert NICHT die
-// Session-ID-Zusammensetzung unten (die bleibt wie gehabt aus itemID/profile/
+// Session-ID-Zusammensetzung (die bleibt wie gehabt aus itemID/profile/
 // audioIdx/startSec/deinterlace), da audioOnly für ein gegebenes Item immer
 // gleich ist — StopSession/SessionAge/ConsumeFresh/LookupSession brauchen
-// den Parameter deshalb nicht.
+// den Parameter deshalb nicht. audioOnly zaehlt allerdings NICHT gegen das
+// Transcode-Limit (siehe activeVideoSessionsLocked).
+
 func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	dei := 0
-	if deinterlace {
-		dei = 1
-	}
-	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profile.ID, audioIdx, int(startSec), dei)
+	id := sessionKey(itemID, profile.ID, audioIdx, startSec, deinterlace)
 	if s, ok := m.sessions[id]; ok {
 		s.Touch()
 		return s, nil
@@ -424,6 +498,32 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 			log.Printf("[transcode] session %s gestoppt (abgeloest durch neue Session %s desselben Items, alter=%s)", otherID, id, time.Since(other.StartedAt).Round(time.Second))
 			other.Stop()
 			delete(m.sessions, otherID)
+		}
+	}
+	// 🔴 Harte Obergrenze gleichzeitiger Video-Transcodes (seit 2026-09-17).
+	//
+	// Bis hierher konnte JEDE Anfrage bedingungslos einen weiteren
+	// ffmpeg-Prozess starten. Beim User-Test am 2026-09-16 (wie viele
+	// gleichzeitige 4K-Transcodes schafft die iGPU?) liefen VIER stabil,
+	// bei ACHT riss es den GESAMTEN Unraid-Host mit — kompletter Reboot,
+	// nicht nur ein Container-Neustart. Ein abgelehnter Film ist immer
+	// besser als ein toter Server, deshalb hier ein hartes Nein statt
+	// „irgendwie noch reinquetschen".
+	//
+	// Bewusste Details:
+	//   - Der Check steht NACH dem Sibling-Cleanup oben: dort gerade
+	//     freigewordene Plaetze zaehlen bereits mit, sonst wuerde ein
+	//     simpler Seek im Player faelschlich am Limit scheitern.
+	//   - Der Check steht NACH dem `m.sessions[id]`-Treffer ganz oben: eine
+	//     BESTEHENDE Session weiterzubenutzen ist nie limitiert, sonst
+	//     briche ein laufender Film beim naechsten Playlist-Reload ab.
+	//   - Nur Video zaehlt (siehe activeVideoSessionsLocked) — Musik soll
+	//     keinen Filmplatz wegnehmen.
+	if m.maxSessions > 0 && !audioOnly {
+		if active := m.activeVideoSessionsLocked(); active >= m.maxSessions {
+			log.Printf("[transcode] ABGELEHNT item=%d: Limit erreicht (%d/%d laufende Video-Transcodes)",
+				itemID, active, m.maxSessions)
+			return nil, fmt.Errorf("%w (%d/%d)", ErrTooManySessions, active, m.maxSessions)
 		}
 	}
 	// Verzeichnis-Name = Session-Key + eindeutiger Suffix. Der Suffix ist
@@ -489,10 +589,33 @@ func (m *Manager) RetryWithSoftwareDecode(s *Session) (*Session, error) {
 	return m.startLocked(id, spec, true)
 }
 
+// sessionDirCounter macht Verzeichnisnamen garantiert eindeutig.
+//
+// 🔴 Der Suffix bestand urspruenglich NUR aus `time.Now().UnixNano()` — das
+// ist NICHT kollisionsfrei: die Uhr-Aufloesung ist plattformabhaengig (auf
+// macOS grob genug, dass zwei unmittelbar aufeinanderfolgende Aufrufe
+// denselben Wert liefern; `TestSessionDirsAreUniquePerStart` schlug deshalb
+// reproduzierbar fehl). Genau dann entsteht wieder der Zustand, gegen den
+// der Suffix 2026-09-13 eingefuehrt wurde: ein noch sterbendes ffmpeg
+// (Stop() wartet nur 3 s) und ein neu gestartetes schreiben in DASSELBE
+// Verzeichnis, ueberschreiben wechselseitig index.m3u8 und vergeben
+// seg*.ts-Nummern doppelt → korrupte Playlist, Datenstromfehler im Client.
+// Ein monoton steigender Zaehler schliesst das unabhaengig von der
+// Uhr-Aufloesung aus.
+var sessionDirCounter atomic.Uint64
+
+// sessionDirName bildet den Verzeichnisnamen einer Session: Session-Key +
+// garantiert eindeutiger Suffix. Muss zu `sessionDirPattern` passen (sonst
+// raeumt der Startup-Cleanup die Verzeichnisse nie weg — siehe dort).
+func sessionDirName(id string) string {
+	return id + "-" + strconv.FormatInt(time.Now().UnixNano(), 36) +
+		strconv.FormatUint(sessionDirCounter.Add(1), 36)
+}
+
 // startLocked legt Verzeichnis und ffmpeg-Prozess an und traegt die Sitzung
 // ein. Der Aufrufer MUSS m.mu halten.
 func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) (*Session, error) {
-	dir := filepath.Join(m.cacheDir, id+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
+	dir := filepath.Join(m.cacheDir, sessionDirName(id))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}

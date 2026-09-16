@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/boernie77/goldfish/internal/omdb"
+	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/boernie77/goldfish/internal/tmdb"
 )
 
@@ -81,6 +82,13 @@ type settingsDTO struct {
 	// Bestaetigen eines Films (tmdb_type=movie) die Datei zu „Title (Year).ext"
 	// umbenannt + in rename_history protokolliert. Default: false.
 	AutoRenameConfirmedMovies bool `json:"autoRenameConfirmedMovies"`
+	// MaxTranscodes: harte Obergrenze gleichzeitiger Video-Umwandlungen.
+	// Schuetzt den Host davor, sich an zu vielen parallelen 4K-Encodes zu
+	// verschlucken (siehe playback.DefaultMaxSessions). 0 = unbegrenzt.
+	MaxTranscodes int `json:"maxTranscodes"`
+	// ActiveTranscodes: aktuell laufende Video-Umwandlungen (nur lesend,
+	// fuer die Auslastungsanzeige im Einstellungsdialog).
+	ActiveTranscodes int `json:"activeTranscodes"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
@@ -113,7 +121,34 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 		OMDbConfigured:            okey != "",
 		HwaccelMode:               hw,
 		AutoRenameConfirmedMovies: arn == "true" || arn == "1",
+		MaxTranscodes:             s.maxTranscodesSetting(),
+		ActiveTranscodes:          s.activeTranscodes(),
 	})
+}
+
+// maxTranscodesSettingKey ist der Settings-Schluessel fuer die Obergrenze
+// gleichzeitiger Video-Umwandlungen.
+const maxTranscodesSettingKey = "max_transcodes"
+
+// maxTranscodesSetting liest die konfigurierte Obergrenze aus der DB und
+// faellt auf playback.DefaultMaxSessions zurueck, wenn nichts gesetzt oder
+// der Wert unplausibel ist.
+func (s *Server) maxTranscodesSetting() int {
+	raw, _ := s.Store.GetSetting(maxTranscodesSettingKey, "")
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 16 {
+		return playback.DefaultMaxSessions
+	}
+	return n
+}
+
+// activeTranscodes liefert die Zahl laufender Video-Umwandlungen (0, wenn
+// kein Playback-Manager haengt — etwa in Tests).
+func (s *Server) activeTranscodes() int {
+	if s.Playback == nil {
+		return 0
+	}
+	return s.Playback.ActiveVideoSessions()
 }
 
 func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +252,21 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	// MaxTranscodes: 0 im Body heisst „nicht mitgeschickt" (aeltere Clients,
+	// Teil-Updates wie der TMDB-Key-Clear-Aufruf) — dann NICHT anfassen.
+	if body.MaxTranscodes != 0 {
+		if body.MaxTranscodes < 1 || body.MaxTranscodes > 16 {
+			writeError(w, 400, "maxTranscodes muss zwischen 1 und 16 liegen")
+			return
+		}
+		if err := s.Store.SetSetting(maxTranscodesSettingKey, strconv.Itoa(body.MaxTranscodes)); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		if s.Playback != nil {
+			s.Playback.SetMaxSessions(body.MaxTranscodes)
+		}
+	}
 	hw, _ := s.Store.GetSetting("hwaccel_mode", "auto")
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "settings_change",
@@ -230,5 +280,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		OMDbConfigured:            okey != "",
 		HwaccelMode:               hw,
 		AutoRenameConfirmedMovies: body.AutoRenameConfirmedMovies,
+		MaxTranscodes:             s.maxTranscodesSetting(),
+		ActiveTranscodes:          s.activeTranscodes(),
 	})
 }

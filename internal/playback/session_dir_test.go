@@ -1,21 +1,11 @@
 package playback
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
-
-// sessionDirName baut einen Verzeichnisnamen exakt so zusammen wie StartOrGet:
-// Session-Key plus eindeutiger base36-Suffix.
-func sessionDirName(itemID int64, profileID string, audioIdx int, startSec float64, dei int) string {
-	id := fmt.Sprintf("%d-%s-a%d-%d-d%d", itemID, profileID, audioIdx, int(startSec), dei)
-	return id + "-" + strconv.FormatInt(time.Now().UnixNano(), 36)
-}
 
 // Der Startup-Cleanup loescht alles, was sessionDirPattern matcht. Im selben
 // cacheDir liegen aber auch der Download- und der Trailer-Cache — matcht das
@@ -47,7 +37,7 @@ func TestSessionDirPatternMatchesRealSessionDirs(t *testing.T) {
 		{999999, "720p", 11, 99999, 1},
 	}
 	for _, c := range cases {
-		name := sessionDirName(c.itemID, c.profile, c.audioIdx, c.startSec, c.dei)
+		name := sessionDirName(sessionKey(c.itemID, c.profile, c.audioIdx, c.startSec, c.dei == 1))
 		if !sessionDirPattern.MatchString(name) {
 			t.Errorf("sessionDirPattern matcht %q NICHT — verwaiste Verzeichnisse blieben liegen", name)
 		}
@@ -76,20 +66,28 @@ func TestSessionDirPatternMatchesLegacyDirs(t *testing.T) {
 // Kern des fresh=1-Fixes: zwei aufeinanderfolgende Sessions mit identischem
 // Key duerfen NIE denselben Pfad bekommen. Sonst schreibt ein noch sterbendes
 // ffmpeg (Stop() wartet nur 3 s) in das Verzeichnis der neuen Session.
+//
+// Prueft bewusst die ECHTE Produktionsfunktion (playback.sessionDirName) —
+// eine nachgebaute Kopie hier im Test wuerde genau den Bug verstecken, den
+// dieser Test finden soll (bis 2026-09-17 bestand der Suffix nur aus einem
+// Zeitstempel und kollidierte bei grober Uhr-Aufloesung).
 func TestSessionDirsAreUniquePerStart(t *testing.T) {
 	seen := map[string]bool{}
-	for i := 0; i < 100; i++ {
-		name := sessionDirName(44885, "orig", -1, 271.9, 0)
+	for i := 0; i < 1000; i++ {
+		name := sessionDirName("44885-orig-a-1-271-d0")
 		if seen[name] {
 			t.Fatalf("Verzeichnisname %q doppelt vergeben — Race zwischen alter und neuer Session moeglich", name)
 		}
 		seen[name] = true
+		if !sessionDirPattern.MatchString(name) {
+			t.Fatalf("erzeugter Name %q matcht sessionDirPattern NICHT — Startup-Cleanup wuerde ihn nie aufraeumen", name)
+		}
 	}
 }
 
 func TestCleanStaleSessionDirsRemovesOnlySessionDirs(t *testing.T) {
 	cache := t.TempDir()
-	stale := sessionDirName(44885, "orig", -1, 271.9, 0)
+	stale := sessionDirName(sessionKey(44885, "orig", -1, 271.9, false))
 	keep := []string{"downloads", "trailers"}
 
 	for _, d := range append([]string{stale}, keep...) {

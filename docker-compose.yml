@@ -4,6 +4,36 @@ services:
     image: goldfish:latest
     container_name: goldfish
     restart: unless-stopped
+    # 🔴 Ressourcen-Deckel — NICHT entfernen.
+    #
+    # Ein Test mit acht gleichzeitigen 4K-Umwandlungen hat am 2026-09-16 den
+    # GESAMTEN Host mitgerissen (kompletter Reboot noetig, nicht nur ein
+    # Container-Neustart): ohne Limit darf der Container beliebig viel RAM
+    # belegen, bis der OOM-Killer des Hosts zuschlaegt — und der trifft dann
+    # nicht zwingend nur ffmpeg, sondern irgendeinen Prozess, auch einen
+    # kritischen des Hosts.
+    #
+    # Das ist die ZWEITE Verteidigungslinie. Die erste ist das Transcode-Limit
+    # in der App (Zahnrad-Menue → Einstellungen, Default 4, siehe
+    # playback.DefaultMaxSessions). Beide sind noetig: die App-Grenze verhindert
+    # den Normalfall sauber mit einer Meldung an den Nutzer, dieser Deckel hier
+    # faengt alles ab, was die App nicht kennt (ffmpeg-Ausreisser, Speicherleck,
+    # Trickplay-/Download-Worker parallel zu Wiedergaben).
+    #
+    # Werte fuer einen Host mit >= 16 GB RAM. Auf kleineren Systemen runter
+    # (eine 4K-VAAPI-Session braucht erfahrungsgemaess ~0.5-1 GB).
+    # Referenz-Deployment (Unraid, 20 Kerne / 31 GB): mem_limit 12g, cpus 14.
+    mem_limit: 8g
+    # ⚠ memswap_limit NUR setzen, wenn der Kernel Swap-Limits unterstuetzt —
+    # `docker info` muss `SwapLimit: true` melden. Auf Unraid 7.2 ist es
+    # `false`, dort fuehrt die Option nur zu einer Warnung; deshalb im
+    # Live-Stack bewusst weggelassen.
+    # memswap_limit: 8g
+    # Nicht alle Kerne: ffmpeg skaliert bereitwillig ueber alles, was da ist,
+    # und hungert dann den Host selbst aus (Web-UI/Shares reagieren nicht mehr).
+    cpus: 6.0
+    # Weicher Vorrang: unter Last bekommen Host-Prozesse die CPU zuerst.
+    cpu_shares: 512
     ports:
       - "8096:8096"
     devices:

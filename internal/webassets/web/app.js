@@ -1605,6 +1605,7 @@ function wire() {
   $("#settingsForm").addEventListener("submit", saveSettings);
   $("#bufRange").addEventListener("input", (e) => { $("#bufVal").textContent = e.target.value; });
   $("#startBufRange").addEventListener("input", (e) => { $("#startBufVal").textContent = e.target.value; });
+  $("#maxTcRange").addEventListener("input", (e) => { $("#maxTcVal").textContent = e.target.value; });
   $("#tpInterval").addEventListener("input", (e) => { $("#tpIntervalVal").textContent = e.target.value; });
   $("#playerClose").addEventListener("click", closePlayer);
   $("#playerDialog").addEventListener("close", () => {

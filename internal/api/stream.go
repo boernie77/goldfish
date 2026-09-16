@@ -517,6 +517,16 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "")
 	if err != nil {
+		// Limit erreicht: 503 statt 500 — das ist ein temporaerer Zustand,
+		// kein Serverfehler. Der Text wird im Player direkt angezeigt, muss
+		// also fuer Endnutzer verstaendlich sein (nicht „ffmpeg start: …").
+		if errors.Is(err, playback.ErrTooManySessions) {
+			w.Header().Set("Retry-After", "30")
+			writeError(w, 503, "Server ausgelastet: es laufen bereits "+
+				strconv.Itoa(s.Playback.MaxSessions())+
+				" gleichzeitige Umwandlungen. Bitte später erneut versuchen.")
+			return
+		}
 		writeError(w, 500, "ffmpeg start: "+err.Error())
 		return
 	}

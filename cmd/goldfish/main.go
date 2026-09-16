@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -67,6 +68,15 @@ func main() {
 	hwMode, _ := db.GetSetting("hwaccel_mode", "auto")
 	hw.ApplySelection(hwMode)
 	pb := playback.NewManager(filepath.Join(configDir, "cache"), hw)
+	// Obergrenze gleichzeitiger Video-Umwandlungen aus den Einstellungen.
+	// Ohne Limit riss ein Test mit acht parallelen 4K-Transcodes am
+	// 2026-09-16 den ganzen Unraid-Host mit (siehe playback.DefaultMaxSessions).
+	if raw, _ := db.GetSetting("max_transcodes", ""); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n >= 1 && n <= 16 {
+			pb.SetMaxSessions(n)
+		}
+	}
+	log.Printf("[transcode] Limit gleichzeitiger Video-Umwandlungen: %d", pb.MaxSessions())
 	sc := scanner.New(db, filepath.Join(configDir, "thumbs"))
 	// Album-Cover teilen sich den Poster-Cache-Ordner (gleiche Flat-Dir-
 	// Konvention, eigener Dateiname-Präfix "album_", siehe extractAlbumCovers).

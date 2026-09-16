@@ -561,6 +561,12 @@ async function openSettings() {
   const tpi = state.settings.trickplayIntervalSec || 10;
   $("#tpInterval").value = tpi;
   $("#tpIntervalVal").textContent = tpi;
+  // Limit gleichzeitiger Umwandlungen + aktuelle Auslastung.
+  const maxTc = state.settings.maxTranscodes || 4;
+  $("#maxTcRange").value = maxTc;
+  $("#maxTcVal").textContent = maxTc;
+  const activeTc = state.settings.activeTranscodes || 0;
+  $("#maxTcVal").textContent = `${maxTc} (aktuell laufen ${activeTc})`;
   $("#tmdbKeyInput").value = "";
   $("#omdbKeyInput").value = "";
   $("#tmdbStatus").innerHTML = state.settings.tmdbConfigured
@@ -597,6 +603,7 @@ async function saveSettings(e) {
     bufferSeconds: parseInt($("#bufRange").value, 10),
     startBufferSeconds: parseInt($("#startBufRange").value, 10) || 0,
     trickplayIntervalSec: parseInt($("#tpInterval").value, 10),
+    maxTranscodes: parseInt($("#maxTcRange").value, 10) || 4,
     hwaccelMode: $("#hwaccelMode").value || "auto",
     autoRenameConfirmedMovies: !!$("#autoRenameToggle").checked,
   };
