@@ -4250,6 +4250,58 @@ volumes:
   videoplayer_config:
 ```
 
+## Server-Hardware (gemessen 2026-09-17, nicht raten)
+
+Host **Tower**, Unraid OS 7.2 (Kernel 6.12.87), Docker 29.3.1, Portainer 2.39.4:
+
+- **CPU: Intel Core i5-13500** (Raptor Lake), **20 Kerne**, **31,2 GB RAM**
+- **iGPU: UHD 770** — der aktiv genutzte Transcoder (`hwaccel.backend: vaapi`,
+  `/dev/dri/renderD128`, Intel iHD 23.1.1). Kann laut `vainfo` im laufenden
+  Container: H.264, **HEVC Main/Main10/Main12**, **VP9 (enc+dec)**, **AV1-Decode**,
+  15 Encode-Entrypoints.
+- **Zusätzlich verbaut: NVIDIA Quadro P400** (NVENC verfügbar, Treiber 580.159.03,
+  `runtime: nvidia` im Stack). **Wird NICHT genutzt und ist der iGPU unterlegen**
+  (Pascal 2017: kein HEVC-10-Bit-Encode, kein AV1, kein VP9, nur 2 GB VRAM).
+  `hwaccel.go` wählt ohnehin **genau EIN** Backend (`Selected`, Reihenfolge
+  vaapi > nvenc > software) — eine echte Verteilung auf zwei GPUs existiert im
+  Code nicht und wäre ein Umbau auf Pool-Logik mit Zuweisung pro Session.
+  **Die 4 stabilen 4K-Streams stammen allein von der iGPU.**
+- `SwapLimit: false` → **kein `memswap_limit`** in Compose-Dateien verwenden.
+
+## 🔜 Hier weitermachen (Stand 2026-09-17, nachts)
+
+**Erledigt und LIVE (v1.4.1):** Transcode-Limit (App, Default 4) +
+Container-Deckel in Stack 37 (12g / 14 Kerne / shares 512) — beides verifiziert,
+SSO nach Redeploy geprüft (302). Siehe „Laufzeit" für die volle Begründung.
+
+**Offen — Messungen, bewusst verschoben, weil jemand geschaut hat
+(`docker top` zeigte eine laufende Session, Benutzer Martin, Profil 480p-hq):**
+
+1. **Wie viele parallele 4K-Transcodes schafft die UHD 770 WIRKLICH?**
+   Der Absturz am 2026-09-16 (acht Streams, Host-Reboot) ist am fehlenden
+   Limit gescheitert, **nicht nachweislich an der GPU-Kapazität** — das ist
+   bislang unbelegt. Mit dem gesetzten Limit kann man gefahrlos schrittweise
+   hochtesten (`max_transcodes` im Zahnrad-Menü) und dabei `intel_gpu_top`
+   beobachten. **Nur bei freiem Server messen.**
+2. **Erzwingt das Material überhaupt 4K-Transcodes, oder läuft meist
+   Direct Play?** Der einzige beobachtete Live-Stream lief auf `480p-hq`
+   (schwacher Client, nicht 4K-Last). Wenn in der Praxis kaum 4K transcodiert
+   wird, erledigt sich die GPU-Frage komplett.
+
+**GPU-Kaufberatung (User plant, die P400 zu ersetzen):** Empfehlung ist
+**Intel Arc A380 (~110-130 €)** — AV1-Encode (kann weder UHD 770 noch NVIDIA
+vor RTX 40), **kein künstliches Session-Limit** (NVIDIA-Consumer: 8, früher 3),
+6 GB VRAM, und vor allem: **spricht denselben VAAPI-Pfad wie die iGPU, also
+kein Code-Umbau nötig** (die P400 bräuchte den separaten NVENC-Pfad).
+**Aber: erst messen, dann kaufen** — Punkt 1 und 2 oben können den Kauf
+überflüssig machen. Kostenloser Zwischenschritt: die P400 ausbauen, sie zieht
+Strom ohne Beitrag (außer sie wird anderweitig gebraucht — offene Frage an
+den User).
+
+**Ebenfalls offen (FireTV-App, aus dem dortigen Repo):** Suchfeld zeigt den
+Begriff nach dem Suchen nicht mehr an, Player-Options-Dialog (zweimal BACK)
+noch nicht mit echter Fernbedienung bestätigt, Trailer-Wiedergabe ungebaut.
+
 ## Bekannte Probleme & Lösungen (Decision Log)
 
 > Vollständiger Decision-Log ausgelagert in **`DECISIONS.md`** (wird nicht automatisch
