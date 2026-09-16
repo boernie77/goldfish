@@ -202,6 +202,30 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
+# 📺 Fire-TV/Android-TV-App (GoldfishFireTV, seit 2026-09-16, reines Grundgerüst)
+
+> **An jede Claude-Session, die Goldfish-Server-API anfasst:**
+> Es gibt seit 2026-09-16 zusätzlich einen **Fire-TV/Android-TV-Client**
+> unter `github.com/boernie77/goldfish-firetv` (privat, lokal
+> `~/Projekte/GoldfishFireTV/`) — Kotlin + Compose for TV, eigenständiges
+> Repo (NICHT Teil von GoldfishAndroid, auch wenn der komplette data/di-
+> Layer von dort übernommen und paket-umbenannt wurde).
+>
+> **Stand: nur Grundgerüst** — Login-Screen + Bibliotheks-Liste, kein
+> Item-Browsing/Player/Downloads. Erster `./gradlew assembleDebug`-Build
+> lief erfolgreich, **noch nie auf Emulator oder echtem Gerät getestet.**
+>
+> **Die volle Architektur/aktueller-Stand steht in der CLAUDE.md dieses
+> App-Repos** (nicht mehr hier) — bei jeder Änderung, die diese App
+> betreffen könnte, dort nachsehen.
+>
+> **Bei API-Änderungen prüfen:** `data/api/GoldfishApi.kt` +
+> `data/model/Models.kt` im App-Repo — identischer Client-Code wie
+> GoldfishAndroid (1:1 kopiert), Änderungen müssen in BEIDEN Android-Repos
+> nachgezogen werden, kein automatischer Sync.
+
+---
+
 # 🍎 Mac/iOS/tvOS-App (GoldfishApple, seit 2026-08-17)
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
