@@ -1032,6 +1032,19 @@
   </div>
 </dialog>
 
+<!-- Vorschau vor "Gesehene löschen (außer letzte)" — zeigt die betroffenen
+     Dateien VOR dem Löschen an (User-Wunsch 2026-09-16, nach einem Fall bei
+     dem ohne Vorschau mehr gelöscht wurde als erwartet). -->
+<dialog id="deleteWatchedPreviewDialog" class="modal">
+  <h2>🗑 Gesehene löschen (außer letzte)</h2>
+  <p class="hint" id="deleteWatchedPreviewSummary" style="margin:2px 0 12px"></p>
+  <div id="deleteWatchedPreviewList" style="max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:2px;"></div>
+  <div class="row">
+    <button type="button" data-close>Abbrechen</button>
+    <button type="button" id="deleteWatchedPreviewConfirm" class="danger">🗑 Diese Dateien löschen</button>
+  </div>
+</dialog>
+
 <!-- Anzeige-Einstellungen (per-User, localStorage) -->
 <dialog id="displayPrefsDialog" class="modal">
   <h2>🔤 Anzeige</h2>

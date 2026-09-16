@@ -75,11 +75,12 @@ func (s *Server) deleteItemFilesAndRow(it *model.Item) error {
 
 // deleteWatchedExceptLast löscht alle für den aktuellen User gesehenen Videos
 // einer PRIVATEN Bibliothek (optional auf einen Ordner beschränkt, rekursiv),
-// behält aber pro physischem Ordner IMMER das chronologisch letzte Video —
-// egal ob gesehen oder nicht. Gedacht für YouTube-Kanal-Ordner mit vielen
-// bereits angesehenen Folgen, damit dort nie alle Videos verschwinden.
-// Bewusst NUR für kind=private — Serien/Filme dürfen dieser Aktion nie
-// zugänglich sein (User-Vorgabe).
+// behält aber pro physischem Ordner IMMER das jeweils letzte GESEHENE Video
+// (nicht das chronologisch letzte Video insgesamt — ein ungesehenes, neueres
+// Video bleibt davon unabhängig ohnehin immer erhalten). Gedacht für
+// YouTube-Kanal-Ordner mit vielen bereits angesehenen Folgen, damit nie das
+// zuletzt gesehene Video mitgelöscht wird. Bewusst NUR für kind=private —
+// Serien/Filme dürfen dieser Aktion nie zugänglich sein (User-Vorgabe).
 func (s *Server) deleteWatchedExceptLast(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	if me == nil || !me.IsAdmin {
@@ -112,45 +113,48 @@ func (s *Server) deleteWatchedExceptLast(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	folder := r.URL.Query().Get("folder")
+	dryRun := r.URL.Query().Get("dryRun") == "1"
 
-	// Aufsteigend nach "released" — der letzte Treffer je Ordner ist damit
-	// automatisch das jüngste Video dieses Ordners.
-	items, err := s.Store.ListItems(store.ItemFilter{
-		LibraryID: libID,
-		Folder:    folder,
-		Sort:      "released",
-		SortDir:   "asc",
-		UserID:    me.ID,
-		IsAdmin:   true,
-	})
+	candidates, err := s.deleteWatchedExceptLastCandidates(libID, folder, me.ID)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
 
-	folderOf := func(relPath string) string {
-		if idx := strings.LastIndex(relPath, "/"); idx >= 0 {
-			return relPath[:idx]
+	// Vorschau: NICHTS löschen, nur zeigen, was gelöscht würde (User-Wunsch
+	// 2026-09-16, nach einem Fall, in dem der Button mehr löschte als
+	// erwartet und keine Datei-genaue Spur hinterließ — siehe unten).
+	if dryRun {
+		out := make([]map[string]any, 0, len(candidates))
+		var totalSize int64
+		for _, it := range candidates {
+			out = append(out, map[string]any{
+				"id": it.ID, "title": it.Title, "relPath": it.RelPath, "sizeBytes": it.SizeBytes,
+			})
+			totalSize += it.SizeBytes
 		}
-		return ""
-	}
-
-	keepID := map[string]int64{}
-	for _, it := range items {
-		keepID[folderOf(it.RelPath)] = it.ID
+		writeJSON(w, 200, map[string]any{"items": out, "count": len(out), "totalSizeBytes": totalSize})
+		return
 	}
 
 	deleted, failed := 0, 0
-	for _, it := range items {
-		if !it.Watched || it.ID == keepID[folderOf(it.RelPath)] {
-			continue
-		}
+	for _, it := range candidates {
 		itCopy := it
 		if err := s.deleteItemFilesAndRow(&itCopy); err != nil {
 			failed++
 			continue
 		}
 		deleted++
+		// Datei-genaue Protokollierung PRO gelöschter Datei — bewusste
+		// Ausnahme von der sonstigen "ein Eintrag pro Lauf"-Konvention für
+		// Hintergrund-Jobs (Scan/Trickplay/OCR): das hier ist eine
+		// unwiderrufliche Datei-Löschung, nicht ein wiederholbarer
+		// Hintergrund-Job. Ohne Datei-genauen Eintrag lässt sich hinterher
+		// nicht mehr feststellen, WAS konkret gelöscht wurde (User-Report
+		// 2026-09-16: nach einem Bug im Auswahl-Kriterium blieb nur "74
+		// gelöscht" im Protokoll, ohne einen einzigen Dateinamen).
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_delete",
+			fmt.Sprintf("%q (%s) · gesehene-Löschung", itCopy.Title, itCopy.RelPath), deviceLabel(r))
 	}
 
 	detail := fmt.Sprintf("%d gelöscht", deleted)
@@ -163,6 +167,56 @@ func (s *Server) deleteWatchedExceptLast(w http.ResponseWriter, r *http.Request)
 	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "delete_watched_except_last", detail, deviceLabel(r))
 
 	writeJSON(w, 200, map[string]any{"deleted": deleted, "failed": failed})
+}
+
+// deleteWatchedExceptLastCandidates liefert die Items, die
+// deleteWatchedExceptLast löschen würde — gemeinsam genutzt von der
+// Vorschau (dryRun) und der eigentlichen Ausführung, damit beide garantiert
+// dieselbe Auswahl-Logik verwenden.
+func (s *Server) deleteWatchedExceptLastCandidates(libID int64, folder string, userID int64) ([]model.Item, error) {
+	// Aufsteigend nach "released" — der letzte Treffer je Ordner ist damit
+	// automatisch das jüngste Video dieses Ordners.
+	items, err := s.Store.ListItems(store.ItemFilter{
+		LibraryID: libID,
+		Folder:    folder,
+		Sort:      "released",
+		SortDir:   "asc",
+		UserID:    userID,
+		IsAdmin:   true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	folderOf := func(relPath string) string {
+		if idx := strings.LastIndex(relPath, "/"); idx >= 0 {
+			return relPath[:idx]
+		}
+		return ""
+	}
+
+	// keepID ist pro Ordner das jeweils LETZTE GESEHENE Video — nicht das
+	// chronologisch letzte Video insgesamt. War ein Bug: war das neueste
+	// Video eines Ordners noch ungesehen, wurde fälschlich DAS als "letztes"
+	// geschützt (obwohl es als ungesehenes ohnehin nie gelöscht worden wäre)
+	// und das tatsächlich letzte GESEHENE Video mitgelöscht (User-Report
+	// 2026-09-16: "Das letzte gesehene Video sollte NICHT gelöscht werden").
+	keepID := map[string]int64{}
+	for _, it := range items {
+		if !it.Watched {
+			continue
+		}
+		keepID[folderOf(it.RelPath)] = it.ID
+	}
+
+	candidates := make([]model.Item, 0, len(items))
+	for _, it := range items {
+		if !it.Watched || it.ID == keepID[folderOf(it.RelPath)] {
+			continue
+		}
+		candidates = append(candidates, it)
+	}
+	return candidates, nil
 }
 
 // downloadItem serviert eine Videodatei als Download (Content-Disposition: attachment).

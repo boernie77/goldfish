@@ -1007,37 +1007,82 @@ async function loadCount(el, libId, folder) {
 
 // Löscht in einer PRIVATEN Bibliothek (z. B. YouTube-Downloads) alle für den
 // aktuellen User gesehenen Videos, behält aber pro Ordner immer das jeweils
-// letzte (neueste) Video — bewusst NUR für kind=private sichtbar, damit diese
-// Aktion Serien/Filme nie treffen kann (User-Vorgabe).
+// letzte GESEHENE Video (nicht das chronologisch letzte Video insgesamt —
+// ein ungesehenes, neueres Video bleibt davon unabhängig ohnehin immer
+// erhalten). Bewusst NUR für kind=private sichtbar, damit diese Aktion
+// Serien/Filme nie treffen kann (User-Vorgabe).
 function renderDeleteWatchedExceptLastButton(bc, lib, folder) {
   if (!lib || lib.kind !== "private" || !lib.deleteWatchedButtonEnabled) return;
   if (!state.me || !state.me.isAdmin) return;
   const btn = document.createElement("button");
   btn.className = "delete-watched-except-last-btn";
   btn.textContent = "🗑 Gesehene löschen (außer letzte)";
-  btn.title = "Löscht alle gesehenen Videos in diesem Bereich, behält aber pro Ordner immer das letzte";
+  btn.title = "Löscht alle gesehenen Videos in diesem Bereich, behält aber pro Ordner immer das letzte gesehene Video";
   btn.addEventListener("click", () => deleteWatchedExceptLast(lib.id, folder || ""));
   bc.appendChild(btn);
 }
 
+// Zeigt zuerst eine Vorschau der betroffenen Dateien (dryRun=1, löscht
+// NICHTS), bevor überhaupt etwas gelöscht wird — seit 2026-09-16, nachdem
+// ein Bug im Auswahl-Kriterium mehr Dateien traf als erwartet und die reine
+// Anzahl im Protokoll keine Rückschlüsse mehr zuließ, welche Dateien konkret
+// betroffen waren. Der User sieht jetzt die vollständige Liste, bevor er
+// bestätigt.
 async function deleteWatchedExceptLast(libId, folder) {
-  const scope = folder ? `Ordner „${folder}" (rekursiv)` : "der gesamten Bibliothek";
-  if (!(await appConfirm(
-    `Alle gesehenen Videos in ${scope} löschen?\n\nIn jedem Unterordner bleibt automatisch das jeweils letzte (neueste) Video erhalten — kein Ordner wird komplett leer.\n\nDies kann nicht rückgängig gemacht werden.`,
-    { danger: true, okLabel: "Löschen" }
-  ))) return;
-  if (!(await appConfirm("Wirklich sicher? Die Dateien werden für IMMER gelöscht."))) return;
+  let preview;
   try {
-    const q = folder ? `?folder=${encodeURIComponent(folder)}` : "";
-    const res = await api(`/api/libraries/${libId}/folders/delete-watched-except-last${q}`, { method: "POST" });
-    showToast(
-      `${res.deleted} gesehene Videos gelöscht` + (res.failed ? `, ${res.failed} fehlgeschlagen` : ""),
-      { kind: res.failed ? "error" : "success" }
-    );
-    loadItems();
+    const q = folder ? `?folder=${encodeURIComponent(folder)}&dryRun=1` : "?dryRun=1";
+    preview = await api(`/api/libraries/${libId}/folders/delete-watched-except-last${q}`, { method: "POST" });
   } catch (e) {
     appAlert(e.message);
+    return;
   }
+  if (!preview.count) {
+    appAlert("Nichts zu löschen — in diesem Bereich gibt es keine gesehenen Videos außer dem jeweils letzten pro Ordner.");
+    return;
+  }
+
+  const scope = folder ? `Ordner „${folder}" (rekursiv)` : "der gesamten Bibliothek";
+  const summary = $("#deleteWatchedPreviewSummary");
+  summary.textContent = `${preview.count} Videos in ${scope} · ${fmtSize(preview.totalSizeBytes)} — werden UNWIDERRUFLICH gelöscht. Pro Ordner bleibt das jeweils letzte gesehene Video erhalten.`;
+
+  const list = $("#deleteWatchedPreviewList");
+  list.innerHTML = "";
+  for (const it of preview.items) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; gap:12px; padding:4px 2px; border-bottom:1px solid var(--border); font-size:13px;";
+    const name = document.createElement("span");
+    name.textContent = it.relPath || it.title;
+    name.style.cssText = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+    const size = document.createElement("span");
+    size.style.cssText = "color:var(--text-dim); flex:0 0 auto;";
+    size.textContent = fmtSize(it.sizeBytes);
+    row.appendChild(name);
+    row.appendChild(size);
+    list.appendChild(row);
+  }
+
+  const dlg = $("#deleteWatchedPreviewDialog");
+  const confirmBtn = $("#deleteWatchedPreviewConfirm");
+  confirmBtn.textContent = `🗑 Diese ${preview.count} Dateien löschen`;
+  confirmBtn.onclick = async () => {
+    confirmBtn.disabled = true;
+    try {
+      const q = folder ? `?folder=${encodeURIComponent(folder)}` : "";
+      const res = await api(`/api/libraries/${libId}/folders/delete-watched-except-last${q}`, { method: "POST" });
+      dlg.close();
+      showToast(
+        `${res.deleted} gesehene Videos gelöscht` + (res.failed ? `, ${res.failed} fehlgeschlagen` : ""),
+        { kind: res.failed ? "error" : "success" }
+      );
+      loadItems();
+    } catch (e) {
+      appAlert(e.message);
+    } finally {
+      confirmBtn.disabled = false;
+    }
+  };
+  if (!dlg.open) dlg.showModal();
 }
 
 // Füllt die Admin-only-Bibliotheksliste im "🔤 Anzeige"-Dialog, über die der
