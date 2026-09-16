@@ -170,14 +170,7 @@ function renderUserCard(u) {
       dlToggle.checked = !dlToggle.checked;
     }
   });
-  card.querySelector(".user-pw-btn").addEventListener("click", async () => {
-    const np = await appPrompt(`Neues Passwort für ${u.username} (min. 6 Zeichen):`);
-    if (!np || np.length < 6) return;
-    try {
-      await api(`/api/users/${u.id}/password`, { method: "PUT", body: JSON.stringify({ password: np }) });
-      showToast("Passwort gesetzt", { kind: "success" });
-    } catch (e) { appAlert(e.message); }
-  });
+  card.querySelector(".user-pw-btn").addEventListener("click", () => openResetPassword(u));
   const adminBtn = card.querySelector(".user-admin-btn");
   if (adminBtn) {
     adminBtn.addEventListener("click", async () => {
@@ -207,6 +200,11 @@ async function handleNewUser(e) {
   e.preventDefault();
   const form = e.target;
   const fd = new FormData(form);
+  // Zweifach-Eingabe zur Bestätigung (User-Wunsch 2026-09-17).
+  if (fd.get("password") !== fd.get("passwordConfirm")) {
+    appAlert("Die beiden Passwörter stimmen nicht überein.");
+    return;
+  }
   const body = {
     username: fd.get("username"),
     password: fd.get("password"),
@@ -268,10 +266,48 @@ async function openUserAcl(u) {
   $("#userAclDialog").showModal();
 }
 
+// Admin setzt das Passwort eines ANDEREN Benutzers neu — bis 2026-09-17 ein
+// einzelnes appPrompt-Feld (Klartext, aber ohne Bestätigungs-Eingabe).
+// User-Wunsch: Anzeigen-Umschalter + zweifache Eingabe wie beim eigenen
+// Passwort-Ändern-Dialog, daher jetzt derselbe Dialog-Aufbau statt appPrompt.
+function openResetPassword(u) {
+  const hint = $("#resetPasswordHint");
+  if (hint) hint.textContent = `Neues Passwort für „${u.username}" (min. 6 Zeichen).`;
+  const form = $("#resetPasswordForm");
+  form.reset();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    if (fd.get("newPassword") !== fd.get("newPasswordConfirm")) {
+      appAlert("Die beiden Passwörter stimmen nicht überein.");
+      return;
+    }
+    try {
+      await api(`/api/users/${u.id}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ password: fd.get("newPassword") }),
+      });
+      form.reset();
+      $("#resetPasswordDialog").close();
+      showToast("Passwort gesetzt", { kind: "success" });
+    } catch (err) { appAlert(err.message); }
+  };
+  $("#resetPasswordDialog").showModal();
+}
+
 async function handleMyPassword(e) {
   e.preventDefault();
   const form = e.target;
-  const body = Object.fromEntries(new FormData(form));
+  const fd = new FormData(form);
+  // Zweifach-Eingabe zur Bestätigung (User-Wunsch 2026-09-17) — nur
+  // clientseitig geprüft, das Bestätigungsfeld selbst geht nie an den
+  // Server (Object.fromEntries würde es sonst als unbekanntes Feld
+  // mitschicken).
+  if (fd.get("newPassword") !== fd.get("newPasswordConfirm")) {
+    appAlert("Die beiden neuen Passwörter stimmen nicht überein.");
+    return;
+  }
+  const body = { oldPassword: fd.get("oldPassword"), newPassword: fd.get("newPassword") };
   try {
     await api("/api/auth/password", { method: "PUT", body: JSON.stringify(body) });
     form.reset();

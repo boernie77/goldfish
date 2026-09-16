@@ -81,6 +81,24 @@ function appAlert(msg, opts = {}) {
   return appDialog({ title: opts.title || "", body: msg, showCancel: false, okLabel: opts.okLabel || "OK" });
 }
 
+// Passwort-Anzeigen-Umschalter (User-Wunsch 2026-09-17): jedes ".pw-toggle"
+// togglet type="password"/"text" seines Geschwister-<input> in ".pw-field".
+// Event-Delegation auf document, damit auch <dialog>-Inhalte funktionieren,
+// die erst spaeter (per showModal) in Erscheinung treten — kein erneutes
+// Wiring pro Dialog-Oeffnung noetig. Einmalig in boot() aufgerufen.
+function wirePasswordToggles() {
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".pw-toggle");
+    if (!btn) return;
+    const input = btn.previousElementSibling;
+    if (!input || input.tagName !== "INPUT") return;
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    btn.setAttribute("aria-label", show ? "Passwort verbergen" : "Passwort anzeigen");
+    btn.textContent = show ? "🙈" : "👁";
+  });
+}
+
 // showToast: unaufdringlicher Hinweis rechts unten fuer 3 s. Nicht modal.
 // Nutzung: showToast("Ist schon in der Playlist") oder showToast(msg, {kind:"error"}).
 function showToast(msg, opts = {}) {

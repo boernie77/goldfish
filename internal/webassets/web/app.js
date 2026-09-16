@@ -2023,6 +2023,7 @@ function glassTextColor(hex) {
   }
   renderUserMenu();
   if (typeof initBell === "function") initBell();
+  if (typeof wirePasswordToggles === "function") wirePasswordToggles();
   // Google-Cast SDK initialisieren — registriert sich beim Cast-Framework
   // sobald `cast_sender.js` geladen ist und der Receiver-Discovery startet.
   initCastFramework();

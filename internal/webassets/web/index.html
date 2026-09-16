@@ -873,9 +873,20 @@
   <details class="users-new-details">
     <summary>+ Neuen Benutzer anlegen</summary>
     <form id="userForm" class="form users-new-form">
+      <label>Benutzername <input name="username" required /></label>
       <div class="row" style="gap:8px">
-        <label style="flex:1">Benutzername <input name="username" required /></label>
-        <label style="flex:1">Passwort (min. 6 Zeichen) <input name="password" type="password" minlength="6" required /></label>
+        <label style="flex:1">Passwort (min. 6 Zeichen)
+          <span class="pw-field">
+            <input name="password" type="password" minlength="6" required autocomplete="new-password" />
+            <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+          </span>
+        </label>
+        <label style="flex:1">Passwort bestätigen
+          <span class="pw-field">
+            <input name="passwordConfirm" type="password" minlength="6" required autocomplete="new-password" />
+            <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+          </span>
+        </label>
       </div>
       <label class="checkbox-row"><input name="isAdmin" type="checkbox" /> Administrator-Rechte</label>
       <div class="row" style="margin-top:8px">
@@ -883,6 +894,30 @@
       </div>
     </form>
   </details>
+</dialog>
+
+<!-- Passwort eines anderen Benutzers zurücksetzen (admin) -->
+<dialog id="resetPasswordDialog" class="modal">
+  <h2>Passwort zurücksetzen</h2>
+  <p class="hint" id="resetPasswordHint" style="margin:0 0 10px"></p>
+  <form id="resetPasswordForm" class="form">
+    <label>Neues Passwort (min. 6 Zeichen)
+      <span class="pw-field">
+        <input name="newPassword" type="password" minlength="6" required autocomplete="new-password" />
+        <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+      </span>
+    </label>
+    <label>Neues Passwort bestätigen
+      <span class="pw-field">
+        <input name="newPasswordConfirm" type="password" minlength="6" required autocomplete="new-password" />
+        <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+      </span>
+    </label>
+    <div class="row">
+      <button type="submit" class="primary">Speichern</button>
+      <button type="button" data-close>Abbrechen</button>
+    </div>
+  </form>
 </dialog>
 
 <!-- Trickplay verwalten -->
@@ -1013,8 +1048,24 @@
 <dialog id="passwordDialog" class="modal">
   <h2>Passwort ändern</h2>
   <form id="passwordForm" class="form">
-    <label>Aktuelles Passwort <input name="oldPassword" type="password" required /></label>
-    <label>Neues Passwort (min. 6 Zeichen) <input name="newPassword" type="password" minlength="6" required /></label>
+    <label>Aktuelles Passwort
+      <span class="pw-field">
+        <input name="oldPassword" type="password" required autocomplete="current-password" />
+        <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+      </span>
+    </label>
+    <label>Neues Passwort (min. 6 Zeichen)
+      <span class="pw-field">
+        <input name="newPassword" type="password" minlength="6" required autocomplete="new-password" />
+        <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+      </span>
+    </label>
+    <label>Neues Passwort bestätigen
+      <span class="pw-field">
+        <input name="newPasswordConfirm" type="password" minlength="6" required autocomplete="new-password" />
+        <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+      </span>
+    </label>
     <div class="row">
       <button type="submit" class="primary">Speichern</button>
       <button type="button" data-close>Abbrechen</button>
