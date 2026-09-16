@@ -390,6 +390,21 @@ body.skin-glass .topbar .user-menu strong {
   transition: background .15s;
 }
 .breadcrumb .back-btn:hover { background: var(--card-2); border-color: var(--accent); }
+.breadcrumb .delete-watched-except-last-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin-left: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.breadcrumb .delete-watched-except-last-btn:hover {
+  background: var(--card-2);
+  border-color: #e05555;
+  color: #e05555;
+}
 .breadcrumb .toolbar {
   margin-left: auto;
   display: flex;

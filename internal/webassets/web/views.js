@@ -1003,6 +1003,40 @@ async function loadCount(el, libId, folder) {
   } catch { el.textContent = ""; }
 }
 
+// Löscht in einer PRIVATEN Bibliothek (z. B. YouTube-Downloads) alle für den
+// aktuellen User gesehenen Videos, behält aber pro Ordner immer das jeweils
+// letzte (neueste) Video — bewusst NUR für kind=private sichtbar, damit diese
+// Aktion Serien/Filme nie treffen kann (User-Vorgabe).
+function renderDeleteWatchedExceptLastButton(bc, lib, folder) {
+  if (!lib || lib.kind !== "private" || !state.me || !state.me.isAdmin) return;
+  const btn = document.createElement("button");
+  btn.className = "delete-watched-except-last-btn";
+  btn.textContent = "🗑 Gesehene löschen (außer letzte)";
+  btn.title = "Löscht alle gesehenen Videos in diesem Bereich, behält aber pro Ordner immer das letzte";
+  btn.addEventListener("click", () => deleteWatchedExceptLast(lib.id, folder || ""));
+  bc.appendChild(btn);
+}
+
+async function deleteWatchedExceptLast(libId, folder) {
+  const scope = folder ? `Ordner „${folder}" (rekursiv)` : "der gesamten Bibliothek";
+  if (!(await appConfirm(
+    `Alle gesehenen Videos in ${scope} löschen?\n\nIn jedem Unterordner bleibt automatisch das jeweils letzte (neueste) Video erhalten — kein Ordner wird komplett leer.\n\nDies kann nicht rückgängig gemacht werden.`,
+    { danger: true, okLabel: "Löschen" }
+  ))) return;
+  if (!(await appConfirm("Wirklich sicher? Die Dateien werden für IMMER gelöscht."))) return;
+  try {
+    const q = folder ? `?folder=${encodeURIComponent(folder)}` : "";
+    const res = await api(`/api/libraries/${libId}/folders/delete-watched-except-last${q}`, { method: "POST" });
+    showToast(
+      `${res.deleted} gesehene Videos gelöscht` + (res.failed ? `, ${res.failed} fehlgeschlagen` : ""),
+      { kind: res.failed ? "error" : "success" }
+    );
+    loadItems();
+  } catch (e) {
+    appAlert(e.message);
+  }
+}
+
 function renderBreadcrumb(opts) {
   opts = opts || {};
   // Bei jedem Breadcrumb-Render auch die pinned Lib-Nav aktualisieren, damit
@@ -1413,6 +1447,7 @@ function renderBreadcrumb(opts) {
     } else {
       loadCount(count, lib.id, "");
     }
+    renderDeleteWatchedExceptLastButton(bc, lib, "");
 
     const toolbar = document.createElement("div");
     toolbar.className = "toolbar";
@@ -1506,6 +1541,7 @@ function renderBreadcrumb(opts) {
   } else {
     loadCount(count, lib.id, state.currentFolder);
   }
+  renderDeleteWatchedExceptLastButton(bc, lib, state.currentFolder);
 
   const toolbar = document.createElement("div");
   toolbar.className = "toolbar";

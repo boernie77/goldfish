@@ -12,6 +12,7 @@ import (
 	"github.com/boernie77/goldfish/internal/download"
 	"github.com/boernie77/goldfish/internal/model"
 	"github.com/boernie77/goldfish/internal/playback"
+	"github.com/boernie77/goldfish/internal/store"
 )
 
 // deleteItem löscht ein Item vom Filesystem UND aus der Datenbank. Admin-only.
@@ -37,32 +38,124 @@ func (s *Server) deleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Video-Datei vom Filesystem entfernen.
-	if err := os.Remove(it.Path); err != nil && !os.IsNotExist(err) {
-		writeError(w, 500, "Datei konnte nicht gelöscht werden: "+err.Error()+
-			" (ist /media read-only gemountet? Im Compose-File ':ro' entfernen.)")
+	if err := s.deleteItemFilesAndRow(it); err != nil {
+		writeError(w, 500, err.Error())
 		return
 	}
+	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_delete", fmt.Sprintf("%q (%s)", it.Title, it.RelPath), deviceLabel(r))
+	w.WriteHeader(204)
+}
 
+// deleteItemFilesAndRow entfernt Video-Datei, Thumbnail, Trickplay-Daten,
+// Subtitle-Cache und den DB-Eintrag eines Items. Loggt selbst NICHTS ins
+// Aktivitäts-Protokoll — das entscheiden die Aufrufer (Einzel-Löschung vs.
+// Sammel-Aktion mit einem Eintrag pro Lauf, siehe „Aktivitäts-Protokoll" in
+// CLAUDE.md).
+func (s *Server) deleteItemFilesAndRow(it *model.Item) error {
+	// 1. Video-Datei vom Filesystem entfernen.
+	if err := os.Remove(it.Path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Datei konnte nicht gelöscht werden: %w"+
+			" (ist /media read-only gemountet? Im Compose-File ':ro' entfernen.)", err)
+	}
 	// 2. Thumbnail
 	if it.ThumbPath != "" {
 		_ = os.Remove(it.ThumbPath)
 	}
 	// 3. Trickplay-Verzeichnis
 	if s.Trickplay != nil {
-		s.Trickplay.Delete(id)
+		s.Trickplay.Delete(it.ID)
 	}
 	// 4. Subtitle-Cache
 	if s.SubsDir != "" {
-		_ = os.RemoveAll(filepath.Join(s.SubsDir, strconv.FormatInt(id, 10)))
+		_ = os.RemoveAll(filepath.Join(s.SubsDir, strconv.FormatInt(it.ID, 10)))
 	}
 	// 5. DB-Eintrag — CASCADE räumt verknüpfte Tabellen auf
-	if err := s.Store.DeleteItem(id); err != nil {
+	return s.Store.DeleteItem(it.ID)
+}
+
+// deleteWatchedExceptLast löscht alle für den aktuellen User gesehenen Videos
+// einer PRIVATEN Bibliothek (optional auf einen Ordner beschränkt, rekursiv),
+// behält aber pro physischem Ordner IMMER das chronologisch letzte Video —
+// egal ob gesehen oder nicht. Gedacht für YouTube-Kanal-Ordner mit vielen
+// bereits angesehenen Folgen, damit dort nie alle Videos verschwinden.
+// Bewusst NUR für kind=private — Serien/Filme dürfen dieser Aktion nie
+// zugänglich sein (User-Vorgabe).
+func (s *Server) deleteWatchedExceptLast(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil || !me.IsAdmin {
+		writeError(w, 403, "Administrator erforderlich")
+		return
+	}
+	libID, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	lib, err := s.Store.GetLibrary(libID)
+	if err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
-	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "item_delete", fmt.Sprintf("%q (%s)", it.Title, it.RelPath), deviceLabel(r))
-	w.WriteHeader(204)
+	if lib == nil {
+		writeError(w, 404, "Bibliothek nicht gefunden")
+		return
+	}
+	if lib.Kind != model.KindPrivate {
+		writeError(w, 400, "Nur für private Bibliotheken verfügbar")
+		return
+	}
+	folder := r.URL.Query().Get("folder")
+
+	// Aufsteigend nach "released" — der letzte Treffer je Ordner ist damit
+	// automatisch das jüngste Video dieses Ordners.
+	items, err := s.Store.ListItems(store.ItemFilter{
+		LibraryID: libID,
+		Folder:    folder,
+		Sort:      "released",
+		SortDir:   "asc",
+		UserID:    me.ID,
+		IsAdmin:   true,
+	})
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+
+	folderOf := func(relPath string) string {
+		if idx := strings.LastIndex(relPath, "/"); idx >= 0 {
+			return relPath[:idx]
+		}
+		return ""
+	}
+
+	keepID := map[string]int64{}
+	for _, it := range items {
+		keepID[folderOf(it.RelPath)] = it.ID
+	}
+
+	deleted, failed := 0, 0
+	for _, it := range items {
+		if !it.Watched || it.ID == keepID[folderOf(it.RelPath)] {
+			continue
+		}
+		itCopy := it
+		if err := s.deleteItemFilesAndRow(&itCopy); err != nil {
+			failed++
+			continue
+		}
+		deleted++
+	}
+
+	detail := fmt.Sprintf("%d gelöscht", deleted)
+	if folder != "" {
+		detail = fmt.Sprintf("%q: %s", folder, detail)
+	}
+	if failed > 0 {
+		detail += fmt.Sprintf(", %d fehlgeschlagen", failed)
+	}
+	_ = s.Store.LogActivity(me.ID, me.Username, "admin", "delete_watched_except_last", detail, deviceLabel(r))
+
+	writeJSON(w, 200, map[string]any{"deleted": deleted, "failed": failed})
 }
 
 // downloadItem serviert eine Videodatei als Download (Content-Disposition: attachment).
