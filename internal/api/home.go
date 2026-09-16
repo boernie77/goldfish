@@ -369,3 +369,29 @@ func (s *Server) setLibraryChannelLabelOnTop(w http.ResponseWriter, r *http.Requ
 	}
 	w.WriteHeader(204)
 }
+
+// setLibraryDeleteWatchedButtonEnabled schaltet den "Gesehene löschen (außer
+// letzte)"-Button pro Library frei/ab (siehe model.Library.
+// DeleteWatchedButtonEnabled). Admin-only. Ohne dieses Flag funktioniert der
+// zugehörige Lösch-Endpoint auch bei direktem API-Aufruf nicht — geprüft in
+// deleteWatchedExceptLast (delete_download.go).
+// Body: {"enabled": bool}
+func (s *Server) setLibraryDeleteWatchedButtonEnabled(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetLibraryDeleteWatchedButtonEnabled(id, body.Enabled); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}

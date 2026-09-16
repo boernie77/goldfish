@@ -368,6 +368,8 @@ function openDisplayPrefsDialog() {
   moviesBox.checked = state.showFilenameMovies;
   tvBox.checked = state.showFilenameTv;
 
+  renderDeleteWatchedButtonPrefs();
+
   // Oberflächen-Stil (Glass) + Player-Steuerleiste (Pill) — siehe
   // applyUiSkin() in app.js und .video-js.player-skin-pill in style.css.
   const uiSkinSel = $("#displayPrefsUiSkin");
@@ -1008,7 +1010,8 @@ async function loadCount(el, libId, folder) {
 // letzte (neueste) Video — bewusst NUR für kind=private sichtbar, damit diese
 // Aktion Serien/Filme nie treffen kann (User-Vorgabe).
 function renderDeleteWatchedExceptLastButton(bc, lib, folder) {
-  if (!lib || lib.kind !== "private" || !state.me || !state.me.isAdmin) return;
+  if (!lib || lib.kind !== "private" || !lib.deleteWatchedButtonEnabled) return;
+  if (!state.me || !state.me.isAdmin) return;
   const btn = document.createElement("button");
   btn.className = "delete-watched-except-last-btn";
   btn.textContent = "🗑 Gesehene löschen (außer letzte)";
@@ -1034,6 +1037,64 @@ async function deleteWatchedExceptLast(libId, folder) {
     loadItems();
   } catch (e) {
     appAlert(e.message);
+  }
+}
+
+// Füllt die Admin-only-Bibliotheksliste im "🔤 Anzeige"-Dialog, über die der
+// "🗑 Gesehene löschen (außer letzte)"-Button pro privater Bibliothek
+// freigeschaltet wird. Wird bei jedem Öffnen des Dialogs neu aufgebaut
+// (state.libraries kann sich seither geändert haben).
+function renderDeleteWatchedButtonPrefs() {
+  const section = $("#displayPrefsDeleteWatchedSection");
+  const list = $("#displayPrefsDeleteWatchedLibs");
+  if (!state.me || !state.me.isAdmin) {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+  list.innerHTML = "";
+  const privateLibs = (state.libraries || []).filter(l => l.kind === "private");
+  if (!privateLibs.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Keine private Bibliothek vorhanden.";
+    list.appendChild(p);
+    return;
+  }
+  for (const lib of privateLibs) {
+    const row = document.createElement("label");
+    row.className = "switch-row";
+    const name = document.createElement("span");
+    name.textContent = lib.name;
+    const sw = document.createElement("span");
+    sw.className = "switch";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !!lib.deleteWatchedButtonEnabled;
+    const slider = document.createElement("span");
+    slider.className = "slider";
+    sw.appendChild(input);
+    sw.appendChild(slider);
+    row.appendChild(name);
+    row.appendChild(sw);
+    input.addEventListener("change", async () => {
+      const enabled = input.checked;
+      input.disabled = true;
+      try {
+        await api(`/api/libraries/${lib.id}/delete-watched-button`, {
+          method: "PUT",
+          body: JSON.stringify({ enabled }),
+        });
+        lib.deleteWatchedButtonEnabled = enabled;
+        if (state.currentLibrary == lib.id) renderBreadcrumb();
+      } catch (e) {
+        input.checked = !enabled;
+        appAlert(e.message);
+      } finally {
+        input.disabled = false;
+      }
+    });
+    list.appendChild(row);
   }
 }
 

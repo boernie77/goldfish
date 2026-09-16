@@ -1106,6 +1106,18 @@
     <p class="hint" style="margin:2px 0 12px">Akzentfarbe steuert das Glühen hinter dem Grid, den aktiven Reiter und alle sonst blau eingefärbten Buttons/Häkchen — konsequent überall dieselbe Farbe. Die Hex-Codes lassen sich abtippen, um dieselbe Farbe auf einem anderen Gerät einzustellen.</p>
   </div>
 
+  <!-- Admin-only, server-persistiert (KEIN localStorage) — steuert pro
+       privater Bibliothek, ob der "🗑 Gesehene löschen (außer letzte)"-Button
+       im Breadcrumb erscheint. Der Server erzwingt das zusätzlich selbst,
+       ein hier nicht freigeschalteter Button funktioniert auch per direktem
+       API-Aufruf nicht (siehe internal/api/delete_download.go). -->
+  <div id="displayPrefsDeleteWatchedSection" class="hidden">
+    <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
+    <p class="hint" style="margin:0 0 8px">"🗑 Gesehene löschen (außer letzte)"-Button freischalten für:</p>
+    <div id="displayPrefsDeleteWatchedLibs"></div>
+    <p class="hint" style="margin:8px 0 0">Löscht in dieser Bibliothek alle gesehenen Videos, behält aber pro Ordner immer das letzte. Nur für private Bibliotheken verfügbar.</p>
+  </div>
+
   <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
 
   <label class="switch-row">

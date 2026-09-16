@@ -89,7 +89,14 @@ type Library struct {
 	// false = standard layout (Titel oben, Folder im Pfad). Wirkt nur fuer
 	// Libraries mit kind=private; bei movies/tv ist das Feld irrelevant.
 	ChannelLabelOnTop bool      `json:"channelLabelOnTop"`
-	CreatedAt         time.Time `json:"createdAt"`
+	// DeleteWatchedButtonEnabled schaltet den "🗑 Gesehene löschen (außer
+	// letzte)"-Button für diese Library frei (nur wirksam bei kind=private,
+	// Default AUS). Admin wählt das explizit pro Library im "🔤 Anzeige"-
+	// Menü — der Server prüft dieses Flag zusätzlich zur Kind-Prüfung, damit
+	// der Button in nicht freigegebenen Bibliotheken auch bei direktem
+	// API-Aufruf nicht funktioniert.
+	DeleteWatchedButtonEnabled bool      `json:"deleteWatchedButtonEnabled"`
+	CreatedAt                  time.Time `json:"createdAt"`
 }
 
 // Metadata hält angereicherte TMDB-Daten zu einem Film, einer Serie oder einer Episode.

@@ -470,6 +470,11 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "channel_label_on_top", "INTEGER NOT NULL DEFAULT 1"); err != nil {
 		return err
 	}
+	// Schaltet den "Gesehene löschen (außer letzte)"-Button frei — Default AUS,
+	// Admin aktiviert das explizit pro (privater) Library im "🔤 Anzeige"-Menü.
+	if err := addCol("libraries", "delete_watched_button_enabled", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Pro-User-Reihenfolge der Startseiten-Streifen (zusätzlich zum
 	// pro-User on_home-Override in derselben Tabelle). addCol nötig, weil
 	// user_home_prefs bereits vor dieser Spalte live war (CREATE TABLE IF

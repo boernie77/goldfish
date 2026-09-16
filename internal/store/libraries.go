@@ -12,7 +12,7 @@ import (
 )
 
 func (s *Store) ListLibraries() ([]model.Library, error) {
-	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), created_at FROM libraries ORDER BY sort_order, name`)
+	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), COALESCE(delete_watched_button_enabled, 0), created_at FROM libraries ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -21,13 +21,14 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 	for rows.Next() {
 		var l model.Library
 		var kind string
-		var onHome, channelTop int
-		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &l.CreatedAt); err != nil {
+		var onHome, channelTop, deleteWatchedBtn int
+		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &deleteWatchedBtn, &l.CreatedAt); err != nil {
 			return nil, err
 		}
 		l.Kind = model.LibraryKind(kind)
 		l.OnHome = onHome == 1
 		l.ChannelLabelOnTop = channelTop == 1
+		l.DeleteWatchedButtonEnabled = deleteWatchedBtn == 1
 		out = append(out, l)
 	}
 	return out, rows.Err()
@@ -36,15 +37,16 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 func (s *Store) GetLibrary(id int64) (*model.Library, error) {
 	var l model.Library
 	var kind string
-	var onHome, channelTop int
-	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), created_at FROM libraries WHERE id = ?`, id).
-		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &l.CreatedAt)
+	var onHome, channelTop, deleteWatchedBtn int
+	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), COALESCE(delete_watched_button_enabled, 0), created_at FROM libraries WHERE id = ?`, id).
+		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &deleteWatchedBtn, &l.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	l.Kind = model.LibraryKind(kind)
 	l.OnHome = onHome == 1
 	l.ChannelLabelOnTop = channelTop == 1
+	l.DeleteWatchedButtonEnabled = deleteWatchedBtn == 1
 	return &l, err
 }
 
@@ -57,6 +59,21 @@ func (s *Store) SetLibraryChannelLabelOnTop(libraryID int64, v bool) error {
 		flag = 1
 	}
 	_, err := s.db.Exec(`UPDATE libraries SET channel_label_on_top = ? WHERE id = ?`, flag, libraryID)
+	return err
+}
+
+// SetLibraryDeleteWatchedButtonEnabled schaltet den "Gesehene löschen (außer
+// letzte)"-Button für eine Library frei (siehe model.Library.
+// DeleteWatchedButtonEnabled). Der Server prüft dieses Flag zusätzlich zur
+// kind=private-Prüfung direkt im Lösch-Handler — nicht nur die UI blendet
+// aus, ein deaktivierter Button funktioniert also auch per direktem
+// API-Aufruf nicht.
+func (s *Store) SetLibraryDeleteWatchedButtonEnabled(libraryID int64, v bool) error {
+	flag := 0
+	if v {
+		flag = 1
+	}
+	_, err := s.db.Exec(`UPDATE libraries SET delete_watched_button_enabled = ? WHERE id = ?`, flag, libraryID)
 	return err
 }
 

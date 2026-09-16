@@ -104,6 +104,13 @@ func (s *Server) deleteWatchedExceptLast(w http.ResponseWriter, r *http.Request)
 		writeError(w, 400, "Nur für private Bibliotheken verfügbar")
 		return
 	}
+	// Server-seitige Durchsetzung, nicht nur UI-Ausblenden: eine Bibliothek,
+	// für die der Admin den Button nicht freigeschaltet hat, darf diese
+	// Aktion auch per direktem API-Aufruf nicht ausführen können.
+	if !lib.DeleteWatchedButtonEnabled {
+		writeError(w, 403, "Für diese Bibliothek nicht freigeschaltet (siehe 🔤 Anzeige)")
+		return
+	}
 	folder := r.URL.Query().Get("folder")
 
 	// Aufsteigend nach "released" — der letzte Treffer je Ordner ist damit
