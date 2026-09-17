@@ -252,6 +252,12 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 >   `.safeAreaInset` außen um eine `TabView` gelegt werden — blockiert die
 >   native Tab-Leiste komplett. Muss pro Tab-Inhalt eingebunden werden.
 > - Kein Windows/Linux-Target (nur macOS + iOS + tvOS).
+> - **Keine Apple-Produktbegriffe (Mac, Apple TV, iPhone, iPad) im
+>   App-Namen oder Untertitel** — Apple lehnte deswegen zweimal ab
+>   (Guideline 5.2.5: tvOS-Untertitel 2026-09-08, Mac-App-NAME
+>   2026-09-17). Die Mac-App heißt im Store jetzt „Goldfish Desktop",
+>   das Bundle „Goldfish.app"; Bundle-ID `com.goldfish.mac` unverändert.
+>   Details in der CLAUDE.md des App-Repos.
 >
 > **Bei API-Änderungen prüfen:** `GoldfishCore/GoldfishClient.swift` +
 > `GoldfishCore/Models/Models.swift` im App-Repo.
