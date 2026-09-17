@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/boernie77/goldfish/internal/model"
@@ -26,18 +27,28 @@ func (w *Worker) enrichFolders(ctx context.Context) error {
 	w.status.FoldersMatched = 0
 	w.mu.Unlock()
 
+	// Fehlergründe sammeln statt je Ordner zu loggen (gleiche Begründung wie
+	// in enrichItems: PendingFolders liefert bei jedem Lauf dieselben
+	// dauerhaft nicht matchbaren Ordner).
+	reasons := map[string]int{}
+	firstExample := map[string]string{}
+
 	for _, f := range folders {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err := w.matchShow(ctx, f.LibraryID, f.Folder); err != nil {
-			log.Printf("[enrich] show %q: %v", f.Folder, err)
+			reasons[err.Error()]++
+			if firstExample[err.Error()] == "" {
+				firstExample[err.Error()] = f.Folder
+			}
 			continue
 		}
 		w.mu.Lock()
 		w.status.FoldersMatched++
 		w.mu.Unlock()
 	}
+	logMatchFailures(reasons, firstExample)
 	return nil
 }
 
@@ -52,6 +63,11 @@ func (w *Worker) enrichItems(ctx context.Context) error {
 	w.status.ItemsMatched = 0
 	w.status.ItemsFailed = 0
 	w.mu.Unlock()
+
+	// Fehlergründe sammeln statt je Datei zu loggen — siehe die ausführliche
+	// Begründung unten in der Schleife.
+	reasons := map[string]int{}
+	firstExample := map[string]string{}
 
 	for _, it := range items {
 		if ctx.Err() != nil {
@@ -68,7 +84,25 @@ func (w *Worker) enrichItems(ctx context.Context) error {
 			continue
 		}
 		if err := w.matchItem(ctx, lib, it); err != nil {
-			log.Printf("[enrich] %s: %v", it.Path, err)
+			// 🔴 NICHT je Datei loggen (geändert 2026-09-17).
+			//
+			// `PendingItems` liefert alle Items mit `metadata_id IS NULL` —
+			// also bei JEDEM Lauf (alle 5 Minuten) erneut dieselben Dateien,
+			// die dauerhaft nicht matchbar sind. Gemessen am 2026-09-17:
+			// **300 von 301 Logzeilen** waren „kein Episodenformat SxxExx im
+			// Namen" derselben Handvoll Serien. Das verdrängte die
+			// `[transcode]`-Zeilen binnen Minuten aus dem Docker-Log-Puffer
+			// und machte die Diagnose echter Probleme unmöglich — bei einem
+			// Server-Problem war die Spur längst überschrieben.
+			//
+			// Stattdessen: Gründe zählen und am Ende EINE Zusammenfassung
+			// ausgeben. Die betroffenen Dateien sind ohnehin im UI sichtbar
+			// (Zuordnung → unbestätigte/nicht zugeordnete Items), das Log ist
+			// dafür der falsche Ort.
+			reasons[err.Error()]++
+			if firstExample[err.Error()] == "" {
+				firstExample[err.Error()] = it.Path
+			}
 			w.mu.Lock()
 			w.status.ItemsFailed++
 			w.mu.Unlock()
@@ -78,7 +112,35 @@ func (w *Worker) enrichItems(ctx context.Context) error {
 		w.status.ItemsMatched++
 		w.mu.Unlock()
 	}
+	logMatchFailures(reasons, firstExample)
 	return nil
+}
+
+// logMatchFailures gibt eine kompakte Zusammenfassung der Match-Fehler aus:
+// pro Grund eine Zeile mit Anzahl und EINEM Beispielpfad, statt einer Zeile
+// je Datei. Siehe die Begründung in enrichItems.
+func logMatchFailures(reasons map[string]int, firstExample map[string]string) {
+	if len(reasons) == 0 {
+		return
+	}
+	total := 0
+	for _, n := range reasons {
+		total += n
+	}
+	// Nach Häufigkeit sortiert, damit der größte Brocken zuerst steht.
+	type kv struct {
+		reason string
+		n      int
+	}
+	list := make([]kv, 0, len(reasons))
+	for r, n := range reasons {
+		list = append(list, kv{r, n})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].n > list[j].n })
+	log.Printf("[enrich] %d Item(s) ohne Treffer, %d verschiedene Gründe:", total, len(list))
+	for _, e := range list {
+		log.Printf("[enrich]   %4d × %s (z. B. %s)", e.n, e.reason, firstExample[e.reason])
+	}
 }
 
 func (w *Worker) matchShow(ctx context.Context, libraryID int64, folder string) error {

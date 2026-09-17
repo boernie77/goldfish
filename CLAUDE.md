@@ -4314,19 +4314,18 @@ ersetzt: LibreTranslate-Platzhalter zeigte das echte Subnetz).
 
 **Offen:**
 
-1. **Lasttest mit mehreren echten parallelen Streams** — noch nie gemacht.
-   Die Einzelmessungen liegen vor (Tabelle unter „Laufzeit"), aber wie sich
-   4+ gleichzeitige Umwandlungen real verhalten, ist unbelegt. Der Absturz
-   am 2026-09-16 kam vom fehlenden Limit, nicht nachweislich von der
-   GPU-Kapazität. **Nur bei freiem Server** (`docker top` prüfen).
-2. **🔴 Container-Log ist mit `[enrich]`-Warnungen geflutet** — gemessen
-   2026-09-17: **300 von 301 Logzeilen** waren „kein Episodenformat SxxExx
-   im Namen" (vor allem Derrick-Folgen auf UD-Disks). Transcode-Zeilen
-   werden dadurch binnen Minuten aus dem Puffer gedrängt; eine Auswertung,
-   welche Profile im Alltag laufen, war deshalb unmöglich. **Das ist ein
-   echtes Diagnoseproblem** — geht etwas schief, ist die Spur schon
-   überschrieben. Vorschlag: pro Datei nur einmal loggen (Merker in der DB)
-   oder auf Debug-Level herabstufen.
+1. ~~Lasttest mit mehreren echten parallelen Streams~~ **erledigt
+   2026-09-17**, siehe „Lasttest 2026-09-17" weiter unten. Kernergebnis:
+   der Server stürzt nicht mehr ab (Load 178, Kernel durchgehend
+   erreichbar, kein OOM, kein Neustart). 4 parallele 4K laufen mit 1,45×
+   Echtzeit. **Noch offen: ein sauberer 6er-Lauf ohne parallel laufenden
+   Paritätscheck** — der hat die 6er-Messung verfälscht.
+2. ~~Container-Log ist mit `[enrich]`-Warnungen geflutet~~ **erledigt
+   2026-09-17** (v1.4.3): `logMatchFailures` gibt jetzt eine
+   Zusammenfassung je Lauf statt einer Zeile je Datei aus, siehe
+   „Laufzeit". **Nach dem Deploy prüfen**, ob im Log wieder
+   `[transcode]`-Zeilen sichtbar bleiben — dann lässt sich endlich
+   auswerten, welche Profile im Alltag wirklich laufen.
 3. **GPU-Kaufberatung:** Empfehlung bleibt **Intel Arc A380** (~110-130 €) —
    AV1-Encode, kein Session-Limit, und vor allem derselbe VAAPI-Pfad wie die
    iGPU (kein Code-Umbau; die P400 bräuchte den separaten NVENC-Pfad).
@@ -4340,6 +4339,75 @@ ersetzt: LibreTranslate-Platzhalter zeigte das echte Subnetz).
 **Ebenfalls offen (FireTV-App, aus dem dortigen Repo):** Suchfeld zeigt den
 Begriff nach dem Suchen nicht mehr an, Player-Options-Dialog (zweimal BACK)
 noch nicht mit echter Fernbedienung bestätigt, Trailer-Wiedergabe ungebaut.
+
+## 🔬 Lasttest 2026-09-17 — Ergebnisse und eine wichtige Störgröße
+
+**Aufbau:** N parallele 4K→4K-Umwandlungen (HEVC 10-Bit-Quelle, 90 s
+Material), jeweils mit `timeout` und `nice -n 19` abgesichert, bei sonst
+leerem Server (`docker top` vorher: 0 ffmpeg).
+
+| Parallel | Dauer für 90 s | API-Erreichbarkeit während des Tests |
+|---|---|---|
+| 4 | 62 s (1,45× Echtzeit) | ~24 s lang Timeouts, danach normal |
+| 6 | (nicht sauber messbar) | **über 4 Minuten komplett tot** |
+
+**⚠ Störgröße, die das 6er-Ergebnis wertlos macht: während des Tests lief
+ein Unraid-Paritätscheck** (`mdcmd status` → `mdResyncAction=check P Q`
+über 19,5 TB). Die Last kam nachweislich NICHT von den Transcodes:
+`pgrep -c ffmpeg` zeigte während der Nicht-Erreichbarkeit **0**, die CPU
+ging an `unraidd0` (75 %), `mdrecoveryd` und Dutzende
+`btrfs-endio`-Kworker. Load Average stieg auf **178 bei 20 Kernen**.
+**Vor jedem künftigen Lasttest `mdcmd status | grep mdResyncAction`
+prüfen** — läuft dort ein Check/Rebuild, ist jede Messung Makulatur.
+
+**Was der Test trotzdem belegt:**
+
+1. **Der Server stürzt nicht mehr ab.** Trotz Load 178 blieb der Kernel
+   durchgehend erreichbar (Ping + SSH + TCP-Handshakes auf 9000/2202 die
+   ganze Zeit ok), kein OOM (`State.OOMKilled=false`), kein
+   Container-Neustart (`RestartCount=0`), Erholung ohne jeden Eingriff.
+   **Das ist der Unterschied zum 2026-09-16, als der ganze Host neu
+   gestartet werden musste** — die Container-Deckel (mem_limit/cpus/
+   cpu_shares) wirken.
+2. **Alle ffmpeg-Prozesse wurden sauber aufgeräumt** — nach beiden Läufen
+   0 verwaiste Prozesse.
+3. **⚠ HTTP stirbt lange vor dem Kernel.** Die API antwortete schon nicht
+   mehr, während der Host über SSH tadellos bedienbar blieb. **Für die
+   Diagnose heißt das: „Goldfish antwortet nicht" ≠ „Server abgestürzt".
+   IMMER zuerst per SSH prüfen** (`ssh -p 2202 root@<host>` → `uptime`,
+   `pgrep -c ffmpeg`, `mdcmd status`), bevor jemand hart neu startet — ein
+   unnötiger Reboot zieht eine mehrstündige Paritätsprüfung nach sich.
+
+**Konsequenz für den Default:** 4 gleichzeitige 4K-Umwandlungen laufen mit
+1,45× Echtzeit zwar durch, kosten aber bereits spürbar API-Reaktivität.
+Der Default von 4 ist damit eher eine Obergrenze als ein Komfortwert und
+deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
+8 waren zu viel").
+
+**Offen:** ein sauberer 6er-Lauf ohne parallelen Paritätscheck.
+
+- **⚠ Der enrich-Worker flutet das Log NICHT mehr je Datei** (gefixt
+  2026-09-17): `PendingItems`/`PendingFolders` liefern bei JEDEM Lauf (alle
+  5 Minuten) erneut alle Items mit `metadata_id IS NULL` — also dauerhaft
+  dieselben, nicht matchbaren Dateien. Eine Logzeile je Datei ergab
+  gemessen **300 von 301 Logzeilen** („kein Episodenformat SxxExx im
+  Namen", vor allem alte Serien ohne SxxExx-Schema). Das verdrängte
+  `[transcode]`-Zeilen binnen Minuten aus dem Docker-Log-Puffer und machte
+  die Diagnose echter Störungen unmöglich — bei einem Problem war die Spur
+  längst überschrieben. Jetzt sammelt `logMatchFailures` die Gründe und gibt
+  EINE Zusammenfassung je Lauf aus (Anzahl + ein Beispielpfad je Grund,
+  nach Häufigkeit sortiert). **Regel: in Schleifen über Bestandsdaten nie
+  je Element loggen** — die Zeilenzahl muss von der Zahl der GRÜNDE
+  abhängen, nicht von der Datenmenge. Tests:
+  `internal/enrich/log_summary_test.go`.
+- **⚠ `probeSubtitleCodec` braucht einen Kontext mit Timeout** (gefixt
+  2026-09-17): der ffprobe-Aufruf lief als nacktes `exec.Command` ohne
+  Abbruchmöglichkeit, obwohl die ffmpeg-Extraktion unmittelbar darunter
+  längst `CommandContext` nutzte. Brach der Client ab, lief das ffprobe
+  weiter; bei einer Datei auf einer schlafenden UD-Platte blockiert es, bis
+  die Platte anläuft. Jetzt `CommandContext` mit dem Request-Kontext plus
+  eigenem 20-s-Limit. **Bei jedem neuen `exec`-Aufruf im Request-Pfad
+  prüfen, ob er abbrechbar ist.**
 
 ## Bekannte Probleme & Lösungen (Decision Log)
 

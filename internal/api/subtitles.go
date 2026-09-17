@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -24,8 +26,21 @@ var bitmapSubCodecs = map[string]bool{
 }
 
 // probeSubtitleCodec liest den codec_name eines einzelnen Streams per ffprobe.
-func probeSubtitleCodec(path, idx string) string {
-	out, err := exec.Command("ffprobe", "-v", "error",
+//
+// ⚠ Braucht zwingend einen Kontext MIT Timeout (gefixt 2026-09-17): der
+// Aufruf lief vorher als nacktes `exec.Command` ohne jede Abbruchmöglichkeit,
+// obwohl die ffmpeg-Extraktion unmittelbar darunter längst `CommandContext`
+// nutzte. Folge: bricht der Client ab (Player geschlossen, Netzwerk weg),
+// lief dieses ffprobe munter weiter — und bei einer Datei auf einer
+// schlafenden Unassigned-Devices-Platte blockiert es, bis die Platte
+// hochgefahren ist. Jeder solche Aufruf hält derweil eine Verbindung und
+// einen Prozess. Das eigene Zeitlimit deckelt zusätzlich den Fall, dass der
+// Client-Kontext selbst kein Ende kennt.
+func probeSubtitleCodec(ctx context.Context, path, idx string) string {
+	// 20 s: großzügig genug für eine anlaufende Festplatte, aber endlich.
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error",
 		"-select_streams", idx,
 		"-show_entries", "stream=codec_name", "-of", "json", path).Output()
 	if err != nil {
@@ -90,7 +105,7 @@ func (s *Server) subtitleVTT(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(out); err != nil {
 		// Bild-Untertitel (PGS/VOBSUB/DVB) können nicht nach WebVTT — sofort
 		// mit klarem Status ablehnen statt ffmpeg minutenlang scheitern zu lassen.
-		if codec := probeSubtitleCodec(it.Path, idxStr); bitmapSubCodecs[codec] {
+		if codec := probeSubtitleCodec(r.Context(), it.Path, idxStr); bitmapSubCodecs[codec] {
 			log.Printf("[subtitle] item %d stream %s: Bild-Untertitel (%s) — kann nicht nach WebVTT", id, idxStr, codec)
 			writeError(w, 415, "Bild-Untertitel ("+codec+") kann nicht als Text ausgeliefert werden")
 			return
