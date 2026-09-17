@@ -4465,6 +4465,23 @@ deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
   Titel aus Playlists, die in der Übersicht gar nicht auftauchen.
   Tests: `internal/store/any_playlist_test.go` (inkl. Leck-Test gegen den
   Admin-Fall und Dublettenprüfung bei Items in mehreren Playlists).
+  **Die Gegenprobe gehört dazu:** mit absichtlich eingebautem Leck
+  (`pl.user_id = ? OR ? = 1`) schlägt der Test fehl — ein Test, der ein
+  echtes Leck nicht bemerkt, ist wertlos.
+
+  **🔴 Nachtrag v1.4.7 — `listItems` und `randomItem` sind ZWEI Handler:**
+  der erste Anlauf parste `playlistId` nur in `randomItem`. `listItems`
+  ignorierte den Parameter still und lieferte statt der ~4.500
+  Playlist-Titel die kompletten **95.069** Items der Bibliothek. Der
+  Store-Test war grün, weil er den Handler gar nicht durchläuft — **erst
+  die Prüfung gegen den Live-Server hat es gezeigt** (Vergleich: Summe der
+  Einträge laut Playlist-Übersicht vs. Anzahl aus `playlistId=any`).
+  `TestListAndRandomShareFilterParams` (`internal/api/`) hält seither fest,
+  dass beide Handler dieselben umfangsbestimmenden Parameter auswerten und
+  beide `UserID`/`IsAdmin` aus der Session setzen.
+  **Regel: Wer in einem der beiden Handler einen Filter-Parameter ergänzt,
+  muss prüfen, ob der andere ihn auch braucht** — und das Ergebnis gegen
+  echte Daten gegenrechnen, nicht nur gegen Unit-Tests.
   **Die Filterleiste wirkt dort jetzt ebenfalls:** sobald Suche/Sortierung/
   Gesehen/Favorit/Bewertung/Auflösung gesetzt sind, zeigt die Übersicht die
   TITEL aus allen Playlists statt der Playlist-Kacheln — vorher lief die

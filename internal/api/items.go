@@ -406,6 +406,20 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	if !me.IsAdmin && me.MaxAgeRating != nil {
 		f.MaxAgeRating = *me.MaxAgeRating
 	}
+	// ⚠ playlistId MUSS auch hier geparst werden, nicht nur in randomItem
+	// (Fehler beim Bau von v1.4.6, am Live-Server aufgefallen): ohne das
+	// ignorierte die Filter-Ansicht der Playlist-Uebersicht den Parameter
+	// stillschweigend und lieferte statt der ~4.500 Playlist-Titel die
+	// kompletten 95.000 Items der Bibliothek. Die beiden Handler bauen ihren
+	// ItemFilter getrennt auf — wer hier einen Parameter ergaenzt, muss
+	// pruefen, ob der andere ihn auch braucht.
+	if v := q.Get("playlistId"); v != "" {
+		if v == "any" {
+			f.AnyPlaylist = true
+		} else {
+			f.PlaylistID, _ = strconv.ParseInt(v, 10, 64)
+		}
+	}
 	if ids := q["libraryId"]; len(ids) > 0 {
 		for _, v := range ids {
 			id, _ := strconv.ParseInt(v, 10, 64)
