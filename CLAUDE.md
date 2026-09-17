@@ -4431,6 +4431,31 @@ deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
   auch `StartOrGet` (vor der Budget-Prüfung, der GC läuft nur minütlich)
   alles weg, was `Done()` meldet. Tests:
   `TestDeadSessionsFreeTheirBudgetSlot`.
+- **🔴 KORREKTUR desselben Fixes, noch selbiger Tag (v1.4.8, User-Report
+  "Source error" bei AV1-Dateien):** der Fix oben behandelte JEDES beendete
+  ffmpeg gleich — auch ein ganz normal ERFOLGREICH fertig transkodiertes
+  Video (Dateiende erreicht, komplette Playlist geschrieben), nicht nur
+  einen echten Fehlschlag. Bei AV1-Quellen (854 Titel im Bestand, alle
+  Profil "Main"/yuv420p) scheitert der VAAPI-Hardware-Decoder auf der
+  UHD 770 zuverlässig ("Impossible to convert between the formats... filter
+  'auto_scale_0'"), der CPU-Fallback läuft aber komplett durch — KEIN
+  Fehler. Trotzdem löschte der GC das Session-Verzeichnis SOFORT, sobald
+  `Done()` true war, noch bevor der Client alle Segmente abgeholt hatte →
+  404 auf gerade gelöschte Dateien, beim Client als "Source error"
+  sichtbar. **Fix:** neues `Session.failed`-Feld (gesetzt VOR `close(done)`,
+  geschützt durch `s.mu` — Race-Detector-getestet), nur bei `err != nil &&
+  ctx.Err() == nil` in der `cmd.Wait()`-Goroutine gesetzt. GC-Loop und
+  `StartOrGet` räumen jetzt nur noch bei `Done() && Failed()` sofort auf;
+  ein regulär beendeter Transcode fällt auf den normalen Idle-Pfad zurück
+  (`sessionIdleTimeout`, 30 Min — `Touch()` läuft bei jedem Segment-Abruf,
+  siehe `internal/api/stream.go`, hält eine noch aktiv abgeholte Session
+  am Leben). **Lehre:** `Done()` sagt nur "der Prozess ist vorbei", nicht
+  "es lief etwas schief" — bei jeder Aufräum-Entscheidung, die auf einem
+  beendeten Prozess basiert, den tatsächlichen Exit-Status prüfen, nicht
+  nur ob er beendet ist. Tests: `TestGCKeepsSuccessfullyFinishedSessions`
+  (neu), `TestDeadSessionsFreeTheirBudgetSlot`/
+  `TestGCRemovesDeadSessionsRegardlessOfIdle` (angepasst, setzen jetzt
+  bewusst `failed = true`, um den echten Fehlerfall nachzubilden).
 - **⚠ Der Software-Rückfall darf die Grafikeinheit NICHT mehr anfassen**
   (gefixt 2026-09-17, v1.4.5): `RetryWithSoftwareDecode` dekodierte zwar per
   CPU, lud die Bilder danach aber per `hwupload` zurück auf die

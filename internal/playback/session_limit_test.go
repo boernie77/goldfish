@@ -238,11 +238,13 @@ func TestHardSessionCapIndependentOfBudget(t *testing.T) {
 func TestDeadSessionsFreeTheirBudgetSlot(t *testing.T) {
 	m := newTestManager(t, 2) // Budget 200 Punkte, Anzahl-Deckel 6
 
-	// Sechs tote Sitzungen: Budget UND Anzahl wären damit erschöpft.
+	// Sechs tote Sitzungen — MIT FEHLER beendet (wie die reale WMV-Datei):
+	// Budget UND Anzahl wären damit erschöpft.
 	for i := int64(1); i <= 6; i++ {
 		id := "dead" + string(rune('a'+i))
 		fakeSessionSized(m, id, i, false, 2160, 0)
-		close(m.sessions[id].done) // Prozess beendet
+		m.sessions[id].failed = true
+		close(m.sessions[id].done) // Prozess beendet, MIT Fehler
 	}
 	if m.activeCostLocked() < 200 {
 		t.Fatalf("Testaufbau: Budget sollte rechnerisch voll sein, ist %d", m.activeCostLocked())
@@ -263,10 +265,11 @@ func TestDeadSessionsFreeTheirBudgetSlot(t *testing.T) {
 }
 
 // Der GC-Lauf muss tote Sitzungen ebenfalls entfernen, unabhängig vom
-// Leerlauf-Zeitlimit.
+// Leerlauf-Zeitlimit — aber NUR wenn sie mit einem Fehler endeten.
 func TestGCRemovesDeadSessionsRegardlessOfIdle(t *testing.T) {
 	m := newTestManager(t, 4)
 	fakeSessionSized(m, "tot", 1, false, 1080, 720)
+	m.sessions["tot"].failed = true
 	close(m.sessions["tot"].done)
 	// lastUsed auf JETZT — der Leerlauf-Pfad würde also nicht greifen.
 	m.sessions["tot"].mu.Lock()
@@ -277,7 +280,7 @@ func TestGCRemovesDeadSessionsRegardlessOfIdle(t *testing.T) {
 	// minütlich und ist im Test nicht abwartbar).
 	m.mu.Lock()
 	for id, s := range m.sessions {
-		if s.Done() {
+		if s.Done() && s.Failed() {
 			delete(m.sessions, id)
 		}
 	}
@@ -285,6 +288,35 @@ func TestGCRemovesDeadSessionsRegardlessOfIdle(t *testing.T) {
 
 	if len(m.sessions) != 0 {
 		t.Fatalf("tote Sitzung überlebte das Aufräumen: %d", len(m.sessions))
+	}
+}
+
+// 🔴 Regression (gefixt 2026-09-17, noch selbiger Tag wie der Fix oben,
+// User-Report "Source error" bei AV1-Dateien): eine Sitzung, deren ffmpeg
+// ganz normal ERFOLGREICH beendet wurde (Dateiende erreicht, kein Fehler —
+// z. B. der CPU-Fallback bei AV1, den die Grafikeinheit nicht dekodieren
+// kann), darf NICHT sofort aus dem Pool und ihr Cache-Verzeichnis verlieren.
+// Der Client hat die letzten Segmente evtl. noch nicht abgeholt; ein
+// sofortiges Löschen erzeugt 404 auf gerade entfernte Dateien.
+func TestGCKeepsSuccessfullyFinishedSessions(t *testing.T) {
+	m := newTestManager(t, 4)
+	fakeSessionSized(m, "fertig", 1, false, 1080, 720)
+	// failed bleibt false — ffmpeg endete ohne Fehler.
+	close(m.sessions["fertig"].done)
+	m.sessions["fertig"].mu.Lock()
+	m.sessions["fertig"].lastUsed = time.Now()
+	m.sessions["fertig"].mu.Unlock()
+
+	m.mu.Lock()
+	for id, s := range m.sessions {
+		if s.Done() && s.Failed() {
+			delete(m.sessions, id)
+		}
+	}
+	m.mu.Unlock()
+
+	if len(m.sessions) != 1 {
+		t.Fatalf("erfolgreich beendete Sitzung wurde faelschlich entfernt: %d Sitzungen uebrig", len(m.sessions))
 	}
 }
 

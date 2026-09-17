@@ -90,6 +90,20 @@ type Session struct {
 	// Grafikeinheit an der Datei gescheitert ist. Verhindert eine Endlos-
 	// Wiederholung — ein zweiter Rueckfall ist nicht moeglich.
 	softwareDecode bool
+	// failed: true NUR wenn ffmpeg mit einem echten Fehler endete (Exit-Code
+	// != 0, NICHT durch unseren eigenen Stop()/Context-Abbruch). Gesetzt VOR
+	// dem close(s.done), also fuer jeden Leser von Done()==true bereits
+	// sichtbar. Unterscheidet den Fall, fuer den der 2026-09-17-Fix gedacht
+	// war (WMV-Datei bricht nach 2s MIT FEHLER ab, muss sofort raus, sonst
+	// blockiert sie das Budget) von einem ganz normal ERFOLGREICH beendeten
+	// Transcode (Dateiende erreicht, komplette Playlist geschrieben) — DER
+	// darf nicht sofort geloescht werden, der Client hat die letzten
+	// Segmente evtl. noch nicht abgeholt. Bug gefunden 2026-09-17 (User-
+	// Report "Source error" bei AV1-Dateien): der CPU-Fallback lief bei AV1
+	// komplett durch (kein Fehler!), wurde aber vom GC trotzdem sofort samt
+	// Cache-Verzeichnis geloescht, sobald Done() true war — Client bekam
+	// 404 auf gerade geloeschte Segmente.
+	failed bool
 }
 
 // UsesSoftwareDecode meldet, ob diese Sitzung bereits per CPU dekodiert. Der
@@ -351,7 +365,8 @@ func (m *Manager) gcLoop() {
 			s.mu.Lock()
 			idle := time.Since(s.lastUsed)
 			s.mu.Unlock()
-			// 🔴 Tote Sitzungen SOFORT ausbuchen (seit 2026-09-17).
+			// 🔴 Tote Sitzungen SOFORT ausbuchen (seit 2026-09-17) — ABER
+			// NUR wenn sie mit einem echten Fehler endeten (Failed()).
 			//
 			// Vorher zaehlte allein der Leerlauf: eine Sitzung, deren ffmpeg
 			// nach zwei Sekunden an der Datei gescheitert war, blieb volle
@@ -363,10 +378,25 @@ func (m *Manager) gcLoop() {
 			// „Sitzungs-Obergrenze erreicht (12)" abgelehnt wurde — obwohl
 			// real KEIN einziger ffmpeg-Prozess mehr lief.
 			//
-			// `Done()` ist nicht blockierend (select auf den geschlossenen
-			// Kanal), kostet hier also nichts.
-			if s.Done() {
-				log.Printf("[transcode] session %s: Prozess beendet → aus dem Pool entfernt", id)
+			// 🔴 KORREKTUR (noch selbiger Tag, 2026-09-17, User-Report
+			// "Source error" bei AV1): der erste Fix behandelte JEDES
+			// beendete ffmpeg gleich — auch ein ganz normal ERFOLGREICH
+			// fertig transkodiertes Video (Dateiende erreicht, komplette
+			// Playlist). Bei AV1 scheitert der Hardware-Decoder zuverlaessig
+			// (Intel UHD 770 kann AV1 nicht via VAAPI), der CPU-Fallback
+			// laeuft aber komplett durch — kein Fehler. Trotzdem loeschte
+			// der GC das Session-Verzeichnis SOFORT, sobald Done() true war,
+			// noch bevor der Client die letzten Segmente abgeholt hatte →
+			// 404 auf gerade geloeschte Dateien, beim Client als
+			// "Source error" sichtbar. Jetzt nur noch bei Failed() sofort
+			// raus; ein regulaer beendeter Transcode faellt auf den
+			// normalen Idle-Pfad zurueck (sessionIdleTimeout), der dem
+			// Client genug Zeit laesst, fertig abzuspielen.
+			//
+			// `Done()`/`Failed()` sind nicht blockierend, kosten hier also
+			// nichts.
+			if s.Done() && s.Failed() {
+				log.Printf("[transcode] session %s: mit Fehler beendet → aus dem Pool entfernt", id)
 				s.Stop() // raeumt das Cache-Verzeichnis ab
 				delete(m.sessions, id)
 				continue
@@ -649,9 +679,14 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	// — in dieser Lücke blockierten gescheiterte Versuche sonst weiter das
 	// Budget. Genau das führte am 2026-09-17 zu „Sitzungs-Obergrenze
 	// erreicht (12)", obwohl real kein einziger ffmpeg-Prozess mehr lief.
+	//
+	// 🔴 NUR bei Failed() — derselbe Grund wie im GC-Loop oben (Korrektur
+	// noch selbiger Tag, User-Report "Source error" bei AV1): eine
+	// erfolgreich beendete Session darf hier nicht vorzeitig verschwinden,
+	// nur weil zufällig zeitgleich eine neue Wiedergabe startet.
 	for otherID, other := range m.sessions {
-		if other.Done() {
-			log.Printf("[transcode] session %s: Prozess bereits beendet → Platz freigegeben", otherID)
+		if other.Done() && other.Failed() {
+			log.Printf("[transcode] session %s: mit Fehler beendet → Platz freigegeben", otherID)
 			other.Stop()
 			delete(m.sessions, otherID)
 		}
@@ -832,6 +867,15 @@ func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) 
 	}
 	go func() {
 		err := cmd.Wait()
+		// ⚠ VOR close(s.done) setzen — GC/StartOrGet lesen Done()==true als
+		// Signal "kann ausgewertet werden" und müssen `failed` dann bereits
+		// korrekt vorfinden (siehe Kommentar am Feld). Unter s.mu, weil
+		// GC/StartOrGet aus einer anderen Goroutine lesen (Failed()).
+		if err != nil && ctx.Err() == nil {
+			s.mu.Lock()
+			s.failed = true
+			s.mu.Unlock()
+		}
 		close(s.done)
 		// Kontext-Abbruch = gewolltes Stop (fresh/GC), das ist kein Fehler.
 		if err != nil && ctx.Err() == nil {
@@ -1162,6 +1206,20 @@ func (s *Session) Done() bool {
 	default:
 		return false
 	}
+}
+
+// Failed meldet, ob die Sitzung mit einem ECHTEN ffmpeg-Fehler endete (Exit-
+// Code != 0), im Unterschied zu einem regulären Abschluss (Dateiende erreicht)
+// oder unserem eigenen Stop()/Context-Abbruch. Nur im ersten Fall darf der
+// GC/StartOrGet die Sitzung SOFORT nach Done()==true entfernen — sonst würde
+// ein ganz normal fertig transkodiertes Video (z. B. der CPU-Fallback bei
+// AV1, siehe Kommentar am `failed`-Feld) seine Segmente verlieren, bevor der
+// Client sie abgeholt hat. Nur sinnvoll, NACHDEM Done() true ist — vorher ist
+// `failed` per Definition noch nicht gesetzt.
+func (s *Session) Failed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.failed
 }
 
 // WaitForPlaylist blocks until the playlist file exists (up to timeout).
