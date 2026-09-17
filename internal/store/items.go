@@ -235,6 +235,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	       us.last_played_at, COALESCE(us.play_count, 0)
 	      FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
+	      LEFT JOIN metadata parent ON parent.id = m.parent_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 	      WHERE 1=1`
 	args := []any{f.UserID}
@@ -300,13 +301,26 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// SQLite LIKE ist für den verbleibenden ASCII-Bereich bereits
 		// case-insensitive, ein zusätzliches LOWER() ist deshalb nicht nötig.
 		pattern := "%" + unaccent(f.Search) + "%"
+		// 🔴 Titel-Suche muss den SERIENTITEL treffen, NICHT den Episoden-
+		// titel (User-Wunsch 2026-09-17: "Bei Serien den Serientitel oder
+		// den Schauspieler. Nicht nach Folgen Titeln, oder Beschreibungen").
+		// Bug gefunden: `m.title` ist bei einer Episode (tmdb_type='episode')
+		// der EPISODENTITEL, der Serientitel steckt im Parent-Datensatz
+		// (`metadata.parent_id` → `tv`-Zeile). Vorher matchte die Suche also
+		// den Episodentitel (genau das Gegenteil vom Wunsch) UND fand den
+		// Serientitel selbst NIE — eine Suche nach "One Tree Hill" traf keine
+		// einzige Episode dieser Serie. `titleField` bevorzugt jetzt den
+		// Show-Titel (parent.title), wenn vorhanden — das schließt den
+		// Episodentitel automatisch aus dem Treffer aus, ohne ihn separat
+		// ausschließen zu müssen. Filme (kein parent) und private Videos
+		// (keine Metadata) bleiben unverändert bei m.title/i.title.
+		titleField := "UNACCENT(COALESCE(parent.title, m.title, i.title))"
 		// Suche auf Schauspielernamen ist teuer (LIKE auf people.name = Full-
 		// Scan, plus EXISTS pro Item). Erst ab 3 Zeichen mit dazunehmen —
 		// bei 1-2 Buchstaben sind die Cast-Treffer eh nicht hilfreich.
 		if len(f.Search) >= 3 {
 			q += ` AND (
-				UNACCENT(i.title) LIKE ?
-				OR UNACCENT(COALESCE(m.title, '')) LIKE ?
+				` + titleField + ` LIKE ?
 				OR UNACCENT(COALESCE(i.artist, '')) LIKE ?
 				OR UNACCENT(COALESCE(i.album, '')) LIKE ?
 				OR EXISTS (
@@ -317,15 +331,14 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
 				)
 			)`
-			args = append(args, pattern, pattern, pattern, pattern, pattern)
+			args = append(args, pattern, pattern, pattern, pattern)
 		} else {
 			q += ` AND (
-				UNACCENT(i.title) LIKE ?
-				OR UNACCENT(COALESCE(m.title, '')) LIKE ?
+				` + titleField + ` LIKE ?
 				OR UNACCENT(COALESCE(i.artist, '')) LIKE ?
 				OR UNACCENT(COALESCE(i.album, '')) LIKE ?
 			)`
-			args = append(args, pattern, pattern, pattern, pattern)
+			args = append(args, pattern, pattern, pattern)
 		}
 	}
 	if !f.DateFrom.IsZero() {
