@@ -348,6 +348,35 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      `Retry-After: 30`** mit einer für Endnutzer lesbaren Meldung (bewusst
      kein 500 — es ist ein temporärer Zustand). **Eine abgelehnte Wiedergabe
      ist immer besser als ein toter Server.**
+
+     **🔢 Seit v1.4.2 GEWICHTET statt stur nach Anzahl** (`transcodeCost`):
+     gezählt werden Kostenpunkte, nicht Sitzungen. Der eingestellte Wert ×
+     `CostFullBudgetUnit` (100) ergibt das Budget. Grundlage ist eine
+     **Messung auf der echten Hardware** (VAAPI, 60 s Material je Lauf,
+     zweifach wiederholt, Werte stabil):
+
+     | Quelle → Ziel | Dauer | relativ |
+     |---|---|---|
+     | 4K HEVC → 2160p | 15,0 s | 1,00 |
+     | 4K HEVC → 1080p | 6,6 s | 0,44 |
+     | 4K HEVC → 720p | 5,6 s | 0,37 |
+     | 1080p → 1080p | 5,8 s | 0,39 |
+     | 1080p → 720p | 2,7 s | 0,18 |
+     | 1080p → 480p | 1,8 s | 0,12 |
+
+     **⚠ Die QUELLE geht mit in die Kosten ein, nicht nur das Ziel** —
+     dasselbe Ziel (720p) kostet aus einer 4K-Quelle 5,6 s, aus einer
+     1080p-Quelle nur 2,7 s, weil das Dekodieren unabhängig vom Ziel
+     anfällt. Eine reine Ziel-Gewichtung wäre falsch. Unterhalb von 1080p
+     flacht die Kurve ab (dann dominiert der Decode). Punktwerte bewusst
+     nach OBEN gerundet; unbekannte Quellhöhe (`srcHeight = 0`) gilt als 4K.
+     `StartOrGet` bekommt `srcHeight` deshalb als zusätzlichen Parameter
+     (aus `items.height`).
+
+     **Zusätzlicher Anzahl-Deckel** (`maxSessionsHardCapFactor` = 3): lauter
+     billige Sitzungen würden sonst rechnerisch über zwanzig ffmpeg-Prozesse
+     erlauben — die belasten die Grafikeinheit kaum, kosten aber je Prozess
+     Speicher und Dateihandles.
   2. **Container-Deckel** in `docker-compose.yml` (`mem_limit`, `cpus`,
      `cpu_shares`). Fängt alles ab, was die App nicht kennt (ffmpeg-Ausreißer,
      Speicherleck, Worker parallel zu Wiedergaben). Ohne das darf der
@@ -4268,35 +4297,45 @@ Host **Tower**, Unraid OS 7.2 (Kernel 6.12.87), Docker 29.3.1, Portainer 2.39.4:
   **Die 4 stabilen 4K-Streams stammen allein von der iGPU.**
 - `SwapLimit: false` → **kein `memswap_limit`** in Compose-Dateien verwenden.
 
-## 🔜 Hier weitermachen (Stand 2026-09-17, nachts)
+## 🔜 Hier weitermachen (Stand 2026-09-17)
 
-**Erledigt und LIVE (v1.4.1):** Transcode-Limit (App, Default 4) +
-Container-Deckel in Stack 37 (12g / 14 Kerne / shares 512) — beides verifiziert,
-SSO nach Redeploy geprüft (302). Siehe „Laufzeit" für die volle Begründung.
+**Erledigt und LIVE:**
+- v1.4.1: Transcode-Limit (App) + Container-Deckel in Stack 37
+- v1.4.2: **gewichtetes Budget** (siehe „Laufzeit"), Protokoll-Paginierung
+  repariert, Erklärtexte entpersonalisiert
 
-**Offen — Messungen, bewusst verschoben, weil jemand geschaut hat
-(`docker top` zeigte eine laufende Session, Benutzer Martin, Profil 480p-hq):**
+**⚠ Regel für UI-Texte (User-Vorgabe 2026-09-17):** in Erklärtexten darf
+**nichts stehen, was nur für diesen einen Server gilt.** Goldfish ist ein
+öffentliches Projekt — „auf dieser Hardware sind 4 stabil" ist für jede
+andere Installation schlicht falsch. Stattdessen das Prinzip erklären und
+sagen, wie man den passenden Wert selbst ermittelt. Ebenso keine echten
+Namen, Mail-Adressen oder IPs/Subnetze in Platzhaltern (gefunden und
+ersetzt: LibreTranslate-Platzhalter zeigte das echte Subnetz).
 
-1. **Wie viele parallele 4K-Transcodes schafft die UHD 770 WIRKLICH?**
-   Der Absturz am 2026-09-16 (acht Streams, Host-Reboot) ist am fehlenden
-   Limit gescheitert, **nicht nachweislich an der GPU-Kapazität** — das ist
-   bislang unbelegt. Mit dem gesetzten Limit kann man gefahrlos schrittweise
-   hochtesten (`max_transcodes` im Zahnrad-Menü) und dabei `intel_gpu_top`
-   beobachten. **Nur bei freiem Server messen.**
-2. **Erzwingt das Material überhaupt 4K-Transcodes, oder läuft meist
-   Direct Play?** Der einzige beobachtete Live-Stream lief auf `480p-hq`
-   (schwacher Client, nicht 4K-Last). Wenn in der Praxis kaum 4K transcodiert
-   wird, erledigt sich die GPU-Frage komplett.
+**Offen:**
 
-**GPU-Kaufberatung (User plant, die P400 zu ersetzen):** Empfehlung ist
-**Intel Arc A380 (~110-130 €)** — AV1-Encode (kann weder UHD 770 noch NVIDIA
-vor RTX 40), **kein künstliches Session-Limit** (NVIDIA-Consumer: 8, früher 3),
-6 GB VRAM, und vor allem: **spricht denselben VAAPI-Pfad wie die iGPU, also
-kein Code-Umbau nötig** (die P400 bräuchte den separaten NVENC-Pfad).
-**Aber: erst messen, dann kaufen** — Punkt 1 und 2 oben können den Kauf
-überflüssig machen. Kostenloser Zwischenschritt: die P400 ausbauen, sie zieht
-Strom ohne Beitrag (außer sie wird anderweitig gebraucht — offene Frage an
-den User).
+1. **Lasttest mit mehreren echten parallelen Streams** — noch nie gemacht.
+   Die Einzelmessungen liegen vor (Tabelle unter „Laufzeit"), aber wie sich
+   4+ gleichzeitige Umwandlungen real verhalten, ist unbelegt. Der Absturz
+   am 2026-09-16 kam vom fehlenden Limit, nicht nachweislich von der
+   GPU-Kapazität. **Nur bei freiem Server** (`docker top` prüfen).
+2. **🔴 Container-Log ist mit `[enrich]`-Warnungen geflutet** — gemessen
+   2026-09-17: **300 von 301 Logzeilen** waren „kein Episodenformat SxxExx
+   im Namen" (vor allem Derrick-Folgen auf UD-Disks). Transcode-Zeilen
+   werden dadurch binnen Minuten aus dem Puffer gedrängt; eine Auswertung,
+   welche Profile im Alltag laufen, war deshalb unmöglich. **Das ist ein
+   echtes Diagnoseproblem** — geht etwas schief, ist die Spur schon
+   überschrieben. Vorschlag: pro Datei nur einmal loggen (Merker in der DB)
+   oder auf Debug-Level herabstufen.
+3. **GPU-Kaufberatung:** Empfehlung bleibt **Intel Arc A380** (~110-130 €) —
+   AV1-Encode, kein Session-Limit, und vor allem derselbe VAAPI-Pfad wie die
+   iGPU (kein Code-Umbau; die P400 bräuchte den separaten NVENC-Pfad).
+   **Erst messen, dann kaufen** (Punkt 1). Kostenloser Zwischenschritt: die
+   P400 ausbauen — sie wird nicht genutzt und ist der iGPU unterlegen.
+4. **Nutzungszahlen sind noch nicht aussagekräftig** (User-Hinweis
+   2026-09-17): Goldfish ist zwar live, wird aber noch nicht im vollen
+   Umfang genutzt. Statistiken aus dem Aktivitätsprotokoll taugen derzeit
+   nicht als Entscheidungsgrundlage.
 
 **Ebenfalls offen (FireTV-App, aus dem dortigen Repo):** Suchfeld zeigt den
 Begriff nach dem Suchen nicht mehr an, Player-Options-Dialog (zweimal BACK)
