@@ -227,7 +227,67 @@ func TestHardSessionCapIndependentOfBudget(t *testing.T) {
 	}
 }
 
-// Auslastungsanzeige: 0 % ohne Sessions, 100 % bei vollem Budget.
+// 🔴 Regression: eine Sitzung, deren ffmpeg-Prozess bereits beendet ist,
+// darf keinen Platz mehr im Budget belegen.
+//
+// Live beobachtet am 2026-09-17: an einer WMV-Datei scheiterten mehrere
+// Versuche binnen Sekunden (Hardware kann VC-1 nicht). Die toten Sitzungen
+// blieben aber im Pool, weil der GC nur den Leerlauf prüfte (30 Minuten) —
+// bis eine völlig gesunde Wiedergabe mit „Sitzungs-Obergrenze erreicht (12)"
+// abgelehnt wurde, obwohl real kein einziger ffmpeg-Prozess mehr lief.
+func TestDeadSessionsFreeTheirBudgetSlot(t *testing.T) {
+	m := newTestManager(t, 2) // Budget 200 Punkte, Anzahl-Deckel 6
+
+	// Sechs tote Sitzungen: Budget UND Anzahl wären damit erschöpft.
+	for i := int64(1); i <= 6; i++ {
+		id := "dead" + string(rune('a'+i))
+		fakeSessionSized(m, id, i, false, 2160, 0)
+		close(m.sessions[id].done) // Prozess beendet
+	}
+	if m.activeCostLocked() < 200 {
+		t.Fatalf("Testaufbau: Budget sollte rechnerisch voll sein, ist %d", m.activeCostLocked())
+	}
+
+	// Eine neue Anfrage muss trotzdem durchkommen — die toten Sitzungen
+	// werden vorher ausgebucht.
+	_, err := m.StartOrGet(99, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 1080)
+	if errors.Is(err, ErrTooManySessions) {
+		t.Fatalf("tote Sitzungen dürfen nicht blockieren (Punkte: %d, Sitzungen: %d)",
+			m.activeCostLocked(), len(m.sessions))
+	}
+	for id, s := range m.sessions {
+		if s.Done() && id != sessionKey(99, "orig", -1, 0, false) {
+			t.Errorf("tote Sitzung %s ist noch im Pool", id)
+		}
+	}
+}
+
+// Der GC-Lauf muss tote Sitzungen ebenfalls entfernen, unabhängig vom
+// Leerlauf-Zeitlimit.
+func TestGCRemovesDeadSessionsRegardlessOfIdle(t *testing.T) {
+	m := newTestManager(t, 4)
+	fakeSessionSized(m, "tot", 1, false, 1080, 720)
+	close(m.sessions["tot"].done)
+	// lastUsed auf JETZT — der Leerlauf-Pfad würde also nicht greifen.
+	m.sessions["tot"].mu.Lock()
+	m.sessions["tot"].lastUsed = time.Now()
+	m.sessions["tot"].mu.Unlock()
+
+	// Die Aufräum-Bedingung des GC nachbilden (der Ticker selbst läuft
+	// minütlich und ist im Test nicht abwartbar).
+	m.mu.Lock()
+	for id, s := range m.sessions {
+		if s.Done() {
+			delete(m.sessions, id)
+		}
+	}
+	m.mu.Unlock()
+
+	if len(m.sessions) != 0 {
+		t.Fatalf("tote Sitzung überlebte das Aufräumen: %d", len(m.sessions))
+	}
+}
+
 func TestActiveLoadPercent(t *testing.T) {
 	m := newTestManager(t, 4)
 	if got := m.ActiveLoadPercent(); got != 0 {

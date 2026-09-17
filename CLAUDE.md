@@ -4420,6 +4420,36 @@ deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
   eigenem 20-s-Limit. **Bei jedem neuen `exec`-Aufruf im Request-Pfad
   prüfen, ob er abbrechbar ist.**
 
+- **⚠ Tote Sitzungen müssen SOFORT aus dem Pool** (gefixt 2026-09-17,
+  v1.4.5): der GC prüfte nur den Leerlauf (30 Min) — eine Sitzung, deren
+  ffmpeg nach zwei Sekunden an der Datei gescheitert war, blockierte also
+  eine halbe Stunde lang ihren Platz im Budget UND in der
+  Sitzungs-Obergrenze. Live beobachtet: mehrere gescheiterte Versuche an
+  einer WMV-Datei summierten sich, bis eine gesunde Wiedergabe mit
+  „Sitzungs-Obergrenze erreicht (12)" abgelehnt wurde — **obwohl real kein
+  einziger ffmpeg-Prozess mehr lief.** Jetzt räumt sowohl der GC-Lauf als
+  auch `StartOrGet` (vor der Budget-Prüfung, der GC läuft nur minütlich)
+  alles weg, was `Done()` meldet. Tests:
+  `TestDeadSessionsFreeTheirBudgetSlot`.
+- **⚠ Der Software-Rückfall darf die Grafikeinheit NICHT mehr anfassen**
+  (gefixt 2026-09-17, v1.4.5): `RetryWithSoftwareDecode` dekodierte zwar per
+  CPU, lud die Bilder danach aber per `hwupload` zurück auf die
+  Grafikeinheit und encodierte mit `h264_vaapi`. Für den Zweck eines
+  Rückfalls ist das nutzlos — er existiert ja gerade für Dateien, welche die
+  Hardware nicht kann. Live gescheitert an einer **WMV3-Datei**: ffmpeg
+  meldete „No support for codec wmv3 profile 1" + „Failed setup for format
+  vaapi", in BEIDEN Anläufen, die Wiedergabe war tot statt langsam.
+  **`vainfo` listet auf der UHD 770 kein `VAProfileVC1*`** — Intel hat den
+  VC-1/WMV-Decoder ab Gen 12 gestrichen (betrifft alle WMV/VC-1-Altbestände).
+  Jetzt ist der Rückfall rein CPU-seitig (`libx264 -preset veryfast`, CPU-
+  Filter `bwdif`/`scale`); der alte halbe Weg ist ersatzlos entfallen.
+  Tests: `TestStreamingSoftwareDecodeFallback`,
+  `TestSoftwareFallbackUsesCpuFilters`.
+- **⚠ `Session.Stop()` ist jetzt nil-sicher**: `s.cancel()` auf einer
+  Sitzung ohne Kontext riss den ganzen Server mit — für eine reine
+  Aufräumfunktion ein unnötiges Risiko (beim Testen des GC-Fixes
+  aufgefallen).
+
 ## Bekannte Probleme & Lösungen (Decision Log)
 
 > Vollständiger Decision-Log ausgelagert in **`DECISIONS.md`** (wird nicht automatisch

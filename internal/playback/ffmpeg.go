@@ -351,6 +351,26 @@ func (m *Manager) gcLoop() {
 			s.mu.Lock()
 			idle := time.Since(s.lastUsed)
 			s.mu.Unlock()
+			// 🔴 Tote Sitzungen SOFORT ausbuchen (seit 2026-09-17).
+			//
+			// Vorher zaehlte allein der Leerlauf: eine Sitzung, deren ffmpeg
+			// nach zwei Sekunden an der Datei gescheitert war, blieb volle
+			// 30 Minuten im Pool stehen. Sie verbrauchte zwar keine Rechen-
+			// zeit mehr, belegte aber weiter ihren Platz im Transcode-Budget
+			// und in der Sitzungs-Obergrenze. Am 2026-09-17 live beobachtet:
+			// mehrere an einer WMV-Datei gescheiterte Versuche summierten
+			// sich, bis eine voellig gesunde Wiedergabe mit
+			// „Sitzungs-Obergrenze erreicht (12)" abgelehnt wurde — obwohl
+			// real KEIN einziger ffmpeg-Prozess mehr lief.
+			//
+			// `Done()` ist nicht blockierend (select auf den geschlossenen
+			// Kanal), kostet hier also nichts.
+			if s.Done() {
+				log.Printf("[transcode] session %s: Prozess beendet → aus dem Pool entfernt", id)
+				s.Stop() // raeumt das Cache-Verzeichnis ab
+				delete(m.sessions, id)
+				continue
+			}
 			if idle > sessionIdleTimeout {
 				log.Printf("[transcode] session %s idle %v → stop", id, idle)
 				s.Stop()
@@ -624,6 +644,18 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 			delete(m.sessions, otherID)
 		}
 	}
+	// Tote Sitzungen ausbuchen, BEVOR das Budget geprüft wird (seit
+	// 2026-09-17). Der GC-Lauf tut das ebenfalls, aber nur einmal pro Minute
+	// — in dieser Lücke blockierten gescheiterte Versuche sonst weiter das
+	// Budget. Genau das führte am 2026-09-17 zu „Sitzungs-Obergrenze
+	// erreicht (12)", obwohl real kein einziger ffmpeg-Prozess mehr lief.
+	for otherID, other := range m.sessions {
+		if other.Done() {
+			log.Printf("[transcode] session %s: Prozess bereits beendet → Platz freigegeben", otherID)
+			other.Stop()
+			delete(m.sessions, otherID)
+		}
+	}
 	// 🔴 Gewichtetes Budget gleichzeitiger Video-Transcodes (seit 2026-09-17).
 	//
 	// Bis hierher konnte JEDE Anfrage bedingungslos einen weiteren
@@ -868,7 +900,48 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 
 	switch m.hw.Selected {
 	case BackendVAAPI:
-		if !softwareDecode {
+		if softwareDecode {
+			// 🔴 VOLLSTÄNDIGER Software-Weg (seit 2026-09-17): dekodieren UND
+			// encodieren per CPU, ohne jede Beteiligung der Grafikeinheit.
+			//
+			// Der frühere „Rückfall" dekodierte zwar per CPU, lud die Bilder
+			// danach aber per `hwupload` wieder auf die Grafikeinheit und
+			// encodierte mit `h264_vaapi` — für einen Codec, den die Hardware
+			// gar nicht kennt, ist das kein Rückfall, sondern derselbe Fehler
+			// mit einem Zwischenschritt. Live beobachtet am 2026-09-17 mit
+			// einer WMV3-Datei (VC-1-Familie): `vainfo` listet auf dieser
+			// Hardware KEIN VAProfileVC1* — Intel hat den VC-1-Decoder ab
+			// Gen 12 gestrichen. ffmpeg meldete
+			// „No support for codec wmv3 profile 1" und
+			// „Failed setup for format vaapi", und zwar in BEIDEN Versuchen;
+			// die Wiedergabe war damit tot statt langsam.
+			//
+			// libx264 mit `veryfast` schafft solche Dateien locker in
+			// Echtzeit — sie sind typischerweise alt und klein (SD/720p).
+			// Diese Sitzungen zählen im Budget wie jede andere; ihr echter
+			// Aufwand liegt auf der CPU, wo genug Kerne frei sind.
+			videoFilter := cpuDeintFilter + scaleFilter
+			args = append(args, "-i", input)
+			if videoFilter != "" {
+				args = append(args, "-vf", strings.TrimSuffix(videoFilter, ","))
+			}
+			args = append(args,
+				"-c:v", "libx264",
+				"-preset", "veryfast",
+				"-pix_fmt", "yuv420p",
+			)
+			if p.VideoKbps > 0 {
+				args = append(args,
+					"-b:v", fmt.Sprintf("%dk", p.VideoKbps),
+					"-maxrate", fmt.Sprintf("%dk", p.VideoKbps*3/2),
+					"-bufsize", fmt.Sprintf("%dk", p.VideoKbps*2),
+				)
+			} else {
+				args = append(args, "-crf", "23")
+			}
+			break
+		}
+		{
 			// Hardware-Decode (seit 2026-09-14). Vorher lief NUR das Encoden
 			// auf der Grafikeinheit, dekodiert wurde per CPU — bei 4K-Material
 			// der mit Abstand teuerste Teil. Am laufenden Server gemessen,
@@ -912,27 +985,10 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 			)
 			break
 		}
-		// Rueckfallweg: dekodieren per CPU, skalieren per CPU, dann auf die
-		// Grafikeinheit laden. Bis 2026-09-14 der einzige Weg.
-		vaapiPost := "format=nv12,hwupload"
-		if deinterlace {
-			vaapiPost += ",deinterlace_vaapi=mode=motion_adaptive"
-		}
-		args = append(args,
-			"-vaapi_device", m.hw.VAAPIDevice,
-			"-i", input,
-			"-vf", scaleFilter+vaapiPost,
-			"-c:v", "h264_vaapi",
-		)
-		if p.VideoKbps > 0 {
-			args = append(args,
-				"-b:v", fmt.Sprintf("%dk", p.VideoKbps),
-				"-maxrate", fmt.Sprintf("%dk", p.VideoKbps*3/2),
-				"-bufsize", fmt.Sprintf("%dk", p.VideoKbps*2),
-			)
-		} else {
-			args = append(args, "-qp", "23")
-		}
+		// Hinweis: Der frühere „halbe" Rückfallweg (CPU-Decode + hwupload +
+		// h264_vaapi) ist am 2026-09-17 ersatzlos entfallen — siehe die
+		// Begründung oben im softwareDecode-Zweig. Er half bei genau den
+		// Dateien nicht, für die er gedacht war.
 	case BackendNVENC:
 		// NVENC-Pfad: `-hwaccel cuda` ohne `-hwaccel_output_format cuda` →
 		// Frames werden nach dem Decode in den CPU-RAM kopiert, die CPU-
@@ -1054,12 +1110,22 @@ func (s *Session) Touch() {
 }
 
 func (s *Session) Stop() {
-	s.cancel()
-	select {
-	case <-s.done:
-	case <-time.After(3 * time.Second):
+	// `cancel` kann fehlen, wenn eine Sitzung nicht über `startLocked`
+	// entstanden ist (Tests, künftige Sonderpfade). Ein nil-Aufruf wäre ein
+	// Absturz des ganzen Servers — für eine reine Aufräumfunktion ein
+	// unnötiges Risiko.
+	if s.cancel != nil {
+		s.cancel()
 	}
-	_ = os.RemoveAll(s.Dir)
+	if s.done != nil {
+		select {
+		case <-s.done:
+		case <-time.After(3 * time.Second):
+		}
+	}
+	if s.Dir != "" {
+		_ = os.RemoveAll(s.Dir)
+	}
 }
 
 // Position gibt zurück, bis zu welcher Quelldatei-Sekunde ffmpeg transcodiert hat.

@@ -68,17 +68,46 @@ func TestStreamingDeinterlaceBeforeScale(t *testing.T) {
 	}
 }
 
-// Der Rückfallweg muss exakt die alte Kommandozeile ergeben — er ist die
-// Rettung, wenn die Grafikeinheit an einer Datei scheitert.
+// 🔴 Der Rückfallweg muss KOMPLETT ohne Grafikeinheit auskommen.
+//
+// Bis 2026-09-17 prüfte dieser Test das Gegenteil („exakt die alte
+// Kommandozeile"): CPU-Decode, dann `hwupload` zurück auf die Grafikeinheit
+// und `h264_vaapi` zum Encodieren. Das ist für den Zweck des Rückfalls
+// nutzlos — bei einer WMV3-Datei (VC-1-Familie) meldete ffmpeg live
+// „No support for codec wmv3 profile 1" und „Failed setup for format vaapi",
+// und zwar in BEIDEN Anläufen: `vainfo` listet auf dieser Hardware kein
+// VAProfileVC1* (Intel hat den VC-1-Decoder ab Gen 12 gestrichen). Die
+// Wiedergabe war damit tot statt nur langsam.
+//
+// Der Rückfall existiert für genau die Dateien, welche die Grafikeinheit
+// NICHT kann — er darf sie folglich an keiner Stelle mehr anfassen.
 func TestStreamingSoftwareDecodeFallback(t *testing.T) {
 	got := argsOf(t, vaapiMgr(), Profile{ID: "orig"}, false, true)
-	if strings.Contains(got, "-hwaccel") {
-		t.Errorf("Rückfall darf nicht hardware-dekodieren:\n%s", got)
-	}
-	for _, want := range []string{"format=nv12,hwupload", "-c:v h264_vaapi"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("alter Weg erwartet %q:\n%s", want, got)
+	for _, unwanted := range []string{"-hwaccel", "hwupload", "h264_vaapi", "vaapi_device", "scale_vaapi"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("Rückfall darf die Grafikeinheit nicht berühren, enthält %q:\n%s", unwanted, got)
 		}
+	}
+	for _, want := range []string{"-c:v libx264", "-pix_fmt yuv420p"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("reiner Software-Weg erwartet %q:\n%s", want, got)
+		}
+	}
+}
+
+// Auch mit Zielauflösung und Entflimmern bleibt der Rückfall rein CPU-seitig
+// — dort müssen die CPU-Filter (bwdif/scale) greifen, nicht ihre
+// VAAPI-Gegenstücke.
+func TestSoftwareFallbackUsesCpuFilters(t *testing.T) {
+	got := argsOf(t, vaapiMgr(), Profile{ID: "720p", MaxHeight: 720}, true, true)
+	if !strings.Contains(got, "bwdif") {
+		t.Errorf("CPU-Entflimmern (bwdif) erwartet:\n%s", got)
+	}
+	if strings.Contains(got, "deinterlace_vaapi") || strings.Contains(got, "scale_vaapi") {
+		t.Errorf("VAAPI-Filter im Software-Rückfall:\n%s", got)
+	}
+	if !strings.Contains(got, "scale=") {
+		t.Errorf("CPU-Skalierung erwartet:\n%s", got)
 	}
 }
 
