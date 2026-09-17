@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Konto- und Datenlöschung – Goldfish</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; margin: 0; padding: 24px;
+    background: #0c1116; color: #e5e9ee;
+  }
+  .card {
+    background: #151b22; border: 1px solid #2a333d; border-radius: 12px;
+    padding: 28px 32px; max-width: 680px; width: 100%; line-height: 1.6;
+  }
+  h1 { margin-top: 0; font-size: 22px; }
+  h2 { font-size: 16px; margin-top: 26px; }
+  a { color: #7dd3fc; }
+  ol, ul { padding-left: 20px; }
+  .hint { color: #9aa7b4; font-size: 13px; }
+  hr { border: 0; border-top: 1px solid #2a333d; margin: 32px 0 24px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Konto- und Datenlöschung — Goldfish</h1>
+  <p class="hint">Für die Goldfish-Clients (Android, iOS, macOS, tvOS, Fire TV, Linux). Stand: 2026-09-17.</p>
+
+  <h2>Kurz gesagt</h2>
+  <p>
+    Goldfish ist <strong>quelloffene, selbst gehostete Software</strong>. Es gibt keinen
+    zentralen Goldfish-Dienst und kein Konto beim Entwickler der App. Dein Konto liegt
+    ausschließlich auf dem <strong>Server, den du in der App eingetragen hast</strong> —
+    in der Regel ein privater Heimserver, den du selbst oder eine dir bekannte Person
+    betreibt. Deshalb wird die Löschung auch dort durchgeführt, nicht beim App-Entwickler.
+  </p>
+
+  <h2>Konto samt zugehörigen Daten löschen</h2>
+  <ol>
+    <li>Öffne die Weboberfläche deines Goldfish-Servers in einem Browser.</li>
+    <li>Melde dich mit einem <strong>Administrator-Konto</strong> an.</li>
+    <li>Gehe zu <strong>Einstellungen → Benutzer</strong>.</li>
+    <li>Klicke in der Zeile des betreffenden Kontos auf <strong>„Löschen“</strong> (Papierkorb-Symbol)
+      und bestätige die Rückfrage.</li>
+  </ol>
+  <p>
+    Damit werden das Konto und die zugehörigen Daten auf diesem Server entfernt. Dazu
+    gehören die Zugangsdaten sowie der persönliche Wiedergabe-Zustand (gesehen/ungesehen,
+    Fortschritt) des Kontos. Die Mediendateien selbst werden dadurch nicht angetastet.
+  </p>
+  <p class="hint">
+    Bist du nicht selbst Betreiber des Servers, wende dich für die Löschung an die Person,
+    die ihn betreibt — nur sie hat Zugriff auf die Benutzerverwaltung. Der Entwickler der
+    App hat keinen Zugriff auf fremde Server und kann dort nichts löschen.
+  </p>
+
+  <h2>Löschung einzelner Daten, ohne das Konto zu löschen</h2>
+  <ul>
+    <li><strong>Wiedergabe-Zustand:</strong> Einzelne Titel lassen sich in der App bzw. auf dem
+      Server als „ungesehen“ zurücksetzen. Der Fortschritt eines Titels wird dabei entfernt,
+      das Konto bleibt bestehen.</li>
+    <li><strong>Lokale Daten auf dem Gerät:</strong> Beim Deinstallieren der App werden die lokal
+      gespeicherten Daten (Server-Adresse, Anmelde-Token, Zwischenspeicher) vom Gerät
+      entfernt. Auf dem Server ändert das nichts — dort bleibt das Konto bestehen, bis es
+      wie oben beschrieben gelöscht wird.</li>
+  </ul>
+
+  <h2>Kontakt</h2>
+  <p>
+    Fragen zur App selbst (nicht zu einem konkreten, fremden Server) können über die
+    GitHub-Projekte gestellt werden:
+    <a href="https://github.com/boernie77/goldfish" target="_blank" rel="noopener">goldfish</a> (Server),
+    <a href="https://github.com/boernie77/goldfish-apple" target="_blank" rel="noopener">goldfish-apple</a> (iOS/macOS/tvOS),
+    <a href="https://github.com/boernie77/goldfish-android" target="_blank" rel="noopener">goldfish-android</a>.
+  </p>
+  <p class="hint">
+    Datenschutzerklärung: <a href="privacy.html">https://boernie77.github.io/goldfish/privacy.html</a>
+  </p>
+
+  <hr />
+
+  <h1 lang="en">Account and Data Deletion — Goldfish</h1>
+
+  <h2 lang="en">In short</h2>
+  <p lang="en">
+    Goldfish is <strong>open-source, self-hosted software</strong>. There is no central
+    Goldfish service and no account held by the app's developer. Your account exists only on
+    the <strong>server you entered in the app</strong> — typically a private home server run by
+    you or someone you know. Deletion therefore happens there, not with the developer of the app.
+  </p>
+
+  <h2 lang="en">Deleting your account and its associated data</h2>
+  <ol lang="en">
+    <li>Open your Goldfish server's web interface in a browser.</li>
+    <li>Sign in with an <strong>administrator account</strong>.</li>
+    <li>Go to <strong>Settings → Users</strong>.</li>
+    <li>Click <strong>“Löschen” (Delete)</strong> in the row of the account and confirm the prompt.</li>
+  </ol>
+  <p lang="en">
+    This removes the account and its associated data on that server, including the login
+    credentials and the account's personal watch state (watched/unwatched, playback progress).
+    The media files themselves are not affected.
+  </p>
+  <p class="hint" lang="en">
+    If you are not the operator of the server, ask the person who runs it to delete the account —
+    only they have access to user management. The developer of the app has no access to
+    third-party servers and cannot delete anything there.
+  </p>
+
+  <h2 lang="en">Deleting individual data without deleting the account</h2>
+  <ul lang="en">
+    <li><strong>Watch state:</strong> individual titles can be marked as unwatched in the app or on
+      the server, which removes that title's playback progress while keeping the account.</li>
+    <li><strong>Local data on the device:</strong> uninstalling the app removes locally stored data
+      (server address, login token, cache) from the device. This does not change anything on the
+      server; the account remains there until deleted as described above.</li>
+  </ul>
+</div>
+</body>
+</html>
