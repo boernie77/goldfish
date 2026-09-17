@@ -561,12 +561,14 @@ async function openSettings() {
   const tpi = state.settings.trickplayIntervalSec || 10;
   $("#tpInterval").value = tpi;
   $("#tpIntervalVal").textContent = tpi;
-  // Limit gleichzeitiger Umwandlungen + aktuelle Auslastung.
+  // Budget für gleichzeitige Umwandlungen + aktuelle Auslastung.
   const maxTc = state.settings.maxTranscodes || 4;
   $("#maxTcRange").value = maxTc;
-  $("#maxTcVal").textContent = maxTc;
   const activeTc = state.settings.activeTranscodes || 0;
-  $("#maxTcVal").textContent = `${maxTc} (aktuell laufen ${activeTc})`;
+  const loadPct = state.settings.loadPercent || 0;
+  $("#maxTcVal").textContent = activeTc > 0
+    ? `${maxTc} — aktuell ${activeTc} Umwandlung${activeTc === 1 ? "" : "en"} (${loadPct}% ausgelastet)`
+    : `${maxTc} — aktuell keine Umwandlung aktiv`;
   $("#tmdbKeyInput").value = "";
   $("#omdbKeyInput").value = "";
   $("#tmdbStatus").innerHTML = state.settings.tmdbConfigured
@@ -1197,6 +1199,10 @@ function downloadRenamesCSV() {
 // --- Protokoll (Activity-Log) ---
 
 const activityLogState = { beforeId: 0, done: false };
+// Seitengröße des Protokolls: bewusst NICHT alles auf einmal laden — die
+// Tabelle wächst unbegrenzt mit der Nutzung, und jeder Eintrag ist eine
+// DOM-Zeile. 100 passt zur Server-Voreinstellung (store.ListActivityLog).
+const ACTIVITY_LOG_PAGE_SIZE = 100;
 
 const ACTIVITY_LOG_LABELS = {
   login: "Anmeldung", login_failed: "Anmeldung fehlgeschlagen", logout: "Abmeldung",
@@ -1258,7 +1264,7 @@ async function refreshActivityLog(reset) {
   }
   const category = $("#activityLogCategory").value;
   const username = $("#activityLogUser").value;
-  const params = new URLSearchParams({ limit: "100" });
+  const params = new URLSearchParams({ limit: String(ACTIVITY_LOG_PAGE_SIZE) });
   if (category) params.set("category", category);
   if (username) params.set("username", username);
   if (activityLogState.beforeId) params.set("beforeId", String(activityLogState.beforeId));
@@ -1314,12 +1320,35 @@ async function refreshActivityLog(reset) {
   if (reset) {
     body.innerHTML = table;
   } else {
-    body.insertAdjacentHTML("beforeend", rows);
+    // ⚠ Die nachgeladenen Zeilen müssen ins <tbody> der BESTEHENDEN Tabelle —
+    // nicht an den Container (`body`) angehängt werden. Letzteres platziert
+    // sie HINTER der Tabelle statt darin: <tr> außerhalb eines <table> ist
+    // ungültiges HTML, der Browser rendert die Zellen dann unformatiert
+    // untereinander. (Bug bis 2026-09-17: „Weitere laden…" sah aus, als lade
+    // es nichts Sinnvolles nach.)
+    const tbody = body.querySelector("tbody");
+    if (tbody) {
+      tbody.insertAdjacentHTML("beforeend", rows);
+    } else {
+      body.innerHTML = table; // Fallback: Tabelle war weg → neu aufbauen
+    }
   }
   if (entries.length) {
     activityLogState.beforeId = entries[entries.length - 1].id;
   }
-  moreBtn.classList.toggle("hidden", entries.length < 100);
+  // Button nur zeigen, wenn eine volle Seite kam — sonst ist das Ende erreicht.
+  const hasMore = entries.length >= ACTIVITY_LOG_PAGE_SIZE;
+  moreBtn.classList.toggle("hidden", !hasMore);
+  activityLogState.done = !hasMore;
+  // Anzahl der aktuell sichtbaren Einträge ausweisen, damit erkennbar ist,
+  // dass bewusst nur ein Ausschnitt geladen wurde.
+  const shown = body.querySelectorAll("tbody tr").length;
+  const info = $("#activityLogCount");
+  if (info) {
+    info.textContent = hasMore
+      ? `${shown} Einträge geladen (weitere vorhanden)`
+      : `${shown} Einträge — das ist alles`;
+  }
 }
 
 // --- Backup & Wiederherstellen ---

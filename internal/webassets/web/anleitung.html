@@ -303,6 +303,26 @@ body { display: flex; justify-content: center; padding: 24px; }
     Rechenzeit und Speicherplatz bei der (einmaligen) Erzeugung. Gilt nur für <em>neu</em>
     erzeugte Vorschaubilder, bereits vorhandene ändern sich nicht rückwirkend.</dd>
 
+    <dt>Budget für gleichzeitige Umwandlungen</dt>
+    <dd>Begrenzt, wie viel Umwandlungs-Last gleichzeitig laufen darf. Das ist der
+    Schutz davor, dass sich der Server an zu vielen parallelen Umwandlungen
+    verschluckt — ohne Begrenzung kann er unter Volllast unbedienbar werden oder
+    abstürzen. Ist das Budget erschöpft, bekommt die nächste Wiedergabe eine
+    freundliche Meldung statt eines Streams; laufende Wiedergaben sind davon nie
+    betroffen.
+    <p style="margin:6px 0 0">Gezählt wird <em>gewichtet</em> statt stur nach
+    Anzahl: eine 4K-Umwandlung verbraucht einen ganzen Punkt, kleinere
+    entsprechend weniger. Auch die Quelldatei zählt mit — aus einer 4K-Datei nach
+    720p umzuwandeln kostet mehr als aus einer 1080p-Datei, weil das Dekodieren
+    unabhängig von der Zielgröße anfällt. Der eingestellte Wert entspricht also
+    der Zahl gleichzeitiger 4K-Umwandlungen; kleinere passen entsprechend mehr
+    hinein.</p>
+    <p style="margin:6px 0 0">Welcher Wert passt, hängt von der Hardware ab
+    (Grafikeinheit und Prozessor) und lässt sich nur durch Ausprobieren
+    herausfinden: schrittweise erhöhen und dabei beobachten, ob die Wiedergaben
+    flüssig bleiben. Im Zweifel lieber niedriger ansetzen — eine abgelehnte
+    Wiedergabe ist harmlos, ein überlasteter Server nicht.</p></dd>
+
     <dt>TMDB-Anreicherung (TMDB-Key / OMDb-Key)</dt>
     <dd>TMDB („The Movie Database") ist die kostenlose Online-Datenbank, aus der Goldfish
     automatisch Poster, Beschreibungstext, Bewertung, Besetzung und Erscheinungsjahr für

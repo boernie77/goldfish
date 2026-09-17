@@ -64,6 +64,11 @@ type sessionSpec struct {
 	startSec    float64
 	deinterlace bool
 	audioOnly   bool
+	// srcHeight: Hoehe der Originaldatei. Geht in die Kostenberechnung ein
+	// (siehe transcodeCost) — das Dekodieren der Quelle faellt unabhaengig
+	// von der Zielaufloesung an, eine 4K-Quelle kostet also auch dann viel,
+	// wenn klein ausgegeben wird. 0 = unbekannt (wird als 4K behandelt).
+	srcHeight int
 }
 
 type Session struct {
@@ -123,6 +128,97 @@ type Manager struct {
 // erkennen und ein Retry sinnvoll ist.
 var ErrTooManySessions = errors.New("zu viele gleichzeitige Transcodes")
 
+// ─── Gewichtetes Transcode-Budget ──────────────────────────────────────────
+//
+// Eine Sitzung zaehlt NICHT pauschal als "eine", sondern mit Kostenpunkten:
+// eine 4K-Umwandlung belastet die Grafikeinheit um ein Vielfaches einer
+// kleinen. Wuerde stumpf die Anzahl gezaehlt, blockierte ein 480p-Stream
+// denselben Platz wie ein 4K-Stream und im Alltag bliebe Kapazitaet ungenutzt.
+//
+// Die Werte stammen aus einer Messung auf echter Hardware (Intel UHD 770,
+// VAAPI, 60 s Material je Lauf, zweifach wiederholt, Werte stabil):
+//
+//	Quelle  → Ziel     Dauer    relativ
+//	4K HEVC → 2160p    15,0 s   1,00
+//	4K HEVC → 1080p     6,6 s   0,44
+//	4K HEVC →  720p     5,6 s   0,37
+//	1080p   → 1080p     5,8 s   0,39
+//	1080p   →  720p     2,7 s   0,18
+//	1080p   →  480p     1,8 s   0,12
+//
+// Zwei Dinge fallen daran auf und sind der Grund fuer die Formel unten:
+//  1. **Die QUELLE zaehlt mit, nicht nur das Ziel.** Dasselbe Ziel (720p)
+//     kostet aus einer 4K-Quelle 5,6 s, aus einer 1080p-Quelle nur 2,7 s —
+//     das Dekodieren faellt unabhaengig vom Ziel an. Eine reine
+//     Ziel-Gewichtung waere darum falsch.
+//  2. **Unterhalb von 1080p flacht es ab.** Zwischen 720p und 480p liegt
+//     wenig, weil dann der Decode dominiert, nicht der Encode.
+//
+// Die Punktwerte sind bewusst nach OBEN gerundet (jeder Wert liegt ueber dem
+// gemessenen Anteil): eine Ueberschaetzung lehnt hoechstens eine Wiedergabe
+// zu frueh ab, eine Unterschaetzung riskiert genau den Absturz, den das
+// Limit verhindern soll.
+const (
+	// CostFullBudgetUnit: Kosten einer 4K→4K-Umwandlung, der teuerste Fall.
+	// Alle anderen Werte sind Bruchteile davon. 100 statt 1, damit ohne
+	// Fliesskomma gerechnet werden kann.
+	CostFullBudgetUnit = 100
+)
+
+// transcodeCost liefert die Kostenpunkte einer Sitzung aus Quell- und
+// Zielhoehe. `srcHeight` = Hoehe der Originaldatei (0 = unbekannt → wird
+// vorsichtshalber als 4K behandelt), `targetHeight` = Profil-MaxHeight
+// (0 = "Original", also so gross wie die Quelle).
+func transcodeCost(srcHeight, targetHeight int) int {
+	// Unbekannte Quelle: vom teuersten Fall ausgehen. Lieber eine Wiedergabe
+	// zu frueh ablehnen als den Server ueberbuchen.
+	if srcHeight <= 0 {
+		srcHeight = 2160
+	}
+	// Profil "Original" (MaxHeight 0) bedeutet: Zielhoehe = Quellhoehe.
+	if targetHeight <= 0 || targetHeight > srcHeight {
+		targetHeight = srcHeight
+	}
+	switch {
+	case srcHeight >= 1800: // 4K-Quelle
+		switch {
+		case targetHeight >= 1800:
+			return 100 // gemessen 1,00
+		case targetHeight >= 1000:
+			return 50 // gemessen 0,44
+		default:
+			return 40 // gemessen 0,37
+		}
+	case srcHeight >= 1000: // 1080p/1440p-Quelle
+		switch {
+		case targetHeight >= 1000:
+			return 50 // gemessen 0,39
+		case targetHeight >= 600:
+			return 25 // gemessen 0,18
+		default:
+			return 20 // gemessen 0,12
+		}
+	default: // 720p-Quelle oder kleiner — durchweg guenstig
+		if targetHeight >= 600 {
+			return 20
+		}
+		return 15
+	}
+}
+
+// TranscodeCost ist der exportierte Zugang zu transcodeCost (fuer Tests und
+// die Anzeige im Einstellungsdialog).
+func TranscodeCost(srcHeight, targetHeight int) int { return transcodeCost(srcHeight, targetHeight) }
+
+// maxSessionsHardCap: absolute Obergrenze der ANZAHL Sitzungen, unabhaengig
+// vom Kostenbudget. Das Budget allein wuerde bei lauter sehr guenstigen
+// Sitzungen (480p aus kleiner Quelle, 15 Punkte) rechnerisch ueber zwanzig
+// gleichzeitige ffmpeg-Prozesse erlauben — die belasten zwar die
+// Grafikeinheit kaum, kosten aber je Prozess Arbeitsspeicher, Dateihandles
+// und Schreiblast im Cache-Verzeichnis. Dieser Deckel begrenzt das auf das
+// Dreifache des eingestellten Werts.
+const maxSessionsHardCapFactor = 3
+
 // DefaultMaxSessions ist die Voreinstellung fuer gleichzeitige Video-Transcodes.
 //
 // 🔴 Hintergrund (User-Test 2026-09-16): beim Ausloten, wie viele 4K-Transcodes
@@ -131,6 +227,10 @@ var ErrTooManySessions = errors.New("zu viele gleichzeitige Transcodes")
 // gab es ueberhaupt kein Limit; StartOrGet startete bedingungslos fuer jede
 // Anfrage einen weiteren ffmpeg-Prozess. Vier ist deshalb die belegte
 // Stabilitaetsgrenze dieser Hardware und damit der Default.
+//
+// Seit der Umstellung auf das gewichtete Budget bedeutet "4": vier
+// gleichzeitige 4K→4K-Umwandlungen — ODER entsprechend mehr kleinere,
+// z. B. rund acht 1080p- oder sechzehn 480p-Streams.
 const DefaultMaxSessions = 4
 
 func NewManager(cacheDir string, hw HWAccel) *Manager {
@@ -185,12 +285,36 @@ func (m *Manager) activeVideoSessionsLocked() int {
 	return n
 }
 
+// activeCostLocked summiert die Kostenpunkte aller laufenden Video-Sitzungen
+// (siehe transcodeCost). Der Aufrufer MUSS m.mu halten.
+func (m *Manager) activeCostLocked() int {
+	sum := 0
+	for _, s := range m.sessions {
+		if s.spec.audioOnly {
+			continue
+		}
+		sum += transcodeCost(s.spec.srcHeight, s.spec.profile.MaxHeight)
+	}
+	return sum
+}
+
 // ActiveVideoSessions liefert die Zahl laufender Video-Transcodes (fuer
 // /api/health und die Auslastungsanzeige).
 func (m *Manager) ActiveVideoSessions() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.activeVideoSessionsLocked()
+}
+
+// ActiveLoadPercent liefert die aktuelle Auslastung in Prozent des Budgets
+// (100 = voll). Fuer die Anzeige im Einstellungsdialog.
+func (m *Manager) ActiveLoadPercent() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.maxSessions <= 0 {
+		return 0
+	}
+	return m.activeCostLocked() * 100 / (m.maxSessions * CostFullBudgetUnit)
 }
 
 // MaxSessions liefert die aktuell konfigurierte Obergrenze (0 = unbegrenzt).
@@ -452,7 +576,7 @@ func sessionKey(itemID int64, profileID string, audioIdx int, startSec float64, 
 // den Parameter deshalb nicht. audioOnly zaehlt allerdings NICHT gegen das
 // Transcode-Limit (siehe activeVideoSessionsLocked).
 
-func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool) (*Session, error) {
+func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool, srcHeight int) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	id := sessionKey(itemID, profile.ID, audioIdx, startSec, deinterlace)
@@ -500,7 +624,7 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 			delete(m.sessions, otherID)
 		}
 	}
-	// 🔴 Harte Obergrenze gleichzeitiger Video-Transcodes (seit 2026-09-17).
+	// 🔴 Gewichtetes Budget gleichzeitiger Video-Transcodes (seit 2026-09-17).
 	//
 	// Bis hierher konnte JEDE Anfrage bedingungslos einen weiteren
 	// ffmpeg-Prozess starten. Beim User-Test am 2026-09-16 (wie viele
@@ -510,6 +634,12 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	// besser als ein toter Server, deshalb hier ein hartes Nein statt
 	// „irgendwie noch reinquetschen".
 	//
+	// Gezaehlt werden NICHT Sitzungen, sondern KOSTENPUNKTE (siehe
+	// transcodeCost): eine 4K→4K-Umwandlung kostet das volle Budget-Mass,
+	// ein 480p-Stream aus kleiner Quelle nur einen Bruchteil. Sonst
+	// blockierte eine winzige Umwandlung denselben Platz wie eine 4K-Last
+	// und im Alltag bliebe Kapazitaet ungenutzt.
+	//
 	// Bewusste Details:
 	//   - Der Check steht NACH dem Sibling-Cleanup oben: dort gerade
 	//     freigewordene Plaetze zaehlen bereits mit, sonst wuerde ein
@@ -517,13 +647,23 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	//   - Der Check steht NACH dem `m.sessions[id]`-Treffer ganz oben: eine
 	//     BESTEHENDE Session weiterzubenutzen ist nie limitiert, sonst
 	//     briche ein laufender Film beim naechsten Playlist-Reload ab.
-	//   - Nur Video zaehlt (siehe activeVideoSessionsLocked) — Musik soll
-	//     keinen Filmplatz wegnehmen.
+	//   - Nur Video zaehlt (siehe activeCostLocked) — Musik soll keinen
+	//     Filmplatz wegnehmen.
+	//   - Zusaetzlich ein Deckel auf die ANZAHL (maxSessionsHardCapFactor):
+	//     lauter billige Sitzungen wuerden sonst rechnerisch ueber zwanzig
+	//     ffmpeg-Prozesse erlauben, die zwar die Grafikeinheit kaum
+	//     belasten, aber je Prozess Speicher und Dateihandles kosten.
 	if m.maxSessions > 0 && !audioOnly {
-		if active := m.activeVideoSessionsLocked(); active >= m.maxSessions {
-			log.Printf("[transcode] ABGELEHNT item=%d: Limit erreicht (%d/%d laufende Video-Transcodes)",
-				itemID, active, m.maxSessions)
-			return nil, fmt.Errorf("%w (%d/%d)", ErrTooManySessions, active, m.maxSessions)
+		budget := m.maxSessions * CostFullBudgetUnit
+		cost := transcodeCost(srcHeight, profile.MaxHeight)
+		if active := m.activeCostLocked(); active+cost > budget {
+			log.Printf("[transcode] ABGELEHNT item=%d: Budget erschoepft (%d+%d von %d Punkten, %d Sitzungen aktiv)",
+				itemID, active, cost, budget, m.activeVideoSessionsLocked())
+			return nil, fmt.Errorf("%w (Auslastung %d%%)", ErrTooManySessions, active*100/budget)
+		}
+		if n := m.activeVideoSessionsLocked(); n >= m.maxSessions*maxSessionsHardCapFactor {
+			log.Printf("[transcode] ABGELEHNT item=%d: Sitzungs-Obergrenze erreicht (%d)", itemID, n)
+			return nil, fmt.Errorf("%w (%d gleichzeitige Umwandlungen)", ErrTooManySessions, n)
 		}
 	}
 	// Verzeichnis-Name = Session-Key + eindeutiger Suffix. Der Suffix ist
@@ -544,6 +684,7 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		startSec:    startSec,
 		deinterlace: deinterlace,
 		audioOnly:   audioOnly,
+		srcHeight:   srcHeight,
 	}, false)
 }
 

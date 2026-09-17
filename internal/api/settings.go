@@ -89,6 +89,8 @@ type settingsDTO struct {
 	// ActiveTranscodes: aktuell laufende Video-Umwandlungen (nur lesend,
 	// fuer die Auslastungsanzeige im Einstellungsdialog).
 	ActiveTranscodes int `json:"activeTranscodes"`
+	// LoadPercent: Auslastung des gewichteten Budgets in Prozent (100 = voll).
+	LoadPercent int `json:"loadPercent"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
@@ -123,6 +125,7 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 		AutoRenameConfirmedMovies: arn == "true" || arn == "1",
 		MaxTranscodes:             s.maxTranscodesSetting(),
 		ActiveTranscodes:          s.activeTranscodes(),
+		LoadPercent:               s.transcodeLoadPercent(),
 	})
 }
 
@@ -149,6 +152,15 @@ func (s *Server) activeTranscodes() int {
 		return 0
 	}
 	return s.Playback.ActiveVideoSessions()
+}
+
+// transcodeLoadPercent liefert die Auslastung des gewichteten Budgets in
+// Prozent (0, wenn kein Playback-Manager haengt — etwa in Tests).
+func (s *Server) transcodeLoadPercent() int {
+	if s.Playback == nil {
+		return 0
+	}
+	return s.Playback.ActiveLoadPercent()
 }
 
 func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
@@ -282,5 +294,6 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		AutoRenameConfirmedMovies: body.AutoRenameConfirmedMovies,
 		MaxTranscodes:             s.maxTranscodesSetting(),
 		ActiveTranscodes:          s.activeTranscodes(),
+		LoadPercent:               s.transcodeLoadPercent(),
 	})
 }
