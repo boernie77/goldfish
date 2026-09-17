@@ -38,9 +38,10 @@ func (w *Worker) enrichFolders(ctx context.Context) error {
 			return ctx.Err()
 		}
 		if err := w.matchShow(ctx, f.LibraryID, f.Folder); err != nil {
-			reasons[err.Error()]++
-			if firstExample[err.Error()] == "" {
-				firstExample[err.Error()] = f.Folder
+			key := normaliseReason(err.Error())
+			reasons[key]++
+			if firstExample[key] == "" {
+				firstExample[key] = f.Folder
 			}
 			continue
 		}
@@ -99,9 +100,10 @@ func (w *Worker) enrichItems(ctx context.Context) error {
 			// ausgeben. Die betroffenen Dateien sind ohnehin im UI sichtbar
 			// (Zuordnung → unbestätigte/nicht zugeordnete Items), das Log ist
 			// dafür der falsche Ort.
-			reasons[err.Error()]++
-			if firstExample[err.Error()] == "" {
-				firstExample[err.Error()] = it.Path
+			key := normaliseReason(err.Error())
+			reasons[key]++
+			if firstExample[key] == "" {
+				firstExample[key] = it.Path
 			}
 			w.mu.Lock()
 			w.status.ItemsFailed++
@@ -138,9 +140,42 @@ func logMatchFailures(reasons map[string]int, firstExample map[string]string) {
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].n > list[j].n })
 	log.Printf("[enrich] %d Item(s) ohne Treffer, %d verschiedene Gründe:", total, len(list))
-	for _, e := range list {
+	// Deckel: selbst nach der Normalisierung soll eine unerwartete Vielfalt
+	// an Gründen das Log nicht wieder fluten.
+	const maxLines = 10
+	for i, e := range list {
+		if i == maxLines {
+			log.Printf("[enrich]   … und %d weitere Gründe", len(list)-maxLines)
+			break
+		}
 		log.Printf("[enrich]   %4d × %s (z. B. %s)", e.n, e.reason, firstExample[e.reason])
 	}
+}
+
+// normaliseReason macht aus einer konkreten Fehlermeldung einen gruppierbaren
+// Grund.
+//
+// ⚠ Ohne das läuft die Zusammenfassung ins Leere (bemerkt beim Deploy von
+// v1.4.3): TMDB-Fehler enthalten die angefragte URL —
+// „TMDB GET /tv/4454/season/9/episode/12: {…}" ist für JEDE Episode ein
+// anderer String, also ein eigener „Grund". Ergebnis wären wieder so viele
+// Zeilen wie Dateien, nur mit „1 ×" davor. Deshalb werden variable Teile
+// (Pfade, IDs, angehängte JSON-Antworten) entfernt, bevor gezählt wird.
+func normaliseReason(msg string) string {
+	// Angehängte Server-Antwort abschneiden: „… : {"success":false,…}"
+	if i := strings.Index(msg, ": {"); i > 0 {
+		msg = msg[:i]
+	}
+	// Konkrete API-Pfade auf den Endpunkt-Typ reduzieren.
+	if i := strings.Index(msg, " /"); i > 0 {
+		rest := msg[i+1:]
+		parts := strings.Split(strings.TrimPrefix(rest, "/"), "/")
+		if len(parts) > 0 && parts[0] != "" {
+			return msg[:i] + " /" + parts[0] + "/…"
+		}
+		return msg[:i] + " /…"
+	}
+	return msg
 }
 
 func (w *Worker) matchShow(ctx context.Context, libraryID int64, folder string) error {

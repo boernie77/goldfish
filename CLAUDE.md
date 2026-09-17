@@ -4400,6 +4400,17 @@ deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
   je Element loggen** — die Zeilenzahl muss von der Zahl der GRÜNDE
   abhängen, nicht von der Datenmenge. Tests:
   `internal/enrich/log_summary_test.go`.
+
+  **⚠ Nachtrag v1.4.4 — der erste Versuch lief ins Leere:** TMDB-Fehler
+  enthalten die angefragte URL (`TMDB GET /tv/4454/season/9/episode/12:
+  {…}`), sind also für JEDE Episode ein anderer String und damit ein
+  eigener „Grund". Im Live-Log standen nach dem Deploy von v1.4.3 wieder
+  200 Zeilen, nur mit „1 ×" davor. **Wer Fehlermeldungen gruppiert, muss
+  sie vorher normalisieren** (`normaliseReason`: angehängte JSON-Antwort
+  abschneiden, API-Pfade auf den Endpunkt-Typ reduzieren). Zusätzlich ein
+  Deckel von 10 Grund-Zeilen je Lauf, damit unerwartete Vielfalt das Log
+  nicht erneut flutet. Die echten Live-Logzeilen stehen als Testdaten in
+  `TestNormaliseReasonGroupsTMDBErrors`.
 - **⚠ `probeSubtitleCodec` braucht einen Kontext mit Timeout** (gefixt
   2026-09-17): der ffprobe-Aufruf lief als nacktes `exec.Command` ohne
   Abbruchmöglichkeit, obwohl die ffmpeg-Extraktion unmittelbar darunter
