@@ -504,6 +504,27 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			WHERE pi.item_id = i.id AND pi.playlist_id = ?
 		)`
 		args = append(args, f.PlaylistID)
+	} else if f.AnyPlaylist {
+		// „In IRGENDEINER sichtbaren Playlist" — fuer Zufallswiedergabe und
+		// Filter in der Playlist-UEBERSICHT (User-Wunsch 2026-09-17: dort ging
+		// Zufall gar nicht, nur in einer geoeffneten Playlist).
+		//
+		// ⚠ Die Sichtbarkeitsregel muss EXAKT der von ListPlaylistsForUser
+		// entsprechen (playlists.go): eigene Playlists (`user_id = ?`) plus
+		// Legacy-Playlists ohne Besitzer (`user_id IS NULL`), letztere nur
+		// fuer Admins. Sonst zoege die Zufallswiedergabe Titel aus fremden
+		// Playlists, die in der Uebersicht gar nicht auftauchen.
+		q += ` AND EXISTS (
+			SELECT 1 FROM playlist_items pi
+			JOIN playlists pl ON pl.id = pi.playlist_id
+			WHERE pi.item_id = i.id
+			  AND (pl.user_id = ? OR (pl.user_id IS NULL AND ? = 1))
+		)`
+		isAdmin := 0
+		if f.IsAdmin {
+			isAdmin = 1
+		}
+		args = append(args, f.UserID, isAdmin)
 	}
 	if f.MusicAlbumID > 0 {
 		q += ` AND i.music_album_id = ?`

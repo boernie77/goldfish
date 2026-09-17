@@ -234,7 +234,18 @@ async function loadItemsBody() {
   if (state.currentPlaylist) return await renderPlaylistBranch();
 
   // Playlists-Ansicht (Root): zeigt alle Playlists als Kacheln + eigene Toolbar.
-  if (state.playlistsView && !state.currentPlaylist) return await renderPlaylistsRootBranch();
+  //
+  // ⚠ Sobald ein Video-Filter aktiv ist (Suche, Sortierung, Gesehen,
+  // Favoriten, Auflösung), zeigt die Übersicht stattdessen die TITEL aus
+  // allen sichtbaren Playlists — Playlist-Kacheln kennen weder „zuletzt
+  // gespielt" noch „gesehen", die Filterleiste lief dort also ins Leere
+  // (User-Frage 2026-09-17: „ob die Filter wie zum Beispiel zuletzt gespielt
+  // hier auch über alle Playlist greifen"). Ohne aktiven Filter bleibt es
+  // bei den Kacheln — das ist der normale Einstieg.
+  if (state.playlistsView && !state.currentPlaylist) {
+    if (playlistsRootHasActiveFilter()) return await renderAllPlaylistItemsBranch();
+    return await renderPlaylistsRootBranch();
+  }
 
   // Collections-Ansicht: zeigt alle TMDB-Sammlungen, in die mindestens ein Film fällt.
   if (state.collectionsView) return await renderCollectionsBranch();
@@ -556,6 +567,64 @@ async function loadItemsBody() {
       grid.innerHTML = q
         ? `<div class="empty">Keine Treffer für „${escapeHTML(q)}".</div>`
         : `<div class="empty">Playlist ist leer. Füge Videos via „📋 Zu Playlist…" im Detail-Dialog hinzu.</div>`;
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.forEach((it, idx) => frag.appendChild(renderCard(it, { queueIdx: idx })));
+    grid.innerHTML = "";
+    grid.appendChild(frag);
+    return;
+  }
+
+  // playlistsRootHasActiveFilter: erkennt, ob in der Playlist-ÜBERSICHT ein
+  // Video-Filter gesetzt ist. Nur dann wird auf die Titel-Ansicht über alle
+  // Playlists umgeschaltet (siehe Aufrufstelle oben) — ohne Filter bleiben die
+  // Playlist-Kacheln der normale Einstieg.
+  //
+  // `sort:playlists` ist der Merker-Schlüssel der Übersicht; ein davon
+  // abweichender Sortiermodus bedeutet, dass der Nutzer bewusst etwas
+  // ausgewählt hat.
+  function playlistsRootHasActiveFilter() {
+    if ($("#searchInput").value.trim()) return true;
+    if ($("#watchedFilter").value) return true;
+    if (currentFavoriteMode()) return true;
+    if (currentRatingFilter()) return true;
+    if (state.resBuckets && state.resBuckets.length) return true;
+    const sort = $("#sortSelect").value;
+    return !!sort && sort !== "title";
+  }
+
+  // renderAllPlaylistItemsBranch: alle Titel aus allen sichtbaren Playlists,
+  // gefiltert/sortiert wie jede andere Liste. Server-seitig über
+  // `playlistId=any` (siehe ItemFilter.AnyPlaylist) — Items, die in mehreren
+  // Playlists liegen, erscheinen dank EXISTS nur einmal.
+  async function renderAllPlaylistItemsBranch() {
+    const params = new URLSearchParams();
+    params.set("playlistId", "any");
+    params.set("sort", currentSortMode());
+    const dir = effectiveSortDir();
+    if (dir) params.set("dir", dir);
+    const q = $("#searchInput").value.trim();
+    if (q) params.set("search", q);
+    const wat = $("#watchedFilter").value;
+    if (wat) params.set("watched", wat);
+    const fav = currentFavoriteMode();
+    if (fav) params.set("favorite", fav);
+    applyResolutionFilter(params);
+    applyRatingFilter(params);
+
+    let items = [];
+    try { items = await api(`/api/items?${params}`); }
+    catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+    if (stale()) return;
+
+    if ($("#sortSelect").value === "shuffle") shuffleInPlace(items);
+    $("#searchClear").classList.toggle("hidden", q === "");
+    renderBreadcrumb({ playlistsRoot: true, searchCount: items.length });
+    state.playQueue = items;
+    state.lastRenderedItems = items;
+    if (!items.length) {
+      grid.innerHTML = `<div class="empty">Keine Titel in den Playlists entsprechen dem Filter.</div>`;
       return;
     }
     const frag = document.createDocumentFragment();

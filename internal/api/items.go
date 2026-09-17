@@ -514,7 +514,13 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 		f.PersonTMDB, _ = strconv.ParseInt(v, 10, 64)
 	}
 	if v := q.Get("playlistId"); v != "" {
-		f.PlaylistID, _ = strconv.ParseInt(v, 10, 64)
+		// "any" = alle sichtbaren Playlists zusammen (Playlist-Uebersicht),
+		// sonst eine konkrete ID.
+		if v == "any" {
+			f.AnyPlaylist = true
+		} else {
+			f.PlaylistID, _ = strconv.ParseInt(v, 10, 64)
+		}
 	}
 	if v := q.Get("albumId"); v != "" {
 		f.MusicAlbumID, _ = strconv.ParseInt(v, 10, 64)

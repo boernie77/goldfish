@@ -232,6 +232,14 @@ function randomParams() {
     // Playlist-Kontext: nur Items aus dieser Playlist. libraryId ist hier
     // irrelevant — Playlists sind library-uebergreifend.
     params.set("playlistId", state.currentPlaylist);
+  } else if (state.playlistsView) {
+    // Playlist-ÜBERSICHT (keine einzelne geöffnet): über ALLE sichtbaren
+    // Playlists hinweg. Vorher fehlte dieser Zweig komplett — playRandom()
+    // brach mit „Bitte erst eine Bibliothek … wählen" ab, obwohl der Nutzer
+    // sichtbar in der Playlist-Ansicht stand (User-Report 2026-09-17: „wenn
+    // ich in Playlist drin bin, geht der Shuffle Play nicht. Nur wenn ich
+    // eine Playlist öffne, aber nicht bei allen Playlists").
+    params.set("playlistId", "any");
   } else if (state.personFilter && state.personFilter.tmdbId) {
     // Person-Filter: alle Videos mit diesem Schauspieler, library-uebergreifend.
     params.set("personId", state.personFilter.tmdbId);
@@ -279,10 +287,10 @@ function openShuffleItem(item) {
 }
 
 async function playRandom() {
-  // Mindestens einer der Kontexte muss aktiv sein: Library, Playlist,
-  // Person-Filter oder eine manuelle Ordner-Auswahl. Sonst gibt es nichts,
-  // woraus zufaellig gewaehlt werden kann.
-  if (!state.currentLibrary && !state.currentPlaylist &&
+  // Mindestens einer der Kontexte muss aktiv sein: Library, Playlist (einzeln
+  // ODER die Übersicht über alle), Person-Filter oder eine manuelle
+  // Ordner-Auswahl. Sonst gibt es nichts, woraus zufaellig gewaehlt werden kann.
+  if (!state.currentLibrary && !state.currentPlaylist && !state.playlistsView &&
       !(state.personFilter && state.personFilter.tmdbId) &&
       !(state.shuffleFolders && state.shuffleFolders.length)) {
     appAlert("Bitte erst eine Bibliothek, Playlist oder einen Schauspieler-Filter waehlen.");

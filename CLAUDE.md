@@ -4450,6 +4450,33 @@ deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
   Aufräumfunktion ein unnötiges Risiko (beim Testen des GC-Fixes
   aufgefallen).
 
+- **⚠ Zufallswiedergabe und Filter in der Playlist-ÜBERSICHT** (gebaut
+  2026-09-17, v1.4.6): `playRandom()` prüfte nur `currentLibrary`/
+  `currentPlaylist`/`personFilter`/`shuffleFolders` — in der Playlist-Liste
+  ist keines davon gesetzt, der Zufall brach also mit „Bitte erst eine
+  Bibliothek … wählen" ab (User-Report: „wenn ich in Playlist drin bin, geht
+  der Shuffle Play nicht. Nur wenn ich eine Playlist öffne"). Neu:
+  `playlistId=any` → `ItemFilter.AnyPlaylist` = „liegt in IRGENDEINER für
+  diesen Nutzer sichtbaren Playlist".
+  **🔒 Die Sichtbarkeitsregel MUSS exakt der von `ListPlaylistsForUser`
+  entsprechen** (`user_id = ?` ODER besitzerlos UND Admin) — Playlists sind
+  private Kuratierung, **es gibt KEINE Admin-Ausnahme auf fremde Playlists**
+  (siehe `TestPlaylistUserIsolation`). Sonst zöge die Zufallswiedergabe
+  Titel aus Playlists, die in der Übersicht gar nicht auftauchen.
+  Tests: `internal/store/any_playlist_test.go` (inkl. Leck-Test gegen den
+  Admin-Fall und Dublettenprüfung bei Items in mehreren Playlists).
+  **Die Filterleiste wirkt dort jetzt ebenfalls:** sobald Suche/Sortierung/
+  Gesehen/Favorit/Bewertung/Auflösung gesetzt sind, zeigt die Übersicht die
+  TITEL aus allen Playlists statt der Playlist-Kacheln — vorher lief die
+  Leiste dort ins Leere, weil Kacheln weder „zuletzt gespielt" noch
+  „gesehen" kennen. Ohne Filter bleiben die Kacheln der normale Einstieg.
+- **⚠ Beim Schreiben von Store-Tests:** `UpsertItem` schreibt die vergebene
+  ID **nicht** in das übergebene Item zurück (`it.ID` bleibt 0) — die ID
+  über den Pfad nachschlagen. Und **ohne `SetUserLibraryAccess` liefert
+  `ListItems` für Nicht-Admins grundsätzlich nichts** (ACL-Sperrpunkt für
+  jeden Aufruf mit echter UserID); ein Test ohne diese Freigabe wird aus
+  dem falschen Grund grün oder rot.
+
 ## Bekannte Probleme & Lösungen (Decision Log)
 
 > Vollständiger Decision-Log ausgelagert in **`DECISIONS.md`** (wird nicht automatisch

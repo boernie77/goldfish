@@ -85,6 +85,11 @@ type ItemFilter struct {
 	MetadataID    int64 // 0 = aus; sonst nur Items mit exakt dieser metadata_id (Variants-Fetch)
 	PersonTMDB    int64 // 0 = aus; sonst nur Items, deren Metadata (oder Parent-Show bei Episoden) diese Person listet
 	PlaylistID    int64 // 0 = aus; sonst nur Items, die in dieser Playlist liegen (fuer Shuffle/Zufall in Playlist-Ansicht)
+	// AnyPlaylist: nur Items, die in IRGENDEINER fuer diesen Nutzer sichtbaren
+	// Playlist liegen. Fuer Zufallswiedergabe/Filter in der Playlist-UEBERSICHT,
+	// wo keine einzelne Playlist geoeffnet ist. Wird ignoriert, wenn
+	// PlaylistID gesetzt ist (die engere Angabe gewinnt).
+	AnyPlaylist bool
 	MusicAlbumID  int64 // 0 = aus; sonst nur Tracks dieses Albums (fuer Shuffle/Zufall innerhalb eines geoeffneten Albums)
 	// ExcludeAudiobooks: Hörbücher (.m4b) aus dem Zufalls-Pool ausschließen
 	// (User-Wunsch 2026-09-04: "Bei Zufall Play dürfen Hörbücher nicht
