@@ -549,7 +549,9 @@ func (s *Store) ListLibrariesForUser(userID int64, isAdmin bool) ([]model.Librar
 	args := []any{userID}
 	args = append(args, exclArgs...)
 	rows, err := s.db.Query(`
-		SELECT l.id, l.name, l.path, l.kind, l.created_at
+		SELECT l.id, l.name, l.path, l.kind, l.created_at,
+			COALESCE(l.channel_label_on_top, 1), COALESCE(l.delete_watched_button_enabled, 0),
+			COALESCE(l.show_release_date, 0)
 		FROM libraries l
 		JOIN user_library_access a ON a.library_id = l.id
 		WHERE a.user_id = ? AND `+exclSQL+`
@@ -563,10 +565,14 @@ func (s *Store) ListLibrariesForUser(userID int64, isAdmin bool) ([]model.Librar
 	for rows.Next() {
 		var l model.Library
 		var kind string
-		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &l.CreatedAt); err != nil {
+		var channelTop, deleteWatchedBtn, showReleaseDate int
+		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &l.CreatedAt, &channelTop, &deleteWatchedBtn, &showReleaseDate); err != nil {
 			return nil, err
 		}
 		l.Kind = model.LibraryKind(kind)
+		l.ChannelLabelOnTop = channelTop == 1
+		l.DeleteWatchedButtonEnabled = deleteWatchedBtn == 1
+		l.ShowReleaseDate = showReleaseDate == 1
 		out = append(out, l)
 	}
 	return out, rows.Err()
