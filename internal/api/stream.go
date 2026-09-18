@@ -526,6 +526,19 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 				"gleichzeitige Umwandlungen. Bitte in einem Moment erneut versuchen.")
 			return
 		}
+		// Direkt nach einem gemeldeten Client-Stop (z. B. dem Wiedergabe-Ende):
+		// die Player holen am Ende einer EVENT-Playlist von sich aus die
+		// Playlist erneut und treffen dabei ins 3-Sekunden-Sperrfenster. Mit 500
+		// wurde daraus ein modaler Abspielfehler („Stream-Fehler (-16847) … HTTP
+		// 500", User-Report macOS 2026-09-18 genau am Folgen-Ende). 503 +
+		// Retry-After ist die korrekte Antwort für einen temporären Zustand —
+		// dieselbe Begründung wie beim Limit oben.
+		if errors.Is(err, playback.ErrStoppedRecently) {
+			w.Header().Set("Retry-After", "3")
+			writeError(w, 503, "Die Wiedergabe wurde gerade beendet — bitte einen "+
+				"Moment warten.")
+			return
+		}
 		writeError(w, 500, "ffmpeg start: "+err.Error())
 		return
 	}

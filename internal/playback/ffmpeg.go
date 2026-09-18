@@ -142,6 +142,20 @@ type Manager struct {
 // erkennen und ein Retry sinnvoll ist.
 var ErrTooManySessions = errors.New("zu viele gleichzeitige Transcodes")
 
+// ErrStoppedRecently meldet, dass für dieses Item GERADE ein Client-Stop
+// gemeldet wurde (siehe stopSuppressWindow in StartOrGet) und innerhalb des
+// Sperrfensters keine neue Sitzung erzeugt wird.
+//
+// Warum ein eigener Sentinel: das ist ein TEMPORÄRER Zustand, kein
+// Serverfehler. Der API-Layer macht daraus 503 + Retry-After statt 500 —
+// AVPlayer und ExoPlayer laden am Ende einer EVENT-Playlist von sich aus
+// erneut die Playlist nach, treffen dabei ins Sperrfenster und zeigten dem
+// Nutzer sonst einen modalen Abspielfehler („Stream-Fehler (-16847) … HTTP
+// 500", User-Report macOS 2026-09-18, direkt nach dem Folgen-Ende und
+// gleichzeitig mit dem „Nächste Folge"-Hinweis). Mit 503 + Retry-After
+// wiederholen die Player den Abruf still statt abzubrechen.
+var ErrStoppedRecently = errors.New("wiedergabe wurde gerade beendet")
+
 // ─── Gewichtetes Transcode-Budget ──────────────────────────────────────────
 //
 // Eine Sitzung zaehlt NICHT pauschal als "eine", sondern mit Kostenpunkten:
@@ -641,7 +655,7 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 	// zu blockieren (in der Praxis nie so schnell erneut angeklickt).
 	const stopSuppressWindow = 3 * time.Second
 	if t, ok := m.stoppedAt[itemID]; ok && time.Since(t) < stopSuppressWindow {
-		return nil, fmt.Errorf("wiedergabe wurde gerade beendet, bitte kurz warten")
+		return nil, ErrStoppedRecently
 	}
 	// 🔴 2026-09-13: Ein erster Versuch, hier andere Sessions DESSELBEN Items
 	// SOFORT zu stoppen, wurde noch am selben Tag wieder entfernt — Live-
