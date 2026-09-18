@@ -315,6 +315,22 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// ausschließen zu müssen. Filme (kein parent) und private Videos
 		// (keine Metadata) bleiben unverändert bei m.title/i.title.
 		titleField := "UNACCENT(COALESCE(parent.title, m.title, i.title))"
+		// Darsteller-Namen werden nur am WORTANFANG getroffen (User-Vorgabe
+		// 2026-09-18). Vorher war es ein Teilstring irgendwo im Namen — eine
+		// Suche nach „big" fand dadurch Abigail Spencer (37 Titel), Mike
+		// Birbiglia, Michael Herbig, Jason Biggs, Mavie Hörbiger … und wirkte
+		// völlig zusammenhanglos (User-Report Fire TV: „49 Treffer, die haben
+		// definitiv nicht big im Namen"; an der echten Bibliothek gemessen:
+		// 1518 Treffer, davon 506 nur über solche Namens-Mittentreffer).
+		// Titel/Album/Künstler bleiben Teilstring-Suchen — dort ist das
+		// gewünscht („big" soll „The Big Bang Theory" finden).
+		//
+		// Wortanfang heißt: Name beginnt damit, oder der Begriff beginnt ein
+		// späteres Wort (nach Leerzeichen oder Bindestrich — Doppelnamen wie
+		// „Jean-Claude" sind sonst nicht suchbar).
+		castPrefix := unaccent(f.Search) + "%"
+		castWord := "% " + unaccent(f.Search) + "%"
+		castHyphen := "%-" + unaccent(f.Search) + "%"
 		// Suche auf Schauspielernamen ist teuer (LIKE auf people.name = Full-
 		// Scan, plus EXISTS pro Item). Erst ab 3 Zeichen mit dazunehmen —
 		// bei 1-2 Buchstaben sind die Cast-Treffer eh nicht hilfreich.
@@ -326,12 +342,14 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 				OR EXISTS (
 					SELECT 1 FROM metadata_cast mc
 					JOIN people p ON p.id = mc.person_id
-					WHERE UNACCENT(p.name) LIKE ?
+					WHERE (UNACCENT(p.name) LIKE ?
+					       OR UNACCENT(p.name) LIKE ?
+					       OR UNACCENT(p.name) LIKE ?)
 					  AND (mc.metadata_id = i.metadata_id
 					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
 				)
 			)`
-			args = append(args, pattern, pattern, pattern, pattern)
+			args = append(args, pattern, pattern, pattern, castPrefix, castWord, castHyphen)
 		} else {
 			q += ` AND (
 				` + titleField + ` LIKE ?

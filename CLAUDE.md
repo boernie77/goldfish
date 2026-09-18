@@ -18,11 +18,45 @@ und keine Fortsetzung der 1.0.x-Zählung) — ab da lief die normale
 sprang bewusst auf **1.3.0** (explizit so gewünscht) — ab da läuft die
 normale +0.0.1-Patch-Regel auf Basis von 1.3.0 weiter (1.3.1 → 1.3.2 → …).
 
-**🌐 Das Repo ist seit 2026-09-05 ÖFFENTLICH** (`github.com/boernie77/goldfish`,
-MIT-Lizenz). **Bei JEDER Änderung prüfen, ob committeter Code oder Kommentare
-echte Namen, E-Mails, interne IPs oder Secrets enthalten** — das ist sofort für
-jeden sichtbar, nicht mehr nur theoretisch. Der Modulpfad bleibt bewusst
-`videoplayer` (eine Umbenennung wäre nur noch Churn).
+**🌐 VIER der fünf Repos sind ÖFFENTLICH** (Sichtbarkeit am 2026-09-18 direkt
+über die GitHub-API geprüft, nicht geschätzt):
+
+| Repo | sichtbar | seit |
+|---|---|---|
+| `boernie77/goldfish` (Server, MIT) | öffentlich | 2026-09-05 (siehe Fußnote) |
+| `boernie77/goldfish-apple` (MIT) | **öffentlich** | 2026-08-18 |
+| `boernie77/goldfish-android` (GPLv3) | **öffentlich** | 2026-08-18 |
+| `boernie77/goldfish-linux` (MIT) | öffentlich | 2026-09-12 |
+| `boernie77/goldfish-firetv` | privat | — |
+
+**Bei JEDER Änderung an einem dieser Repos prüfen, ob committeter Code oder
+Kommentare echte Namen, E-Mails, interne IPs oder Secrets enthalten** — das ist
+sofort für jeden sichtbar, nicht mehr nur theoretisch.
+
+**⚠ Diese Datei behauptete bis 2026-09-18 fälschlich, `goldfish-apple` und
+`goldfish-android` seien „privat".** Beide waren ab dem Tag ihrer Erstellung
+(2026-08-18) öffentlich — einen privaten Zeitraum gab es nie. Der Irrtum hatte
+eine konkrete Folge: in `goldfish-android` stand einen Monat lang die interne
+LAN-Adresse des Heimservers in `network_security_config.xml` (am 2026-09-18
+entfernt, Commit `2ec43a8`). Gerettet hat die Lage allein die explizite
+Keystore-Warnung im Android-Block weiter unten. **Lehre: die Sichtbarkeit eines
+Repos nie aus dieser Datei übernehmen, sondern im Zweifel nachsehen**
+(`gh repo view <repo> --json visibility`) — eine Doku-Zeile altert lautlos, die
+API nicht.
+
+**Fußnote zum `goldfish`-Datum:** die GitHub-Events-API meldet für dieses Repo
+ZWEI `PublicEvent`-Einträge am 2026-04-27 (Tag der Erstellung), nicht den hier
+dokumentierten 2026-09-05. Zwei Einträge am selben Tag heißen: mindestens einmal
+öffentlich → privat → öffentlich geschaltet. Ob danach noch eine private Phase
+bis September lag, lässt sich nicht mehr belegen — die Events-API hält nur ein
+begrenztes Fenster vor (ältester sonst erhaltener Eintrag: 2026-08-19). Das
+Datum bleibt deshalb stehen wie bisher dokumentiert. **Praktisch irrelevant:
+öffentlich ist öffentlich, die Prüfpflicht oben gilt so oder so** — nur als
+Warnung, falls jemand dieses Datum je für eine „war zu Zeitpunkt X noch
+privat"-Argumentation heranziehen will. Das taugt es nicht.
+
+Der Modulpfad bleibt bewusst `videoplayer` (eine Umbenennung wäre nur noch
+Churn).
 
 ---
 
@@ -155,7 +189,8 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 > **An jede Claude-Session, die Goldfish-Server-API anfasst:**
 > Es gibt eine **Android-App** unter `/Users/christian/Projekte/GoldfishAndroid/`
-> (eigenes Git-Repo `github.com/boernie77/goldfish-android`, privat),
+> (eigenes Git-Repo `github.com/boernie77/goldfish-android`, **öffentlich**
+> seit 2026-08-18, GPLv3),
 > die aktuell im **Internal-Testing-Track** der Google Play Console verteilt wird
 > (NICHT öffentlich im Play Store). Die App ist NICHT mitversioniert mit dem
 > Server — wenn du eine API-Antwort änderst, kann die App stillschweigend
@@ -237,7 +272,7 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 > Es gibt außer Android/Linux auch eine **native Mac/iOS/tvOS-App** unter
 > `/Users/christian/Projekte/GoldfishApple/` (SwiftUI, `GoldfishMac` +
 > `GoldfishiOS` + `GoldfishTV`, eigenes Git-Repo
-> `github.com/boernie77/goldfish-apple`, privat).
+> `github.com/boernie77/goldfish-apple`, **öffentlich** seit 2026-08-18, MIT).
 >
 > **Die volle Architektur/Bugfix-Chronik/Build-Notizen stehen jetzt in der
 > CLAUDE.md dieses App-Repos** (nicht mehr hier) — bei jeder Änderung, die
