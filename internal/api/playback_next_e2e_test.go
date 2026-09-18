@@ -45,9 +45,12 @@ func TestNextEpisodeEndpointOverHTTP(t *testing.T) {
 		if err := st.UpsertItem(it); err != nil {
 			t.Fatal(err)
 		}
+		// TMDB-Titel bewusst ABWEICHEND vom Dateinamen: nur so fällt auf, wenn
+		// ein Client den Dateinamen statt des Folgentitels anzeigt
+		// (User-Report 2026-09-18).
 		metaID, _ := st.UpsertMetadata(&model.Metadata{
 			TMDBType: "episode", TMDBID: int64(9000 + season*100 + episode),
-			ParentID: showID, Title: rel, Season: season, Episode: episode,
+			ParentID: showID, Title: tmdbTitle(season, episode), Season: season, Episode: episode,
 		})
 		id, err := st.ItemIDByPath(it.Path)
 		if err != nil {
@@ -122,11 +125,19 @@ func TestNextEpisodeEndpointOverHTTP(t *testing.T) {
 	if gotID := int64(next["id"].(float64)); gotID != e2 {
 		t.Fatalf("next = %v, want %d", next["id"], e2)
 	}
+	// Anzeigename muss der TMDB-Folgentitel sein, NICHT der Dateiname
+	// (item.title ist "S01E02.mkv").
+	if got := out["nextTitle"]; got != tmdbTitle(1, 2) {
+		t.Fatalf("nextTitle = %v, want %q (Dateiname wäre %q)", got, tmdbTitle(1, 2), "S01E02.mkv")
+	}
 
 	// 4) Letzte Folge: 200 + next=null (kein Fehler).
 	code, out = get("/api/items/" + itoa(e2) + "/next-episode")
 	if code != 200 || out["next"] != nil {
 		t.Fatalf("letzte Folge: Status %d, Body %v — erwartet 200 + next=null", code, out)
+	}
+	if out["nextTitle"] != "" {
+		t.Fatalf("nextTitle bei letzter Folge = %v, want leer", out["nextTitle"])
 	}
 
 	// 5) Wiedergabe-Präferenzen: Default AUS, dann per PUT einschalten.
@@ -190,4 +201,10 @@ func TestNextEpisodeEndpointOverHTTP(t *testing.T) {
 		t.Fatalf("Nutzer alex sieht autoplayNext = %v — Einstellung ist nicht pro Konto getrennt", out2["autoplayNext"])
 	}
 	_ = uid
+}
+
+// tmdbTitle — TMDB-Folgentitel für den Testaufbau. Bewusst verschieden vom
+// Dateinamen (der heißt S0xE0y.mkv), damit der Test den Unterschied prüft.
+func tmdbTitle(season, episode int) string {
+	return "Folgentitel " + itoa(int64(season)) + "x" + itoa(int64(episode))
 }

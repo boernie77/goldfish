@@ -3,6 +3,9 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
+
+	"github.com/boernie77/goldfish/internal/model"
 )
 
 // playback_next.go — Server-Seite für "Nächste Folge automatisch starten".
@@ -30,9 +33,20 @@ const userSettingAutoplayNext = "playback_autoplay_next"
 
 // nextEpisode liefert die auf {id} folgende Episode derselben Serie.
 //
-// Antwort: {"next": <Item>} oder {"next": null}. Bewusst kein 404, wenn es
-// keine nächste Folge gibt — "letzte Folge der Serie" ist ein Normalfall, kein
-// Fehler, und jeder Client soll ihn ohne Fehlerbehandlung darstellen können.
+// Antwort: {"next": <Item>, "nextTitle": "<Anzeigename>"} oder
+// {"next": null, "nextTitle": ""}. Bewusst kein 404, wenn es keine nächste
+// Folge gibt — "letzte Folge der Serie" ist ein Normalfall, kein Fehler, und
+// jeder Client soll ihn ohne Fehlerbehandlung darstellen können.
+//
+// `nextTitle` ist der ANZEIGENAME der Folge (TMDB-Folgentitel) und bewusst ein
+// eigenes Feld: `Item.title` ist der Dateiname bzw. der daraus geparste Name,
+// der TMDB-Titel steht im verknüpften Metadata-Objekt (`metadata.title`).
+// Ohne dieses Feld zeigten alle Clients im Autoplay-Hinweis den Dateinamen
+// (User-Report 2026-09-18: "Die nächste Folge soll der tmDB Name genannt
+// werden, und nicht der der Datei"). Der Endpoint löst das EINMAL zentral auf,
+// statt fünf Clients die Metadata-Struktur nachbauen zu lassen.
+// `next.metadata.title` bleibt zusätzlich verfügbar (GetItemFor hängt die
+// Metadaten an) — Clients mit eigener Fallback-Kette können es nutzen.
 //
 // Rechtprüfung: Zugriff auf das laufende Item wird geprüft, und der erste
 // Kandidat, den der Nutzer sehen darf, wird zurückgegeben. Kandidaten aus
@@ -83,10 +97,35 @@ func (s *Server) nextEpisode(w http.ResponseWriter, r *http.Request) {
 		if err != nil || next == nil {
 			continue
 		}
-		writeJSON(w, 200, map[string]any{"next": next})
+		writeJSON(w, 200, map[string]any{
+			"next":      next,
+			"nextTitle": episodeDisplayTitle(next),
+		})
 		return
 	}
-	writeJSON(w, 200, map[string]any{"next": nil})
+	writeJSON(w, 200, map[string]any{"next": nil, "nextTitle": ""})
+}
+
+// episodeDisplayTitle — Anzeigename einer Folge für den Autoplay-Hinweis.
+//
+// `Item.title` ist der Dateiname (bzw. der daraus geparste Name), der echte
+// Folgentitel kommt von TMDB und liegt im verknüpften Metadata-Objekt. Der
+// Hinweis "Nächste Folge …" muss den TMDB-Titel zeigen, nicht die Datei
+// (User-Wunsch 2026-09-18).
+//
+// Fallback-Kette: metadata.title → item.title. Ein Item ohne Anreicherung
+// (TMDB-Match fehlt, Enrichment ausstehend) fällt damit auf den Dateinamen
+// zurück statt einen leeren Hinweis zu erzeugen.
+func episodeDisplayTitle(it *model.Item) string {
+	if it == nil {
+		return ""
+	}
+	if it.Metadata != nil {
+		if t := strings.TrimSpace(it.Metadata.Title); t != "" {
+			return t
+		}
+	}
+	return it.Title
 }
 
 // getPlaybackPreferences liefert die Wiedergabe-Einstellungen des angemeldeten

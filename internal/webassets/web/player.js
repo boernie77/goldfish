@@ -848,18 +848,23 @@ function startNextEpisodeNow() {
 // erscheint kein Hinweis).
 async function maybeAutoplayNextEpisode() {
   const item = state.currentItem;
-  if (!item || !state.autoplayNext) return;
+  if (!item || !item.id || !state.autoplayNext) return;
   let next = null;
+  let nextTitle = "";
   try {
     const res = await api(`/api/items/${item.id}/next-episode`);
     next = res && res.next;
+    // nextTitle ist der TMDB-Folgentitel (User-Report 2026-09-18: "die
+    // nächste Folge soll der TMDB-Name genannt werden, nicht der der Datei").
+    // next.title wäre der Dateiname — deshalb hier NICHT als erste Wahl.
+    nextTitle = (res && res.nextTitle) || "";
   } catch { return; }
   if (!next) return; // letzte Folge der Serie → nichts anbieten
   nextEpisodePending = next;
   const ov = $("#nextEpisodeOverlay");
   if (!ov) return;
   const name = $("#nextEpName");
-  if (name) name.textContent = next.title || "Nächste Folge";
+  if (name) name.textContent = nextTitle || (next.metadata && next.metadata.title) || next.title || "Nächste Folge";
   let left = NEXT_EPISODE_SECONDS;
   const cnt = $("#nextEpCount");
   if (cnt) cnt.textContent = String(left);
