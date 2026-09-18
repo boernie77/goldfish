@@ -775,6 +775,57 @@ function sortStorageKey() {
   return "";
 }
 
+// filterStorageKey: wie sortStorageKey, aber bewusst OHNE Ordner-Anteil —
+// User-Wunsch 2026-09-17: "der zuletzt verwendete Filter je Bibliothek soll
+// gespeichert bleiben" (pro Bibliothek, nicht pro Ordner/Serie darin — anders
+// als die Sortierung, die Wunsch-/Existenz-Historie hat pro Ordner Sinn zu
+// machen, ein Filter wie "nur ungesehen" oder "Genre Komödie" soll aber
+// bibliotheksweit gelten).
+function filterStorageKey() {
+  if (state.currentLibrary) return `filters:lib:${state.currentLibrary}`;
+  return "";
+}
+
+function persistFiltersForContext() {
+  const key = filterStorageKey();
+  if (!key) return;
+  const watched = $("#watchedFilter") ? $("#watchedFilter").value : "";
+  const rating = $("#ratingFilter") ? $("#ratingFilter").value : "";
+  const genres = Array.from(state.genreFilter || []);
+  const resBuckets = Array.from(state.resBuckets || []);
+  try {
+    if (!watched && !rating && !genres.length && !resBuckets.length) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify({ watched, rating, genres, resBuckets }));
+    }
+  } catch {}
+}
+
+function restoreFiltersForContext() {
+  const key = filterStorageKey();
+  if (!key) return;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed) return;
+    if (parsed.watched && $("#watchedFilter")) $("#watchedFilter").value = parsed.watched;
+    if (parsed.rating && $("#ratingFilter")) $("#ratingFilter").value = parsed.rating;
+    if (Array.isArray(parsed.genres) && parsed.genres.length) {
+      state.genreFilter = new Set(parsed.genres);
+      if (typeof updateGenreDropdownLabel === "function") updateGenreDropdownLabel();
+    }
+    if (Array.isArray(parsed.resBuckets) && parsed.resBuckets.length) {
+      state.resBuckets = new Set(parsed.resBuckets);
+      document.querySelectorAll('#resDropdown input[type="checkbox"][data-bucket]').forEach(cb => {
+        cb.checked = state.resBuckets.has(cb.dataset.bucket);
+      });
+      if (typeof updateResDropdownLabel === "function") updateResDropdownLabel();
+    }
+  } catch {}
+}
+
 // Pseudo-Filter-Modi (im Sort-Dropdown technisch ein "Sort", semantisch
 // aber globale Filter): nicht per-Folder persistieren — sonst bekommt der
 // User beim erneuten Öffnen des Ordners überraschend „Nur unmatched".
@@ -927,6 +978,7 @@ function setupResolutionDropdown() {
       if (cb.checked) state.resBuckets.add(b);
       else state.resBuckets.delete(b);
       updateResDropdownLabel();
+      persistFiltersForContext();
       loadItems();
     });
   });
@@ -1032,6 +1084,7 @@ function renderGenreDropdownList(query) {
       if (cb.checked) state.genreFilter.add(g);
       else state.genreFilter.delete(g);
       updateGenreDropdownLabel();
+      persistFiltersForContext();
       loadItems();
     });
   });
@@ -1400,6 +1453,12 @@ function wire() {
       state.currentLibrary = Number(val.slice(4)) || null;
       state.currentPlaylist = null;
     }
+    // Gespeicherten Filter für die neue Bibliothek wiederherstellen (User-
+    // Wunsch: "der zuletzt verwendete Filter je Bibliothek soll gespeichert
+    // bleiben") — NACH resetFilters() oben, das den vorigen Zustand erst
+    // wegräumt, aber VOR loadItems(), damit gleich mit dem richtigen Filter
+    // geladen wird statt einmal ungefiltert und dann neu.
+    restoreFiltersForContext();
     // "col:" ist raus aus dem Dropdown — Sammlungen haben jetzt einen eigenen
     // Topbar-Button (#collectionsBtn) neben Home und Playlists.
     loadItems();
@@ -1427,8 +1486,8 @@ function wire() {
     loadItems();
   });
   updateSortDirIcon();
-  $("#watchedFilter").addEventListener("change", loadItems);
-  { const rf = $("#ratingFilter"); if (rf) rf.addEventListener("change", loadItems); }
+  $("#watchedFilter").addEventListener("change", () => { persistFiltersForContext(); loadItems(); });
+  { const rf = $("#ratingFilter"); if (rf) rf.addEventListener("change", () => { persistFiltersForContext(); loadItems(); }); }
   setupResolutionDropdown();
   setupGenreDropdown();
   setupMusicColumnsDropdown();

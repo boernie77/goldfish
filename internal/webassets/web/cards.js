@@ -702,7 +702,14 @@ function renderCard(it, opts = {}) {
       title = rel[0];
     }
   }
-  const released = fmtDate(it.releasedAt);
+  // Erscheinungsdatum auf der Kachel: nur wenn der Admin es für DIESE
+  // Library explizit aktiviert hat (Library-Manager → "📅 Datum", nur bei
+  // kind=private waehlbar — User-Wunsch 2026-09-17: "bei privaten Videos,
+  // vor allem bei YouTube, muss das Erscheinungsdatum mit auf der Kachel
+  // stehen ... für jede Bibliothek im Menü ein oder ausblenden". Bei
+  // movies/tv steht das Jahr bereits aus TMDB auf der Infokarte, dort ist
+  // showReleaseDate serverseitig immer false).
+  const released = (itLib && itLib.showReleaseDate === true) ? fmtDate(it.releasedAt) : "";
   const rating = it.metadata && it.metadata.rating
     ? `<span class="rating">★ ${it.metadata.rating.toFixed(1)}</span>` : "";
   // Click-baren Haken einblenden: dimmt sich bei ungesehen, leuchtet grün bei gesehen.

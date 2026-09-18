@@ -475,6 +475,17 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "delete_watched_button_enabled", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Zeigt das Erscheinungsdatum auf der Kachel (User-Wunsch 2026-09-17:
+	// "bei privaten Videos, vor allem bei YouTube, muss das Erscheinungsdatum
+	// mit auf der Kachel stehen ... für jede Bibliothek im Menü ein oder
+	// ausblenden"). Default AUS, da für movies/tv das Jahr aus TMDB bereits
+	// auf der Infokarte steht — das Feld ist nur für private/YouTube-Libs
+	// relevant, wo es kein TMDB-Jahr gibt. Admin aktiviert es explizit pro
+	// Library im "🔤 Anzeige"-Menü (siehe channel_label_on_top oben, gleiches
+	// Muster).
+	if err := addCol("libraries", "show_release_date", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Pro-User-Reihenfolge der Startseiten-Streifen (zusätzlich zum
 	// pro-User on_home-Override in derselben Tabelle). addCol nötig, weil
 	// user_home_prefs bereits vor dieser Spalte live war (CREATE TABLE IF

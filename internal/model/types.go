@@ -95,8 +95,13 @@ type Library struct {
 	// Menü — der Server prüft dieses Flag zusätzlich zur Kind-Prüfung, damit
 	// der Button in nicht freigegebenen Bibliotheken auch bei direktem
 	// API-Aufruf nicht funktioniert.
-	DeleteWatchedButtonEnabled bool      `json:"deleteWatchedButtonEnabled"`
-	CreatedAt                  time.Time `json:"createdAt"`
+	DeleteWatchedButtonEnabled bool `json:"deleteWatchedButtonEnabled"`
+	// ShowReleaseDate zeigt das Erscheinungsdatum auf der Kachel (nur wirksam
+	// bei kind=private, Default AUS). Admin wählt das explizit pro Library
+	// im "🔤 Anzeige"-Menü — dort ist es fuer private/YouTube-Bibliotheken
+	// relevant, da es dort kein TMDB-Jahr auf der Infokarte gibt.
+	ShowReleaseDate bool      `json:"showReleaseDate"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 // Metadata hält angereicherte TMDB-Daten zu einem Film, einer Serie oder einer Episode.

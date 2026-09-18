@@ -409,6 +409,30 @@ async function openManage() {
       layoutLabel.appendChild(layoutBox);
       layoutLabel.appendChild(document.createTextNode(" 🏷 Ordner oben"));
       toolbar.appendChild(layoutLabel);
+      // Erscheinungsdatum auf der Kachel (User-Wunsch 2026-09-17: "bei
+      // privaten Videos, vor allem bei YouTube, muss das Erscheinungsdatum
+      // mit auf der Kachel stehen ... für jede Bibliothek im Menü ein oder
+      // ausblenden"). Default AUS — für movies/tv steht das Jahr bereits
+      // aus TMDB auf der Infokarte, dieses Flag ist nur bei kind=private
+      // wählbar (dort gibt es kein TMDB-Jahr).
+      const dateLabel = document.createElement("label");
+      dateLabel.className = "lib-toggle";
+      dateLabel.title = "Erscheinungsdatum auf der Kachel anzeigen (z. B. für YouTube-Uploads, wo es kein TMDB-Jahr gibt).";
+      const dateBox = document.createElement("input");
+      dateBox.type = "checkbox";
+      dateBox.checked = l.showReleaseDate === true;
+      dateBox.addEventListener("change", async () => {
+        try {
+          await api(`/api/libraries/${l.id}/show-release-date`, {
+            method: "PUT",
+            body: JSON.stringify({ enabled: dateBox.checked }),
+          });
+          await loadLibraries();
+        } catch (e) { appAlert(e.message); }
+      });
+      dateLabel.appendChild(dateBox);
+      dateLabel.appendChild(document.createTextNode(" 📅 Datum"));
+      toolbar.appendChild(dateLabel);
       header.appendChild(toolbar);
     }
     li.appendChild(header);
