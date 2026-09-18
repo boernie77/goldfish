@@ -11,7 +11,7 @@
 # Der Pre-Push-Hook (User-Vorgabe 2026-09-18, nach einem Datenleck-Verdacht
 # durch einen ACL-Query-Bug) lässt bei Go-Änderungen zwingend die
 # Nutzertrennungs-Tests laufen (go test ./internal/store/... -run
-# 'ACL|LibraryFieldParity') — ein Push mit einer roten ACL-/Feld-Paritäts-
+# 'ACL|FieldParity') — ein Push mit einer roten ACL-/Feld-Paritäts-
 # Suite wird geblockt. Umgeht man NUR mit `git push --no-verify`.
 
 set -euo pipefail
@@ -43,7 +43,7 @@ else
 fi
 if echo "$changed" | grep -qE '\.go$'; then
   echo "→ Go-Aenderungen im Push, fuehre Nutzertrennungs-Tests aus..."
-  if ! go test ./internal/store/... -run 'ACL|LibraryFieldParity' -v; then
+  if ! go test ./internal/store/... -run 'ACL|FieldParity' -v; then
     echo ""
     echo "✗ Nutzertrennungs-Test fehlgeschlagen — Push abgebrochen."
     echo "  Nur mit 'git push --no-verify' erzwingbar (NICHT empfohlen)."
