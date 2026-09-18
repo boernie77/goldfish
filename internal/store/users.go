@@ -541,39 +541,34 @@ func (s *Store) MigrateLegacyItemStateToUser(userID int64) error {
 
 // ListLibrariesForUser filtert Libraries basierend auf ACL. Admin sieht immer
 // alle (siehe Kommentar bei UserHasExplicitLibraryACL).
+//
+// Baut bewusst auf ListLibraries() auf statt eine eigene SQL-Query zu
+// pflegen: eine zweite, separate Query driftete wiederholt auseinander,
+// sobald ein neues Library-Feld (channelLabelOnTop, deleteWatchedButton-
+// Enabled, showReleaseDate, zuletzt auch onHome) nur in EINER der beiden
+// Stellen ergänzt wurde — Nicht-Admin-User bekamen das Feld dann dauerhaft
+// mit seinem Zero-Value statt dem echten DB-Wert zurück (Vorfall
+// 2026-09-18: showReleaseDate kam für einen Nicht-Admin immer als false
+// zurück, siehe TestListLibrariesForUserFieldParity). Nur die
+// Zeilen-FILTERUNG nach ACL bleibt hier — die Feldbefüllung passiert an
+// genau einer Stelle (ListLibraries), kann also nicht mehr auseinanderlaufen.
 func (s *Store) ListLibrariesForUser(userID int64, isAdmin bool) ([]model.Library, error) {
 	if isAdmin {
 		return s.ListLibraries()
 	}
-	exclSQL, exclArgs := s.forceAdminOnlyExclusionSQL("l.id")
-	args := []any{userID}
-	args = append(args, exclArgs...)
-	rows, err := s.db.Query(`
-		SELECT l.id, l.name, l.path, l.kind, l.created_at,
-			COALESCE(l.channel_label_on_top, 1), COALESCE(l.delete_watched_button_enabled, 0),
-			COALESCE(l.show_release_date, 0)
-		FROM libraries l
-		JOIN user_library_access a ON a.library_id = l.id
-		WHERE a.user_id = ? AND `+exclSQL+`
-		ORDER BY l.name
-	`, args...)
+	all, err := s.ListLibraries()
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 	out := []model.Library{}
-	for rows.Next() {
-		var l model.Library
-		var kind string
-		var channelTop, deleteWatchedBtn, showReleaseDate int
-		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &l.CreatedAt, &channelTop, &deleteWatchedBtn, &showReleaseDate); err != nil {
+	for _, l := range all {
+		allowed, err := s.UserHasLibraryAccess(userID, l.ID, false)
+		if err != nil {
 			return nil, err
 		}
-		l.Kind = model.LibraryKind(kind)
-		l.ChannelLabelOnTop = channelTop == 1
-		l.DeleteWatchedButtonEnabled = deleteWatchedBtn == 1
-		l.ShowReleaseDate = showReleaseDate == 1
-		out = append(out, l)
+		if allowed {
+			out = append(out, l)
+		}
 	}
-	return out, rows.Err()
+	return out, nil
 }
