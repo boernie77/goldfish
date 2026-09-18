@@ -4552,6 +4552,37 @@ deckt sich mit der ursprünglichen Beobachtung des Users („4 liefen gut,
 
 Vollstaendige Routenliste inkl. Admin-Gating: `internal/api/router.go` (`grep -n "r\." internal/api/router.go`). Body-Parameter je Endpoint stehen als Kommentare in den jeweiligen Handlern in `internal/api/*.go`.
 
+### „Nächste Folge automatisch starten" (seit v1.4.13)
+
+Feature über alle Clients (Browser, iOS/macOS/tvOS, Android, Fire TV, Linux):
+
+- `GET /api/items/{id}/next-episode` → `{"next": <Item>|null}`. Die
+  Reihenfolge-Logik liegt serverseitig (`store.NextEpisodeCandidates`,
+  `internal/store/next_episode.go`): gleiche Serie über `metadata.parent_id`,
+  Ordnung `(season, episode)`, Doppelfolgen (`items.episode_end`) als Block,
+  pro (Staffel, Folge) genau ein Kandidat (höhere Quelle als Vertreter — wie
+  `groupVariants`). Die letzte Folge liefert **200 + `next: null`**, keinen 404:
+  Serienende ist ein Normalfall, kein Fehler.
+- ACL/FSK werden im Handler (`internal/api/playback_next.go`) gefiltert — der
+  Store liefert bewusst mehrere Kandidaten, der Handler nimmt den ersten, den
+  der Nutzer sehen darf (`UserHasLibraryAccess` + `isAgeAllowedForUser`).
+  **Niemals ungeprüft durchreichen**: Kandidaten können in einer Bibliothek
+  ohne Freigabe liegen (Auto-Merge derselben Serie über mehrere Ordner) und
+  dann wäre der Autoplay-Modus ein Weg an der FSK-Sperre vorbei.
+- `GET/PUT /api/playback/preferences` → `{"autoplayNext": bool}`
+  (`user_settings.playback_autoplay_next`, **pro Konto**, Default **AUS**).
+  Bewusst serverseitig und nicht lokal je Gerät: dieselbe Einstellung gilt
+  dann in jeder App desselben Kontos.
+- Die **Auflösung/Qualität** ist bewusst NICHT Teil der Server-Präferenzen.
+  Jeder Client merkt seine letzte Profil-Wahl selbst und schickt sie beim
+  Start der Folge mit (`?profile=` in `/api/playback/{id}`).
+- Tests: `internal/store/next_episode_test.go` (Reihenfolge, Staffelwechsel,
+  Doppelfolgen, Varianten, letzte Folge, Film), `internal/api/playback_next_test.go`
+  (ACL- und FSK-Filter, Admin-Gegenprobe) und
+  `internal/api/playback_next_e2e_test.go` (durch den echten chi-Router mit
+  Login: 401 ohne Session, 200 mit, PUT/GET-Roundtrip, Trennung zweier Konten).
+
+
 ## Refactor-Historie & Code-Konventionen
 
 Zwei abgeschlossene Aufräum-Serien: **Frontend-Modul-Split 2026-04-30**
