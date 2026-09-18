@@ -225,6 +225,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	q := `SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
 	       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb, i.mod_time, i.released_at, i.added_at,
 	       COALESCE(i.metadata_id, 0),
+	       COALESCE(i.metadata_confirmed, 0),
 	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 	       COALESCE(i.trickplay_status, ''),
 	       COALESCE(i.episode_end, 0),
@@ -754,11 +755,12 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 	var out []model.Item
 	for rows.Next() {
 		var it model.Item
-		var hasThumb, watched, favorite, variantSplit int
+		var hasThumb, watched, favorite, variantSplit, confirmed int
 		var released sql.NullString
 		var watchedAt, favoritedAt, lastPlayedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title, &it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps, &it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
+			&confirmed,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &it.EpisodeEnd, &variantSplit, &it.Rating,
 			&it.Artist, &it.Album, &it.TrackNo, &it.MusicAlbumID, &it.Genre, &it.Year, &lastPlayedAt, &it.PlayCount); err != nil {
 			return nil, err
@@ -767,6 +769,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		it.Watched = watched == 1
 		it.Favorite = favorite == 1
 		it.VariantSplit = variantSplit == 1
+		it.MetadataConfirmed = confirmed == 1
 		if watchedAt.Valid {
 			it.WatchedAt = watchedAt.Time
 		}
