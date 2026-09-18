@@ -444,6 +444,23 @@
         <button type="button" id="prebufferSkip">Jetzt starten</button>
       </div>
       <button type="button" id="introSkipOverlayBtn" class="intro-skip-overlay hidden">⏩ Vorspann überspringen</button>
+      <!-- "Nächste Folge automatisch starten" (User-Wunsch 2026-09-18):
+           Hinweis-Overlay mit Countdown am Ende einer Serienfolge. Erscheint
+           nur, wenn der Pro-Konto-Schalter aktiv ist (Zahnrad-Menü →
+           Benutzer-Einstellungen → Wiedergabe) UND der Server eine nächste
+           Folge kennt (/api/items/{id}/next-episode). Abbrechen lässt die
+           Wiedergabe am Ende stehen, es startet dann nichts. -->
+      <div id="nextEpisodeOverlay" class="next-ep-overlay hidden">
+        <div class="next-ep-box">
+          <div class="next-ep-title">Nächste Folge</div>
+          <div class="next-ep-name" id="nextEpName"></div>
+          <div class="next-ep-count">Startet in <span id="nextEpCount">10</span> s</div>
+          <div class="next-ep-actions">
+            <button type="button" id="nextEpPlay">Jetzt abspielen</button>
+            <button type="button" id="nextEpCancel">Abbrechen</button>
+          </div>
+        </div>
+      </div>
     </div>
     <!-- Overlay außerhalb .video-stage: im eingebetteten Modus sitzt es hier
          als schmaler Streifen unter dem Bild. Im Fullscreen wird es per JS in

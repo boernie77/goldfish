@@ -729,7 +729,10 @@ async function openPlayer(item, opts = {}) {
       && state.detailPrefs.audioIdx != null && state.detailPrefs.audioIdx >= 0) {
     prefAudioIdx = state.detailPrefs.audioIdx;
   }
-  await applyPlayback(item, "auto", "orig", prefAudioIdx);
+  // opts.profile: die automatisch gestartete nächste Folge übernimmt die
+  // zuletzt gewählte Auflösung (siehe maybeAutoplayNextEpisode). Für einen
+  // normal geöffneten Titel bleibt es bei "orig" (keine Begrenzung).
+  await applyPlayback(item, "auto", opts.profile || "orig", prefAudioIdx);
   updatePlayerButtons();
 }
 
@@ -799,6 +802,73 @@ function playNextInQueue() {
   const next = state.playQueue[state.playQueueIdx + 1];
   if (!next) return;
   openPlayer(next);
+}
+
+// ── "Nächste Folge automatisch starten" ──────────────────────────────────────
+// Option pro Konto auf dem Server (Zahnrad-Menü → Benutzer-Einstellungen →
+// Wiedergabe, state.autoplayNext; Default AUS). Am Ende einer Serienfolge
+// fragt der Client den Server, welche Folge als nächste dran wäre
+// (/api/items/{id}/next-episode — Staffelwechsel, Doppelfolgen und
+// Auflösungsvarianten entscheidet der Server, nicht der Client) und zeigt bei
+// aktivem Schalter einen Hinweis mit Countdown. "Nacheinander abspielen" ohne
+// Anhalten gibt es bewusst NICHT — der Nutzer kann jederzeit abbrechen, und
+// ohne Zutun startet nichts.
+const NEXT_EPISODE_SECONDS = 10;
+let nextEpisodeTimer = null;
+let nextEpisodePending = null;
+
+// hideNextEpisodeOverlay — Countdown stoppen + Overlay ausblenden. Idempotent,
+// wird auch beim Schließen des Players aufgerufen.
+function hideNextEpisodeOverlay() {
+  if (nextEpisodeTimer) { clearInterval(nextEpisodeTimer); nextEpisodeTimer = null; }
+  const ov = $("#nextEpisodeOverlay");
+  if (ov) ov.classList.add("hidden");
+}
+
+// cancelNextEpisode — Nutzer hat abgebrochen (oder der Player wurde
+// geschlossen): es startet nichts, die Folge bleibt am Ende stehen.
+function cancelNextEpisode() {
+  nextEpisodePending = null;
+  hideNextEpisodeOverlay();
+}
+
+// startNextEpisodeNow — Countdown überspringen bzw. abgelaufen: nächste Folge
+// mit der zuletzt gewählten Auflösung starten (state.lastProfile, siehe
+// applyPlayback). Ohne Fortsetzen-Nachfrage, denn ein Dialog mitten im
+// Autoplay-Übergang wäre genau das, was diese Option vermeiden soll.
+function startNextEpisodeNow() {
+  const next = nextEpisodePending;
+  cancelNextEpisode();
+  if (next) openPlayer(next, { profile: state.lastProfile, skipResume: true });
+}
+
+// maybeAutoplayNextEpisode — am Ende einer Folge: nächste Folge erfragen und
+// bei aktivem Schalter den Countdown-Hinweis zeigen. Fehler werden geschluckt:
+// ein fehlgeschlagener Abruf darf das Player-Ende nie stören (schlimmstenfalls
+// erscheint kein Hinweis).
+async function maybeAutoplayNextEpisode() {
+  const item = state.currentItem;
+  if (!item || !state.autoplayNext) return;
+  let next = null;
+  try {
+    const res = await api(`/api/items/${item.id}/next-episode`);
+    next = res && res.next;
+  } catch { return; }
+  if (!next) return; // letzte Folge der Serie → nichts anbieten
+  nextEpisodePending = next;
+  const ov = $("#nextEpisodeOverlay");
+  if (!ov) return;
+  const name = $("#nextEpName");
+  if (name) name.textContent = next.title || "Nächste Folge";
+  let left = NEXT_EPISODE_SECONDS;
+  const cnt = $("#nextEpCount");
+  if (cnt) cnt.textContent = String(left);
+  ov.classList.remove("hidden");
+  nextEpisodeTimer = setInterval(() => {
+    left -= 1;
+    if (cnt) cnt.textContent = String(left);
+    if (left <= 0) startNextEpisodeNow();
+  }, 1000);
 }
 
 // Auto-Mark als „gesehen" wenn 90 % der Laufzeit erreicht.
@@ -921,6 +991,12 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
   state.playback = info;
   // virtualOffset: bei initialem Load 0; nach Seek-Restart auf den neuen Startpunkt gesetzt.
   state.playback.virtualOffset = 0;
+  // "Zuletzt eingestellte Auflösung merken" (User-Wunsch 2026-09-18): das
+  // gewählte Profil gilt auch für die automatisch gestartete nächste Folge.
+  // Bewusst NUR im Speicher dieser Sitzung: ein frisch geöffneter Titel startet
+  // weiterhin ohne Begrenzung ("orig"), damit eine einmal gewählte 480p-Stufe
+  // nicht jeden späteren Film drosselt.
+  if (info.profile) state.lastProfile = info.profile;
   // Protokoll-Ergänzung 2026-09-11 ("nicht nur Wiedergabe gestartet, sondern
   // auch beendet") — genau EIN Stop-Report pro Wiedergabe-Session, egal ob
   // sie über "ended" oder manuelles Schließen endet. Bei jedem frischen
@@ -1214,7 +1290,11 @@ async function applyPlayback(item, mode, profile, audioIdx, deinterlace) {
         }).catch(() => {});
         markWatchedNow(state.currentItem);
       }
+      // Nach dem Ende: Playlist-Warteschlange hat Vorrang (dort ist die
+      // Reihenfolge ausdrücklich gewählt), sonst "Nächste Folge" der Serie —
+      // nur wenn der Pro-Konto-Schalter aktiv ist.
       if (state.currentPlaylist) playNextInQueue();
+      else maybeAutoplayNextEpisode();
     });
     // Protokoll-Ergänzung 2026-09-11 ("wenn zum Beispiel ein Video abbricht")
     // — Video.js' eigenes "error"-Event feuert bei Netzwerk-/Decode-Fehlern
@@ -1524,6 +1604,7 @@ function detachPlayerResizeObserver(vjs) {
 
 function disposePlayer() {
   hideBufferOverlay();
+  hideNextEpisodeOverlay();
   clearStartBufferGate();
   stopPausePrefetch();
   if (state.vjs) {

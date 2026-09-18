@@ -3941,6 +3941,62 @@ button.danger:hover { background: #991b1b; }
   .intro-skip-overlay { right: 12px; bottom: 64px; padding: 10px 16px; font-size: 14px; }
 }
 
+/* "Nächste Folge automatisch starten" — Hinweis-Overlay mit Countdown am Ende
+   einer Serienfolge (User-Wunsch 2026-09-18). Liegt über dem Videobild, aber
+   unter dem Vorspann-Knopf-Stack; Klicks dürfen nur auf die Knöpfe gehen
+   (pointer-events nur im inneren Kasten), damit der Rest des Bildes nicht
+   blockiert wird. */
+.next-ep-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 16, 0.72);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+.next-ep-overlay.hidden { display: none; }
+.next-ep-box {
+  pointer-events: auto;
+  min-width: 320px;
+  max-width: min(90%, 520px);
+  background: rgba(20, 20, 20, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 20px 24px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+.next-ep-title {
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+.next-ep-name { margin-top: 6px; font-size: 18px; font-weight: 600; }
+.next-ep-count { margin-top: 6px; font-size: 14px; color: #cbd5e1; }
+.next-ep-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.next-ep-actions button {
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: #fff;
+}
+#nextEpPlay { background: #3b82f6; border-color: #3b82f6; }
+#nextEpPlay:hover { background: #2563eb; }
+#nextEpCancel:hover { background: rgba(255, 255, 255, 0.12); }
+@media (max-width: 640px) {
+  .next-ep-box { min-width: 0; padding: 16px; }
+  .next-ep-name { font-size: 16px; }
+}
+
 /* Toast-Benachrichtigungen (rechts unten, kurz sichtbar, nicht-modal). */
 #toastRoot {
   position: fixed;

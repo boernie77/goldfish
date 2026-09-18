@@ -124,6 +124,10 @@ func (s *Server) Router() http.Handler {
 		r.Get("/items/search-path", requireAdmin(s.searchItemsByPath))
 		r.Get("/items/suspicious", s.suspiciousMatches)
 		r.Get("/items/{id}", s.getItem)
+		// Nächste Folge derselben Serie (für "Nächste Folge automatisch
+		// starten") — siehe api/playback_next.go. Antwortet auch bei der
+		// letzten Folge mit 200 + {"next": null}.
+		r.Get("/items/{id}/next-episode", s.nextEpisode)
 		r.Get("/items/{id}/variants", s.getItemVariants)
 		r.Put("/items/{id}/variant-split", requireAdmin(s.setItemVariantSplit))
 		r.Delete("/items/{id}", requireAdmin(s.deleteItem))
@@ -175,6 +179,12 @@ func (s *Server) Router() http.Handler {
 		r.Get("/thumb/{id}", s.getThumb)
 
 		r.Get("/playback/{id}", s.playbackInfo)
+		// Wiedergabe-Einstellungen pro Konto (aktuell "Nächste Folge
+		// automatisch starten", Default AUS) — siehe api/playback_next.go.
+		// Pro Konto statt lokal je Gerät, damit dieselbe Einstellung in
+		// Browser, Apple, Android, Fire TV und Linux gilt.
+		r.Get("/playback/preferences", s.getPlaybackPreferences)
+		r.Put("/playback/preferences", s.setPlaybackPreferences)
 		// Protokoll-Ergänzung 2026-09-11 ("nicht nur Wiedergabe gestartet,
 		// sondern auch beendet" + Fehler) — siehe Doc-Kommentare in stream.go.
 		// "start" statt am GET mitzuloggen, weil GET auch vom reinen
@@ -368,7 +378,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.12"
+const appVersion = "1.4.13"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

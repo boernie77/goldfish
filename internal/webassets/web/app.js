@@ -37,6 +37,13 @@ const state = {
   uiGridBg: (() => { try { return localStorage.getItem("uiGridBg") || "#10141c"; } catch { return "#10141c"; } })(),
   uiGlowColor: (() => { try { return localStorage.getItem("uiGlowColor") || "#3b82f6"; } catch { return "#3b82f6"; } })(),
   playerSkin: (() => { try { return localStorage.getItem("playerSkin") || "standard"; } catch { return "standard"; } })(),
+  // "Nächste Folge automatisch starten" — Pro-Konto-Schalter auf dem Server
+  // (GET/PUT /api/playback/preferences, Default AUS), plus die zuletzt
+  // gewählte Auflösung dieser Sitzung (player.js setzt sie in applyPlayback).
+  // Die Wiedergabe-Option wird beim Boot geladen (loadPlaybackPrefs), damit
+  // sie geräteübergreifend gilt; lastProfile bleibt bewusst sitzungslokal.
+  autoplayNext: false,
+  lastProfile: "orig",
   personFilterBackup: null, // zwischengespeicherter Lib/Folder-Kontext
   personFilterShow: null,   // {folder, libraryId, episodes} wenn innerhalb einer Serie im Person-Filter
   transcodePollTimer: null, // setInterval-Handle für Transcode-Progress-Polling
@@ -1433,6 +1440,16 @@ async function loadSettings() {
   } catch {}
 }
 
+// loadPlaybackPrefs — Wiedergabe-Einstellungen des angemeldeten Kontos
+// (aktuell "nächste Folge automatisch starten"). Fehler werden geschluckt:
+// ohne Antwort bleibt der Schalter aus, also das bisherige Verhalten.
+async function loadPlaybackPrefs() {
+  try {
+    const p = await api("/api/playback/preferences");
+    state.autoplayNext = !!(p && p.autoplayNext);
+  } catch { state.autoplayNext = false; }
+}
+
 function wire() {
   $("#librarySelect").addEventListener("change", (e) => {
     const val = e.target.value || "";
@@ -1667,6 +1684,11 @@ function wire() {
   $("#maxTcRange").addEventListener("input", (e) => { $("#maxTcVal").textContent = e.target.value; });
   $("#tpInterval").addEventListener("input", (e) => { $("#tpIntervalVal").textContent = e.target.value; });
   $("#playerClose").addEventListener("click", closePlayer);
+  // "Nächste Folge"-Hinweis (player.js): Knöpfe einmalig verdrahten.
+  const nextPlayBtn = $("#nextEpPlay");
+  if (nextPlayBtn) nextPlayBtn.addEventListener("click", startNextEpisodeNow);
+  const nextCancelBtn = $("#nextEpCancel");
+  if (nextCancelBtn) nextCancelBtn.addEventListener("click", cancelNextEpisode);
   $("#playerDialog").addEventListener("close", () => {
     // Letzte Position merken, bevor der Player verworfen wird.
     if (state.vjs && state.currentItem) {
@@ -2047,7 +2069,7 @@ function glassTextColor(hex) {
   $("#flatViewBtn").classList.toggle("active", state.flatView);
   $("#musicListViewBtn").classList.toggle("active", state.musicListView);
   syncMusicListViewBtn();   // Icon initial passend zum gespeicherten Zustand
-  await Promise.all([loadHealth(), loadSettings(), loadLibraries()]);
+  await Promise.all([loadHealth(), loadSettings(), loadPlaybackPrefs(), loadLibraries()]);
   // Beim ersten Laden: Startseite zeigen. loadLibraries() setzt implizit
   // die erste Library als aktuell — wir überschreiben, damit der User die
   // Home-Kacheln als Landing-Page sieht. Ein Klick auf eine Library im

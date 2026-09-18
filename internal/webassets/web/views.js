@@ -277,7 +277,58 @@ async function openHomePrefsDialog() {
     list.appendChild(row);
   }
 
-  // 2) Reiterleiste
+  // 2) Wiedergabe — Pro-Konto-Schalter auf dem SERVER
+  // (GET/PUT /api/playback/preferences), damit die Einstellung auch auf dem
+  // nächsten Gerät gilt (User-Vorgabe 2026-09-18: "jede Nutzerin/jeder Nutzer
+  // stellt es selbst ein (pro Konto gespeichert)"). Bewusst getrennt von den
+  // localStorage-Schaltern in "Anzeige": dort geht es um diesen Browser, hier
+  // um das Konto.
+  addHeading("Wiedergabe");
+  let pbData = { autoplayNext: false };
+  try { pbData = await api("/api/playback/preferences"); } catch {}
+  const playbackDefs = [
+    {
+      key: "autoplayNext",
+      text: "⏭ Nächste Folge automatisch starten",
+      hint: "Am Ende einer Serienfolge erscheint ein Hinweis mit Countdown " +
+            "und Abbrechen-Knopf; die zuletzt eingestellte Auflösung gilt auch " +
+            "für die dann folgende Folge.",
+      body: v => ({ autoplayNext: v }),
+    },
+  ];
+  for (const def of playbackDefs) {
+    const row = document.createElement("div");
+    row.className = "home-pref-row";
+    const label = document.createElement("label");
+    label.className = "lib-toggle home-pref-toggle";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = !!pbData[def.key];
+    box.addEventListener("change", async () => {
+      box.disabled = true;
+      try {
+        await api("/api/playback/preferences", { method: "PUT", body: JSON.stringify(def.body(box.checked)) });
+        // Laufende Sitzung sofort mitziehen: player.js liest state.autoplayNext
+        // erst am Ende einer Folge, ein Neustart ist also nicht nötig.
+        state.autoplayNext = box.checked;
+      } catch (e) {
+        box.checked = !box.checked;
+        appAlert(e.message);
+      } finally {
+        box.disabled = false;
+      }
+    });
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(` ${def.text}`));
+    row.appendChild(label);
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = def.hint;
+    row.appendChild(hint);
+    list.appendChild(row);
+  }
+
+  // 3) Reiterleiste
   const navLibs = navData.libraries || [];
   if (navLibs.length) {
     addHeading("Bibliotheks-Reiter oben");
@@ -291,7 +342,7 @@ async function openHomePrefsDialog() {
     }, markDirty);
   }
 
-  // 3) Startseite
+  // 4) Startseite
   const homeLibs = homeData.libraries || [];
   if (homeLibs.length) {
     addHeading("Startseite");
