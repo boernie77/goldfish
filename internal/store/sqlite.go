@@ -121,6 +121,13 @@ type ItemFilter struct {
 	// "Rock" kommt praktisch nie in TMDB-Genres vor und umgekehrt, echte
 	// Kollisionen sind kein realistisches Risiko.
 	Genres []string
+	// SearchFuzzy: true = die Titel-/Artist-/Album-Suche (FTS5, siehe items.go)
+	// schließt zusätzlich Präfix-Treffer ein (Wortfragmente, z.B. "star" findet
+	// auch "starship"). Wird gesetzt, wenn der User im Frontend auf "N weitere
+	// Treffer" klickt, nachdem die exakte FTS5-Wortsuche bereits Ergebnisse
+	// zeigte. Wirkt nur zusammen mit Search != "" — die Cast-Namen-Suche
+	// (Wortanfang-only) bleibt davon unberührt.
+	SearchFuzzy bool
 }
 
 // FolderSelector wählt einen Ordner (rekursiv inkl. Unterordner) oder eine

@@ -396,6 +396,19 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		TrickplayStatus: q.Get("trickplay"),
 		UserID:          me.ID,
 		IsAdmin:         me.IsAdmin,
+		// searchMode=fuzzy: Titel/Artist/Album-Suche (FTS5, siehe items.go)
+		// schließt zusätzlich Präfix-Treffer ein. String statt bool, damit
+		// später weitere Modi möglich sind, ohne den Query-Param umzubauen.
+		// ⚠ Bewusst KEIN impliziter Fuzzy-Fallback für Clients ohne den
+		// Parameter — der Server-Vertrag ist stabil: fehlt "searchMode", gilt
+		// exakter Modus. Android/Apple/Linux/FireTV ziehen "searchMode=fuzzy"
+		// aktuell noch NICHT (separate, bereits laufende Aufgabe) — bis dahin
+		// bekommen sie nur exakte Treffer, kein stiller Server-Default. Ein
+		// automatischer Fallback wäre hier der falsche Ort dafür: der geplante
+		// Weg ist echte Fuzzy-Kontrolle in der jeweiligen App-UI, nicht ein
+		// Server-Verhalten, das sich unter den Apps ändert, ohne dass sie es
+		// angefordert haben.
+		SearchFuzzy: q.Get("searchMode") == "fuzzy",
 	}
 	// Sicherheitslücke gefunden 2026-08-22 (User: "beim Benutzer Börnie werden bei der
 	// Startseiten-Suche Treffer aus Bibliotheken angezeigt, auf die er gar keinen Zugriff
@@ -462,6 +475,45 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []model.Item{}
 	}
+	// "N weitere Treffer"-Button im Frontend (Fuzzy-Präfix-Suche): nur
+	// relevant direkt nach einer exakten Suche — im Fuzzy-Modus selbst ist
+	// das Feld nutzlos (der User hat die Erweiterung bereits angefordert).
+	// Schlanke COUNT-Query (Store.CountItemsFiltered) statt eines zweiten
+	// vollen ListItems-Aufrufs: beide nutzen dieselbe WHERE-Logik-Hilfsfunktion
+	// (itemsFromWhere in internal/store/items.go), garantieren also weiterhin
+	// exakt dieselbe ACL/FSK/Folder/Filter/Cast-Suche wie der Haupt-Query —
+	// nur ohne die Item-Zeilen selbst zu laden und ohne attachMetadata/
+	// attachVariantCounts (das kostete vorher unnötig Metadata-/Cast-Joins
+	// nur für eine reine Zahl). Die Fuzzy-Ergebnismenge ist immer eine
+	// Obermenge der exakten (ein Präfix-Match auf "star" trifft auch "star"
+	// selbst), daher liefert die Differenz der beiden COUNT-Werte zuverlässig
+	// die "weiteren" Treffer — dieselbe Garantie wie vorher bei der
+	// ID-Differenz. Response bleibt ein reines JSON-Array (Header statt
+	// Body-Umbau) — jeder API-Client (Android/Apple/Linux/FireTV) erwartet
+	// hier ein Array und würde an einem gewrappten Objekt brechen.
+	// Bei sort=random haengt ListItems ein LIMIT 20 an (siehe Store,
+	// "Zufaellige Reihenfolge"-Kommentar), CountItemsFiltered zaehlt aber
+	// ALLE Treffer ohne Limit — die Differenz waere in dieser Kombination
+	// systematisch ueberhoeht (QM-Review FTS5-Fuzzy-Suche, 2026-09-19).
+	// Kein Web-/App-Client kombiniert aktuell Suche+Random, aber der
+	// Query-Parameter erlaubt es — Header deshalb fuer diesen Fall nicht
+	// setzen, statt eine irrefuehrende Zahl zu liefern.
+	if f.Search != "" && !f.SearchFuzzy && f.Sort != "random" {
+		// exactCount = len(items): der Haupt-Query oben (ListItems(f)) liefert
+		// bereits ALLE exakten Treffer (kein LIMIT, siehe Kommentar unten bei
+		// "Frueher: ... LIMIT 300 ... entfernt") — ein zweiter Zähl-Query für
+		// den exakten Modus wäre redundant.
+		fuzzy := f
+		fuzzy.SearchFuzzy = true
+		if fuzzyCount, err := s.Store.CountItemsFiltered(fuzzy); err == nil {
+			if extra := fuzzyCount - len(items); extra > 0 {
+				w.Header().Set("X-Fuzzy-Extra-Count", strconv.Itoa(extra))
+			}
+		}
+		// Fehler beim Fuzzy-Zähl-Query werden bewusst geschluckt — der
+		// "weitere Treffer"-Button ist ein Komfort-Feature, kein Grund, die
+		// eigentliche (bereits erfolgreiche) Suchantwort scheitern zu lassen.
+	}
 	writeJSON(w, 200, items)
 }
 
@@ -477,6 +529,10 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 		Favorite:     q.Get("favorite"),
 		RatingFilter: q.Get("rating"),
 		MatchState:   q.Get("match"),
+		// searchMode=fuzzy: siehe listItems oben — beide Handler müssen
+		// dieselben Filter-Parameter auswerten (CLAUDE.md-Regel nach dem
+		// playlistId-Vorfall v1.4.6/v1.4.7).
+		SearchFuzzy: q.Get("searchMode") == "fuzzy",
 		// Zufallswiedergabe soll Hörbücher nie ziehen (User-Wunsch 2026-09-04) —
 		// unconditional, nicht an einen Query-Param gebunden.
 		ExcludeAudiobooks: true,

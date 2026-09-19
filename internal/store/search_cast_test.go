@@ -124,14 +124,20 @@ func TestSearchCastNamesOnlyAtWordStart(t *testing.T) {
 		t.Errorf("„ggs\" fand „Jason Biggs\" — es wird weiterhin mitten im Namen gematcht")
 	}
 
-	// 4) Unter 3 Zeichen wird gar nicht nach Darstellern gesucht (Kosten),
-	//    Titel dagegen schon. „bi" findet also den Titel-Film, aber keinen
-	//    Darsteller.
+	// 4) Unter 3 Zeichen wird gar nicht nach Darstellern gesucht (Kosten).
+	//    „bi" findet dabei auch KEINEN Titeltreffer mehr — seit der FTS5-
+	//    Migration (Titel/Artist/Album laufen über items_fts MATCH statt LIKE,
+	//    siehe items.go) ist die Standardsuche wortbasiert: "bi" ist kein
+	//    eigenständiges Wort in "The Big Bang Theory Kompilation", ein
+	//    Teilstring-Treffer mitten im Wort "Big" (wie es die alte
+	//    LIKE '%bi%'-Suche fand) ist damit bewusst nicht mehr Teil des
+	//    Standardfalls — genau das leistet stattdessen der Fuzzy-Modus
+	//    (SearchFuzzy, Präfix-Wildcard), siehe TestSearchFuzzyFindsPrefixMatches.
 	short := search("bi")
 	if short[byWordStart] || short[byNameMiddle] {
 		t.Errorf("2-Zeichen-Suche fand einen Darsteller — Cast-Suche soll erst ab 3 Zeichen greifen")
 	}
-	if !short[byTitle] {
-		t.Errorf("2-Zeichen-Suche fand den Titeltreffer nicht — Titel bleiben auch kurz suchbar")
+	if short[byTitle] {
+		t.Errorf("2-Zeichen-Suche 'bi' fand einen Titeltreffer über einen Wort-Teilstring — FTS5 matcht seit der Migration ganze Wörter, kein Teilstring mehr")
 	}
 }

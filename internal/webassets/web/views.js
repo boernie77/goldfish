@@ -1194,6 +1194,32 @@ function renderDeleteWatchedButtonPrefs() {
   }
 }
 
+// appendFuzzyExtraButton: "🔍 N weitere Treffer"-Button neben der
+// Treffer-Anzahl in der Breadcrumb-Leiste. Wird nur angehängt, wenn der
+// Server bei einer exakten FTS5-Suche zusätzliche Präfix-Treffer meldet
+// (opts.fuzzyExtraCount, siehe grid.js renderDefaultLibraryGrid +
+// internal/api/items.go listItems). Klick lädt die Erweiterung nach und
+// hängt sie ans Ende der bereits gerenderten Liste an (grid.js
+// loadMoreFuzzySearchResults) — kein Neu-Rendern von vorn, kein Sprung.
+function appendFuzzyExtraButton(bc, opts) {
+  if (!opts.fuzzyExtraCount) return;
+  const btn = document.createElement("button");
+  btn.className = "fuzzy-extra-btn";
+  btn.type = "button";
+  btn.title = "Zusätzliche Wortfragment-Treffer laden";
+  btn.textContent = `🔍 ${opts.fuzzyExtraCount.toLocaleString("de-DE")} weitere Treffer`;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "🔍 Lädt …";
+    try {
+      await loadMoreFuzzySearchResults();
+    } finally {
+      btn.remove();
+    }
+  });
+  bc.appendChild(btn);
+}
+
 function renderBreadcrumb(opts) {
   opts = opts || {};
   // Bei jedem Breadcrumb-Render auch die pinned Lib-Nav aktualisieren, damit
@@ -1601,6 +1627,7 @@ function renderBreadcrumb(opts) {
     bc.appendChild(count);
     if (opts.searchCount !== undefined && opts.searchCount !== null) {
       count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} Treffer)`;
+      appendFuzzyExtraButton(bc, opts);
     } else {
       loadCount(count, lib.id, "");
     }
@@ -1695,6 +1722,7 @@ function renderBreadcrumb(opts) {
   bc.appendChild(count);
   if (opts.searchCount !== undefined && opts.searchCount !== null) {
     count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} Treffer)`;
+    appendFuzzyExtraButton(bc, opts);
   } else {
     loadCount(count, lib.id, state.currentFolder);
   }

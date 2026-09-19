@@ -218,23 +218,23 @@ func (s *Store) UnmatchAllEpisodesInFolder(libraryID int64, folder string) (int,
 	return int(n), nil
 }
 
-func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
+// itemsFromWhere baut den FROM/JOIN/WHERE-Teil der ListItems-Query (inkl.
+// aller Filter: ACL/FSK/Search/Folder/Watched/Favorite/Rating/MatchState/
+// Dupes/Genres/Person/Playlist/…) — gemeinsam genutzt von ListItems (liefert
+// die Item-Zeilen) und CountItemsFiltered (liefert nur eine Trefferzahl,
+// z.B. für den Fuzzy-"N weitere Treffer"-Button in listItems/api/items.go).
+// ⚠ Enthält NICHT die SELECT-Spaltenliste und NICHT ORDER BY — beides ist
+// für eine reine COUNT-Query irrelevant/schädlich (ORDER BY RANDOM() bei
+// Sort=random würde unnötig sortieren). Eine gemeinsame Hilfsfunktion statt
+// zweier separat gepflegter WHERE-Klauseln ist hier bewusst Pflicht: beide
+// Nutzer MÜSSEN exakt dieselbe ACL-/FSK-Logik anwenden, sonst entsteht genau
+// die Art Sicherheitslücke, die am 2026-08-22 schon einmal gefunden wurde
+// (siehe Kommentar bei "Sicherheitslücke gefunden" unten).
+func (s *Store) itemsFromWhere(f ItemFilter) (string, []any) {
 	// LEFT JOIN metadata nur für Sort=episode benötigt, aber der Join ist harmlos.
 	// watched/favorite kommen aus user_item_state (pro-User-Zustand); ohne UserID
 	// werden die Spalten auf 0/NULL gesetzt (z.B. für den Enrichment-Worker).
-	q := `SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
-	       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb, i.mod_time, i.released_at, i.added_at,
-	       COALESCE(i.metadata_id, 0),
-	       COALESCE(i.metadata_confirmed, 0),
-	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
-	       COALESCE(i.trickplay_status, ''),
-	       COALESCE(i.episode_end, 0),
-	       COALESCE(i.variant_split, 0),
-	       COALESCE(us.rating, 0),
-	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
-	       COALESCE(i.genre, ''), COALESCE(i.year, 0),
-	       us.last_played_at, COALESCE(us.play_count, 0)
-	      FROM items i
+	q := `FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
 	      LEFT JOIN metadata parent ON parent.id = m.parent_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -294,28 +294,32 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		args = append(args, exclArgs...)
 	}
 	if f.Search != "" {
-		// Diakritika-tolerant (User-Wunsch): "senorita" soll auch "Señorita"
-		// finden. UNACCENT() ist eine registrierte SQLite-Funktion (siehe
-		// unaccent.go), die auf beiden Seiten des Vergleichs dieselbe
-		// NFD-Zerlegung+Mn-Entfernung anwendet — die Suchanfrage selbst wird
-		// hier in Go schon einmal gefaltet, spart pro Zeile einen Aufruf.
-		// SQLite LIKE ist für den verbleibenden ASCII-Bereich bereits
-		// case-insensitive, ein zusätzliches LOWER() ist deshalb nicht nötig.
-		pattern := "%" + unaccent(f.Search) + "%"
-		// 🔴 Titel-Suche muss den SERIENTITEL treffen, NICHT den Episoden-
-		// titel (User-Wunsch 2026-09-17: "Bei Serien den Serientitel oder
-		// den Schauspieler. Nicht nach Folgen Titeln, oder Beschreibungen").
-		// Bug gefunden: `m.title` ist bei einer Episode (tmdb_type='episode')
-		// der EPISODENTITEL, der Serientitel steckt im Parent-Datensatz
-		// (`metadata.parent_id` → `tv`-Zeile). Vorher matchte die Suche also
-		// den Episodentitel (genau das Gegenteil vom Wunsch) UND fand den
-		// Serientitel selbst NIE — eine Suche nach "One Tree Hill" traf keine
-		// einzige Episode dieser Serie. `titleField` bevorzugt jetzt den
-		// Show-Titel (parent.title), wenn vorhanden — das schließt den
-		// Episodentitel automatisch aus dem Treffer aus, ohne ihn separat
-		// ausschließen zu müssen. Filme (kein parent) und private Videos
-		// (keine Metadata) bleiben unverändert bei m.title/i.title.
-		titleField := "UNACCENT(COALESCE(parent.title, m.title, i.title))"
+		// 🔴 Titel-/Artist-/Album-Suche läuft seit der FTS5-Migration über die
+		// virtuelle Tabelle `items_fts` (siehe schema.go) statt über LIKE +
+		// UNACCENT(). Sie hält für jedes Item bereits die Serientitel-Vererbung
+		// (COALESCE(parent.title, m.title, i.title) — Serientitel schlägt
+		// Episodentitel, User-Wunsch 2026-09-17: "Bei Serien den Serientitel
+		// oder den Schauspieler. Nicht nach Folgen Titeln") vorberechnet, per
+		// Sync-Trigger konsistent gehalten. `remove_diacritics 2` im Tokenizer
+		// übernimmt die Rolle von UNACCENT() für diese drei Spalten — auf
+		// BEIDEN Seiten (Dokument UND Suchbegriff werden vom selben Tokenizer
+		// normalisiert), kein manuelles Vorfalten des Suchbegriffs nötig.
+		//
+		// ftsQuery() quotet jedes Wort einzeln (FTS5-Escape-Konvention:
+		// interne " verdoppelt) — das neutralisiert jede FTS5-Query-Syntax
+		// (AND/OR/NOT/*/-/:/Klammern) im Nutzereingabe-String, sie wird immer
+		// als literaler Text gesucht, nie als Operator interpretiert. Mehrere
+		// Wörter sind implizit UND-verknüpft. Im Fuzzy-Modus (SearchFuzzy)
+		// hängt ftsQuery() zusätzlich ein Präfix-Wildcard an jedes Wort — deckt automatisch
+		// auch die exakten Treffer mit ab (ein Präfix-Match auf "star" trifft
+		// auch das Wort "star" selbst), daher genügt EIN MATCH statt zwei.
+		ftsMatch := ftsQuery(f.Search, f.SearchFuzzy)
+		titleCond := "1=0" // leerer/nur-Leerzeichen-Suchbegriff → kein Titel-Treffer möglich
+		var titleArgs []any
+		if ftsMatch != "" {
+			titleCond = `i.id IN (SELECT item_id FROM items_fts WHERE items_fts MATCH ?)`
+			titleArgs = append(titleArgs, ftsMatch)
+		}
 		// Darsteller-Namen werden nur am WORTANFANG getroffen (User-Vorgabe
 		// 2026-09-18). Vorher war es ein Teilstring irgendwo im Namen — eine
 		// Suche nach „big" fand dadurch Abigail Spencer (37 Titel), Mike
@@ -328,7 +332,9 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		//
 		// Wortanfang heißt: Name beginnt damit, oder der Begriff beginnt ein
 		// späteres Wort (nach Leerzeichen oder Bindestrich — Doppelnamen wie
-		// „Jean-Claude" sind sonst nicht suchbar).
+		// „Jean-Claude" sind sonst nicht suchbar). Bleibt UNVERÄNDERT bei
+		// UNACCENT()+LIKE — nimmt NICHT an der FTS5-Migration teil, nur
+		// Titel/Artist/Album wandern zu items_fts.
 		castPrefix := unaccent(f.Search) + "%"
 		castWord := "% " + unaccent(f.Search) + "%"
 		castHyphen := "%-" + unaccent(f.Search) + "%"
@@ -337,9 +343,7 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 		// bei 1-2 Buchstaben sind die Cast-Treffer eh nicht hilfreich.
 		if len(f.Search) >= 3 {
 			q += ` AND (
-				` + titleField + ` LIKE ?
-				OR UNACCENT(COALESCE(i.artist, '')) LIKE ?
-				OR UNACCENT(COALESCE(i.album, '')) LIKE ?
+				` + titleCond + `
 				OR EXISTS (
 					SELECT 1 FROM metadata_cast mc
 					JOIN people p ON p.id = mc.person_id
@@ -350,14 +354,11 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
 				)
 			)`
-			args = append(args, pattern, pattern, pattern, castPrefix, castWord, castHyphen)
+			args = append(args, titleArgs...)
+			args = append(args, castPrefix, castWord, castHyphen)
 		} else {
-			q += ` AND (
-				` + titleField + ` LIKE ?
-				OR UNACCENT(COALESCE(i.artist, '')) LIKE ?
-				OR UNACCENT(COALESCE(i.album, '')) LIKE ?
-			)`
-			args = append(args, pattern, pattern, pattern)
+			q += ` AND (` + titleCond + `)`
+			args = append(args, titleArgs...)
 		}
 	}
 	if !f.DateFrom.IsZero() {
@@ -621,6 +622,40 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			  AND s.field_order <> 'unknown'
 		)`
 	}
+	return q, args
+}
+
+// CountItemsFiltered liefert nur die Trefferzahl für denselben Filter wie
+// ListItems (identische WHERE-Logik via itemsFromWhere) — ohne die Item-
+// Zeilen selbst zu laden und ohne attachMetadata/attachVariantCounts.
+// Eingeführt für den Fuzzy-"N weitere Treffer"-Button (siehe listItems in
+// internal/api/items.go): der brauchte bisher einen kompletten zweiten
+// ListItems-Aufruf nur für eine Differenz-Anzahl.
+func (s *Store) CountItemsFiltered(f ItemFilter) (int, error) {
+	fromWhere, args := s.itemsFromWhere(f)
+	q := `SELECT COUNT(*) ` + fromWhere
+	var n int
+	if err := s.db.QueryRow(q, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
+	fromWhere, args := s.itemsFromWhere(f)
+	q := `SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
+	       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb, i.mod_time, i.released_at, i.added_at,
+	       COALESCE(i.metadata_id, 0),
+	       COALESCE(i.metadata_confirmed, 0),
+	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
+	       COALESCE(i.trickplay_status, ''),
+	       COALESCE(i.episode_end, 0),
+	       COALESCE(i.variant_split, 0),
+	       COALESCE(us.rating, 0),
+	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+	       COALESCE(i.genre, ''), COALESCE(i.year, 0),
+	       us.last_played_at, COALESCE(us.play_count, 0)
+	      ` + fromWhere
 	// Richtung: "asc" flippt die natürliche Sortierreihenfolge (nur bei stabilen Sorts
 	// wirksam; bei "random" ignoriert).
 	asc := f.SortDir == "asc"
