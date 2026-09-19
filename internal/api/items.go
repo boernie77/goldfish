@@ -491,7 +491,14 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	// ID-Differenz. Response bleibt ein reines JSON-Array (Header statt
 	// Body-Umbau) — jeder API-Client (Android/Apple/Linux/FireTV) erwartet
 	// hier ein Array und würde an einem gewrappten Objekt brechen.
-	if f.Search != "" && !f.SearchFuzzy {
+	// Bei sort=random haengt ListItems ein LIMIT 20 an (siehe Store,
+	// "Zufaellige Reihenfolge"-Kommentar), CountItemsFiltered zaehlt aber
+	// ALLE Treffer ohne Limit — die Differenz waere in dieser Kombination
+	// systematisch ueberhoeht (QM-Review FTS5-Fuzzy-Suche, 2026-09-19).
+	// Kein Web-/App-Client kombiniert aktuell Suche+Random, aber der
+	// Query-Parameter erlaubt es — Header deshalb fuer diesen Fall nicht
+	// setzen, statt eine irrefuehrende Zahl zu liefern.
+	if f.Search != "" && !f.SearchFuzzy && f.Sort != "random" {
 		// exactCount = len(items): der Haupt-Query oben (ListItems(f)) liefert
 		// bereits ALLE exakten Treffer (kein LIMIT, siehe Kommentar unten bei
 		// "Frueher: ... LIMIT 300 ... entfernt") — ein zweiter Zähl-Query für
