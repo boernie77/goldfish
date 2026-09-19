@@ -218,23 +218,23 @@ func (s *Store) UnmatchAllEpisodesInFolder(libraryID int64, folder string) (int,
 	return int(n), nil
 }
 
-func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
+// itemsFromWhere baut den FROM/JOIN/WHERE-Teil der ListItems-Query (inkl.
+// aller Filter: ACL/FSK/Search/Folder/Watched/Favorite/Rating/MatchState/
+// Dupes/Genres/Person/Playlist/…) — gemeinsam genutzt von ListItems (liefert
+// die Item-Zeilen) und CountItemsFiltered (liefert nur eine Trefferzahl,
+// z.B. für den Fuzzy-"N weitere Treffer"-Button in listItems/api/items.go).
+// ⚠ Enthält NICHT die SELECT-Spaltenliste und NICHT ORDER BY — beides ist
+// für eine reine COUNT-Query irrelevant/schädlich (ORDER BY RANDOM() bei
+// Sort=random würde unnötig sortieren). Eine gemeinsame Hilfsfunktion statt
+// zweier separat gepflegter WHERE-Klauseln ist hier bewusst Pflicht: beide
+// Nutzer MÜSSEN exakt dieselbe ACL-/FSK-Logik anwenden, sonst entsteht genau
+// die Art Sicherheitslücke, die am 2026-08-22 schon einmal gefunden wurde
+// (siehe Kommentar bei "Sicherheitslücke gefunden" unten).
+func (s *Store) itemsFromWhere(f ItemFilter) (string, []any) {
 	// LEFT JOIN metadata nur für Sort=episode benötigt, aber der Join ist harmlos.
 	// watched/favorite kommen aus user_item_state (pro-User-Zustand); ohne UserID
 	// werden die Spalten auf 0/NULL gesetzt (z.B. für den Enrichment-Worker).
-	q := `SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
-	       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb, i.mod_time, i.released_at, i.added_at,
-	       COALESCE(i.metadata_id, 0),
-	       COALESCE(i.metadata_confirmed, 0),
-	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
-	       COALESCE(i.trickplay_status, ''),
-	       COALESCE(i.episode_end, 0),
-	       COALESCE(i.variant_split, 0),
-	       COALESCE(us.rating, 0),
-	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
-	       COALESCE(i.genre, ''), COALESCE(i.year, 0),
-	       us.last_played_at, COALESCE(us.play_count, 0)
-	      FROM items i
+	q := `FROM items i
 	      LEFT JOIN metadata m ON m.id = i.metadata_id
 	      LEFT JOIN metadata parent ON parent.id = m.parent_id
 	      LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
@@ -622,6 +622,40 @@ func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
 			  AND s.field_order <> 'unknown'
 		)`
 	}
+	return q, args
+}
+
+// CountItemsFiltered liefert nur die Trefferzahl für denselben Filter wie
+// ListItems (identische WHERE-Logik via itemsFromWhere) — ohne die Item-
+// Zeilen selbst zu laden und ohne attachMetadata/attachVariantCounts.
+// Eingeführt für den Fuzzy-"N weitere Treffer"-Button (siehe listItems in
+// internal/api/items.go): der brauchte bisher einen kompletten zweiten
+// ListItems-Aufruf nur für eine Differenz-Anzahl.
+func (s *Store) CountItemsFiltered(f ItemFilter) (int, error) {
+	fromWhere, args := s.itemsFromWhere(f)
+	q := `SELECT COUNT(*) ` + fromWhere
+	var n int
+	if err := s.db.QueryRow(q, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func (s *Store) ListItems(f ItemFilter) ([]model.Item, error) {
+	fromWhere, args := s.itemsFromWhere(f)
+	q := `SELECT i.id, i.library_id, i.path, i.rel_path, i.title, i.container, i.video_codec, i.audio_codec,
+	       i.width, i.height, i.duration_sec, i.size_bytes, i.bitrate_kbps, i.thumb_path, i.has_thumb, i.mod_time, i.released_at, i.added_at,
+	       COALESCE(i.metadata_id, 0),
+	       COALESCE(i.metadata_confirmed, 0),
+	       COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
+	       COALESCE(i.trickplay_status, ''),
+	       COALESCE(i.episode_end, 0),
+	       COALESCE(i.variant_split, 0),
+	       COALESCE(us.rating, 0),
+	       COALESCE(i.artist, ''), COALESCE(i.album, ''), COALESCE(i.track_no, 0), COALESCE(i.music_album_id, 0),
+	       COALESCE(i.genre, ''), COALESCE(i.year, 0),
+	       us.last_played_at, COALESCE(us.play_count, 0)
+	      ` + fromWhere
 	// Richtung: "asc" flippt die natürliche Sortierreihenfolge (nur bei stabilen Sorts
 	// wirksam; bei "random" ignoriert).
 	asc := f.SortDir == "asc"

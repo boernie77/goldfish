@@ -52,6 +52,7 @@ const state = {
   selection: new Set(),     // Set von item-IDs in der aktuellen Auswahl
   selectionAnchorId: null,  // letzte NICHT-Shift-angeklickte Kachel — Ausgangspunkt für Shift-Klick-Bereichsauswahl
   lastRenderedItems: [],    // Referenz auf zuletzt gerenderte Items (für „Alle auswählen")
+  lastSearchRawItems: [],   // rohe (ungebündelte) exakte Suchtreffer — Dedup-Basis für den Fuzzy-"N weitere Treffer"-Button, siehe loadMoreFuzzySearchResults()
   loadSeq: 0,               // Sequenz-Zähler für loadItems — verhindert, dass veraltete async-Responses das Grid überschreiben
   sortDir: "",              // "asc" | "desc" | "" (Default) — Richtungs-Override
   resBuckets: new Set(),    // ausgewählte Auflösungs-Buckets ("4k","1080p",…) — Multi-Select

@@ -717,8 +717,20 @@ func (s *Store) migrate() error {
 		// Episoden-Items der Show nachziehen (metadata.parent_id = NEW.id)
 		// UND den direkten Treffer selbst (z.B. ein Film, dessen Metadata-
 		// Titel manuell korrigiert wurde).
-		`CREATE TRIGGER IF NOT EXISTS items_fts_metadata_title_au AFTER UPDATE OF title ON metadata
-		WHEN OLD.title IS NOT NEW.title
+		// ⚠ Auch OHNE Titeländerung nötig, wenn sich NEW.parent_id selbst
+		// ändert (eine Episode wird einer ANDEREN Show neu zugeordnet, z.B.
+		// über "Manuell zuordnen"/IMDb-Match) — dann bleibt NEW.title (der
+		// Episodentitel) unverändert, aber der geerbte Serientitel
+		// (COALESCE(parent.title, ...)) muss sich auf die neue Parent-Show
+		// ändern. `AFTER UPDATE OF title ON metadata` feuert bei einem reinen
+		// parent_id-UPDATE gar nicht erst (SQLite bindet "UPDATE OF <spalte>"
+		// an die im SET tatsächlich genannten Spalten) — ohne die Erweiterung
+		// bliebe items_fts für so ein Item auf dem alten (falschen)
+		// Serientitel stehen, bis irgendein anderes Update den Trigger zufällig
+		// erneut auslöst. `IS NOT` statt `!=` behandelt NULL parent_id korrekt
+		// (Top-Level-Metadata ohne Parent).
+		`CREATE TRIGGER IF NOT EXISTS items_fts_metadata_title_au AFTER UPDATE OF title, parent_id ON metadata
+		WHEN OLD.title IS NOT NEW.title OR OLD.parent_id IS NOT NEW.parent_id
 		BEGIN
 			DELETE FROM items_fts WHERE item_id IN (
 				SELECT id FROM items

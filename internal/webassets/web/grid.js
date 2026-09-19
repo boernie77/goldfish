@@ -1356,6 +1356,12 @@ async function loadItemsBody() {
       items = meta.data;
       fuzzyExtraCount = meta.fuzzyExtraCount;
       state.fuzzySearchParams = new URLSearchParams(params);
+      // Rohe, ungebündelte Treffer dieser exakten Suche — Dedup-Basis für
+      // loadMoreFuzzySearchResults() (siehe dort). state.lastRenderedItems
+      // enthält im Such-Modus NUR die "rest"-Items (appendSearchResultCards
+      // bündelt Episoden zu Serien-Sammelkacheln und lässt diese IDs außen
+      // vor), wäre also als Dedup-Quelle unvollständig.
+      state.lastSearchRawItems = items;
     } else {
       items = await apiGetCached(`/api/items?${params}`);
     }
@@ -1503,14 +1509,25 @@ async function loadMoreFuzzySearchResults() {
     showToast(`Fehler: ${e.message}`, { kind: "error" });
     return;
   }
-  const known = new Set((state.lastRenderedItems || []).map(it => it.id));
+  // Dedup gegen die ROHEN exakten Treffer (inkl. der in Serien-Sammelkacheln
+  // gebündelten Episoden) — state.lastRenderedItems enthält im Such-Modus
+  // nur die "rest"-Items (siehe appendSearchResultCards), ein Dedup dagegen
+  // hätte bereits gezeigte Serien-Episoden übersehen und eine zweite
+  // Sammelkachel derselben Serie erzeugt.
+  const known = new Set((state.lastSearchRawItems || []).map(it => it.id));
   const newItems = (extra || []).filter(it => !known.has(it.id));
   if (!newItems.length) return;
   const grid = $("#grid");
   const frag = document.createDocumentFragment();
+  // Vorherige "rest"-Kacheln sichern — appendSearchResultCards() setzt
+  // state.lastRenderedItems intern auf NUR die aus newItems gerenderten
+  // "rest"-Items (siehe Kommentar dort), würde also die exakten Treffer
+  // aus state.lastRenderedItems verdrängen statt sie zu ergänzen.
+  const previousRendered = state.lastRenderedItems || [];
   appendSearchResultCards(frag, newItems);
   grid.appendChild(frag);
-  state.lastRenderedItems = (state.lastRenderedItems || []).concat(newItems);
+  state.lastRenderedItems = previousRendered.concat(state.lastRenderedItems || []);
+  state.lastSearchRawItems = (state.lastSearchRawItems || []).concat(newItems);
   state.playQueue = (state.playQueue || []).concat(newItems);
   // Erneutes Klicken soll nicht dieselben Treffer nochmal anhängen — der
   // Button wird von appendFuzzyExtraButton() nach dem Klick ohnehin entfernt,

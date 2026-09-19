@@ -369,3 +369,94 @@ func TestFTSCastSearchUnaffectedByFuzzy(t *testing.T) {
 		}
 	}
 }
+
+// TestFTSSearchRespectsLibraryACL: Regressionstest für die am 2026-08-22
+// gefundene Sicherheitslücke (siehe Kommentar bei "Sicherheitslücke
+// gefunden 2026-08-22" in ListItems/items.go) — eine bibliotheksübergreifende
+// Suche (kein LibraryID-Scope, wie z.B. die Home-View-Suche) darf für einen
+// Non-Admin NIE Treffer aus einer Bibliothek liefern, auf die er keinen
+// user_library_access hat. Deckt jetzt zusätzlich beide FTS5-Suchmodi ab
+// (exakt + fuzzy), da die Migration die komplette Titel-Suchlogik ausgetauscht
+// hat und ein künftiger Umbau der FTS5-Query denselben ACL-Sperrpunkt
+// (itemsFromWhere) versehentlich umgehen könnte, ohne dass es auffällt.
+func TestFTSSearchRespectsLibraryACL(t *testing.T) {
+	s := newTestStore(t)
+
+	libAllowed, err := s.CreateLibrary("Erlaubt", t.TempDir(), model.KindMovies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	libForbidden, err := s.CreateLibrary("Verboten", t.TempDir(), model.KindMovies)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Beide Filme teilen denselben Suchbegriff als Wortanfang, damit sowohl
+	// der exakte als auch der Fuzzy-Modus theoretisch BEIDE träfen, wenn die
+	// ACL-Klausel nicht griffe.
+	allowedID := upsertMovieForSearch(t, s, libAllowed, 9101, "a.mkv", "Zauberwald Eins")
+	forbiddenID := upsertMovieForSearch(t, s, libForbidden, 9102, "b.mkv", "Zauberwald Zwei")
+
+	userID, err := s.CreateUser("nonadmin", "pw123456", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetUserLibraryAccess(userID, []int64{libAllowed}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, fuzzy := range []bool{false, true} {
+		// Bewusst OHNE LibraryID/LibraryIDs (globale Suche) — genau der
+		// Fall, der am 2026-08-22 ungefiltert über alle Bibliotheken lief.
+		items, err := s.ListItems(ItemFilter{
+			Search:      "zauberwald",
+			SearchFuzzy: fuzzy,
+			UserID:      userID,
+			IsAdmin:     false,
+		})
+		if err != nil {
+			t.Fatalf("fuzzy=%v: ListItems: %v", fuzzy, err)
+		}
+		got := map[int64]bool{}
+		for _, it := range items {
+			got[it.ID] = true
+		}
+		if !got[allowedID] {
+			t.Errorf("fuzzy=%v: Treffer aus der erlaubten Bibliothek fehlt", fuzzy)
+		}
+		if got[forbiddenID] {
+			t.Errorf("fuzzy=%v: Treffer aus einer NICHT freigegebenen Bibliothek wurde geliefert — ACL-Leck", fuzzy)
+		}
+		if len(items) != 1 {
+			t.Errorf("fuzzy=%v: erwartet genau 1 Treffer, bekam %d (items=%v)", fuzzy, len(items), items)
+		}
+
+		// Gegenprobe fürs Zähl-Pendant CountItemsFiltered (nutzt dieselbe
+		// itemsFromWhere-WHERE-Klausel, siehe Fix 3) — muss dieselbe
+		// ACL-Sperre respektieren, sonst würde der Fuzzy-"N weitere
+		// Treffer"-Button einem Non-Admin verraten, dass es in einer für
+		// ihn unsichtbaren Bibliothek weitere Treffer gibt.
+		count, err := s.CountItemsFiltered(ItemFilter{
+			Search:      "zauberwald",
+			SearchFuzzy: fuzzy,
+			UserID:      userID,
+			IsAdmin:     false,
+		})
+		if err != nil {
+			t.Fatalf("fuzzy=%v: CountItemsFiltered: %v", fuzzy, err)
+		}
+		if count != 1 {
+			t.Errorf("fuzzy=%v: CountItemsFiltered = %d, want 1 (ACL-Leck?)", fuzzy, count)
+		}
+	}
+
+	// Admin sieht beide (Kontrastprobe — Admin-Bypass ist hier bewusstes
+	// Design, siehe TestLibraryACL in acl_test.go).
+	adminItems, err := s.ListItems(ItemFilter{Search: "zauberwald", UserID: userID, IsAdmin: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(adminItems) != 2 {
+		t.Errorf("Admin: erwartet 2 Treffer (beide Bibliotheken), bekam %d", len(adminItems))
+	}
+}

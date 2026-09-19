@@ -399,6 +399,15 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		// searchMode=fuzzy: Titel/Artist/Album-Suche (FTS5, siehe items.go)
 		// schließt zusätzlich Präfix-Treffer ein. String statt bool, damit
 		// später weitere Modi möglich sind, ohne den Query-Param umzubauen.
+		// ⚠ Bewusst KEIN impliziter Fuzzy-Fallback für Clients ohne den
+		// Parameter — der Server-Vertrag ist stabil: fehlt "searchMode", gilt
+		// exakter Modus. Android/Apple/Linux/FireTV ziehen "searchMode=fuzzy"
+		// aktuell noch NICHT (separate, bereits laufende Aufgabe) — bis dahin
+		// bekommen sie nur exakte Treffer, kein stiller Server-Default. Ein
+		// automatischer Fallback wäre hier der falsche Ort dafür: der geplante
+		// Weg ist echte Fuzzy-Kontrolle in der jeweiligen App-UI, nicht ein
+		// Server-Verhalten, das sich unter den Apps ändert, ohne dass sie es
+		// angefordert haben.
 		SearchFuzzy: q.Get("searchMode") == "fuzzy",
 	}
 	// Sicherheitslücke gefunden 2026-08-22 (User: "beim Benutzer Börnie werden bei der
@@ -469,31 +478,28 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	// "N weitere Treffer"-Button im Frontend (Fuzzy-Präfix-Suche): nur
 	// relevant direkt nach einer exakten Suche — im Fuzzy-Modus selbst ist
 	// das Feld nutzlos (der User hat die Erweiterung bereits angefordert).
-	// Bewusst KEINE separate schlanke COUNT-Query, sondern ein zweiter
-	// ListItems-Aufruf mit SearchFuzzy=true: das garantiert exakt dieselbe
-	// WHERE-Logik (ACL/FSK/Folder/Filter/Cast-Suche) wie der Haupt-Query,
-	// ohne die große Query hier ein zweites Mal separat nachzubauen — die
-	// Fuzzy-Ergebnismenge ist immer eine Obermenge der exakten (ein
-	// Präfix-Match auf "star" trifft auch "star" selbst), daher liefert die
-	// Differenz der beiden Treffermengen zuverlässig die "weiteren" Treffer.
-	// Response bleibt ein reines JSON-Array (Header statt Body-Umbau) —
-	// jeder API-Client (Android/Apple/Linux/FireTV) erwartet hier ein Array
-	// und würde an einem gewrappten Objekt brechen.
+	// Schlanke COUNT-Query (Store.CountItemsFiltered) statt eines zweiten
+	// vollen ListItems-Aufrufs: beide nutzen dieselbe WHERE-Logik-Hilfsfunktion
+	// (itemsFromWhere in internal/store/items.go), garantieren also weiterhin
+	// exakt dieselbe ACL/FSK/Folder/Filter/Cast-Suche wie der Haupt-Query —
+	// nur ohne die Item-Zeilen selbst zu laden und ohne attachMetadata/
+	// attachVariantCounts (das kostete vorher unnötig Metadata-/Cast-Joins
+	// nur für eine reine Zahl). Die Fuzzy-Ergebnismenge ist immer eine
+	// Obermenge der exakten (ein Präfix-Match auf "star" trifft auch "star"
+	// selbst), daher liefert die Differenz der beiden COUNT-Werte zuverlässig
+	// die "weiteren" Treffer — dieselbe Garantie wie vorher bei der
+	// ID-Differenz. Response bleibt ein reines JSON-Array (Header statt
+	// Body-Umbau) — jeder API-Client (Android/Apple/Linux/FireTV) erwartet
+	// hier ein Array und würde an einem gewrappten Objekt brechen.
 	if f.Search != "" && !f.SearchFuzzy {
+		// exactCount = len(items): der Haupt-Query oben (ListItems(f)) liefert
+		// bereits ALLE exakten Treffer (kein LIMIT, siehe Kommentar unten bei
+		// "Frueher: ... LIMIT 300 ... entfernt") — ein zweiter Zähl-Query für
+		// den exakten Modus wäre redundant.
 		fuzzy := f
 		fuzzy.SearchFuzzy = true
-		if fuzzyItems, err := s.Store.ListItems(fuzzy); err == nil {
-			seen := make(map[int64]struct{}, len(items))
-			for _, it := range items {
-				seen[it.ID] = struct{}{}
-			}
-			extra := 0
-			for _, it := range fuzzyItems {
-				if _, ok := seen[it.ID]; !ok {
-					extra++
-				}
-			}
-			if extra > 0 {
+		if fuzzyCount, err := s.Store.CountItemsFiltered(fuzzy); err == nil {
+			if extra := fuzzyCount - len(items); extra > 0 {
 				w.Header().Set("X-Fuzzy-Extra-Count", strconv.Itoa(extra))
 			}
 		}
