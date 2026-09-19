@@ -234,6 +234,24 @@ func (s *Store) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS items_library_idx ON items(library_id)`,
 		`CREATE INDEX IF NOT EXISTS items_title_idx ON items(title)`,
+		// FTS5-Volltextindex für die Titel-/Artist-/Album-Suche (ersetzt die
+		// bisherige LIKE-basierte Suche in ListItems, siehe items.go). Eigene,
+		// unabhängig synchronisierte Tabelle (kein `content=items`-Contentless-
+		// Table-Verweis) — item_id ist der einzige Weg zurück zur items-Zeile.
+		// tokenize='unicode61 remove_diacritics 2' löst dieselbe Diakritika-
+		// Toleranz wie die UNACCENT()-Funktion (unaccent.go), aber innerhalb
+		// des Index statt über eine SQL-Skalarfunktion — daher deutlich
+		// schneller bei häufigen Suchbegriffen (Prototyp: ~170x). Bewusst KEINE
+		// eigene Spalte für die Cast-Suche — die bleibt bei UNACCENT()+LIKE
+		// (Wortanfangs-Logik, siehe items.go), FTS5 nimmt ihr nur Titel/
+		// Artist/Album ab.
+		`CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
+			item_id UNINDEXED,
+			title,
+			artist,
+			album,
+			tokenize = 'unicode61 remove_diacritics 2'
+		)`,
 		`CREATE TABLE IF NOT EXISTS settings (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
@@ -653,6 +671,98 @@ func (s *Store) migrate() error {
 	// Migration, oder ein Aufrufer ohne *http.Request, z. B. Auto-Scan/-Backup).
 	if err := addCol("activity_log", "device", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
+	}
+	// items_fts-Sync-Trigger — MÜSSEN nach den obigen addCol-Aufrufen stehen
+	// (items.artist/items.album existieren erst danach; ein Trigger, der NEW.
+	// artist referenziert, scheitert an "no such column", wenn die Spalte zum
+	// CREATE-TRIGGER-Zeitpunkt noch fehlt). Serientitel-Vererbung identisch zu
+	// ListItems() (items.go): COALESCE(parent.title, m.title, i.title) — der
+	// Serientitel (Parent-Show) schlägt den Episodentitel.
+	ftsTriggerStmts := []string{
+		`CREATE TRIGGER IF NOT EXISTS items_fts_ai AFTER INSERT ON items BEGIN
+			INSERT INTO items_fts(item_id, title, artist, album)
+			SELECT NEW.id,
+			       COALESCE(parent.title, m.title, NEW.title),
+			       COALESCE(NEW.artist, ''),
+			       COALESCE(NEW.album, '')
+			FROM (SELECT 1)
+			LEFT JOIN metadata m ON m.id = NEW.metadata_id
+			LEFT JOIN metadata parent ON parent.id = m.parent_id;
+		END`,
+		// Nur bei tatsächlich relevanter Änderung neu schreiben (title/artist/
+		// album/metadata_id) — ein Scan aktualisiert bei jedem Lauf ALLE Items
+		// per UpsertItem, ein ungebedingtes Delete+Insert würde items_fts
+		// bei jedem Rescan komplett neu befüllen, ohne dass sich für die
+		// Suche etwas geändert hätte.
+		`CREATE TRIGGER IF NOT EXISTS items_fts_au AFTER UPDATE ON items
+		WHEN NEW.title IS NOT OLD.title
+		  OR NEW.artist IS NOT OLD.artist
+		  OR NEW.album IS NOT OLD.album
+		  OR NEW.metadata_id IS NOT OLD.metadata_id
+		BEGIN
+			DELETE FROM items_fts WHERE item_id = OLD.id;
+			INSERT INTO items_fts(item_id, title, artist, album)
+			SELECT NEW.id,
+			       COALESCE(parent.title, m.title, NEW.title),
+			       COALESCE(NEW.artist, ''),
+			       COALESCE(NEW.album, '')
+			FROM (SELECT 1)
+			LEFT JOIN metadata m ON m.id = NEW.metadata_id
+			LEFT JOIN metadata parent ON parent.id = m.parent_id;
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS items_fts_ad AFTER DELETE ON items BEGIN
+			DELETE FROM items_fts WHERE item_id = OLD.id;
+		END`,
+		// Serientitel-Umbenennung (metadata.title einer Show) muss alle
+		// Episoden-Items der Show nachziehen (metadata.parent_id = NEW.id)
+		// UND den direkten Treffer selbst (z.B. ein Film, dessen Metadata-
+		// Titel manuell korrigiert wurde).
+		`CREATE TRIGGER IF NOT EXISTS items_fts_metadata_title_au AFTER UPDATE OF title ON metadata
+		WHEN OLD.title IS NOT NEW.title
+		BEGIN
+			DELETE FROM items_fts WHERE item_id IN (
+				SELECT id FROM items
+				WHERE metadata_id = NEW.id
+				   OR metadata_id IN (SELECT id FROM metadata WHERE parent_id = NEW.id)
+			);
+			INSERT INTO items_fts(item_id, title, artist, album)
+			SELECT i.id,
+			       COALESCE(parent.title, m.title, i.title),
+			       COALESCE(i.artist, ''),
+			       COALESCE(i.album, '')
+			FROM items i
+			LEFT JOIN metadata m ON m.id = i.metadata_id
+			LEFT JOIN metadata parent ON parent.id = m.parent_id
+			WHERE i.metadata_id = NEW.id
+			   OR i.metadata_id IN (SELECT id FROM metadata WHERE parent_id = NEW.id);
+		END`,
+	}
+	for _, q := range ftsTriggerStmts {
+		if _, err := s.db.Exec(q); err != nil {
+			return fmt.Errorf("migrate items_fts trigger: %w", err)
+		}
+	}
+	// Einmaliger Backfill: alle bereits vorhandenen Items in items_fts
+	// einlesen (Bestands-Upgrade). Idempotent über Settings-Flag, analog
+	// backfillEpisodeRanges (main.go). Muss NACH der Trigger-Erstellung
+	// laufen (harmlos, da Trigger nur bei künftigen INSERT/UPDATE/DELETE
+	// feuern, nicht bei dieser direkten INSERT-Anweisung).
+	if done, _ := s.GetSetting("items_fts_backfill_v1", ""); done != "1" {
+		if _, err := s.db.Exec(`
+			INSERT INTO items_fts (item_id, title, artist, album)
+			SELECT i.id,
+			       COALESCE(parent.title, m.title, i.title),
+			       COALESCE(i.artist, ''),
+			       COALESCE(i.album, '')
+			FROM items i
+			LEFT JOIN metadata m ON m.id = i.metadata_id
+			LEFT JOIN metadata parent ON parent.id = m.parent_id
+		`); err != nil {
+			return fmt.Errorf("migrate items_fts backfill: %w", err)
+		}
+		if err := s.SetSetting("items_fts_backfill_v1", "1"); err != nil {
+			return fmt.Errorf("migrate items_fts_backfill_v1 flag: %w", err)
+		}
 	}
 	if _, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS intro_skip_seen_folders (

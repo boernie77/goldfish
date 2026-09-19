@@ -1315,6 +1315,11 @@ async function loadItemsBody() {
 
   let folders = [];
   let items = [];
+  // fuzzyExtraCount/state.fuzzySearchParams: siehe "🔍 N weitere Treffer"-
+  // Button unten. Default "kein Fuzzy-Angebot" — wird nur im searching-Zweig
+  // unten überschrieben, alle anderen Zweige laufen nie über die Suche.
+  let fuzzyExtraCount = 0;
+  state.fuzzySearchParams = null;
 
   const searching = $("#searchInput").value.trim() !== "";
   // Filter zählen zur "Treffer-Anzeige" genauso wie die Suche
@@ -1341,7 +1346,19 @@ async function loadItemsBody() {
     if ((searching || isShuffle) && state.currentFolder) {
       params.set("folder", state.currentFolder);
     }
-    items = await apiGetCached(`/api/items?${params}`);
+    if (searching) {
+      // Ungecacht (fetchItemsWithMeta), damit der X-Fuzzy-Extra-Count-Header
+      // ausgewertet werden kann — der bestehende 30s-Items-Cache hält nur
+      // das rohe Array. state.fuzzySearchParams merkt sich die exakten
+      // Parameter dieser Suche für den "N weitere Treffer"-Button
+      // (loadMoreFuzzySearchResults(), siehe unten).
+      const meta = await fetchItemsWithMeta(`/api/items?${params}`);
+      items = meta.data;
+      fuzzyExtraCount = meta.fuzzyExtraCount;
+      state.fuzzySearchParams = new URLSearchParams(params);
+    } else {
+      items = await apiGetCached(`/api/items?${params}`);
+    }
   } else if (state.currentFolder === null) {
     // Library-Root: Folders + Root-Items
     params.set("folder", "/");
@@ -1383,7 +1400,10 @@ async function loadItemsBody() {
 
   if (folders.length === 0 && items.length === 0) {
     if (filterActive) {
-      renderBreadcrumb({ searchCount: 0 });
+      // fuzzyExtraCount auch bei 0 exakten Treffern mitgeben — ein kurzer
+      // Suchbegriff kann exakt leer sein, obwohl der Fuzzy-Modus etwas
+      // fände (z.B. "star" exakt 0 Treffer, "star*" findet "Starship").
+      renderBreadcrumb({ searchCount: 0, fuzzyExtraCount });
       const msg = searching
         ? `Keine Treffer für „${escapeHTML($("#searchInput").value.trim())}".`
         : `Keine Treffer mit den gewählten Filtern.`;
@@ -1398,7 +1418,7 @@ async function loadItemsBody() {
   if (filterActive) {
     // Bei Suche zählen wir nur items (keine Folders). Sonst items + folders.
     const count = searching ? items.length : items.length + folders.length;
-    renderBreadcrumb({ searchCount: count });
+    renderBreadcrumb({ searchCount: count, fuzzyExtraCount });
   }
 
   // Duplikate (mehrere Dateien mit gleicher TMDB-Metadata) zu einer Kachel mergen.
@@ -1445,7 +1465,7 @@ async function loadItemsBody() {
     // Such-Treffer: Episoden pro Serie zu einer Sammelkachel bündeln
     // (User-Wunsch, wie in der App).
     const shown = appendSearchResultCards(frag, items);
-    renderBreadcrumb({ searchCount: shown + folders.length });
+    renderBreadcrumb({ searchCount: shown + folders.length, fuzzyExtraCount });
   } else {
     for (const it of merged) frag.appendChild(renderCard(it));
   }
@@ -1463,4 +1483,37 @@ async function loadItemsBody() {
   }
   }
 
+}
+
+// loadMoreFuzzySearchResults: Klick-Handler für den "🔍 N weitere Treffer"-
+// Button (views.js renderBreadcrumb, appendFuzzyExtraButton). Lädt den
+// Fuzzy-Modus (searchMode=fuzzy) derselben Suche nach und hängt NUR die
+// zusätzlichen (im exakten Ergebnis noch nicht enthaltenen) Treffer ans Ende
+// der bereits gerenderten Liste an — kein Neu-Rendern von vorn, kein
+// visueller Sprung. state.fuzzySearchParams wird von renderDefaultLibraryGrid
+// (grid.js) bei jeder Suche frisch gesetzt bzw. auf null zurückgesetzt.
+async function loadMoreFuzzySearchResults() {
+  if (!state.fuzzySearchParams) return;
+  const p = new URLSearchParams(state.fuzzySearchParams);
+  p.set("searchMode", "fuzzy");
+  let extra;
+  try {
+    extra = await api(`/api/items?${p}`);
+  } catch (e) {
+    showToast(`Fehler: ${e.message}`, { kind: "error" });
+    return;
+  }
+  const known = new Set((state.lastRenderedItems || []).map(it => it.id));
+  const newItems = (extra || []).filter(it => !known.has(it.id));
+  if (!newItems.length) return;
+  const grid = $("#grid");
+  const frag = document.createDocumentFragment();
+  appendSearchResultCards(frag, newItems);
+  grid.appendChild(frag);
+  state.lastRenderedItems = (state.lastRenderedItems || []).concat(newItems);
+  state.playQueue = (state.playQueue || []).concat(newItems);
+  // Erneutes Klicken soll nicht dieselben Treffer nochmal anhängen — der
+  // Button wird von appendFuzzyExtraButton() nach dem Klick ohnehin entfernt,
+  // dies ist nur die zugehörige Absicherung auf State-Ebene.
+  state.fuzzySearchParams = null;
 }

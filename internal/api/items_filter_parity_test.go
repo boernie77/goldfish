@@ -36,6 +36,7 @@ func TestListAndRandomShareFilterParams(t *testing.T) {
 		"playlistId", // Playlist-Filter (v1.4.6)
 		"personId",   // Schauspieler-Filter
 		"search",
+		"searchMode", // FTS5-Fuzzy-Suche (exakt vs. Präfix-Erweiterung)
 		"watched",
 		"favorite",
 	}

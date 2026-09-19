@@ -396,6 +396,10 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		TrickplayStatus: q.Get("trickplay"),
 		UserID:          me.ID,
 		IsAdmin:         me.IsAdmin,
+		// searchMode=fuzzy: Titel/Artist/Album-Suche (FTS5, siehe items.go)
+		// schließt zusätzlich Präfix-Treffer ein. String statt bool, damit
+		// später weitere Modi möglich sind, ohne den Query-Param umzubauen.
+		SearchFuzzy: q.Get("searchMode") == "fuzzy",
 	}
 	// Sicherheitslücke gefunden 2026-08-22 (User: "beim Benutzer Börnie werden bei der
 	// Startseiten-Suche Treffer aus Bibliotheken angezeigt, auf die er gar keinen Zugriff
@@ -462,6 +466,41 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []model.Item{}
 	}
+	// "N weitere Treffer"-Button im Frontend (Fuzzy-Präfix-Suche): nur
+	// relevant direkt nach einer exakten Suche — im Fuzzy-Modus selbst ist
+	// das Feld nutzlos (der User hat die Erweiterung bereits angefordert).
+	// Bewusst KEINE separate schlanke COUNT-Query, sondern ein zweiter
+	// ListItems-Aufruf mit SearchFuzzy=true: das garantiert exakt dieselbe
+	// WHERE-Logik (ACL/FSK/Folder/Filter/Cast-Suche) wie der Haupt-Query,
+	// ohne die große Query hier ein zweites Mal separat nachzubauen — die
+	// Fuzzy-Ergebnismenge ist immer eine Obermenge der exakten (ein
+	// Präfix-Match auf "star" trifft auch "star" selbst), daher liefert die
+	// Differenz der beiden Treffermengen zuverlässig die "weiteren" Treffer.
+	// Response bleibt ein reines JSON-Array (Header statt Body-Umbau) —
+	// jeder API-Client (Android/Apple/Linux/FireTV) erwartet hier ein Array
+	// und würde an einem gewrappten Objekt brechen.
+	if f.Search != "" && !f.SearchFuzzy {
+		fuzzy := f
+		fuzzy.SearchFuzzy = true
+		if fuzzyItems, err := s.Store.ListItems(fuzzy); err == nil {
+			seen := make(map[int64]struct{}, len(items))
+			for _, it := range items {
+				seen[it.ID] = struct{}{}
+			}
+			extra := 0
+			for _, it := range fuzzyItems {
+				if _, ok := seen[it.ID]; !ok {
+					extra++
+				}
+			}
+			if extra > 0 {
+				w.Header().Set("X-Fuzzy-Extra-Count", strconv.Itoa(extra))
+			}
+		}
+		// Fehler beim Fuzzy-Zähl-Query werden bewusst geschluckt — der
+		// "weitere Treffer"-Button ist ein Komfort-Feature, kein Grund, die
+		// eigentliche (bereits erfolgreiche) Suchantwort scheitern zu lassen.
+	}
 	writeJSON(w, 200, items)
 }
 
@@ -477,6 +516,10 @@ func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 		Favorite:     q.Get("favorite"),
 		RatingFilter: q.Get("rating"),
 		MatchState:   q.Get("match"),
+		// searchMode=fuzzy: siehe listItems oben — beide Handler müssen
+		// dieselben Filter-Parameter auswerten (CLAUDE.md-Regel nach dem
+		// playlistId-Vorfall v1.4.6/v1.4.7).
+		SearchFuzzy: q.Get("searchMode") == "fuzzy",
 		// Zufallswiedergabe soll Hörbücher nie ziehen (User-Wunsch 2026-09-04) —
 		// unconditional, nicht an einen Query-Param gebunden.
 		ExcludeAudiobooks: true,

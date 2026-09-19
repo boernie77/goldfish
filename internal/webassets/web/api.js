@@ -6,6 +6,9 @@
 //   api(path, opts)             — fetch-Wrapper mit JSON-Parsing + 401-Redirect
 //   apiGetCached(path)          — GET mit 30 s TTL-Cache (nur fuer Array-Listen)
 //   invalidateItemsCache()      — Cache leeren (auto bei Mutationen)
+//   fetchItemsWithMeta(path)    — GET /api/items?... UNGECACHT, liefert zusaetzlich
+//                                 den X-Fuzzy-Extra-Count-Header (fuer den
+//                                 "N weitere Treffer"-Button, siehe grid.js/views.js)
 
 // Cache fuer GET /api/items?... — haelt die letzten 5 Listenantworten im Speicher.
 // Bei Mutationen (watched/favorite/delete) wird der Cache invalidiert.
@@ -60,4 +63,32 @@ async function api(path, opts = {}) {
   }
   if (res.status === 204) return null;
   return res.json();
+}
+
+// fetchItemsWithMeta: wie api(path), aber liest zusätzlich den
+// X-Fuzzy-Extra-Count-Header aus der Response (nur /api/items setzt ihn,
+// siehe internal/api/items.go listItems). Bewusst UNGECACHT (der bestehende
+// itemsCache hält nur das rohe Array, kein Platz für Header-Metadaten) —
+// wird deshalb nur beim aktiven Suchen aufgerufen (kleiner Ergebnisumfang,
+// kein Performance-Problem), nicht für die normale Ordner-/Bibliotheksliste.
+async function fetchItemsWithMeta(path) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+  });
+  if (res.status === 401) {
+    location.href = "/login.html";
+    throw new Error("nicht angemeldet");
+  }
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const j = await res.json();
+      if (j.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const fuzzyExtraCount = parseInt(res.headers.get("X-Fuzzy-Extra-Count") || "0", 10) || 0;
+  return { data, fuzzyExtraCount };
 }
