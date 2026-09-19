@@ -127,6 +127,13 @@ type Metadata struct {
 	// Manuell setzbar im Metadata-Edit-Dialog.
 	AgeRating string    `json:"ageRating,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt"`
+	// ShowTitle: bei Episoden der Titel der zugehörigen Serie (aus
+	// metadata.parent_id aufgelöst) — Client-Feedback 2026-09-18 (FireTV):
+	// "Auf der Startseite steht bei Als-nächstes der Folgenname, aber nicht,
+	// welche Serie es ist ... man sieht nicht, welche Serie das ist" (kein
+	// Seriencover ohne TMDB-Poster-Match auf Item-Ebene). Leer bei Filmen/
+	// Serien selbst und bei Episoden ohne auflösbaren Parent.
+	ShowTitle string `json:"showTitle,omitempty"`
 }
 
 type Item struct {

@@ -888,6 +888,43 @@ func (s *Store) attachMetadata(items []model.Item) {
 		}
 		byID[m.ID] = &m
 	}
+	// Zweiter Lookup: Serientitel für Episoden (metadata.parent_id → Show-
+	// Metadata.title) — ohne diesen Schritt zeigt kein Client irgendwo, zu
+	// welcher Serie eine Episode gehört, wenn nur die Episode selbst (ohne
+	// Ordner-Kontext, z. B. Home-Streifen) angezeigt wird.
+	parentIDs := map[int64]struct{}{}
+	for _, m := range byID {
+		if m.ParentID > 0 {
+			parentIDs[m.ParentID] = struct{}{}
+		}
+	}
+	if len(parentIDs) > 0 {
+		pPlaceholders := make([]string, 0, len(parentIDs))
+		pArgs := make([]any, 0, len(parentIDs))
+		for id := range parentIDs {
+			pPlaceholders = append(pPlaceholders, "?")
+			pArgs = append(pArgs, id)
+		}
+		pRows, err := s.db.Query(
+			`SELECT id, title FROM metadata WHERE id IN (`+strings.Join(pPlaceholders, ",")+`)`,
+			pArgs...)
+		if err == nil {
+			defer func() { _ = pRows.Close() }()
+			titleByID := map[int64]string{}
+			for pRows.Next() {
+				var id int64
+				var title string
+				if pRows.Scan(&id, &title) == nil {
+					titleByID[id] = title
+				}
+			}
+			for _, m := range byID {
+				if m.ParentID > 0 {
+					m.ShowTitle = titleByID[m.ParentID]
+				}
+			}
+		}
+	}
 	for i := range items {
 		if items[i].MetadataID > 0 {
 			if m := byID[items[i].MetadataID]; m != nil {
