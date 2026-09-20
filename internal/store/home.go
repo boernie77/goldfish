@@ -72,7 +72,18 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 		var watched int
 		var favorite int
 		var variantSplit int
-		var watchedAt, favoritedAt, showLastActivity sql.NullTime
+		var watchedAt, favoritedAt sql.NullTime
+		// ⚠ show_last_activity kommt aus MAX(COALESCE(...)) über eine DATETIME-
+		// Spalte in einer CTE/Subquery — modernc.org/sqlite verliert dabei die
+		// Typ-Affinität der Spalte und liefert einen rohen String statt eines
+		// direkt in time.Time scanbaren Werts (bekannter Fall, siehe
+		// parseDBTime-Kommentar in sqlite.go: gleiches Muster schon einmal bei
+		// einem Musik-Album-Aggregat aufgetreten). Live-Fehler bestätigt
+		// 2026-09-20: "sql: Scan error ... unsupported Scan, storing driver.
+		// Value type string into type *time.Time" — deshalb hier zwingend als
+		// sql.NullString einlesen und über parseDBTime konvertieren, NICHT
+		// direkt in sql.NullTime scannen wie die übrigen Zeitspalten oben.
+		var showLastActivity sql.NullString
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title,
 			&it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps,
@@ -91,9 +102,7 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 		if favoritedAt.Valid {
 			it.FavoritedAt = favoritedAt.Time
 		}
-		if showLastActivity.Valid {
-			it.ShowLastActivity = showLastActivity.Time
-		}
+		it.ShowLastActivity = parseDBTime(showLastActivity.String)
 		it.ReleasedAt = parseDBTime(released.String)
 		if it.ReleasedAt.IsZero() {
 			it.ReleasedAt = it.ModTime
@@ -107,6 +116,7 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 	s.attachVariantCounts(out)
 	return out, nil
 }
+
 
 // HomeContinueForLibrary — Continue-Watching pro Library.
 func (s *Store) HomeContinueForLibrary(userID, libraryID int64, limit int) ([]model.Item, error) {
