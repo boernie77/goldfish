@@ -2945,6 +2945,11 @@ body.selection-mode .card { cursor: pointer; }
 /* Card-Titel als Link stylen, wenn er eine Serie referenziert */
 .card-title.is-show-link { cursor: pointer; }
 .card-title.is-show-link:hover { color: #60a5fa; text-decoration: underline; }
+/* Serienname im Detail-Dialog-Titel (User-Wunsch 2026-09-20): gleiche
+   Konvention wie .card-title.is-show-link, eigener Selektor weil der Titel
+   dort ein <h2>, nicht ein Card-Titel-<div> ist. */
+.detail-show-link { cursor: pointer; }
+.detail-show-link:hover { color: #60a5fa; text-decoration: underline; }
 .lib-on-home {
   display: inline-flex;
   align-items: center;

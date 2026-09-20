@@ -241,6 +241,9 @@ async function openDetail(item) {
   const posterUrl = (meta && meta.posterPath) ? `/api/poster/metadata/${item.metadataId}?v=${encodeURIComponent(meta.posterPath)}` : (item.hasThumb ? `/api/thumb/${item.id}` : "/placeholder.svg");
 
   let title = item.title;
+  let showLinkHTML = ""; // klickbarer Serienname vor dem Episodentitel (User-Wunsch
+  // 2026-09-20: "der Serienname muss klickbar sein und zur Staffelübersicht der
+  // Serie führen", analog zum data-show-link-Klick auf einer Episoden-Kachel).
   const sub = [];
   let overview = "";
   let rating = "";
@@ -254,10 +257,13 @@ async function openDetail(item) {
       const showName = segs.length > 1 ? segs[0] : "";
       const code = `S${String(meta.season).padStart(2, "0")}E${String(meta.episode).padStart(2, "0")}`;
       const epTitle = meta.title || "";
+      if (showName) {
+        showLinkHTML = `<span class="detail-show-link" data-show-link="1" data-item-id="${item.id}" title="Zur Staffelübersicht: ${escapeHTML(showName)}">${escapeHTML(showName)}</span> — `;
+      }
       if (showName && epTitle) {
-        title = `${showName} — ${epTitle}`;
+        title = epTitle;
       } else if (showName) {
-        title = `${showName} — ${code}`;
+        title = code;
       } else {
         title = epTitle || code;
       }
@@ -322,7 +328,7 @@ async function openDetail(item) {
     <div class="detail-wrap">
       <div class="detail-poster" style="background-image:url('${posterUrl}')"></div>
       <div class="detail-body">
-        <h2>${escapeHTML(title)} ${watchedIcon ? `<span style="color:#22c55e;font-size:13px;margin-left:8px">${watchedIcon}</span>` : ""}</h2>
+        <h2>${showLinkHTML}${escapeHTML(title)} ${watchedIcon ? `<span style="color:#22c55e;font-size:13px;margin-left:8px">${watchedIcon}</span>` : ""}</h2>
         <div class="sub">
           ${rating}
           ${fskBadge}
@@ -429,6 +435,28 @@ async function openDetail(item) {
   const canEditMeta = (state.me && state.me.isAdmin);
   $("#detailEditMeta").style.display = canEditMeta ? "" : "none";
   $("#detailEditMeta").title = item.metadataId ? "Metadaten bearbeiten" : "Metadaten manuell anlegen";
+  // Serienname im Titel anklickbar (User-Wunsch 2026-09-20): schließt den
+  // Dialog und springt zum Serien-Ordner, exakt wie der data-show-link-Klick
+  // auf einer Episoden-Kachel im Grid (siehe cards.js renderCard-Klick-Handler).
+  $("#detailContent").addEventListener("click", (ev) => {
+    const showLink = ev.target && ev.target.closest('[data-show-link="1"]');
+    if (!showLink) return;
+    ev.stopPropagation();
+    const rel = (item.relPath || "").split("/");
+    if (rel.length <= 1) return;
+    try { $("#detailDialog").close(); } catch {}
+    state.homeView = false;
+    state.collectionsView = false;
+    state.currentCollection = null;
+    state.playlistsView = false;
+    state.personFilter = null;
+    state.personFilterShow = null;
+    state.currentLibrary = item.libraryId;
+    state.currentFolder = rel[0];
+    state.currentFolderDrilldown = false;
+    $("#librarySelect").value = "lib:" + item.libraryId;
+    loadItems();
+  }, { once: true });
   // Scroll-Position merken & nach showModal() wiederherstellen. Browser springt
   // sonst manchmal an den Seitenanfang, weil das Dialog-Element am DOM-Anfang
   // den Fokus zieht und/oder der Hintergrund-Scroll-Lock beim Öffnen kurz zurücksetzt.
