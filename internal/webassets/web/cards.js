@@ -298,7 +298,42 @@ function renderSearchShowCard(show) {
 // gruppiert und in der Reihenfolge der Library-Reiter ausgegeben (Reihenfolge
 // von state.libraries), jede Gruppe mit einer Zwischenüberschrift.
 // Rückgabe: sichtbare Kachel-Anzahl (ohne Überschriften).
-function appendSearchResultCards(frag, items) {
+// appendSearchResultCards: rendert die aufgegliederte Trefferanzeige
+// (User-Wunsch 2026-09-20: "Als Erstes sollen Schauspieler kommen ... dann
+// Filmtitel ... und als letztes Serientitel"). opts.term aktiviert zusätzlich
+// eine Schauspieler-Sektion GANZ OBEN (GET /api/search/people, serverseitig
+// bereits auf denselben Library/Folder-Scope und dieselbe ACL/FSK wie die
+// Item-Suche beschränkt) — weggelassen bei "N weitere Treffer" (Fuzzy-
+// Nachlade-Aufruf), da die Schauspieler-Sektion dort bereits einmal oben
+// steht und nicht dupliziert werden soll. Movies/Private-Kacheln (b.rest)
+// erscheinen danach, Serien-Sammelkacheln (b.shows) zuletzt — das ergibt
+// sich bereits aus der bestehenden Bucket-Reihenfolge unten, unverändert
+// seit vor dieser Änderung.
+async function appendSearchResultCards(frag, items, opts) {
+  let peopleShown = 0;
+  const term = opts && opts.term ? opts.term.trim() : "";
+  if (term.length >= 3) {
+    let people = [];
+    try {
+      const p = new URLSearchParams({ q: term });
+      if (opts.libraryId) p.set("libraryId", opts.libraryId);
+      if (opts.folder) p.set("folder", opts.folder);
+      people = await api(`/api/search/people?${p}`);
+    } catch (e) {
+      people = [];
+    }
+    if (people && people.length) {
+      const h = document.createElement("div");
+      h.className = "person-section-title";
+      h.textContent = "🎭 Schauspieler · " + people.length;
+      frag.appendChild(h);
+      const row = document.createElement("div");
+      row.className = "search-people-row";
+      for (const person of people) row.appendChild(renderSearchPersonCard(person));
+      frag.appendChild(row);
+      peopleShown = people.length;
+    }
+  }
   // Pro Library ein Bucket: { rest: [...items], shows: Map<folder, showObj> }
   const buckets = new Map();
   const bucketFor = (libID) => {
@@ -375,6 +410,33 @@ function appendSearchResultCards(frag, items) {
   }
   state.lastRenderedItems = renderedItems;
   return total;
+}
+
+// renderSearchPersonCard: Schauspieler-Kachel in der aufgegliederten
+// Trefferanzeige (User-Wunsch 2026-09-20, siehe appendSearchResultCards).
+// Klick öffnet den bestehenden Person-Filter (openPersonView, player.js) —
+// zeigt alle Filme/Serien mit dieser Person über alle sichtbaren Bibliotheken.
+function renderSearchPersonCard(person) {
+  const el = document.createElement("article");
+  el.className = "card person-card";
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  const photo = person.profilePath
+    ? `https://image.tmdb.org/t/p/w185${person.profilePath}`
+    : "/placeholder.svg";
+  el.innerHTML = `
+    <div class="thumb">
+      <img class="thumb-img" loading="lazy" decoding="async" alt="" src="${photo}">
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${escapeHTML(person.name)}">${escapeHTML(person.name)}</div>
+      <div class="card-meta"><span>🎭 Schauspieler</span></div>
+    </div>
+  `;
+  const open = () => openPersonView(person.tmdbId, person.name);
+  el.addEventListener("click", open);
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+  return el;
 }
 
 // renderPersonHeader: Info-Block über den Schauspieler (Foto + Lebensdaten +

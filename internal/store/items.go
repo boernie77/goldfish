@@ -218,6 +218,56 @@ func (s *Store) UnmatchAllEpisodesInFolder(libraryID int64, folder string) (int,
 	return int(n), nil
 }
 
+// SearchPeoplePrefix: eigene Schauspieler-Sektion der aufgegliederten
+// Trefferanzeige (User-Wunsch 2026-09-20: "Als Erstes sollen Schauspieler
+// kommen ... dann Filmtitel ... ohne Filme, wo der Schauspieler mitspielt.
+// Die kann ich mir ja über den Schauspieler anzeigen lassen"). Liefert
+// Personen, deren Name am WORTANFANG auf term passt (identische Regel wie
+// die frühere Cast-Klausel in itemsFromWhere, User-Vorgabe 2026-09-18),
+// beschränkt auf Personen, die in mindestens einem für den aufrufenden
+// User SICHTBAREN Item vorkommen (ACL + FSK + Library/Folder-Scope — scope
+// wird 1:1 über itemsFromWhere ausgewertet, exakt dieselbe Sicherheitslogik
+// wie bei ListItems, siehe Kommentar dort zur Sicherheitslücke 2026-08-22).
+// scope.Search wird ignoriert (auf "" gesetzt) — nur Library/Folder/ACL/FSK
+// aus scope fließen ein, der Namens-Filter kommt separat über term.
+// Unter 3 Zeichen: keine Ergebnisse (gleiche Kostenschwelle wie vorher).
+func (s *Store) SearchPeoplePrefix(term string, scope ItemFilter) ([]model.Person, error) {
+	if len([]rune(term)) < 3 {
+		return nil, nil
+	}
+	scope.Search = ""
+	whereSQL, whereArgs := s.itemsFromWhere(scope)
+	prefix := unaccent(term) + "%"
+	word := "% " + unaccent(term) + "%"
+	hyphen := "%-" + unaccent(term) + "%"
+	q := `SELECT DISTINCT p.id, p.tmdb_id, p.name, COALESCE(p.profile_path, '')
+		FROM people p
+		JOIN metadata_cast mc ON mc.person_id = p.id
+		WHERE (UNACCENT(p.name) LIKE ? OR UNACCENT(p.name) LIKE ? OR UNACCENT(p.name) LIKE ?)
+		  AND EXISTS (
+			SELECT 1 ` + whereSQL + `
+			  AND (i.metadata_id = mc.metadata_id
+			       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
+		  )
+		ORDER BY p.name COLLATE NOCASE
+		LIMIT 50`
+	args := append([]any{prefix, word, hyphen}, whereArgs...)
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []model.Person
+	for rows.Next() {
+		var p model.Person
+		if err := rows.Scan(&p.ID, &p.TMDBID, &p.Name, &p.ProfilePath); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // itemsFromWhere baut den FROM/JOIN/WHERE-Teil der ListItems-Query (inkl.
 // aller Filter: ACL/FSK/Search/Folder/Watched/Favorite/Rating/MatchState/
 // Dupes/Genres/Person/Playlist/…) — gemeinsam genutzt von ListItems (liefert
@@ -313,52 +363,23 @@ func (s *Store) itemsFromWhere(f ItemFilter) (string, []any) {
 		// hängt ftsQuery() zusätzlich ein Präfix-Wildcard an jedes Wort — deckt automatisch
 		// auch die exakten Treffer mit ab (ein Präfix-Match auf "star" trifft
 		// auch das Wort "star" selbst), daher genügt EIN MATCH statt zwei.
+		// 🔴 User-Entscheidung 2026-09-20: die Item-Suche (Filme/Serien) matcht
+		// NUR NOCH den Titel — Schauspieler-Treffer sind seitdem eine eigene,
+		// separate Kachel-Sektion in der aufgegliederten Trefferanzeige
+		// (siehe Store.SearchPeoplePrefix + GET /api/search/people), nicht
+		// mehr Teil der Item-Ergebnisliste. Vorher lieferte diese Query
+		// zusätzlich Filme/Serien über eine Cast-Namens-EXISTS-Klausel — das
+		// widersprach dem neuen UI-Wunsch ("Filmtitel ... ohne Filme, wo der
+		// Schauspieler mitspielt. Die kann ich mir ja über den Schauspieler
+		// anzeigen lassen"). Die Wortanfang-Cast-Matching-Logik selbst lebt
+		// unverändert in SearchPeoplePrefix weiter.
 		ftsMatch := ftsQuery(f.Search, f.SearchFuzzy)
-		titleCond := "1=0" // leerer/nur-Leerzeichen-Suchbegriff → kein Titel-Treffer möglich
-		var titleArgs []any
-		if ftsMatch != "" {
-			titleCond = `i.id IN (SELECT item_id FROM items_fts WHERE items_fts MATCH ?)`
-			titleArgs = append(titleArgs, ftsMatch)
-		}
-		// Darsteller-Namen werden nur am WORTANFANG getroffen (User-Vorgabe
-		// 2026-09-18). Vorher war es ein Teilstring irgendwo im Namen — eine
-		// Suche nach „big" fand dadurch Abigail Spencer (37 Titel), Mike
-		// Birbiglia, Michael Herbig, Jason Biggs, Mavie Hörbiger … und wirkte
-		// völlig zusammenhanglos (User-Report Fire TV: „49 Treffer, die haben
-		// definitiv nicht big im Namen"; an der echten Bibliothek gemessen:
-		// 1518 Treffer, davon 506 nur über solche Namens-Mittentreffer).
-		// Titel/Album/Künstler bleiben Teilstring-Suchen — dort ist das
-		// gewünscht („big" soll „The Big Bang Theory" finden).
-		//
-		// Wortanfang heißt: Name beginnt damit, oder der Begriff beginnt ein
-		// späteres Wort (nach Leerzeichen oder Bindestrich — Doppelnamen wie
-		// „Jean-Claude" sind sonst nicht suchbar). Bleibt UNVERÄNDERT bei
-		// UNACCENT()+LIKE — nimmt NICHT an der FTS5-Migration teil, nur
-		// Titel/Artist/Album wandern zu items_fts.
-		castPrefix := unaccent(f.Search) + "%"
-		castWord := "% " + unaccent(f.Search) + "%"
-		castHyphen := "%-" + unaccent(f.Search) + "%"
-		// Suche auf Schauspielernamen ist teuer (LIKE auf people.name = Full-
-		// Scan, plus EXISTS pro Item). Erst ab 3 Zeichen mit dazunehmen —
-		// bei 1-2 Buchstaben sind die Cast-Treffer eh nicht hilfreich.
-		if len(f.Search) >= 3 {
-			q += ` AND (
-				` + titleCond + `
-				OR EXISTS (
-					SELECT 1 FROM metadata_cast mc
-					JOIN people p ON p.id = mc.person_id
-					WHERE (UNACCENT(p.name) LIKE ?
-					       OR UNACCENT(p.name) LIKE ?
-					       OR UNACCENT(p.name) LIKE ?)
-					  AND (mc.metadata_id = i.metadata_id
-					       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
-				)
-			)`
-			args = append(args, titleArgs...)
-			args = append(args, castPrefix, castWord, castHyphen)
+		if ftsMatch == "" {
+			// leerer/nur-Leerzeichen-Suchbegriff → kein Titel-Treffer möglich
+			q += ` AND 1=0`
 		} else {
-			q += ` AND (` + titleCond + `)`
-			args = append(args, titleArgs...)
+			q += ` AND i.id IN (SELECT item_id FROM items_fts WHERE items_fts MATCH ?)`
+			args = append(args, ftsMatch)
 		}
 	}
 	if !f.DateFrom.IsZero() {

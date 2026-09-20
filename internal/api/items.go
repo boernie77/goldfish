@@ -517,6 +517,55 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 
+// searchPeople: eigene Schauspieler-Trefferliste für die aufgegliederte
+// Suchanzeige (User-Wunsch 2026-09-20). Nimmt dieselben Scope-Parameter wie
+// GET /api/items (libraryId/folder/match — kein "search"-Param-Konflikt: der
+// Suchbegriff selbst kommt über ?q=), damit ein Client, der z. B. in einer
+// TV-Bibliothek sucht, hier nur Personen bekommt, die auch tatsächlich in
+// DIESER Bibliothek vorkommen — exakt wie bei der Item-Suche selbst.
+func (s *Server) searchPeople(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	q := r.URL.Query()
+	term := q.Get("q")
+	f := store.ItemFilter{
+		Folder:  q.Get("folder"),
+		UserID:  me.ID,
+		IsAdmin: me.IsAdmin,
+	}
+	if !me.IsAdmin && me.MaxAgeRating != nil {
+		f.MaxAgeRating = *me.MaxAgeRating
+	}
+	if ids := q["libraryId"]; len(ids) > 0 {
+		for _, v := range ids {
+			id, _ := strconv.ParseInt(v, 10, 64)
+			if id <= 0 {
+				continue
+			}
+			if !s.requireLibAccess(w, r, id) {
+				return
+			}
+			f.LibraryIDs = append(f.LibraryIDs, id)
+		}
+		if len(f.LibraryIDs) == 1 {
+			f.LibraryID = f.LibraryIDs[0]
+			f.LibraryIDs = nil
+		}
+	}
+	people, err := s.Store.SearchPeoplePrefix(term, f)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if people == nil {
+		people = []model.Person{}
+	}
+	writeJSON(w, 200, people)
+}
+
 // randomItem liefert ein einzelnes zufälliges Item, auf dem die üblichen Filter greifen.
 func (s *Server) randomItem(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)

@@ -326,10 +326,13 @@ func TestFTSSearchInjectionSafety(t *testing.T) {
 	}
 }
 
-// TestFTSCastSearchUnaffectedByFuzzy: die Cast-Namen-Suche (Wortanfang-only)
-// nimmt NICHT an der FTS5-Migration teil und muss mit SearchFuzzy=true
-// identisch zu SearchFuzzy=false funktionieren.
-func TestFTSCastSearchUnaffectedByFuzzy(t *testing.T) {
+// TestFTSCastSearchRemovedFromItemSearch: seit der User-Entscheidung
+// 2026-09-20 ("Filmtitel ... ohne Filme, wo der Schauspieler mitspielt")
+// matcht die Item-Suche (ListItems) NUR NOCH den Titel — ein Cast-Namens-
+// Wortanfangstreffer darf hier in KEINEM Suchmodus (exakt/fuzzy) mehr
+// zurückkommen. Die Wortanfang-Logik selbst lebt jetzt in
+// SearchPeoplePrefix (siehe TestSearchPeoplePrefix in search_cast_test.go).
+func TestFTSCastSearchRemovedFromItemSearch(t *testing.T) {
 	s := newTestStore(t)
 	lib, err := s.CreateLibrary("Filme", t.TempDir(), model.KindMovies)
 	if err != nil {
@@ -360,12 +363,8 @@ func TestFTSCastSearchUnaffectedByFuzzy(t *testing.T) {
 
 	for _, fuzzy := range []bool{false, true} {
 		gotWordStart := searchIDs(t, s, lib, "biggs", fuzzy)
-		if !gotWordStart[id] {
-			t.Errorf("fuzzy=%v: Wortanfang-Treffer 'biggs' haette den Film ueber den Cast finden muessen", fuzzy)
-		}
-		gotMidWord := searchIDs(t, s, lib, "iggs", fuzzy)
-		if gotMidWord[id] {
-			t.Errorf("fuzzy=%v: Mittentreffer 'iggs' haette NICHT ueber den Cast treffen duerfen (Wortanfang-Regel)", fuzzy)
+		if gotWordStart[id] {
+			t.Errorf("fuzzy=%v: Item-Suche haette den Film NICHT mehr ueber den Cast-Namen finden duerfen (User-Entscheidung 2026-09-20)", fuzzy)
 		}
 	}
 }

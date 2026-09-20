@@ -6,16 +6,17 @@ import (
 	"github.com/boernie77/goldfish/internal/model"
 )
 
-// TestSearchCastNamesOnlyAtWordStart sichert die User-Vorgabe vom 2026-09-18:
-// Darsteller-Namen werden nur am WORTANFANG getroffen, nicht irgendwo im Namen.
+// TestSearchPeoplePrefix sichert die User-Vorgabe vom 2026-09-18 (Wortanfang-
+// only) UND die User-Entscheidung vom 2026-09-20 (Schauspieler-Treffer sind
+// eine eigene Sektion, siehe Store.SearchPeoplePrefix, NICHT mehr Teil der
+// Item-Suche selbst — siehe TestFTSCastSearchRemovedFromItemSearch).
 //
-// Anlass: eine Suche nach „big" lieferte an der echten Bibliothek 1518 Treffer,
-// davon 506 ausschließlich über Namen wie Abigail Spencer, Mike Birbiglia,
-// Michael Herbig, Jason Biggs, Mavie Hörbiger — für den Nutzer völlig
-// zusammenhanglos („49 Treffer, die haben definitiv nicht big im Namen").
-// Titel/Album/Künstler bleiben Teilstring-Suchen; das ist gewollt, sonst fände
-// „big" nicht mehr „The Big Bang Theory".
-func TestSearchCastNamesOnlyAtWordStart(t *testing.T) {
+// Anlass der Wortanfang-Regel: eine Suche nach „big" lieferte an der echten
+// Bibliothek 1518 Treffer, davon 506 ausschließlich über Namen wie Abigail
+// Spencer, Mike Birbiglia, Michael Herbig, Jason Biggs, Mavie Hörbiger — für
+// den Nutzer völlig zusammenhanglos („49 Treffer, die haben definitiv nicht
+// big im Namen").
+func TestSearchPeoplePrefix(t *testing.T) {
 	s := newTestStore(t)
 	lib, err := s.CreateLibrary("Filme", t.TempDir(), model.KindMovies)
 	if err != nil {
@@ -75,69 +76,49 @@ func TestSearchCastNamesOnlyAtWordStart(t *testing.T) {
 		return id
 	}
 
-	// ⚠ Neutrale Titel für die Darsteller-Fälle: enthielte der Titel selbst den
-	// Suchbegriff, träfe die Suche über den Titel und die Prüfung der
-	// Darsteller-Regel wäre wertlos (genau das war beim zweiten Anlauf der Fall:
-	// „ggs" fand den Film über „Ein Film mit Biggs" im TITEL, nicht über den
-	// Darsteller).
-	byWordStart := movie("a.mkv", "Film A", "Jason Biggs")
-	byNameMiddle := movie("b.mkv", "Film B", "Abigail Spencer")
-	byTitle := movie("c.mkv", "The Big Bang Theory Kompilation")
-	byHyphenWord := movie("d.mkv", "Film D", "Jean-Claude Big-Damme")
+	movie("a.mkv", "Film A", "Jason Biggs")
+	movie("b.mkv", "Film B", "Abigail Spencer")
+	movie("c.mkv", "The Big Bang Theory Kompilation") // kein Cast — nur Titel-Treffer, für Personen-Suche irrelevant
+	movie("d.mkv", "Film D", "Jean-Claude Big-Damme")
 
-	search := func(term string) map[int64]bool {
+	search := func(term string) map[string]bool {
 		t.Helper()
-		items, err := s.ListItems(ItemFilter{Search: term, UserID: uid, IsAdmin: true, LibraryIDs: []int64{lib}})
+		people, err := s.SearchPeoplePrefix(term, ItemFilter{UserID: uid, IsAdmin: true, LibraryIDs: []int64{lib}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := map[int64]bool{}
-		for _, it := range items {
-			got[it.ID] = true
+		got := map[string]bool{}
+		for _, p := range people {
+			got[p.Name] = true
 		}
 		return got
 	}
 
-	// 1) „big" trifft den Titel UND den Namen mit Wortanfang „Biggs",
-	//    NICHT die Mittentreffer „Abigail"/„Big-Damme"(Bindestrich-Wort: doch).
+	// 1) „big" trifft den Namen mit Wortanfang „Biggs" und das Wort nach dem
+	//    Bindestrich in „Big-Damme", NICHT den Mittentreffer „Abigail".
 	got := search("big")
-	if !got[byTitle] {
-		t.Errorf("Titeltreffer fehlt („The Big Bang Theory …\" muss über den Titel treffen)")
-	}
-	if !got[byWordStart] {
+	if !got["Jason Biggs"] {
 		t.Errorf("Darsteller mit Wortanfang („Jason Biggs\") wurde nicht gefunden")
 	}
-	if got[byNameMiddle] {
+	if got["Abigail Spencer"] {
 		t.Errorf("Mittentreffer im Namen („Abigail Spencer\") wurde gefunden — genau der gemeldete Fehler")
 	}
-	if !got[byHyphenWord] {
+	if !got["Jean-Claude Big-Damme"] {
 		t.Errorf("Wort nach Bindestrich („… Big-Damme\") wurde nicht gefunden")
 	}
 
 	// 2) Der Name selbst bleibt suchbar: „abigail" trifft ihn (Wortanfang).
-	if !search("abigail")[byNameMiddle] {
+	if !search("abigail")["Abigail Spencer"] {
 		t.Errorf("„abigail\" findet den Darsteller nicht — die Darsteller-Suche darf nicht generell aus sein")
 	}
 
 	// 3) Ein Teil eines Wortes trifft NICHT: „ggs" (mitten in „Biggs").
-	if search("ggs")[byWordStart] {
+	if search("ggs")["Jason Biggs"] {
 		t.Errorf("„ggs\" fand „Jason Biggs\" — es wird weiterhin mitten im Namen gematcht")
 	}
 
-	// 4) Unter 3 Zeichen wird gar nicht nach Darstellern gesucht (Kosten).
-	//    „bi" findet dabei auch KEINEN Titeltreffer mehr — seit der FTS5-
-	//    Migration (Titel/Artist/Album laufen über items_fts MATCH statt LIKE,
-	//    siehe items.go) ist die Standardsuche wortbasiert: "bi" ist kein
-	//    eigenständiges Wort in "The Big Bang Theory Kompilation", ein
-	//    Teilstring-Treffer mitten im Wort "Big" (wie es die alte
-	//    LIKE '%bi%'-Suche fand) ist damit bewusst nicht mehr Teil des
-	//    Standardfalls — genau das leistet stattdessen der Fuzzy-Modus
-	//    (SearchFuzzy, Präfix-Wildcard), siehe TestSearchFuzzyFindsPrefixMatches.
-	short := search("bi")
-	if short[byWordStart] || short[byNameMiddle] {
-		t.Errorf("2-Zeichen-Suche fand einen Darsteller — Cast-Suche soll erst ab 3 Zeichen greifen")
-	}
-	if short[byTitle] {
-		t.Errorf("2-Zeichen-Suche 'bi' fand einen Titeltreffer über einen Wort-Teilstring — FTS5 matcht seit der Migration ganze Wörter, kein Teilstring mehr")
+	// 4) Unter 3 Zeichen wird gar nicht gesucht (Kosten).
+	if len(search("bi")) != 0 {
+		t.Errorf("2-Zeichen-Suche fand einen Darsteller — Personen-Suche soll erst ab 3 Zeichen greifen")
 	}
 }

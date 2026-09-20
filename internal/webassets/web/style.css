@@ -1050,6 +1050,30 @@ body.skin-glass .topbar .user-menu strong {
   contain-intrinsic-size: 200px 280px;
 }
 
+/* Schauspieler-Sektion der aufgegliederten Trefferanzeige (User-Wunsch
+   2026-09-20, appendSearchResultCards/renderSearchPersonCard). Eigene
+   horizontal scrollbare Reihe statt Grid-Einreihung, damit die Personen
+   nicht die gleiche große Kachelgröße wie Filme/Serien-Poster bekommen. */
+.search-people-row {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.card.person-card {
+  flex: 0 0 130px;
+  width: 130px;
+}
+.card.person-card .thumb {
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.card.person-card .card-body {
+  text-align: center;
+}
+
 /* Musik-Listenansicht (seit 2026-09-04): Alben-Übersicht, Album-Tracks und
    "Alle Titel" können wahlweise als Liste statt Kachel-Grid gerendert werden
    (#musicListViewBtn-Toggle bzw. immer bei "Alle Titel"). #grid ist normal

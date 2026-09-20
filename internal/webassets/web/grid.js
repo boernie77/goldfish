@@ -510,7 +510,7 @@ async function loadItemsBody() {
       // dort — muss exakt die tatsächlich gerenderten Kacheln widerspiegeln,
       // ein separates groupVariants(items) hier konnte bei Treffern über
       // mehrere Bibliotheken hinweg abweichen, siehe Bugfix-Kommentar dort).
-      const shown = appendSearchResultCards(frag, items);
+      const shown = await appendSearchResultCards(frag, items, { term: sq });
       grid.appendChild(frag);
       renderBreadcrumb({ homeRoot: true, searchCount: shown });
       return;
@@ -1469,8 +1469,15 @@ async function loadItemsBody() {
   for (const f of folders) frag.appendChild(renderFolderCard(f));
   if (searching) {
     // Such-Treffer: Episoden pro Serie zu einer Sammelkachel bündeln
-    // (User-Wunsch, wie in der App).
-    const shown = appendSearchResultCards(frag, items);
+    // (User-Wunsch, wie in der App). term/libraryId/folder aktivieren
+    // zusätzlich die Schauspieler-Sektion ganz oben (User-Wunsch
+    // 2026-09-20: auch innerhalb einer Filme-/Serien-Bibliothek, nicht nur
+    // in der globalen Home-Suche).
+    const shown = await appendSearchResultCards(frag, items, {
+      term: searchQ,
+      libraryId: state.currentLibrary,
+      folder: state.currentFolder || "",
+    });
     renderBreadcrumb({ searchCount: shown + folders.length, fuzzyExtraCount });
   } else {
     for (const it of merged) frag.appendChild(renderCard(it));
@@ -1524,7 +1531,7 @@ async function loadMoreFuzzySearchResults() {
   // "rest"-Items (siehe Kommentar dort), würde also die exakten Treffer
   // aus state.lastRenderedItems verdrängen statt sie zu ergänzen.
   const previousRendered = state.lastRenderedItems || [];
-  appendSearchResultCards(frag, newItems);
+  await appendSearchResultCards(frag, newItems);
   grid.appendChild(frag);
   state.lastRenderedItems = previousRendered.concat(state.lastRenderedItems || []);
   state.lastSearchRawItems = (state.lastSearchRawItems || []).concat(newItems);
