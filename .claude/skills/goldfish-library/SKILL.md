@@ -166,6 +166,58 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
   Queue-Reihenfolge des 5-Min-Tickers nicht zum Flaschenhals bei vielen tausend
   pending Items.
 
+### Kumulativ nummerierte Serien („Derrick - 101”) — 3-stellige Zahl wird als SxxEyy fehlgedeutet (2026-09-21)
+
+Ein Serien-Ordner mit **durchgehend nummerierten** Folgen (Scene-Packs `Derrick.E76-E90…`,
+Einzeldateien `Derrick - 101 - Titel.avi`, `D.045.Das.Klavierkonzert.avi`) ist nicht bloß
+„unmatched” — er wird teilweise **falsch gematcht**:
+
+- `parseString` („1c. Numerische Episode-Codes”, `internal/nameparser/parser.go`) rechnet eine
+  nackte 3-stellige Zahl als `num/100`/`num%100` um: `101` → S01E01, `212` → S02E12. Gemessen an
+  Derrick: 18 Items hingen dadurch auf S01E01–03 bzw. S02E01–12, obwohl die Dateien Folge
+  101–103 bzw. 201–212 sind. Dateien **ohne** SxxExx-Muster (`Derrick - 046`,
+  `D.001.Der.Waldweg`) bleiben komplett ohne Zuordnung (421 von 439).
+- Die **Show**-Zuordnung ist davon unberührt — sie kommt aus `folder_metadata` und war in diesem
+  Fall korrekt (`Derrick` → TMDB 4583). Falsch ist ausschließlich die Episodennummer.
+
+**Ablauf, der den Fall löst (417 Dateien → 281 Folgen, 25 Staffeln, 100 % korrekt):**
+
+1. **TMDB ist die Wahrheit, nicht der Dateiname.** `/tv/{id}?language=de-DE` → `seasons[]`
+   `episode_count` ergibt die kumulative Tabelle 1…N → (S,E). Gegenprobe: Dateinamen-Titel gegen
+   `season/{n}`-Titel fuzzy matchen (Umlaute als ae/oe/ue + NFKD normalisieren) — 416 von 417
+   passten, der Abweichler war ein TMDB-Alternativtitel. Erst wenn die Titelreihenfolge stimmt, ist
+   die Nummerierung als absolut bestätigt.
+2. **Inventar über SSH** (`find … -printf '%s|%p\n'` → Datei → lokal parsen), nie `os.walk` über
+   SMB. Duplikate über identische Größe finden, an 2–3 Paaren zusätzlich `md5sum` gegenprüfen.
+   Achtung: deutlich kleinere Datei ist nicht automatisch defekt — `ffprobe`-Dauer vergleichen
+   (145 MB bei 59 min war ein niedriger encodiertes, aber vollständiges File).
+3. **Umbenennen statt löschen:** Plan als TSV (Quelle<TAB>Ziel), per `scp` auf den Host, dort eine
+   `while IFS=$'\t' read -r`-Schleife mit `mv -n`. Vorher den **ganzen** Alt-Ordner per `mv` nach
+   `<Disk-Root>/_<Serie>_alt_<Datum>` verschieben (gleiche Disk = instant, außerhalb der Library =
+   nicht gescannt), danach den Ordner unter dem erwarteten Namen neu anlegen. Das
+   `folder_metadata`-Mapping bleibt dadurch gültig, die Show muss nicht neu gematcht werden.
+4. **Danach `POST /api/scan/{libID}?folder=<Ordner>`** — mit `folder`-Scope ist der Orphan-Cleanup
+   auf diesen Ordner begrenzt (`DeleteItemsInFolderNotInSet`), räumt also die alten Items inkl. der
+   Unterordner-Leichen weg, ohne den Rest der Library anzufassen. Danach `POST /api/enrich/run`
+   mehrfach (Batch-Worker, ~30 s Abstand), bis `metadata_id IS NOT NULL` = Folgenanzahl ist.
+5. **In der DB verifizieren, nicht in der UI:** pro Item S/E aus dem Dateinamen gegen
+   `metadata.season/episode`, Titel gegen `metadata.title`, `parent.title` gegen die Serie,
+   `COUNT(DISTINCT metadata_id)` = Anzahl Folgen, keine Lücke in (S,E). Zusätzlich
+   `GET /api/libraries/{id}/seasons?folder=<Ordner>`: Staffel-Zahlen gegen TMDB `episode_count`.
+
+**Zwei Fallen, die Zeit gekostet haben:**
+- **exFAT verbietet `?` (sowie `* : " < > |`).** Das Unraid-Unassigned-Device `Big18` ist
+  `/dev/sdd1` mit `type exfat`; sechs Umbenennungen scheiterten mit der irreführenden Meldung
+  `mv: cannot move … to a subdirectory of itself` (das ist EINVAL aus `rename(2)` für einen
+  unzulässigen Zielnamen). Vor dem Lauf alle Zielnamen sanitisieren und **immer das Dateisystem der
+  Zieldisk prüfen** (`mount | grep <mountpoint>`) — exFAT ist zusätzlich case-insensitive.
+- **`$` in Pfaden bricht doppelt gequotete Skript-Zeilen** (hier der Ordner `EB$ZTERWersetz6`).
+  Zuordnungen deshalb als Datendatei übergeben und im Skript nur Variablen quoten, niemals Pfade
+  direkt in Shell-Code interpolieren.
+- **Admin-Token für die API:** nicht einfach den neuesten `sessions`-Eintrag nehmen (das war ein
+  Nicht-Admin-Konto → 403 „Administrator erforderlich”), sondern per
+  `JOIN users ON u.is_admin=1` auswählen.
+
 ### Musik-Bibliotheken (seit 2026-09-04)
 - Neuer Bibliothekstyp `kind=music` neben movies/tv/private (Admin-UI:
   Bibliothek-anlegen-Dialog + Bibliotheks-Manager-Select).
