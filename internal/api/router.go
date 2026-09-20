@@ -258,8 +258,17 @@ func (s *Server) Router() http.Handler {
 		// Cast/Schauspieler
 		r.Get("/metadata/{id}/cast", s.getMetadataCast)
 		r.Get("/metadata/{id}/trailer", s.getMetadataTrailer)
-		r.Get("/metadata/{id}/trailer-stream", s.getMetadataTrailerStream)
-		r.Get("/trailer-file/{key}", s.getTrailerFile)
+		// DEAKTIVIERT (2026-09-19): Amazon Appstore lehnte die FireTV-App wegen
+		// "Illegal Activity Policy — facilitates file sharing from third-party
+		// sources without explicit authorization" ab. Diese zwei Routen sind der
+		// wahrscheinlichste Treffer: getMetadataTrailerStream/getTrailerFile lösen
+		// serverseitig einen yt-dlp-Download von YouTube aus (internal/ytdlp).
+		// Handler-Code UND internal/ytdlp bleiben vollständig erhalten (nicht
+		// gelöscht) — bei Bedarf (Amazon-Zustimmung oder Nicht-Amazon-Deploy)
+		// einfach die zwei Zeilen unten wieder einkommentieren + YTDLP-Feld in
+		// main.go reaktivieren.
+		// r.Get("/metadata/{id}/trailer-stream", s.getMetadataTrailerStream)
+		// r.Get("/trailer-file/{key}", s.getTrailerFile)
 		r.Get("/person/{tmdbId}", s.getPerson)
 		r.Get("/person/{tmdbId}/profile", s.getPersonProfile)
 
@@ -381,7 +390,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.22"
+const appVersion = "1.4.23"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{

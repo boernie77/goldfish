@@ -28,7 +28,6 @@ import (
 	"github.com/boernie77/goldfish/internal/trickplay"
 	"github.com/boernie77/goldfish/internal/webassets"
 	"github.com/boernie77/goldfish/internal/whisper"
-	"github.com/boernie77/goldfish/internal/ytdlp"
 )
 
 func main() {
@@ -188,7 +187,13 @@ func main() {
 		PosterDir: filepath.Join(configDir, "posters"),
 		WebFS:     webassets.FS(),
 		OIDC:      api.NewOIDCRuntime(oidcCfg),
-		YTDLP:     ytdlp.New(filepath.Join(configDir, "cache", "trailers")),
+		// DEAKTIVIERT (2026-09-19): siehe Kommentar in internal/api/router.go bei
+		// den Trailer-Stream-Routen — Amazon Appstore lehnte die FireTV-App wegen
+		// "Illegal Activity Policy" (YouTube-Download ohne Autorisierung) ab.
+		// YTDLP bleibt bewusst nil statt ytdlp.New(...): die Handler prüfen
+		// s.YTDLP == nil und antworten dann mit 503, statt einen yt-dlp-Prozess
+		// zu starten — zusätzliche Absicherung neben den deaktivierten Routen.
+		YTDLP: nil,
 	}
 	srv.ApplyTranslationBackend()
 	srv.BackfillAllWatchLinksOnStartup()
