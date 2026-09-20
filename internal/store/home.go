@@ -59,6 +59,55 @@ func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
 	return out, nil
 }
 
+// scanHomeItemsWithShowActivity: wie scanHomeItems, aber mit einer zusätzlichen
+// letzten Spalte `show_last_activity` (nur von HomeNextUpForLibrary genutzt) —
+// siehe ShowLastActivity-Feld-Kommentar in model/types.go.
+func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, error) {
+	defer func() { _ = rows.Close() }()
+	var out []model.Item
+	for rows.Next() {
+		var it model.Item
+		var released sql.NullString
+		var hasThumb int
+		var watched int
+		var favorite int
+		var variantSplit int
+		var watchedAt, favoritedAt, showLastActivity sql.NullTime
+		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title,
+			&it.Container, &it.VideoCodec, &it.AudioCodec,
+			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps,
+			&it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &variantSplit,
+			&showLastActivity); err != nil {
+			return nil, err
+		}
+		it.HasThumb = hasThumb == 1
+		it.Watched = watched == 1
+		it.Favorite = favorite == 1
+		it.VariantSplit = variantSplit == 1
+		if watchedAt.Valid {
+			it.WatchedAt = watchedAt.Time
+		}
+		if favoritedAt.Valid {
+			it.FavoritedAt = favoritedAt.Time
+		}
+		if showLastActivity.Valid {
+			it.ShowLastActivity = showLastActivity.Time
+		}
+		it.ReleasedAt = parseDBTime(released.String)
+		if it.ReleasedAt.IsZero() {
+			it.ReleasedAt = it.ModTime
+		}
+		out = append(out, it)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.attachMetadata(out)
+	s.attachVariantCounts(out)
+	return out, nil
+}
+
 // HomeContinueForLibrary — Continue-Watching pro Library.
 func (s *Store) HomeContinueForLibrary(userID, libraryID int64, limit int) ([]model.Item, error) {
 	if limit <= 0 {
@@ -89,7 +138,21 @@ func (s *Store) HomeNextUpForLibrary(userID, libraryID int64, limit int) ([]mode
 	}
 	q := fmt.Sprintf(`
 		WITH watched_shows AS (
-			SELECT em.parent_id AS show_id
+			-- 🔴 User-Wunsch 2026-09-20: "Auf dem Server hat sich die
+			-- Sortierung der Als nächstes nicht geändert" — deckte einen
+			-- echten Bug auf: die Reihenfolge sortierte bisher nach
+			-- i.added_at der NÄCHSTEN Folge (wann sie zur Bibliothek
+			-- hinzugefügt wurde), nicht danach, wann der User zuletzt in
+			-- DIESER Serie geschaut hat. Eine alte Serie mit kürzlich
+			-- gescannten Folgen verdrängte dadurch eine Serie, die der
+			-- User gerade aktiv guckt. Jetzt: pro Show das späteste
+			-- watched_at/last_played_at über alle gesehenen Folgen
+			-- ermitteln, danach sortieren — UND als eigene Spalte
+			-- (show_last_activity) mit ausliefern, damit der Client beim
+			-- Cross-Library-Merge (mehrere TV-Bibliotheken auf der
+			-- Startseite, views.js) nicht wieder auf addedAt zurückfällt.
+			SELECT em.parent_id AS show_id,
+			       MAX(COALESCE(eus.last_played_at, eus.watched_at)) AS last_activity
 			FROM items ei
 			JOIN metadata em ON em.id = ei.metadata_id AND em.tmdb_type = 'episode'
 			JOIN user_item_state eus ON eus.item_id = ei.id AND eus.user_id = ?
@@ -106,20 +169,22 @@ func (s *Store) HomeNextUpForLibrary(userID, libraryID int64, limit int) ([]mode
 			  AND COALESCE(us.watched, 0) = 0
 			  AND m.parent_id IN (SELECT show_id FROM watched_shows)
 		)
-		SELECT %s
+		SELECT %s, ws.last_activity
 		FROM candidates c
 		JOIN items i ON i.id = c.item_id
+		JOIN watched_shows ws ON ws.show_id = c.show_id
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE c.rn = 1
-		ORDER BY i.added_at DESC
+		ORDER BY ws.last_activity IS NULL, ws.last_activity DESC, i.added_at DESC
 		LIMIT ?
 	`, homeItemCols)
 	rows, err := s.db.Query(q, userID, libraryID, userID, libraryID, userID, limit)
 	if err != nil {
 		return nil, err
 	}
-	return s.scanHomeItems(rows)
+	return s.scanHomeItemsWithShowActivity(rows)
 }
+
 
 // HomeRecentForLibrary — zuletzt hinzugefügt pro Library. Bei TV-Libraries
 // zeigen wir nur die jüngste Episode pro Serie (kompakter).

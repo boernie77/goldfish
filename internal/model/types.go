@@ -170,6 +170,18 @@ type Item struct {
 	Rating          int          `json:"rating,omitempty"`
 	TrickplayStatus string       `json:"trickplayStatus,omitempty"` // "" | "pending" | "done" | "failed"
 	Streams         []ItemStream `json:"streams,omitempty"`
+	// ShowLastActivity: nur bei "Als nächstes"-Einträgen befüllt (HomeNextUpForLibrary)
+	// — der späteste watched_at/last_played_at über ALLE bereits gesehenen Folgen dieser
+	// Serie. User-Report 2026-09-20: "Auf dem Server hat sich die Sortierung der Als
+	// nächstes nicht geändert" — die Startseiten-Zeile sortierte bisher server- UND
+	// client-seitig (Cross-Library-Merge in views.js) nach addedAt der NÄCHSTEN Folge
+	// (wann sie zur Bibliothek hinzugefügt wurde), nicht danach, wann der User zuletzt
+	// IN DIESER SERIE geschaut hat — eine alte Serie mit kürzlich gescannten Folgen
+	// verdrängte dadurch eine Serie, die gerade aktiv geschaut wird. Dieses Feld gibt
+	// dem Client (Cross-Library-Merge) die richtige Sortiergrundlage mit; ohne dieses
+	// Feld hätte der Client addedAt weiterverwendet und den Server-Fix beim Mergen
+	// mehrerer TV-Bibliotheken wieder zunichtegemacht.
+	ShowLastActivity time.Time `json:"showLastActivity,omitempty"`
 	// VariantCount: wieviele Items insgesamt dieselbe metadata_id haben (= dieses
 	// Item + Geschwister). 0/1 bedeutet „keine Geschwister". Wird im Server
 	// per attachVariantCounts gesetzt — die Kachel kann so den ×N-Badge auch

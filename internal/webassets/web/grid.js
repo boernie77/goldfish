@@ -807,11 +807,7 @@ async function loadItemsBody() {
       const tid = m.metadata && m.metadata.tmdbId;
       if (tid) ownedMovieByTmdb.set(tid, m);
     }
-    // Episoden → pro Show (Parent-Show-tmdbId) eine Sammelkachel. Innerhalb
-    // einer Show werden die Folgen nach Staffel/Folge ABSTEIGEND sortiert
-    // (User-Wunsch 2026-09-20: "die aktuelleren Folgen, also die wo man
-    // gerade schaut, links sein, also am Anfang, nicht rechts am Ende") —
-    // die neueste Folge steht dadurch immer zuerst/ganz links.
+    // Episoden → pro Show (Parent-Show-tmdbId) eine Sammelkachel.
     const showsMap = new Map();
     for (const ep of episodes) {
       const folder = (ep.relPath || "").split("/")[0] || "";
@@ -827,14 +823,7 @@ async function loadItemsBody() {
       entry.count++;
       entry.episodes.push(ep);
     }
-    for (const sh of showsMap.values()) {
-      sh.episodes.sort((a, b) => {
-        const sa = (a.metadata && a.metadata.season) || 0, sb = (b.metadata && b.metadata.season) || 0;
-        if (sa !== sb) return sb - sa;
-        const ea = (a.metadata && a.metadata.episode) || 0, eb = (b.metadata && b.metadata.episode) || 0;
-        return eb - ea;
-      });
-    }
+
 
     renderBreadcrumb({ searchCount: mergedMovies.length + showsMap.size });
     grid.innerHTML = "";

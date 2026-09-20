@@ -59,7 +59,12 @@ function renderHomeView(grid, data) {
   // und „Als naechstes"-Streifen ganz oben, dann pro Library „Zuletzt
   // hinzugefuegt" — in der Reihenfolge des Topbar-Dropdowns.
   // continue ist server-seitig nach last_played_at DESC sortiert pro Lib,
-  // wir mergen + re-sortieren cross-library; nextUp analog nach added_at.
+  // wir mergen + re-sortieren cross-library; nextUp analog nach
+  // showLastActivity (User-Report 2026-09-20: "Auf dem Server hat sich die
+  // Sortierung der Als nächstes nicht geändert" — vorher sortierte diese
+  // Zeile nach addedAt der NÄCHSTEN Folge, nicht danach, wann der User
+  // zuletzt in DIESER Serie geschaut hat; showLastActivity kommt vom
+  // Server, siehe internal/store/home.go HomeNextUpForLibrary).
   const allContinue = [];
   const allNextUp = [];
   for (const sec of sections) {
@@ -67,13 +72,15 @@ function renderHomeView(grid, data) {
     if (Array.isArray(sec.nextUp))   allNextUp.push(...sec.nextUp);
   }
   // Cross-library Sort: continue nach lastPlayedAt desc (faellt auf addedAt
-  // zurueck), nextUp nach addedAt desc.
+  // zurueck), nextUp nach showLastActivity desc (faellt auf addedAt zurueck,
+  // z.B. wenn der Server noch eine aeltere Version ohne dieses Feld ist).
   const tsKey = (it, prefer) => {
     const v = (it && it[prefer]) || (it && it.addedAt) || "";
     return v;
   };
   allContinue.sort((a, b) => tsKey(b, "lastPlayedAt").localeCompare(tsKey(a, "lastPlayedAt")));
-  allNextUp.sort((a, b) => tsKey(b, "addedAt").localeCompare(tsKey(a, "addedAt")));
+  allNextUp.sort((a, b) => tsKey(b, "showLastActivity").localeCompare(tsKey(a, "showLastActivity")));
+
   // Cap: 24 / 24 — sonst werden die Streifen unuebersichtlich lang.
   // Sichtbarkeit pro User abschaltbar (seit 2026-09-02, "🏠 Startseite
   // anpassen"-Dialog) — Default an, wenn der Server (ältere Version) die
