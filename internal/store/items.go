@@ -236,22 +236,34 @@ func (s *Store) SearchPeoplePrefix(term string, scope ItemFilter) ([]model.Perso
 		return nil, nil
 	}
 	scope.Search = ""
+	// ⚠ Performance-Falle vermieden (live gemessen: hat den Server am
+	// 2026-09-20 für ~9 Minuten komplett blockiert, SetMaxOpenConns(1)):
+	// eine korrelierte EXISTS-Subquery, die itemsFromWhere (3 LEFT JOINs
+	// über bis zu 95k Items) für JEDE einzelne Cast-Zeile jedes
+	// Namens-Kandidaten neu ausführt, ist O(Personen × Items) statt O(Items).
+	// Stattdessen: die sichtbaren metadata_ids EINMAL ermitteln (identische
+	// Kosten wie ein normaler ListItems-Aufruf, den es schon überall gibt),
+	// danach nur noch indexiert dagegen filtern (metadata_cast_meta_idx).
+	// Episoden zählen dabei über ihre Parent-Show-metadata_id mit (UNION),
+	// analog zur COALESCE(parent.title, ...)-Titel-Vererbung anderswo.
 	whereSQL, whereArgs := s.itemsFromWhere(scope)
+	visibleMetaSQL := `WITH visible_meta AS (
+		SELECT i.metadata_id AS meta_id ` + whereSQL + ` AND i.metadata_id IS NOT NULL
+		UNION
+		SELECT parent.id AS meta_id ` + whereSQL + ` AND parent.id IS NOT NULL
+	)`
 	prefix := unaccent(term) + "%"
 	word := "% " + unaccent(term) + "%"
 	hyphen := "%-" + unaccent(term) + "%"
-	q := `SELECT DISTINCT p.id, p.tmdb_id, p.name, COALESCE(p.profile_path, '')
+	q := visibleMetaSQL + `
+		SELECT DISTINCT p.id, p.tmdb_id, p.name, COALESCE(p.profile_path, '')
 		FROM people p
 		JOIN metadata_cast mc ON mc.person_id = p.id
 		WHERE (UNACCENT(p.name) LIKE ? OR UNACCENT(p.name) LIKE ? OR UNACCENT(p.name) LIKE ?)
-		  AND EXISTS (
-			SELECT 1 ` + whereSQL + `
-			  AND (i.metadata_id = mc.metadata_id
-			       OR mc.metadata_id = (SELECT parent_id FROM metadata WHERE id = i.metadata_id))
-		  )
+		  AND mc.metadata_id IN (SELECT meta_id FROM visible_meta)
 		ORDER BY p.name COLLATE NOCASE
 		LIMIT 50`
-	args := append([]any{prefix, word, hyphen}, whereArgs...)
+	args := append(append(append([]any{}, whereArgs...), whereArgs...), prefix, word, hyphen)
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
