@@ -1,5 +1,13 @@
 # Goldfish — Projektregeln
 
+> **`CLAUDE.md` ist absichtlich nur der Import-Shim `@AGENTS.md` — nicht beschreiben.**
+> Regeln, die in jeder Session gelten, gehören in diese Datei; Detailwissen in einen
+> Themenskill unter `.claude/skills/<thema>/SKILL.md`. Ein Wächter-Hook
+> (`~/.hermes/hooks/claude_md_shim_guard.py`, registriert in `~/.claude/settings.json`)
+> lehnt Schreibzugriffe auf `CLAUDE.md` ab und setzt sie bei Drift automatisch zurück —
+> auch nach Änderungen per Editor oder Skript. Claude-Code-Spezifisches, das Hermes
+> bewusst nicht sehen soll, gehört nach `.claude/rules/`.
+
 **Diese Datei wird bei jedem Agentenstart vollständig geladen — deshalb kurz halten.**
 Detailwissen liegt in den Skills (Tabelle unten), nicht hier. Neue Erkenntnisse gehören in den
 passenden Themenskill, nicht in diese Datei; sie ist bewusst unter 20.000 Zeichen (harte
@@ -105,6 +113,14 @@ Die Apps sind NICHT mit dem Server mitversioniert. Drei Regeln, die jede Session
 1. `resumePosSec` ist **nicht** in der `getItem`-Antwort — eigener Endpoint `GET /api/items/{id}/resume`.
 2. Download-Endpoint heißt **`/api/download/{id}`**, nicht `/api/items/{id}/download` (404).
 3. Cast läuft über **`metadata_id`**, nicht `item_id`: `GET /api/metadata/{id}/cast`.
+
+
+**Dauer-Constraints der Apple-App (die Server-API-Anfasser kennen müssen):** SSO läuft dort über
+WKWebView mit persistentem `WKWebsiteDataStore`; auf tvOS öffnet `Menu` in der Toolbar zuverlässig
+nichts (immer `.sheet`/`.confirmationDialog`); eine persistente Leiste darf auf iOS nie als
+`.safeAreaInset` um eine `TabView` gelegt werden; kein Windows/Linux-Target. **Keine
+Apple-Produktbegriffe (Mac, Apple TV, iPhone, iPad) im App-Namen oder Untertitel** — Apple hat
+deswegen zweimal abgelehnt (Guideline 5.2.5). Details im Skill `goldfish-server-and-auth`.
 
 Bei API-Änderungen die Client-Repos gegenprüfen: `GoldfishCore/GoldfishClient.swift` (Apple),
 `data/api/GoldfishApi.kt` (Android **und** Fire TV — identischer Code, kein Auto-Sync),

@@ -277,3 +277,45 @@ gekürzt, siehe `internal/api/oidc.go` Zeile mit `r.cfg.IssuerURL`.
 
 ---
 
+---
+
+## Apple-Client: Dauer-Constraints (verbatim aus dem früheren Kopfblock)
+
+Stand früher unter der (falschen) H1-Überschrift „Mac/iOS/tvOS-App" am Anfang der Sammel-CLAUDE.md.
+
+# 🍎 Mac/iOS/tvOS-App (GoldfishApple, seit 2026-08-17)
+
+> **An jede Claude-Session, die Goldfish-Server-API anfasst:**
+> Es gibt außer Android/Linux auch eine **native Mac/iOS/tvOS-App** unter
+> `/Users/christian/Projekte/GoldfishApple/` (SwiftUI, `GoldfishMac` +
+> `GoldfishiOS` + `GoldfishTV`, eigenes Git-Repo
+> `github.com/boernie77/goldfish-apple`, **öffentlich** seit 2026-08-18, MIT).
+>
+> **Die volle Architektur/Bugfix-Chronik/Build-Notizen stehen jetzt in der
+> CLAUDE.md dieses App-Repos** (nicht mehr hier) — bei jeder Änderung, die
+> diese App betreffen könnte, dort nachsehen bzw. das Repo direkt öffnen.
+>
+> **Die wichtigsten Dauer-Constraints, die JEDE Session kennen muss:**
+> - SSO läuft über WKWebView (nicht wie Android komplett ohne OIDC) —
+>   `WKWebsiteDataStore` ist persistent, ein Kontowechsel muss ihn explizit leeren.
+> - **tvOS:** `Menu` in der Toolbar öffnet zuverlässig NICHTS — immer
+>   `.sheet`/`.confirmationDialog` für neue tvOS-UI.
+> - Eine persistente Leiste (Mini-Player) darf auf iOS NIE als
+>   `.safeAreaInset` außen um eine `TabView` gelegt werden — blockiert die
+>   native Tab-Leiste komplett. Muss pro Tab-Inhalt eingebunden werden.
+> - Kein Windows/Linux-Target (nur macOS + iOS + tvOS).
+> - **Keine Apple-Produktbegriffe (Mac, Apple TV, iPhone, iPad) im
+>   App-Namen oder Untertitel** — Apple lehnte deswegen zweimal ab
+>   (Guideline 5.2.5: tvOS-Untertitel 2026-09-08, Mac-App-NAME
+>   2026-09-17). Die Mac-App heißt im Store jetzt „Goldfish Desktop",
+>   das Bundle „Goldfish.app"; Bundle-ID `com.goldfish.mac` unverändert.
+>   Details in der CLAUDE.md des App-Repos.
+>
+> **Bei API-Änderungen prüfen:** `GoldfishCore/GoldfishClient.swift` +
+> `GoldfishCore/Models/Models.swift` im App-Repo.
+
+---
+
+Ein schlanker Video-Streaming-Server auf Intel-iGPU-Hardware. Einzelner Go-Binärcontainer,
+eingebettetes Web-UI, SQLite, ffmpeg mit VAAPI.
+
