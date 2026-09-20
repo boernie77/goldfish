@@ -807,7 +807,11 @@ async function loadItemsBody() {
       const tid = m.metadata && m.metadata.tmdbId;
       if (tid) ownedMovieByTmdb.set(tid, m);
     }
-    // Episoden → pro Show (Parent-Show-tmdbId) eine Sammelkachel.
+    // Episoden → pro Show (Parent-Show-tmdbId) eine Sammelkachel. Innerhalb
+    // einer Show werden die Folgen nach Staffel/Folge ABSTEIGEND sortiert
+    // (User-Wunsch 2026-09-20: "die aktuelleren Folgen, also die wo man
+    // gerade schaut, links sein, also am Anfang, nicht rechts am Ende") —
+    // die neueste Folge steht dadurch immer zuerst/ganz links.
     const showsMap = new Map();
     for (const ep of episodes) {
       const folder = (ep.relPath || "").split("/")[0] || "";
@@ -823,6 +827,14 @@ async function loadItemsBody() {
       entry.count++;
       entry.episodes.push(ep);
     }
+    for (const sh of showsMap.values()) {
+      sh.episodes.sort((a, b) => {
+        const sa = (a.metadata && a.metadata.season) || 0, sb = (b.metadata && b.metadata.season) || 0;
+        if (sa !== sb) return sb - sa;
+        const ea = (a.metadata && a.metadata.episode) || 0, eb = (b.metadata && b.metadata.episode) || 0;
+        return eb - ea;
+      });
+    }
 
     renderBreadcrumb({ searchCount: mergedMovies.length + showsMap.size });
     grid.innerHTML = "";
@@ -830,11 +842,24 @@ async function loadItemsBody() {
     if (person && (person.name || person.biography)) frag.appendChild(renderPersonHeader(person));
 
     // Volle Filmografie von TMDB: owned = echte Kachel, sonst ausgegraut.
+    // User-Wunsch 2026-09-20: "Es sollen immer alle Treffer von Filmen und
+    // Serien aufgezeigt werden, aber Kategorisiert. Also Erst Filme (mit
+    // Überschrift) und dann extra Bereich mit Überschrift Serien." — vorher
+    // lag hier EINE gemischte "🎞 Filmografie"-Kachelreihe in TMDB-Karriere-
+    // Reihenfolge (Filme und Serien beliebig durchmischt), das entsprach
+    // nicht mehr dem Wunsch nach fester Zwei-Sektionen-Gliederung. Jetzt:
+    // Filmografie nach mediaType aufgeteilt, jede Hälfte in ihrer eigenen
+    // Sektion mit eigener Überschrift — Reihenfolge INNERHALB einer Sektion
+    // bleibt die TMDB-Karriere-Reihenfolge.
     if (person && Array.isArray(person.filmography) && person.filmography.length) {
       const ownedOnly = !!state.personOwnedOnly;
-      const h = document.createElement("h2");
-      h.className = "person-section-title";
-      h.textContent = `🎞 Filmografie · ${person.filmography.length}`;
+      const movieCredits = person.filmography.filter(cr => cr.mediaType === "movie");
+      const tvCredits = person.filmography.filter(cr => cr.mediaType === "tv");
+      const usedMovie = new Set(), usedShow = new Set();
+      const rendered = [];
+
+      const toggleRow = document.createElement("div");
+      toggleRow.className = "person-toggle-row";
       const toggleBtn = document.createElement("button");
       toggleBtn.className = "person-owned-toggle" + (ownedOnly ? " is-on" : "");
       toggleBtn.textContent = ownedOnly ? "☑ Nur Treffer" : "☐ Nur Treffer";
@@ -844,37 +869,51 @@ async function loadItemsBody() {
         try { localStorage.setItem("personOwnedOnly", state.personOwnedOnly ? "1" : "0"); } catch {}
         loadItems();
       });
-      h.appendChild(toggleBtn);
-      frag.appendChild(h);
-      const g = document.createElement("div");
-      g.className = "subview-grid";
-      const usedMovie = new Set(), usedShow = new Set();
-      const rendered = [];
-      for (const cr of person.filmography) {
-        if (cr.mediaType === "movie") {
+      toggleRow.appendChild(toggleBtn);
+      frag.appendChild(toggleRow);
+
+      if (movieCredits.length || mergedMovies.length) {
+        const h = document.createElement("h2");
+        h.className = "person-section-title";
+        h.textContent = `🎬 Filme · ${movieCredits.length || mergedMovies.length}`;
+        frag.appendChild(h);
+        const g = document.createElement("div");
+        g.className = "subview-grid";
+        for (const cr of movieCredits) {
           const owned = ownedMovieByTmdb.get(cr.tmdbId);
           if (owned) { g.appendChild(renderCard(owned)); usedMovie.add(cr.tmdbId); rendered.push(owned); }
           else if (!ownedOnly) g.appendChild(renderPersonFilmCard(cr));
-        } else { // tv
+        }
+        for (const m of mergedMovies) {
+          const tid = m.metadata && m.metadata.tmdbId;
+          if (!tid || !usedMovie.has(tid)) { g.appendChild(renderCard(m)); rendered.push(m); }
+        }
+        frag.appendChild(g);
+      }
+
+      if (tvCredits.length || showsMap.size) {
+        const h = document.createElement("h2");
+        h.className = "person-section-title";
+        h.textContent = `📺 Serien · ${tvCredits.length || showsMap.size}`;
+        frag.appendChild(h);
+        const g = document.createElement("div");
+        g.className = "subview-grid";
+        for (const cr of tvCredits) {
           const owned = showsMap.get(cr.tmdbId);
           if (owned) { g.appendChild(renderPersonShowCard(owned)); usedShow.add(cr.tmdbId); }
           else if (!ownedOnly) g.appendChild(renderPersonFilmCard(cr));
         }
+        for (const [k, sh] of showsMap) {
+          if (!usedShow.has(k)) g.appendChild(renderPersonShowCard(sh));
+        }
+        frag.appendChild(g);
       }
-      // Owned-Einträge, die TMDB nicht in der Filmografie hat, hinten anhängen —
-      // wir wollen NIE etwas verstecken, das der User besitzt.
-      for (const m of mergedMovies) {
-        const tid = m.metadata && m.metadata.tmdbId;
-        if (!tid || !usedMovie.has(tid)) { g.appendChild(renderCard(m)); rendered.push(m); }
-      }
-      for (const [k, sh] of showsMap) {
-        if (!usedShow.has(k)) g.appendChild(renderPersonShowCard(sh));
-      }
-      frag.appendChild(g);
+
       state.lastRenderedItems = rendered;
       grid.appendChild(frag);
       return;
     }
+
 
     // Fallback (TMDB aus / keine Filmografie): nur die owned Treffer wie bisher.
     if (!mergedMovies.length && !showsMap.size) {

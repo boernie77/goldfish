@@ -485,6 +485,14 @@ body.skin-glass .topbar .user-menu strong {
   color: var(--text);
   cursor: pointer;
 }
+/* Wrapper der Filme/Serien-Sektionen (User-Wunsch 2026-09-20: feste
+   Kategorisierung statt einer gemischten "Filmografie"-Reihe) — der
+   Toggle-Button saß vorher IN der jetzt aufgespaltenen h2, braucht daher
+   eine eigene Zeile darüber. */
+.person-toggle-row {
+  text-align: right;
+  margin-bottom: 4px;
+}
 .person-owned-toggle.is-on {
   background: var(--accent);
   border-color: var(--accent);
