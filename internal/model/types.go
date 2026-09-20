@@ -252,10 +252,19 @@ type MusicAlbum struct {
 
 // Person: TMDB-Schauspieler (dedupliziert über tmdb_id).
 type Person struct {
-	ID          int64  `json:"id"`
-	TMDBID      int64  `json:"tmdbId"`
-	Name        string `json:"name"`
-	ProfilePath string `json:"profilePath,omitempty"` // TMDB-Pfad; gecacht unter /config/people/
+	ID     int64  `json:"id"`
+	TMDBID int64  `json:"tmdbId"`
+	Name   string `json:"name"`
+	// ⚠ BEWUSST kein `omitempty` — mindestens ein Consumer (GoldfishApple
+	// SearchPerson, vor 2026-09-20 mit nicht-optionalem String) erwartete
+	// das Feld immer im JSON vorhanden. Mit omitempty fehlte es bei einer
+	// Person ohne TMDB-Foto komplett (nicht "" oder null), was den ganzen
+	// Array-Decode auf dem Client scheitern ließ, sobald AUCH NUR EINE
+	// Person im Ergebnis kein Foto hatte — die komplette Schauspieler-Suche
+	// zeigte dann 0 Treffer (User-Report iOS/macOS 2026-09-20). Ein leerer
+	// String kostet auf der Leitung ein paar Bytes, ist aber robust gegen
+	// jeden JSON-Consumer, der das Feld als Pflichtfeld deklariert.
+	ProfilePath string `json:"profilePath"` // TMDB-Pfad; gecacht unter /config/people/
 }
 
 // CastMember: eine Rolle, mit eingebetteter Person für die UI.
