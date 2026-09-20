@@ -409,7 +409,17 @@ async function appendSearchResultCards(frag, items, opts) {
     total += n;
   }
   state.lastRenderedItems = renderedItems;
-  return total;
+  // Bug (User-Report 2026-09-20): Suche nach "Kaley" (Schauspielerin Kaley
+  // Cuoco, kein Filmtitel "Kaley") zeigte 0 Treffer — der Aufrufer brach vor
+  // dieser Funktion ab, sobald items leer war, BEVOR die unabhängige
+  // Personen-Sektion überhaupt geladen wurde (siehe grid.js). Jetzt läuft
+  // diese Funktion immer; bleiben am Ende BEIDE Sektionen leer, zeigt sie
+  // selbst die "Keine Treffer"-Meldung.
+  if (!total && !peopleShown) {
+    frag.appendChild(Object.assign(document.createElement("div"),
+      { className: "empty", textContent: `Keine Treffer für „${opts && opts.term ? opts.term : ""}".` }));
+  }
+  return total + peopleShown;
 }
 
 // renderSearchPersonCard: Schauspieler-Kachel in der aufgegliederten

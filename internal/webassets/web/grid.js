@@ -500,16 +500,22 @@ async function loadItemsBody() {
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
       renderBreadcrumb({ homeRoot: true, searchCount: items.length });
-      if (!items.length) {
-        grid.innerHTML = `<div class="empty">Keine Treffer für „${escapeHTML(sq)}" in allen Bibliotheken.</div>`;
-        return;
-      }
       grid.innerHTML = "";
       const frag = document.createDocumentFragment();
       // appendSearchResultCards setzt state.lastRenderedItems selbst (siehe
       // dort — muss exakt die tatsächlich gerenderten Kacheln widerspiegeln,
       // ein separates groupVariants(items) hier konnte bei Treffern über
       // mehrere Bibliotheken hinweg abweichen, siehe Bugfix-Kommentar dort).
+      // 🔴 Bug (User-Report 2026-09-20): Suche nach "Kaley" (Schauspielerin
+      // Kaley Cuoco, aber kein Filmtitel "Kaley") zeigte 0 Treffer — der
+      // frühere Code brach bei items.length === 0 SOFORT mit "Keine Treffer"
+      // ab, BEVOR appendSearchResultCards() (und damit die unabhängige
+      // Schauspieler-Sektion über GET /api/search/people) überhaupt lief.
+      // Seit der Trennung von Item- und Personen-Suche (2026-09-20) ist ein
+      // Name-only-Treffer ohne jeden Titel-Treffer der Normalfall, kein
+      // Edge-Case mehr — appendSearchResultCards muss deshalb IMMER laufen,
+      // auch bei einer leeren items-Liste (sie zeigt selbst "Keine Treffer",
+      // wenn wirklich nichts gefunden wurde — inklusive der Personen-Sektion).
       const shown = await appendSearchResultCards(frag, items, { term: sq });
       grid.appendChild(frag);
       renderBreadcrumb({ homeRoot: true, searchCount: shown });
