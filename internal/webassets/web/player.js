@@ -510,6 +510,14 @@ async function loadDetailTrailer(metadataId) {
 // Zurück-Button, der den Filter wieder aufhebt.
 async function openPersonView(tmdbId, name) {
   state.personFilter = { tmdbId, name };
+  // Suchfeld leeren (User-Report 2026-09-20: Klick auf Schauspieler in den
+  // Suchtreffern zeigte 0 Treffer, weil der Person-Filter zusätzlich zum
+  // noch gefüllten Suchfeld ("Bruce") lief — beide Filter griffen gleichzeitig,
+  // Bruce Willis' Filme heißen aber nicht alle "Bruce"). Der Person-Filter
+  // ist bewusst eine eigene, vollständige Ansicht ohne Text-Suchfilter.
+  const si = $("#searchInput");
+  if (si) si.value = "";
+  $("#searchClear")?.classList.add("hidden");
   // Library/Folder-Kontext kurz zwischenspeichern, damit wir zurückkehren können
   state.personFilterBackup = {
     libraryId: state.currentLibrary,

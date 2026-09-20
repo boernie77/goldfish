@@ -256,12 +256,13 @@ func (s *Store) SearchPeoplePrefix(term string, scope ItemFilter) ([]model.Perso
 	word := "% " + unaccent(term) + "%"
 	hyphen := "%-" + unaccent(term) + "%"
 	q := visibleMetaSQL + `
-		SELECT DISTINCT p.id, p.tmdb_id, p.name, COALESCE(p.profile_path, '')
+		SELECT p.id, p.tmdb_id, p.name, COALESCE(p.profile_path, ''), COUNT(DISTINCT mc.metadata_id) AS hits
 		FROM people p
 		JOIN metadata_cast mc ON mc.person_id = p.id
 		WHERE (UNACCENT(p.name) LIKE ? OR UNACCENT(p.name) LIKE ? OR UNACCENT(p.name) LIKE ?)
 		  AND mc.metadata_id IN (SELECT meta_id FROM visible_meta)
-		ORDER BY p.name COLLATE NOCASE
+		GROUP BY p.id
+		ORDER BY hits DESC, p.name COLLATE NOCASE
 		LIMIT 50`
 	args := append(append(append([]any{}, whereArgs...), whereArgs...), prefix, word, hyphen)
 	rows, err := s.db.Query(q, args...)
@@ -272,7 +273,8 @@ func (s *Store) SearchPeoplePrefix(term string, scope ItemFilter) ([]model.Perso
 	var out []model.Person
 	for rows.Next() {
 		var p model.Person
-		if err := rows.Scan(&p.ID, &p.TMDBID, &p.Name, &p.ProfilePath); err != nil {
+		var hits int
+		if err := rows.Scan(&p.ID, &p.TMDBID, &p.Name, &p.ProfilePath, &hits); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
