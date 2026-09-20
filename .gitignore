@@ -27,6 +27,8 @@
 # shared, version-controlled instructions — keep those tracked.
 /.claude/*
 !/.claude/skills/
+!/.claude/hooks/
+!/.claude/settings.json
 
 # Projektlokale Hermes-Skills (Symlink auf .claude/skills — nur lokal)
 /.hermes/
