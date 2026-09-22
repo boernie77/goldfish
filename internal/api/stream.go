@@ -543,17 +543,28 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := sess.WaitForPlaylist(20 * time.Second); err != nil {
-		// Rueckfall auf CPU-Decode: seit 2026-09-14 dekodiert der VAAPI-Pfad
-		// per Grafikeinheit. Scheitert die an dieser Datei, gibt ffmpeg sofort
+		// Rueckfall-Stufen: seit 2026-09-14 dekodiert der VAAPI-Pfad per
+		// Grafikeinheit. Scheitert die an dieser Datei, gibt ffmpeg sofort
 		// auf, ohne je eine Playlist zu schreiben — ohne diesen zweiten
 		// Versuch waere die Wiedergabe damit tot. NUR bei ErrFFmpegDiedEarly:
 		// ein blosser Zeitueberlauf heisst, dass ffmpeg noch arbeitet, da
 		// wuerde ein Neustart nur schaden.
-		if errors.Is(err, playback.ErrFFmpegDiedEarly) && !sess.UsesSoftwareDecode() {
-			if retry, rerr := s.Playback.RetryWithSoftwareDecode(sess); rerr == nil {
-				sess = retry
-				err = sess.WaitForPlaylist(20 * time.Second)
+		//
+		// Zwei Stufen, in dieser Reihenfolge (siehe Manager.RetryWithFallback):
+		// erst CPU-Decode + Grafikeinheit-Encode (2026-09-22, Faktor 3,5
+		// weniger CPU als der reine Software-Weg), dann vollstaendig per CPU.
+		// Die Schleife endet spaetestens nach der letzten Stufe — eine
+		// Endlosschleife bei einer wirklich kaputten Datei ist damit aus.
+		for tries := 0; tries < 2 && sess.CanFallback(); tries++ {
+			if !errors.Is(err, playback.ErrFFmpegDiedEarly) {
+				break
 			}
+			retry, rerr := s.Playback.RetryWithFallback(sess)
+			if rerr != nil {
+				break
+			}
+			sess = retry
+			err = sess.WaitForPlaylist(20 * time.Second)
 		}
 		if err != nil {
 			writeError(w, 500, "playlist: "+err.Error())

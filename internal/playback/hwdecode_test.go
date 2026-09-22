@@ -11,7 +11,16 @@ func vaapiMgr() *Manager {
 
 func argsOf(t *testing.T, m *Manager, p Profile, deinterlace, softwareDecode bool) string {
 	t.Helper()
-	return strings.Join(m.buildArgs("/m/film.mkv", "/tmp/out", p, -1, 0, deinterlace, false, softwareDecode), " ")
+	stage := stageHardware
+	if softwareDecode {
+		stage = stageFullSoftware
+	}
+	return argsOfStage(t, m, p, deinterlace, stage)
+}
+
+func argsOfStage(t *testing.T, m *Manager, p Profile, deinterlace bool, stage fallbackStage) string {
+	t.Helper()
+	return strings.Join(m.buildArgs("/m/film.mkv", "/tmp/out", p, -1, 0, deinterlace, false, stage), " ")
 }
 
 // Diese Kommandozeile wurde am 2026-09-14 am laufenden Server gemessen:
@@ -115,10 +124,43 @@ func TestSoftwareFallbackUsesCpuFilters(t *testing.T) {
 // auftauchen, auch kein Hardware-Decode.
 func TestAudioOnlyUntouched(t *testing.T) {
 	got := strings.Join(vaapiMgr().buildArgs("/m/song.flac", "/tmp/out",
-		Profile{ID: "orig"}, -1, 0, false, true, false), " ")
+		Profile{ID: "orig"}, -1, 0, false, true, stageHardware), " ")
 	for _, unwanted := range []string{"-hwaccel", "scale_vaapi", "-c:v"} {
 		if strings.Contains(got, unwanted) {
 			t.Errorf("Audio-Pfad enthält %q:\n%s", unwanted, got)
+		}
+	}
+}
+
+// Die erste Rückfallstufe (2026-09-22): CPU dekodiert, die Grafikeinheit
+// encodiert. Muss den Upload erzeugen und darf KEINEN Hardware-Decode
+// anfordern — sonst entsteht genau der Fehler, der die Stufe auslöst.
+// Gemessen an AV1: 11,0 s CPU-Zeit statt 38,6 s im reinen Software-Weg.
+func TestFallbackCpuDecodeWithVaapiEncode(t *testing.T) {
+	got := argsOfStage(t, vaapiMgr(), Profile{ID: "orig"}, false, stageCPUEncodeVAAPI)
+	for _, want := range []string{
+		"-vaapi_device /dev/dri/renderD128",
+		"-vf format=nv12,hwupload",
+		"-c:v h264_vaapi",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Stufe 1 erwartet %q:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{"-hwaccel", "libx264", "scale_vaapi"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("Stufe 1 darf %q nicht enthalten:\n%s", unwanted, got)
+		}
+	}
+}
+
+// Auch mit Skalierung und Entflimmern bleibt die Filterkette in Stufe 1 auf
+// der CPU — nur der Upload ans Ende gehört dazu.
+func TestFallbackCpuDecodeWithScaleAndDeinterlace(t *testing.T) {
+	got := argsOfStage(t, vaapiMgr(), Profile{ID: "720p", MaxHeight: 720}, true, stageCPUEncodeVAAPI)
+	for _, want := range []string{"bwdif", "scale=-2:720", "format=nv12,hwupload"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Stufe 1 mit Skalierung/Entflimmern erwartet %q:\n%s", want, got)
 		}
 	}
 }
@@ -128,10 +170,57 @@ func TestAudioOnlyUntouched(t *testing.T) {
 func TestRetryRefusesWhenAlreadySoftware(t *testing.T) {
 	m := vaapiMgr()
 	m.sessions = map[string]*Session{}
-	s := &Session{ID: "x", softwareDecode: true}
+	s := &Session{ID: "x", stage: stageFullSoftware}
 	m.sessions["x"] = s
-	if _, err := m.RetryWithSoftwareDecode(s); err == nil {
+	if _, err := m.RetryWithFallback(s); err == nil {
 		t.Error("ein zweiter Rückfall müsste abgelehnt werden")
+	}
+}
+
+// Nach der ersten Stufe ist die letzte noch möglich — aber nur einmal:
+// Stufe 1 → Stufe 2 → Schluss.
+func TestRetryStageOrder(t *testing.T) {
+	m := vaapiMgr()
+	m.sessions = map[string]*Session{}
+
+	first := &Session{ID: "y", stage: stageHardware}
+	m.sessions["y"] = first
+	next, err := m.RetryWithFallback(first)
+	if err != nil {
+		t.Fatalf("Stufe 1 müsste angenommen werden: %v", err)
+	}
+	if next == nil || next.stage != stageCPUEncodeVAAPI {
+		t.Fatalf("nach Hardware erwartet Stufe 1, bekam %v", next)
+	}
+
+	m.sessions["y"] = next
+	last, err := m.RetryWithFallback(next)
+	if err != nil {
+		t.Fatalf("Stufe 2 müsste angenommen werden: %v", err)
+	}
+	if last == nil || last.stage != stageFullSoftware {
+		t.Fatalf("nach Stufe 1 erwartet Stufe 2, bekam %v", last)
+	}
+
+	m.sessions["y"] = last
+	if _, err = m.RetryWithFallback(last); err == nil {
+		t.Error("nach der letzten Stufe darf es keinen weiteren Versuch geben")
+	}
+}
+
+// Ohne VAAPI (NVENC oder gar keine Hardware) gibt es keine Upload-Stufe —
+// dann geht es direkt auf den reinen Software-Weg.
+func TestRetrySkipsVaapiStageWithoutHardware(t *testing.T) {
+	m := &Manager{hw: HWAccel{Selected: BackendNVENC}}
+	m.sessions = map[string]*Session{}
+	s := &Session{ID: "z", stage: stageHardware}
+	m.sessions["z"] = s
+	next, err := m.RetryWithFallback(s)
+	if err != nil {
+		t.Fatalf("Rückfall müsste angenommen werden: %v", err)
+	}
+	if next == nil || next.stage != stageFullSoftware {
+		t.Fatalf("ohne VAAPI erwartet Stufe 2 direkt, bekam %v", next)
 	}
 }
 
@@ -139,7 +228,7 @@ func TestRetryRefusesWhenAlreadySoftware(t *testing.T) {
 func TestRetryRefusesStaleSession(t *testing.T) {
 	m := vaapiMgr()
 	m.sessions = map[string]*Session{}
-	if _, err := m.RetryWithSoftwareDecode(&Session{ID: "weg"}); err == nil {
+	if _, err := m.RetryWithFallback(&Session{ID: "weg"}); err == nil {
 		t.Error("eine nicht mehr eingetragene Sitzung müsste abgelehnt werden")
 	}
 }

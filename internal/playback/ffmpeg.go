@@ -53,8 +53,30 @@ func ProfileByID(id string) Profile {
 }
 
 // Session manages one ffmpeg transcode that produces an HLS playlist.
+//
+// fallbackStage beschreibt, wie eine Sitzung nach einem gescheiterten
+// Hardware-Decode weiterläuft. Der Weg ist EINE Stufe pro Versuch — sonst
+// entstünde bei einer wirklich kaputten Datei eine Endlosschleife.
+type fallbackStage int
+
+const (
+	// stageHardware: Normalweg seit 2026-09-14 — VAAPI dekodiert UND encodiert,
+	// die Bilder bleiben durchgehend Flächen der Grafikeinheit.
+	stageHardware fallbackStage = iota
+	// stageCPUEncodeVAAPI: CPU dekodiert, die Grafikeinheit encodiert
+	// (`format=nv12,hwupload` + h264_vaapi). Gedacht für Dateien, an deren
+	// DEKODER die Hardware scheitert, während der Encoder sie problemlos
+	// kann — gemessen am 2026-09-22 mit AV1 (YouTube): 38,6 s CPU-Zeit im
+	// reinen Software-Weg gegen 11,0 s auf diesem Weg für dieselben 20 s
+	// Material, also Faktor 3,5.
+	stageCPUEncodeVAAPI
+	// stageFullSoftware: CPU dekodiert UND encodiert (libx264) — letzte Stufe,
+	// keine weitere Wiederholung.
+	stageFullSoftware
+)
+
 // sessionSpec haelt alles, was zum Starten einer Sitzung noetig ist. Getrennt
-// gespeichert, damit dieselbe Sitzung per `RetryWithSoftwareDecode` mit
+// gespeichert, damit dieselbe Sitzung per `RetryWithFallback` mit
 // identischen Werten neu aufgesetzt werden kann.
 type sessionSpec struct {
 	itemID      int64
@@ -86,10 +108,11 @@ type Session struct {
 	done      chan struct{}
 
 	spec sessionSpec
-	// softwareDecode: diese Sitzung dekodiert bewusst per CPU, weil die
-	// Grafikeinheit an der Datei gescheitert ist. Verhindert eine Endlos-
-	// Wiederholung — ein zweiter Rueckfall ist nicht moeglich.
-	softwareDecode bool
+	// stage: auf welchem Weg diese Sitzung gerade läuft. stageHardware ist der
+	// Normalfall, die beiden anderen sind die Rückfallstufen nach einem
+	// gescheiterten Hardware-Decode. Verhindert eine Endlos-Wiederholung —
+	// jede Stufe wird höchstens einmal versucht.
+	stage fallbackStage
 	// failed: true NUR wenn ffmpeg mit einem echten Fehler endete (Exit-Code
 	// != 0, NICHT durch unseren eigenen Stop()/Context-Abbruch). Gesetzt VOR
 	// dem close(s.done), also fuer jeden Leser von Done()==true bereits
@@ -106,9 +129,16 @@ type Session struct {
 	failed bool
 }
 
-// UsesSoftwareDecode meldet, ob diese Sitzung bereits per CPU dekodiert. Der
-// API-Handler entscheidet damit, ob sich ein Rueckfall noch lohnt.
-func (s *Session) UsesSoftwareDecode() bool { return s.softwareDecode }
+// UsesSoftwareDecode meldet, ob diese Sitzung bereits vollständig per CPU
+// läuft (letzte Rückfallstufe). Der API-Handler entscheidet damit, ob sich
+// ein Rückfall überhaupt noch lohnt.
+func (s *Session) UsesSoftwareDecode() bool { return s.stage == stageFullSoftware }
+
+// FallbackStage meldet die aktuelle Stufe dieser Sitzung.
+func (s *Session) FallbackStage() fallbackStage { return s.stage }
+
+// CanFallback meldet, ob für diese Sitzung noch eine Rückfallstufe übrig ist.
+func (s *Session) CanFallback() bool { return s.stage != stageFullSoftware }
 
 type Manager struct {
 	mu       sync.Mutex
@@ -766,36 +796,52 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		deinterlace: deinterlace,
 		audioOnly:   audioOnly,
 		srcHeight:   srcHeight,
-	}, false)
+	}, stageHardware)
 }
 
-// RetryWithSoftwareDecode setzt eine gescheiterte Sitzung noch einmal auf,
-// diesmal mit Dekodieren per CPU.
+// RetryWithFallback setzt eine gescheiterte Sitzung noch einmal auf — auf der
+// jeweils nächsten Rückfallstufe.
 //
 // Noetig seit der Umstellung auf Hardware-Decode (2026-09-14): scheitert die
 // Grafikeinheit an einer Datei — exotischer oder beschaedigter Datenstrom, ein
 // Codec, den der Decoder dieser Hardware nicht kann —, liefert ffmpeg gar
-// keine Playlist und die Wiedergabe waere tot. Dieser Pfad hatte nie einen
-// Rueckfall (anders als `internal/download`, das ihn seit jeher hat), deshalb
-// kommt er hier zusammen mit dem Hardware-Decode dazu.
+// keine Playlist und die Wiedergabe waere tot.
 //
-// Genau EIN Versuch: eine Sitzung, die bereits per CPU dekodiert, wird
+// Zwei Stufen, in dieser Reihenfolge (2026-09-22):
+//
+//  1. `stageCPUEncodeVAAPI` — CPU dekodiert, die Grafikeinheit encodiert.
+//     Nur auf VAAPI-Hardware sinnvoll. Gemessen mit AV1: 38,6 s CPU-Zeit
+//     (reiner Software-Weg) gegen 11,0 s — Faktor 3,5 bei identischem
+//     Ergebnis. Kosten: die Bilder gehen einmal durch den Hauptspeicher.
+//  2. `stageFullSoftware` — CPU dekodiert und encodiert (libx264). Letzte
+//     Stufe; sie muss es für JEDEN Codec geben, denn sie ist der einzige Weg,
+//     der nie an der Hardware scheitern kann. (Kein Rückschritt zum früheren
+//     „halben" Rückfall: der versuchte bei einem Codec, den der DECODER nicht
+//     kann, trotzdem `hwupload` + `h264_vaapi` und scheiterte mit derselben
+//     Meldung — hier läuft der DECODE per CPU, der ENCODE über die Hardware,
+//     und der Encoder kann H.264 immer.)
+//
+// Genau EINE Stufe pro Aufruf: eine Sitzung auf der letzten Stufe wird
 // abgelehnt. Sonst entstuende bei einer wirklich kaputten Datei eine
 // Endlosschleife aus Neustarts.
-func (m *Manager) RetryWithSoftwareDecode(s *Session) (*Session, error) {
+func (m *Manager) RetryWithFallback(s *Session) (*Session, error) {
 	if s == nil {
 		return nil, errors.New("keine Sitzung")
 	}
 	m.mu.Lock()
-	if s.softwareDecode {
+	if s.stage == stageFullSoftware {
 		m.mu.Unlock()
-		return nil, errors.New("dekodiert bereits per CPU")
+		return nil, errors.New("läuft bereits vollständig per CPU")
 	}
 	if cur, ok := m.sessions[s.ID]; !ok || cur != s {
 		// Inzwischen abgeloest (Seek, GC, anderer Player) — dann ist diese
 		// Sitzung nicht mehr unser Problem.
 		m.mu.Unlock()
 		return nil, errors.New("Sitzung nicht mehr aktuell")
+	}
+	next := stageFullSoftware
+	if s.stage == stageHardware && m.hw.Selected == BackendVAAPI && m.hw.VAAPIDevice != "" {
+		next = stageCPUEncodeVAAPI
 	}
 	delete(m.sessions, s.ID)
 	id, spec := s.ID, s.spec
@@ -805,10 +851,14 @@ func (m *Manager) RetryWithSoftwareDecode(s *Session) (*Session, error) {
 	// sonst blockiert das jede andere Sitzung so lange mit.
 	s.Stop()
 
-	log.Printf("[transcode] session %s: Hardware-Decode gescheitert, neuer Versuch per CPU", id)
+	stageName := map[fallbackStage]string{
+		stageCPUEncodeVAAPI: "CPU-Decode + Grafikeinheit-Encode",
+		stageFullSoftware:   "vollständig per CPU",
+	}[next]
+	log.Printf("[transcode] session %s: Hardware-Decode gescheitert, neuer Versuch %s", id, stageName)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.startLocked(id, spec, true)
+	return m.startLocked(id, spec, next)
 }
 
 // sessionDirCounter macht Verzeichnisnamen garantiert eindeutig.
@@ -836,7 +886,7 @@ func sessionDirName(id string) string {
 
 // startLocked legt Verzeichnis und ffmpeg-Prozess an und traegt die Sitzung
 // ein. Der Aufrufer MUSS m.mu halten.
-func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) (*Session, error) {
+func (m *Manager) startLocked(id string, spec sessionSpec, stage fallbackStage) (*Session, error) {
 	dir := filepath.Join(m.cacheDir, sessionDirName(id))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -844,7 +894,7 @@ func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) 
 
 	ctx, cancel := context.WithCancel(context.Background())
 	args := m.buildArgs(spec.inputPath, dir, spec.profile, spec.audioIdx, spec.startSec,
-		spec.deinterlace, spec.audioOnly, softwareDecode)
+		spec.deinterlace, spec.audioOnly, stage)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	// stderr NICHT verwerfen: ffmpeg laeuft mit `-loglevel error`, hier landet
 	// also nur echtes Fehlerhaftes — und genau das fehlte bisher komplett im
@@ -857,7 +907,7 @@ func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) 
 
 	log.Printf("[transcode] start session=%s profile=%s audio=%d hw=%v decode=%s start=%.1fs deinterlace=%v",
 		id, spec.profile.ID, spec.audioIdx, m.hw.Available,
-		map[bool]string{true: "cpu", false: "hardware"}[softwareDecode], spec.startSec, spec.deinterlace)
+		map[fallbackStage]string{stageHardware: "hardware", stageCPUEncodeVAAPI: "cpu-decode+vaapi-encode", stageFullSoftware: "cpu"}[stage], spec.startSec, spec.deinterlace)
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return nil, err
@@ -865,19 +915,19 @@ func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) 
 
 	now := time.Now()
 	s := &Session{
-		ID:             id,
-		ItemID:         spec.itemID,
-		Profile:        spec.profile.ID,
-		AudioIdx:       spec.audioIdx,
-		Dir:            dir,
-		StartSec:       spec.startSec,
-		StartedAt:      now,
-		Cmd:            cmd,
-		cancel:         cancel,
-		lastUsed:       now,
-		done:           make(chan struct{}),
-		spec:           spec,
-		softwareDecode: softwareDecode,
+		ID:        id,
+		ItemID:    spec.itemID,
+		Profile:   spec.profile.ID,
+		AudioIdx:  spec.audioIdx,
+		Dir:       dir,
+		StartSec:  spec.startSec,
+		StartedAt: now,
+		Cmd:       cmd,
+		cancel:    cancel,
+		lastUsed:  now,
+		done:      make(chan struct{}),
+		spec:      spec,
+		stage:     stage,
 	}
 	go func() {
 		err := cmd.Wait()
@@ -906,11 +956,10 @@ func (m *Manager) startLocked(id string, spec sessionSpec, softwareDecode bool) 
 
 // buildArgs baut die ffmpeg-Kommandozeile einer Transcode-Sitzung.
 //
-// `softwareDecode` erzwingt das Dekodieren per CPU. Normalfall ist seit
-// 2026-09-14 der Hardware-Decode (VAAPI); dieser Schalter ist der
-// Rueckfallweg, wenn die Grafikeinheit an einer Datei scheitert — siehe
-// `Manager.RetryWithSoftwareDecode`.
-func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace, audioOnly, softwareDecode bool) []string {
+// `stage` bestimmt den Weg: stageHardware (Normalfall seit 2026-09-14, VAAPI
+// dekodiert UND encodiert) oder eine der beiden Rückfallstufen, die per CPU
+// dekodieren — siehe `Manager.RetryWithFallback`.
+func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace, audioOnly bool, stage fallbackStage) []string {
 	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
 
 	if startSec > 0 {
@@ -958,7 +1007,37 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 
 	switch m.hw.Selected {
 	case BackendVAAPI:
-		if softwareDecode {
+		if stage == stageCPUEncodeVAAPI {
+			// RÜCKFALLSTUFE 1 (seit 2026-09-22): CPU dekodiert, die
+			// Grafikeinheit encodiert.
+			//
+			// Gedacht für Dateien, an deren DEKODER die Hardware scheitert,
+			// während der Encoder sie problemlos kann. Gemessen am 2026-09-22
+			// mit AV1 (YouTube-Material, „Meadow House Diary"): die
+			// Grafikeinheit kann AV1 nicht initialisieren (`vainfo` listet
+			// zwar VAProfileAV1Profile0, ffmpeg scheitert aber mit
+			// „Failed to inject frame into filter network: Function not
+			// implemented"); im reinen Software-Weg kosteten 20 s Material
+			// 38,6 s CPU-Zeit, auf diesem Weg 11,0 s — Faktor 3,5.
+			//
+			// Der Filterweg ist der CPU-Weg (bwdif/scale) plus
+			// `format=nv12,hwupload` am Ende: erst in Software entflimmern und
+			// skalieren, dann die Bilder einmal hochladen. `format=nv12` ist
+			// Pflicht — `h264_vaapi` kann keine 10-Bit-Flächen encodieren.
+			//
+			// Bewusst OHNE `-hwaccel`: der Decode soll hier gerade nicht über
+			// die Grafikeinheit laufen, sonst entsteht genau der Fehler, der
+			// diese Stufe ausgelöst hat.
+			videoFilter := cpuDeintFilter + scaleFilter + "format=nv12,hwupload"
+			args = append(args,
+				"-vaapi_device", m.hw.VAAPIDevice,
+				"-i", input,
+				"-vf", videoFilter,
+				"-c:v", "h264_vaapi",
+			)
+			break
+		}
+		if stage == stageFullSoftware {
 			// 🔴 VOLLSTÄNDIGER Software-Weg (seit 2026-09-17): dekodieren UND
 			// encodieren per CPU, ohne jede Beteiligung der Grafikeinheit.
 			//
@@ -1019,7 +1098,7 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 			// (dieselbe Notwendigkeit wie in internal/trickplay).
 			//
 			// Scheitert der Hardware-Decoder an einer Datei, springt
-			// `RetryWithSoftwareDecode` ein — ohne den waere die Wiedergabe
+			// `RetryWithFallback` ein — ohne den waere die Wiedergabe
 			// solcher Dateien tot, denn dieser Pfad hatte nie einen Rueckfall.
 			chain := make([]string, 0, 2)
 			if deinterlace {
@@ -1043,10 +1122,15 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 			)
 			break
 		}
-		// Hinweis: Der frühere „halbe" Rückfallweg (CPU-Decode + hwupload +
-		// h264_vaapi) ist am 2026-09-17 ersatzlos entfallen — siehe die
-		// Begründung oben im softwareDecode-Zweig. Er half bei genau den
-		// Dateien nicht, für die er gedacht war.
+		// Hinweis: Der frühere „halbe" Rückfallweg war am 2026-09-17 entfallen,
+		// weil er bei einem Codec, den der DECODER nicht kann, trotzdem
+		// `hwupload` + `h264_vaapi` versuchte und mit derselben Meldung
+		// scheiterte. Seit 2026-09-22 gibt es ihn wieder — aber als EIGENE,
+		// vorgelagerte Stufe (`stageCPUEncodeVAAPI`, siehe oben im
+		// CPUEncodeVAAPI-Zweig) und nur dort, wo der Decode per CPU läuft.
+		// Diese Stufe hier ist und bleibt der Weg für alles, was die
+		// Grafikeinheit gar nicht kann (VC1/WMV3), und läuft deshalb ohne
+		// jede Beteiligung der Hardware.
 	case BackendNVENC:
 		// NVENC-Pfad: `-hwaccel cuda` ohne `-hwaccel_output_format cuda` →
 		// Frames werden nach dem Decode in den CPU-RAM kopiert, die CPU-

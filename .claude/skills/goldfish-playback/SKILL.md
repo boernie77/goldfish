@@ -470,6 +470,44 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
 - Benchmark (96-min-1080p, Intel iGPU + Quadro P400): VAAPI 60 s,
   NVENC 219 s, Software 703 s. Auf dieser Hardware VAAPI-Default richtig.
 
+#### Rückfall-Stufen bei gescheitertem Hardware-Decode (2026-09-22)
+
+Scheitert der Hardware-Decoder an einer Datei, läuft die Sitzung über
+`Manager.RetryWithFallback` zwei Stufen ab — **eine pro Versuch**, damit eine
+wirklich kaputte Datei keine Neustart-Schleife erzeugt (`internal/api/stream.go`
+versucht höchstens beide und nur bei `ErrFFmpegDiedEarly`):
+
+1. `stageCPUEncodeVAAPI` — **CPU dekodiert, die Grafikeinheit encodiert**
+   (`-vaapi_device …` + `-vf format=nv12,hwupload` + `-c:v h264_vaapi`,
+   bewusst **ohne** `-hwaccel`). Nur wenn VAAPI gewählt und das Gerät gesetzt ist.
+2. `stageFullSoftware` — CPU dekodiert und encodiert (libx264 `veryfast`).
+   Letzte Stufe, funktioniert für jeden Codec.
+
+Am 2026-09-22 am laufenden Server gemessen (je 20 s Material, CPU-Zeit; die
+Dateien kommen aus der echten Sammlung):
+
+| Quelle | Stufe 1 | reiner Software-Weg | Faktor |
+|---|---|---|---|
+| AV1 (YouTube, 1080p) | 12,6 s | 37,3 s | 3,0× |
+| H.264 (Serie, mp4) | 1,45 s | 5,12 s | 3,5× |
+| MPEG-2 (Film, mkv) | 1,43 s | 6,09 s | 4,3× |
+| MPEG-4 ASP (alte .avi-Serie) | 0,96 s | 6,66 s | 6,9× |
+
+Speicherbedarf je Sitzung bei AV1: ~195 MB statt ~889 MB. Auslöser waren die
+AV1-Dateien: `vainfo` listet auf der UHD 770 zwar `VAProfileAV1Profile0`, ffmpeg
+scheitert aber mit „Failed to inject frame into filter network: Function not
+implemented" (Startfehler im Log: `driverInitFileInfo … result=11`) — **ein
+neuerer Treiber hilft nicht** (getestet mit `intel-media-va-driver 25.2.3` +
+`libva 2.22.0`: AV1 wird dort gar nicht mehr gelistet).
+
+**Nicht mehr nachmessen, sondern hier nachlesen:** Der frühere „halbe"
+Rückfallweg (CPU-Decode + `hwupload` + `h264_vaapi`) war am 2026-09-17 entfallen,
+weil er bei VC1/WMV3 mit derselben Meldung scheiterte — damals aber mit
+`-hwaccel`-Decoder. Die Stufe 1 von heute dekodiert bewusst in Software, damit
+entsteht dieser Fehler nicht mehr. **VC-1/WMV ist bislang ungetestet** (kein
+solches Material in der Sammlung); scheitert Stufe 1 dort, greift automatisch
+Stufe 2 — maximal ein zusätzlicher Fehlversuch, nie eine tote Wiedergabe.
+
 ### Playback
 - **Direct Play**: mp4/mov mit h264/aac → Originaldatei per HTTP-Range.
 - **Transcode** (auto bei inkompatiblen Formaten): HLS, H.264/AAC.
