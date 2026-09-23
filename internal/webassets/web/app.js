@@ -1691,6 +1691,16 @@ function wire() {
   const nextCancelBtn = $("#nextEpCancel");
   if (nextCancelBtn) nextCancelBtn.addEventListener("click", cancelNextEpisode);
   $("#playerDialog").addEventListener("close", () => {
+    // Wiedergabe-Ende ans Protokoll melden — greift für JEDEN Schließweg des
+    // <dialog>-Elements (Escape-Taste, Klick daneben, programmatisches
+    // .close()), nicht nur für den expliziten X-Button (closePlayer() ruft
+    // das ohnehin schon auf, aber reportPlaybackStop ist idempotent per
+    // stopReported-Flag — ein doppelter Aufruf hier ist also harmlos).
+    // User-Wunsch (2026-09-23): "Wegklicken" soll serverseitig genauso als
+    // sauber beendet gelten wie der Player-Leiste-Button, damit
+    // StopAllForItem die Transcode-Session sofort freigibt statt sie bis
+    // zum 30-Minuten-Idle-Timeout im Budget zu halten.
+    reportPlaybackStop("closed");
     // Letzte Position merken, bevor der Player verworfen wird.
     if (state.vjs && state.currentItem) {
       try {
@@ -1705,6 +1715,15 @@ function wire() {
       } catch {}
     }
     disposePlayer();
+  });
+  // Klick auf den Backdrop (außerhalb von .player-wrap) schließt den Player
+  // genauso wie der X-Button — native <dialog>-Elemente tun das NICHT von
+  // selbst bei showModal(). User-Wunsch (2026-09-23): "Wegklicken" soll
+  // serverseitig als richtig geschlossen gelten (siehe "close"-Listener
+  // oben), nicht als offen hängender Client, der die Transcode-Session bis
+  // zum 30-Minuten-Idle-Timeout blockiert.
+  $("#playerDialog").addEventListener("click", (e) => {
+    if (e.target === $("#playerDialog")) closePlayer();
   });
   setupDialogDrag();
   $("#modeSelect").addEventListener("change", () => {
