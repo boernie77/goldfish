@@ -208,6 +208,56 @@ func fmtClock(sec float64) string {
 	return fmt.Sprintf("%d:%02d", m, s)
 }
 
+// activityItemLabel liefert den Anzeigenamen eines Items fürs Aktivitäts-
+// protokoll: TMDB-Titel (Serie „Name" SxxEyy – Folgentitel bzw. Film-/
+// Serientitel), genau wie in den Bibliotheksansichten — NICHT der Dateiname
+// (User-Wunsch 2026-09-23: "im Protokoll nicht der Dateiname ... sondern der
+// TMDB-Name, so wie er in meinen Bibliotheken steht"). Ausnahme: Bibliotheken
+// mit kind=private (Privatvideos) haben bewusst KEINE TMDB-Anreicherung
+// (siehe model.KindPrivate) — dort bleibt es beim Dateinamen, wie ausdrücklich
+// gewünscht ("Außer natürlich bei privaten Videos. Da weiterhin den
+// Dateinamen."). Fällt auf it.Title zurück, wenn kein TMDB-Match vorliegt
+// (Enrichment ausstehend/fehlgeschlagen) — besser ein Dateiname im Protokoll
+// als ein leerer Eintrag.
+func (s *Server) activityItemLabel(it *model.Item, libKind model.LibraryKind) string {
+	if it == nil {
+		return ""
+	}
+	if libKind == model.KindPrivate || it.Metadata == nil {
+		return it.Title
+	}
+	md := it.Metadata
+	if md.TMDBType == "episode" {
+		show := md.ShowTitle
+		if show == "" && md.ParentID > 0 {
+			// GetItemFor befüllt Metadata.ShowTitle nicht (nur der Batch-Pfad
+			// ListItems tut das) — hier gezielt den Serientitel nachladen.
+			if parent, err := s.Store.GetMetadata(md.ParentID); err == nil && parent != nil {
+				show = parent.Title
+			}
+		}
+		code := fmt.Sprintf("S%02dE%02d", md.Season, md.Episode)
+		if it.EpisodeEnd > md.Episode {
+			code = fmt.Sprintf("S%02dE%02d-%02d", md.Season, md.Episode, it.EpisodeEnd)
+		}
+		title := strings.TrimSpace(md.Title)
+		switch {
+		case show != "" && title != "":
+			return fmt.Sprintf("%s %s – %s", show, code, title)
+		case show != "":
+			return fmt.Sprintf("%s %s", show, code)
+		case title != "":
+			return title
+		default:
+			return it.Title
+		}
+	}
+	if t := strings.TrimSpace(md.Title); t != "" {
+		return t
+	}
+	return it.Title
+}
+
 // playbackStart: POST /api/playback/{id}/start — client-getriggertes "play"-
 // Log (Bug-Fix 2026-09-11, siehe Kommentar in `playbackInfo`: der GET-
 // Endpoint dort wird auch vom reinen Detail-Dialog-Metadaten-Prefetch
@@ -233,7 +283,12 @@ func (s *Server) playbackStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", it.Title, deviceLabel(r))
+		lib, _ := s.Store.GetLibrary(it.LibraryID)
+		var kind model.LibraryKind
+		if lib != nil {
+			kind = lib.Kind
+		}
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "play", s.activityItemLabel(it, kind), deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
@@ -281,9 +336,15 @@ func (s *Server) playbackStop(w http.ResponseWriter, r *http.Request) {
 	if body.Reason == "ended" {
 		reasonLabel = "zu Ende"
 	}
-	detail := it.Title
+	lib, _ := s.Store.GetLibrary(it.LibraryID)
+	var kind model.LibraryKind
+	if lib != nil {
+		kind = lib.Kind
+	}
+	label := s.activityItemLabel(it, kind)
+	detail := label
 	if body.DurationSec > 0 {
-		detail = fmt.Sprintf("%s (%s von %s, %s)", it.Title, fmtClock(body.PositionSec), fmtClock(body.DurationSec), reasonLabel)
+		detail = fmt.Sprintf("%s (%s von %s, %s)", label, fmtClock(body.PositionSec), fmtClock(body.DurationSec), reasonLabel)
 	}
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "stop", detail, deviceLabel(r))
@@ -342,17 +403,19 @@ func (s *Server) playbackError(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[playback] FEHLER item=%d %q client=%q geraet=%q | %s",
 		it.ID, it.Title, msg, deviceLabel(r), diag)
 
-	detail := it.Title
-	if msg != "" {
-		detail = fmt.Sprintf("%s — %s", it.Title, msg)
-	}
-	// Der Zustand wandert auch ins Protokoll: Container-Logs rotieren, die
-	// activity_log-Zeile bleibt 180 Tage und ist damit die verlaesslichere
-	// Quelle, wenn der Fehler erst Tage spaeter untersucht wird.
-	detail = fmt.Sprintf("%s [server: %s]", detail, diag)
-
 	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "error", detail, deviceLabel(r))
+		lib, _ := s.Store.GetLibrary(it.LibraryID)
+		var kind model.LibraryKind
+		if lib != nil {
+			kind = lib.Kind
+		}
+		label := s.activityItemLabel(it, kind)
+		logDetail := label
+		if msg != "" {
+			logDetail = fmt.Sprintf("%s — %s", label, msg)
+		}
+		logDetail = fmt.Sprintf("%s [server: %s]", logDetail, diag)
+		_ = s.Store.LogActivity(me.ID, me.Username, "playback", "error", logDetail, deviceLabel(r))
 	}
 	w.WriteHeader(204)
 }
