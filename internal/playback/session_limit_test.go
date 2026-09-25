@@ -55,7 +55,7 @@ func TestStartOrGetRejectsAtLimit(t *testing.T) {
 	for i := int64(1); i <= 4; i++ {
 		fakeSessionSized(m, "sess-"+string(rune('a'+i)), i, false, 2160, 0)
 	}
-	_, err := m.StartOrGet(99, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160)
+	_, err := m.StartOrGet(99, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, "")
 	if err == nil {
 		t.Fatal("erwartet: Ablehnung am Limit, bekommen: nil")
 	}
@@ -76,7 +76,7 @@ func TestStartOrGetExistingSessionNotLimited(t *testing.T) {
 	fakeSessionSized(m, id, 7, false, 2160, 0)
 	fakeSessionSized(m, "other", 8, false, 2160, 0) // Budget damit voll
 
-	s, err := m.StartOrGet(7, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160)
+	s, err := m.StartOrGet(7, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, "")
 	if err != nil {
 		t.Fatalf("bestehende Session muss zurückkommen, bekommen: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestZeroMaxMeansUnlimited(t *testing.T) {
 	}
 	// Kein Limit-Fehler; der Aufruf scheitert höchstens am echten ffmpeg,
 	// deshalb nur auf die Fehlerart prüfen.
-	_, err := m.StartOrGet(999, "/media/none.mkv", ProfileByID("orig"), -1, 0, false, false, 2160)
+	_, err := m.StartOrGet(999, "/media/none.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, "")
 	if errors.Is(err, ErrTooManySessions) {
 		t.Fatal("bei maxSessions=0 darf nie am Limit abgelehnt werden")
 	}
@@ -131,7 +131,7 @@ func TestSetMaxSessionsRuntime(t *testing.T) {
 		t.Fatalf("laufende Sessions dürfen beim Senken nicht gekillt werden, sind: %d", len(m.sessions))
 	}
 	// Neue Anfrage muss jetzt abgelehnt werden (5 × 100 Punkte > Budget 200).
-	if _, err := m.StartOrGet(77, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160); !errors.Is(err, ErrTooManySessions) {
+	if _, err := m.StartOrGet(77, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, ""); !errors.Is(err, ErrTooManySessions) {
 		t.Fatalf("erwartet Ablehnung nach Senken, bekommen: %v", err)
 	}
 }
@@ -196,7 +196,7 @@ func TestBudgetAllowsMoreSmallSessions(t *testing.T) {
 	for i := int64(1); i <= 6; i++ {
 		fakeSessionSized(m, "small"+string(rune('a'+i)), i, false, 1080, 480)
 	}
-	if _, err := m.StartOrGet(50, "/media/x.mkv", ProfileByID("480p"), -1, 0, false, false, 1080); errors.Is(err, ErrTooManySessions) {
+	if _, err := m.StartOrGet(50, "/media/x.mkv", ProfileByID("480p"), -1, 0, false, false, 1080, ""); errors.Is(err, ErrTooManySessions) {
 		t.Fatalf("kleine Umwandlungen müssen über die alte 4er-Grenze hinaus erlaubt sein (Punkte: %d)", m.activeCostLocked())
 	}
 
@@ -205,7 +205,7 @@ func TestBudgetAllowsMoreSmallSessions(t *testing.T) {
 	for i := int64(1); i <= 7; i++ {
 		fakeSessionSized(m2, "hd"+string(rune('a'+i)), i, false, 2160, 1080) // je 50 = 350
 	}
-	if _, err := m2.StartOrGet(60, "/media/big.mkv", ProfileByID("orig"), -1, 0, false, false, 2160); !errors.Is(err, ErrTooManySessions) {
+	if _, err := m2.StartOrGet(60, "/media/big.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, ""); !errors.Is(err, ErrTooManySessions) {
 		t.Fatalf("4K bei 350/400 Punkten muss abgelehnt werden, bekommen: %v", err)
 	}
 }
@@ -221,7 +221,7 @@ func TestHardSessionCapIndependentOfBudget(t *testing.T) {
 	if cost := m.activeCostLocked(); cost >= 200 {
 		t.Fatalf("Testaufbau falsch: Budget schon erschöpft (%d)", cost)
 	}
-	_, err := m.StartOrGet(70, "/media/x.mkv", ProfileByID("480p"), -1, 0, false, false, 720)
+	_, err := m.StartOrGet(70, "/media/x.mkv", ProfileByID("480p"), -1, 0, false, false, 720, "")
 	if !errors.Is(err, ErrTooManySessions) {
 		t.Fatalf("Anzahl-Deckel muss greifen, bekommen: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestDeadSessionsFreeTheirBudgetSlot(t *testing.T) {
 
 	// Eine neue Anfrage muss trotzdem durchkommen — die toten Sitzungen
 	// werden vorher ausgebucht.
-	_, err := m.StartOrGet(99, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 1080)
+	_, err := m.StartOrGet(99, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 1080, "")
 	if errors.Is(err, ErrTooManySessions) {
 		t.Fatalf("tote Sitzungen dürfen nicht blockieren (Punkte: %d, Sitzungen: %d)",
 			m.activeCostLocked(), len(m.sessions))

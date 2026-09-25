@@ -669,8 +669,11 @@ func sessionKey(itemID int64, profileID string, audioIdx int, startSec float64, 
 // gleich ist — StopSession/SessionAge/ConsumeFresh/LookupSession brauchen
 // den Parameter deshalb nicht. audioOnly zaehlt allerdings NICHT gegen das
 // Transcode-Limit (siehe activeVideoSessionsLocked).
-
-func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool, srcHeight int) (*Session, error) {
+//
+// videoCodec (ffprobe-Codec-Name, z.B. "av1"/"hevc"/""): wird NUR benutzt, um
+// die Startstufe zu waehlen (siehe initialStageFor) — kein Einfluss auf den
+// Session-Key.
+func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool, srcHeight int, videoCodec string) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	id := sessionKey(itemID, profile.ID, audioIdx, startSec, deinterlace)
@@ -796,7 +799,28 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		deinterlace: deinterlace,
 		audioOnly:   audioOnly,
 		srcHeight:   srcHeight,
-	}, stageHardware)
+	}, m.initialStageFor(videoCodec))
+}
+
+// initialStageFor waehlt die Startstufe anhand des Quell-Codecs. Normalfall
+// ist stageHardware (VAAPI dekodiert UND encodiert). Ausnahme: AV1 auf
+// VAAPI-Hardware scheitert dort IMMER (Intel-iGPU/iHD-Treiber kann laut
+// vainfo kein AV1 decodieren, siehe Skill goldfish-playback) — der erste
+// Versuch wuerde jedesmal mit „Failed to inject frame into filter network:
+// Function not implemented" abbrechen und erst danach per RetryWithFallback
+// auf stageCPUEncodeVAAPI zurueckfallen. Das kostete bisher IMMER einen
+// vollstaendigen ffmpeg-Fehlversuch (Log-Rauschen, ~1s extra Verzoegerung)
+// fuer einen Fall, der vorher schon feststeht. Bei AV1 auf VAAPI startet die
+// Sitzung deshalb direkt auf stageCPUEncodeVAAPI — spart den unnoetigen
+// ersten Versuch, das Verhalten fuer den Client aendert sich nicht (gleicher
+// Zielzustand, nur ohne den dazwischenliegenden Fehlschlag). Andere Backends
+// (NVENC/Software) und alle anderen Codecs bleiben unveraendert bei
+// stageHardware.
+func (m *Manager) initialStageFor(videoCodec string) fallbackStage {
+	if m.hw.Selected == BackendVAAPI && strings.EqualFold(videoCodec, "av1") {
+		return stageCPUEncodeVAAPI
+	}
+	return stageHardware
 }
 
 // RetryWithFallback setzt eine gescheiterte Sitzung noch einmal auf — auf der

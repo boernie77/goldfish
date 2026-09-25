@@ -27,7 +27,7 @@ func TestStartOrGetAfterStopReturnsSentinel(t *testing.T) {
 	// Kein Fehler vor dem Stop: eine „normale" Anfrage muss durchlaufen (hier
 	// fängt sie am fehlenden ffmpeg ab, aber NICHT am Sperrfenster).
 	m.StopAllForItem(itemID) // setzt stoppedAt[itemID] = jetzt
-	_, err := m.StartOrGet(itemID, "/tmp/nicht-vorhanden.mkv", ProfileByID("orig"), -1, 0, false, false, 1080)
+	_, err := m.StartOrGet(itemID, "/tmp/nicht-vorhanden.mkv", ProfileByID("orig"), -1, 0, false, false, 1080, "")
 	if !errors.Is(err, ErrStoppedRecently) {
 		t.Fatalf("StartOrGet direkt nach StopAllForItem = %v, want ErrStoppedRecently", err)
 	}
@@ -35,7 +35,7 @@ func TestStartOrGetAfterStopReturnsSentinel(t *testing.T) {
 	// Gegenprobe: ein ANDERES Item darf in derselben Sekunde nicht blockiert
 	// sein — das Sperrfenster gilt pro Item (sonst hätte ein Stop die nächste
 	// Folge des Nutzers mit blockiert).
-	_, err = m.StartOrGet(itemID+1, "/tmp/nicht-vorhanden.mkv", ProfileByID("orig"), -1, 0, false, false, 1080)
+	_, err = m.StartOrGet(itemID+1, "/tmp/nicht-vorhanden.mkv", ProfileByID("orig"), -1, 0, false, false, 1080, "")
 	if errors.Is(err, ErrStoppedRecently) {
 		t.Fatalf("anderes Item wurde vom Sperrfenster blockiert: %v", err)
 	}

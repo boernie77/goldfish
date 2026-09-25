@@ -578,7 +578,7 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[transcode] neue session item=%d %q benutzer=%s geraet=%q",
 			it.ID, it.Title, who, deviceLabel(r))
 	}
-	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "", it.Height)
+	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "", it.Height, it.VideoCodec)
 	if err != nil {
 		// Limit erreicht: 503 statt 500 — das ist ein temporaerer Zustand,
 		// kein Serverfehler. Der Text wird im Player direkt angezeigt, muss

@@ -232,3 +232,35 @@ func TestRetryRefusesStaleSession(t *testing.T) {
 		t.Error("eine nicht mehr eingetragene Sitzung müsste abgelehnt werden")
 	}
 }
+
+// AV1 auf VAAPI-Hardware scheitert am Decoder IMMER (Intel-iGPU kann laut
+// vainfo kein AV1 decodieren) — die Startstufe soll deshalb direkt
+// stageCPUEncodeVAAPI sein und nicht erst den zum Scheitern verurteilten
+// stageHardware-Versuch durchlaufen (siehe initialStageFor-Kommentar).
+func TestInitialStageSkipsHardwareForAV1OnVAAPI(t *testing.T) {
+	m := vaapiMgr()
+	if got := m.initialStageFor("av1"); got != stageCPUEncodeVAAPI {
+		t.Fatalf("AV1 auf VAAPI erwartet stageCPUEncodeVAAPI, bekam %v", got)
+	}
+	// Groß-/Kleinschreibung darf keine Rolle spielen (ffprobe liefert
+	// durchgängig klein, aber die Funktion soll robust sein).
+	if got := m.initialStageFor("AV1"); got != stageCPUEncodeVAAPI {
+		t.Fatalf("Groß-AV1 auf VAAPI erwartet stageCPUEncodeVAAPI, bekam %v", got)
+	}
+}
+
+// Alle anderen Codecs (und alles ohne VAAPI) starten unverändert bei
+// stageHardware — die Sonderbehandlung gilt exklusiv für AV1+VAAPI.
+func TestInitialStageStaysHardwareOtherwise(t *testing.T) {
+	m := vaapiMgr()
+	for _, codec := range []string{"hevc", "h264", "vp9", "mpeg2video", ""} {
+		if got := m.initialStageFor(codec); got != stageHardware {
+			t.Errorf("Codec %q auf VAAPI erwartet stageHardware, bekam %v", codec, got)
+		}
+	}
+	// NVENC-Backend: auch bei AV1 keine Sonderbehandlung, die betrifft nur VAAPI.
+	nvenc := &Manager{hw: HWAccel{Selected: BackendNVENC, Available: true}}
+	if got := nvenc.initialStageFor("av1"); got != stageHardware {
+		t.Fatalf("AV1 auf NVENC erwartet stageHardware (unveraendert), bekam %v", got)
+	}
+}
