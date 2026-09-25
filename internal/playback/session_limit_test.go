@@ -246,8 +246,8 @@ func TestDeadSessionsFreeTheirBudgetSlot(t *testing.T) {
 		m.sessions[id].failed = true
 		close(m.sessions[id].done) // Prozess beendet, MIT Fehler
 	}
-	if m.activeCostLocked() < 200 {
-		t.Fatalf("Testaufbau: Budget sollte rechnerisch voll sein, ist %d", m.activeCostLocked())
+	if len(m.sessions) != 6 {
+		t.Fatalf("Testaufbau: 6 tote Sitzungen erwartet, sind %d", len(m.sessions))
 	}
 
 	// Eine neue Anfrage muss trotzdem durchkommen — die toten Sitzungen
@@ -317,6 +317,44 @@ func TestGCKeepsSuccessfullyFinishedSessions(t *testing.T) {
 
 	if len(m.sessions) != 1 {
 		t.Fatalf("erfolgreich beendete Sitzung wurde faelschlich entfernt: %d Sitzungen uebrig", len(m.sessions))
+	}
+}
+
+// 🔴 Regression (2026-09-25): erfolgreich fertig umgewandelte Sitzungen
+// bleiben im Pool (Segmente fuer den Client), duerfen aber weder Budget noch
+// Anzahl-Deckel belegen. Live: acht fertige Clips blockierten jede neue
+// Wiedergabe, obwohl kein ffmpeg mehr lief.
+func TestFinishedSessionsDoNotBlockBudget(t *testing.T) {
+	m := newTestManager(t, 2) // Budget 200 Punkte, Anzahl-Deckel 6
+	for i := int64(1); i <= 8; i++ {
+		id := "fertig" + string(rune('a'+i))
+		fakeSessionSized(m, id, i, false, 2160, 0)
+		close(m.sessions[id].done) // ffmpeg OHNE Fehler beendet
+	}
+	if got := m.activeCostLocked(); got != 0 {
+		t.Fatalf("fertige Sitzungen duerfen keine Punkte kosten, sind: %d", got)
+	}
+	if got := m.activeVideoSessionsLocked(); got != 0 {
+		t.Fatalf("fertige Sitzungen duerfen nicht zaehlen, gezaehlt: %d", got)
+	}
+	_, err := m.StartOrGet(99, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, "")
+	if errors.Is(err, ErrTooManySessions) {
+		t.Fatalf("fertige Sitzungen duerfen nicht blockieren: %v", err)
+	}
+	// Sie muessen aber im Pool bleiben — der Client holt evtl. noch Segmente.
+	for i := int64(1); i <= 8; i++ {
+		if _, ok := m.sessions["fertig"+string(rune('a'+i))]; !ok {
+			t.Fatalf("fertige Sitzung %d wurde faelschlich entfernt", i)
+		}
+	}
+
+	// Gegenprobe: laufende Sitzungen blockieren weiterhin.
+	m2 := newTestManager(t, 2)
+	for i := int64(1); i <= 2; i++ {
+		fakeSessionSized(m2, "laeuft"+string(rune('a'+i)), i, false, 2160, 0)
+	}
+	if _, err := m2.StartOrGet(98, "/media/x.mkv", ProfileByID("orig"), -1, 0, false, false, 2160, ""); !errors.Is(err, ErrTooManySessions) {
+		t.Fatalf("laufende Sitzungen muessen weiter blockieren, bekommen: %v", err)
 	}
 }
 

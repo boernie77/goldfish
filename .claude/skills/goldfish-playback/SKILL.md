@@ -470,6 +470,21 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
 - Benchmark (96-min-1080p, Intel iGPU + Quadro P400): VAAPI 60 s,
   NVENC 219 s, Software 703 s. Auf dieser Hardware VAAPI-Default richtig.
 
+#### Budget zählt nur laufende ffmpeg-Prozesse (2026-09-25, v1.4.35)
+
+`activeCostLocked`/`activeVideoSessionsLocked` überspringen Sitzungen mit
+`Done()==true`. Auslöser: User-Report „schon wieder keine Transcodes, als wäre ich
+im Limit". Log: `ABGELEHNT … Budget erschoepft (355+50 von 400 Punkten, 8 Sitzungen
+aktiv)`, gleichzeitig zeigte `docker top goldfish` **keinen** ffmpeg. Ursache: Beim
+schnellen Durchklicken kurzer Clips ist VAAPI in Sekunden fertig. Erfolgreich beendete
+Sitzungen bleiben aber absichtlich bis zum 30-Min-Leerlauf-GC im Pool (Segmente für
+den Client, siehe `failed`-Feld / AV1-„Source error" vom 17.09.) und belegten dabei
+weiter ihre Budgetpunkte. Jetzt bleiben sie im Pool, zählen aber nicht mehr. Laufende,
+nur verlassene Sitzungen zählen weiter: Die belasten die GPU tatsächlich, bis ffmpeg
+fertig ist. Test: `TestFinishedSessionsDoNotBlockBudget`.
+**Diagnose-Schnelltest bei „Limit"-Meldungen:** `docker top goldfish -eo pid,etime,pcpu,args | grep ffmpeg`
+gegen die `ABGELEHNT`-Logzeile halten. Container heißt inzwischen `goldfish`, nicht `videoplayer`.
+
 #### Rückfall-Stufen bei gescheitertem Hardware-Decode (2026-09-22)
 
 Scheitert der Hardware-Decoder an einer Datei, läuft die Sitzung über

@@ -332,11 +332,21 @@ func (m *Manager) SetMaxSessions(n int) {
 // belasten. Reine Audio-Sessions (Musikwiedergabe) sind ausgenommen: sie
 // kodieren nur eine Tonspur, kosten weder GPU-Speicher noch nennenswert CPU
 // und duerfen deshalb nicht dazu fuehren, dass ein Film abgelehnt wird.
+//
+// 🔴 Gezaehlt wird nur, wessen ffmpeg noch LAEUFT (seit 2026-09-25). Eine
+// erfolgreich fertig umgewandelte Sitzung bleibt bewusst bis zum Leerlauf-GC
+// im Pool (der Client holt die letzten Segmente evtl. noch ab, siehe
+// `failed`), belastet die Grafikeinheit aber nicht mehr. Vorher belegte sie
+// trotzdem 30 Minuten lang ihre Budgetpunkte: beim schnellen Durchklicken
+// kurzer Clips (per VAAPI in Sekunden fertig) war das Budget live mit
+// „355 von 400 Punkten, 8 Sitzungen" voll, waehrend `docker top` keinen
+// einzigen ffmpeg-Prozess zeigte — jede neue Wiedergabe wurde abgelehnt.
+//
 // Der Aufrufer MUSS m.mu halten.
 func (m *Manager) activeVideoSessionsLocked() int {
 	n := 0
 	for _, s := range m.sessions {
-		if !s.spec.audioOnly {
+		if !s.spec.audioOnly && !s.Done() {
 			n++
 		}
 	}
@@ -344,11 +354,12 @@ func (m *Manager) activeVideoSessionsLocked() int {
 }
 
 // activeCostLocked summiert die Kostenpunkte aller laufenden Video-Sitzungen
-// (siehe transcodeCost). Der Aufrufer MUSS m.mu halten.
+// (siehe transcodeCost). Beendete Sitzungen zaehlen nicht, siehe
+// activeVideoSessionsLocked. Der Aufrufer MUSS m.mu halten.
 func (m *Manager) activeCostLocked() int {
 	sum := 0
 	for _, s := range m.sessions {
-		if s.spec.audioOnly {
+		if s.spec.audioOnly || s.Done() {
 			continue
 		}
 		sum += transcodeCost(s.spec.srcHeight, s.spec.profile.MaxHeight)
