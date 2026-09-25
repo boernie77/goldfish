@@ -1722,8 +1722,27 @@ function wire() {
   // serverseitig als richtig geschlossen gelten (siehe "close"-Listener
   // oben), nicht als offen hängender Client, der die Transcode-Session bis
   // zum 30-Minuten-Idle-Timeout blockiert.
-  $("#playerDialog").addEventListener("click", (e) => {
-    if (e.target === $("#playerDialog")) closePlayer();
+  //
+  // ⚠ `e.target === dialog` allein reicht NICHT: der Größen-Anfasser
+  // (`resize: both`) und der Dialog-Rand gehören zum <dialog> selbst — das
+  // Loslassen nach dem Größeändern feuerte denselben click und schloss den
+  // Player (User-Report 2026-09-25). Ebenso ein Verschieben per Kopfleiste,
+  // das außerhalb endet (click-Target = gemeinsamer Vorfahre = Dialog).
+  // Deshalb zählt nur, wenn Drücken UND Loslassen außerhalb des
+  // Dialog-Rechtecks liegen — das ist der echte Backdrop.
+  const playerDlg = $("#playerDialog");
+  const outsideDialog = (e) => {
+    const r = playerDlg.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let backdropPress = false;
+  playerDlg.addEventListener("pointerdown", (e) => {
+    backdropPress = e.target === playerDlg && outsideDialog(e);
+  });
+  playerDlg.addEventListener("click", (e) => {
+    const wasBackdrop = backdropPress;
+    backdropPress = false;
+    if (wasBackdrop && e.target === playerDlg && outsideDialog(e)) closePlayer();
   });
   setupDialogDrag();
   $("#modeSelect").addEventListener("change", () => {
