@@ -20,7 +20,7 @@ func argsOf(t *testing.T, m *Manager, p Profile, deinterlace, softwareDecode boo
 
 func argsOfStage(t *testing.T, m *Manager, p Profile, deinterlace bool, stage fallbackStage) string {
 	t.Helper()
-	return strings.Join(m.buildArgs("/m/film.mkv", "/tmp/out", p, -1, 0, deinterlace, false, stage), " ")
+	return strings.Join(m.buildArgs("/m/film.mkv", "/tmp/out", p, -1, 0, deinterlace, false, stage, nil, 0), " ")
 }
 
 // Diese Kommandozeile wurde am 2026-09-14 am laufenden Server gemessen:
@@ -124,7 +124,7 @@ func TestSoftwareFallbackUsesCpuFilters(t *testing.T) {
 // auftauchen, auch kein Hardware-Decode.
 func TestAudioOnlyUntouched(t *testing.T) {
 	got := strings.Join(vaapiMgr().buildArgs("/m/song.flac", "/tmp/out",
-		Profile{ID: "orig"}, -1, 0, false, true, stageHardware), " ")
+		Profile{ID: "orig"}, -1, 0, false, true, stageHardware, nil, 0), " ")
 	for _, unwanted := range []string{"-hwaccel", "scale_vaapi", "-c:v"} {
 		if strings.Contains(got, unwanted) {
 			t.Errorf("Audio-Pfad enthält %q:\n%s", unwanted, got)

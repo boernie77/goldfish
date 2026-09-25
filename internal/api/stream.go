@@ -570,15 +570,22 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 	// sonst ueberhaupt keine Spur. Deshalb hier mitloggen — und NUR, wenn
 	// wirklich eine neue Session entsteht, nicht bei jedem VHS-Playlist-Reload
 	// derselben Session (sonst waere das Log im Sekundentakt zu.)
+	// VOD-Playlist (siehe playback/vod.go): nur fuer eine NEUE Sitzung
+	// planen — eine bestehende laeuft in dem Modus weiter, in dem sie
+	// entstanden ist.
+	var vodPlan *playback.VODPlan
 	if s.Playback.LookupSession(it.ID, profile, audioIdx, startSec, deinterlace) == nil {
 		who := "unbekannt"
 		if me := currentUser(r); me != nil {
 			who = me.Username
 		}
-		log.Printf("[transcode] neue session item=%d %q benutzer=%s geraet=%q",
-			it.ID, it.Title, who, deviceLabel(r))
+		if s.wantsVODPlaylist(r) {
+			vodPlan = playback.PlanVOD(it.Path, it.DurationSec, startSec, deinterlace, it.VideoCodec == "")
+		}
+		log.Printf("[transcode] neue session item=%d %q benutzer=%s geraet=%q vod=%v",
+			it.ID, it.Title, who, deviceLabel(r), vodPlan != nil)
 	}
-	sess, err := s.Playback.StartOrGet(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "", it.Height, it.VideoCodec)
+	sess, err := s.Playback.StartOrGetVOD(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, it.VideoCodec == "", it.Height, it.VideoCodec, vodPlan, 0)
 	if err != nil {
 		// Limit erreicht: 503 statt 500 — das ist ein temporaerer Zustand,
 		// kein Serverfehler. Der Text wird im Player direkt angezeigt, muss
@@ -633,6 +640,18 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 500, "playlist: "+err.Error())
 			return
 		}
+	}
+
+	// VOD: komplette Playlist aus dem Plan, unabhaengig davon, wie weit
+	// ffmpeg ist. `hls=vod` an jeder Segment-URI schickt die Segment-Anfragen
+	// in den VOD-Weg (warten bzw. ffmpeg an der Stelle neu starten).
+	if plan := sess.VOD(); plan != nil {
+		segQuery := r.URL.Query()
+		segQuery.Set("hls", "vod")
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write([]byte(playback.BuildVODPlaylist(*plan, segQuery.Encode())))
+		return
 	}
 
 	// Playlist einlesen und Segment-URIs um die Query-Parameter ergänzen.
@@ -806,6 +825,10 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 		it.Streams = streams
 	}
 	deinterlace := resolveDeinterlace(r.URL.Query().Get("deinterlace"), playback.IsInterlaced(it))
+	if r.URL.Query().Get("hls") == "vod" {
+		s.serveVODSegment(w, r, it, seg, profile, audioIdx, startSec, deinterlace)
+		return
+	}
 	// LOOKUP, nicht StartOrGet (gefixt 2026-09-13, Regression aus dem
 	// "andere Sessions desselben Items stoppen"-Fix in Manager.StartOrGet):
 	// ein Segment-Request darf NIE eine neue Session erzeugen. Nach einem
@@ -853,6 +876,73 @@ func (s *Server) transcodeSegment(w http.ResponseWriter, r *http.Request) {
 	// abgespielte Segmente während der Pause vor, ohne bei Resume erneut über
 	// die Leitung zu müssen.
 	w.Header().Set("Cache-Control", "private, max-age=1800")
+	http.ServeFile(w, r, path)
+}
+
+// serveVODSegment liefert ein Segment einer VOD-Playlist (siehe
+// playback/vod.go). Anders als im EVENT-Weg DARF hier eine Sitzung entstehen:
+// eine VOD-Playlist wird nie neu geladen, nach dem 30-Minuten-Leerlauf-GC
+// (lange Pause) kaeme die Wiedergabe sonst nie wieder in Gang. Das Ping-Pong
+// vom 2026-09-13 kann dabei nicht entstehen: die Anfrage traegt dasselbe
+// start= wie die Playlist, also denselben Sitzungsschluessel, und veraltete
+// Anfragen duerfen keinen Neustart ausloesen (EnsureVODSegment).
+func (s *Server) serveVODSegment(w http.ResponseWriter, r *http.Request, it *model.Item, seg string, profile playback.Profile, audioIdx int, startSec float64, deinterlace bool) {
+	arrived := time.Now()
+	k, ok := playback.ParseVODSegment(seg)
+	if !ok {
+		writeError(w, 400, "ungültiges Segment")
+		return
+	}
+	sess := s.Playback.LookupSession(it.ID, profile, audioIdx, startSec, deinterlace)
+	if sess == nil {
+		if s.Playback.StoppedWithin(it.ID, 10*time.Minute) {
+			writeError(w, 404, "Wiedergabe wurde beendet")
+			return
+		}
+		plan := playback.PlanVOD(it.Path, it.DurationSec, startSec, deinterlace, it.VideoCodec == "")
+		if plan == nil {
+			writeError(w, 404, "keine laufende Transcode-Session")
+			return
+		}
+		who := "unbekannt"
+		if me := currentUser(r); me != nil {
+			who = me.Username
+		}
+		log.Printf("[transcode] neue session item=%d %q benutzer=%s geraet=%q vod=true ab Segment %d",
+			it.ID, it.Title, who, deviceLabel(r), k)
+		var err error
+		sess, err = s.Playback.StartOrGetVOD(it.ID, it.Path, profile, audioIdx, startSec, deinterlace, false, it.Height, it.VideoCodec, plan, k)
+		if err != nil {
+			if errors.Is(err, playback.ErrTooManySessions) || errors.Is(err, playback.ErrStoppedRecently) {
+				w.Header().Set("Retry-After", "5")
+				writeError(w, 503, "Der Server ist gerade ausgelastet — bitte gleich erneut versuchen.")
+				return
+			}
+			writeError(w, 500, "ffmpeg start: "+err.Error())
+			return
+		}
+	}
+	if sess.VOD() == nil {
+		// Sitzung laeuft im EVENT-Modus (vor einer Umstellung entstanden) —
+		// dann gilt der normale Weg: nur ausliefern, was da ist.
+		path := filepath.Join(sess.Dir, seg)
+		if !waitForSegmentFile(r.Context(), path, 4*time.Second) {
+			writeError(w, 404, "Segment noch nicht bereit")
+			return
+		}
+		w.Header().Set("Content-Type", "video/mp2t")
+		http.ServeFile(w, r, path)
+		return
+	}
+	path, err := s.Playback.EnsureVODSegment(r.Context(), sess.ID, k, arrived)
+	if err != nil {
+		writeError(w, 404, "Segment nicht verfügbar")
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp2t")
+	// Kein langes Caching: nach einem Neustart kann dasselbe Segment neu
+	// geschrieben werden (inhaltlich gleich, aber nicht byte-identisch).
+	w.Header().Set("Cache-Control", "private, max-age=60")
 	http.ServeFile(w, r, path)
 }
 

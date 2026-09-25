@@ -91,6 +91,11 @@ type sessionSpec struct {
 	// von der Zielaufloesung an, eine 4K-Quelle kostet also auch dann viel,
 	// wenn klein ausgegeben wird. 0 = unbekannt (wird als 4K behandelt).
 	srcHeight int
+	// vod: vorab berechnete Segmentierung (siehe vod.go), nil = EVENT-Playlist.
+	// vodStartSeg: erstes Segment DIESES ffmpeg-Laufs (0 beim Sitzungsstart,
+	// >0 nach einem Neustart bei einem Sprung).
+	vod         *VODPlan
+	vodStartSeg int
 }
 
 type Session struct {
@@ -164,6 +169,10 @@ type Manager struct {
 	// stoppedAt: Zeitpunkt des letzten expliziten Client-Stops (StopAllForItem)
 	// pro Item. Siehe stopSuppressWindow unten in StartOrGet.
 	stoppedAt map[int64]time.Time
+	// vodMu/vodRestarts: serialisiert VOD-Neustarts und merkt sich pro
+	// Sitzung den letzten (siehe EnsureVODSegment).
+	vodMu       sync.Mutex
+	vodRestarts map[string]time.Time
 	// maxSessions: harte Obergrenze gleichzeitiger VIDEO-Transcodes. 0 =
 	// unbegrenzt (nur fuer Tests; im Betrieb setzt main.go immer einen Wert).
 	// Siehe ErrTooManySessions und den Limit-Block in StartOrGet.
@@ -304,6 +313,7 @@ func NewManager(cacheDir string, hw HWAccel) *Manager {
 		hw:          hw,
 		freshTokens: map[string]string{},
 		stoppedAt:   map[int64]time.Time{},
+		vodRestarts: map[string]time.Time{},
 		maxSessions: DefaultMaxSessions,
 	}
 	go m.gcLoop()
@@ -689,6 +699,14 @@ func sessionKey(itemID int64, profileID string, audioIdx int, startSec float64, 
 // die Startstufe zu waehlen (siehe initialStageFor) — kein Einfluss auf den
 // Session-Key.
 func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool, srcHeight int, videoCodec string) (*Session, error) {
+	return m.StartOrGetVOD(itemID, inputPath, profile, audioIdx, startSec, deinterlace, audioOnly, srcHeight, videoCodec, nil, 0)
+}
+
+// StartOrGetVOD wie StartOrGet, legt eine NEUE Sitzung aber mit VOD-Plan an
+// (plan != nil, siehe vod.go), deren erster ffmpeg-Lauf bei Segment startSeg
+// beginnt. Eine bestehende Sitzung wird unverändert zurückgegeben — egal in
+// welchem Modus sie läuft; der Aufrufer richtet sich nach Session.VOD().
+func (m *Manager) StartOrGetVOD(itemID int64, inputPath string, profile Profile, audioIdx int, startSec float64, deinterlace bool, audioOnly bool, srcHeight int, videoCodec string, plan *VODPlan, startSeg int) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	id := sessionKey(itemID, profile.ID, audioIdx, startSec, deinterlace)
@@ -814,6 +832,8 @@ func (m *Manager) StartOrGet(itemID int64, inputPath string, profile Profile, au
 		deinterlace: deinterlace,
 		audioOnly:   audioOnly,
 		srcHeight:   srcHeight,
+		vod:         plan,
+		vodStartSeg: startSeg,
 	}, m.initialStageFor(videoCodec))
 }
 
@@ -930,10 +950,16 @@ func (m *Manager) startLocked(id string, spec sessionSpec, stage fallbackStage) 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
+	return m.launchLocked(id, spec, stage, dir)
+}
 
+// launchLocked startet ffmpeg in dir und traegt die Sitzung ein. Getrennt von
+// startLocked, weil ein VOD-Neustart (restartVOD) bewusst im SELBEN
+// Verzeichnis weiterschreibt. Der Aufrufer MUSS m.mu halten.
+func (m *Manager) launchLocked(id string, spec sessionSpec, stage fallbackStage, dir string) (*Session, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	args := m.buildArgs(spec.inputPath, dir, spec.profile, spec.audioIdx, spec.startSec,
-		spec.deinterlace, spec.audioOnly, stage)
+		spec.deinterlace, spec.audioOnly, stage, spec.vod, spec.vodStartSeg)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	// stderr NICHT verwerfen: ffmpeg laeuft mit `-loglevel error`, hier landet
 	// also nur echtes Fehlerhaftes — und genau das fehlte bisher komplett im
@@ -998,8 +1024,15 @@ func (m *Manager) startLocked(id string, spec sessionSpec, stage fallbackStage) 
 // `stage` bestimmt den Weg: stageHardware (Normalfall seit 2026-09-14, VAAPI
 // dekodiert UND encodiert) oder eine der beiden Rückfallstufen, die per CPU
 // dekodieren — siehe `Manager.RetryWithFallback`.
-func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace, audioOnly bool, stage fallbackStage) []string {
+func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace, audioOnly bool, stage fallbackStage, vod *VODPlan, vodStartSeg int) []string {
 	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
+	if audioOnly {
+		vod = nil // Musik laeuft nie als VOD (siehe PlanVOD)
+	}
+	// VOD-Neustart ab Segment k: die Quelle ab dessen Beginn lesen.
+	if vod != nil {
+		startSec += vod.SegStart(vodStartSeg)
+	}
 
 	if startSec > 0 {
 		args = append(args, "-ss", strconv.FormatFloat(startSec, 'f', 3, 64))
@@ -1280,7 +1313,38 @@ func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, start
 		"-hls_segment_filename", filepath.Join(outDir, "seg%05d.ts"),
 		filepath.Join(outDir, "index.m3u8"),
 	)
+	if vod != nil {
+		args = applyVODArgs(args, vod, vodStartSeg)
+	}
 	return args
+}
+
+// applyVODArgs stellt die HLS-Ausgabe auf vorab berechnete Segmente um
+// (siehe vod.go): Keyframes nach BILDANZAHL statt nach Zeit, damit jedes
+// Segment exakt vod.SegDur lang ist; `temp_file`, damit ein Segment erst nach
+// dem Fertigschreiben unter seinem Namen auftaucht (der Segment-Handler
+// liefert, was existiert); nach einem Neustart ab Segment k die Zeitstempel
+// um dessen Beginn verschieben und ab k nummerieren. ffmpegs eigene
+// index.m3u8 bleibt EVENT — sie dient nur noch dem Fortschritt.
+func applyVODArgs(args []string, vod *VODPlan, startSeg int) []string {
+	for i := 0; i+1 < len(args); i++ {
+		switch args[i] {
+		case "-force_key_frames":
+			args[i+1] = fmt.Sprintf("expr:gte(n,n_forced*%d)", vod.FramesPerSeg)
+		case "-hls_time":
+			// Knapp unter der Segmentdauer: geschnitten wird am naechsten
+			// Keyframe danach, also exakt an der Bildgrenze.
+			args[i+1] = strconv.FormatFloat(vod.SegDur*0.95, 'f', 3, 64)
+		case "-hls_flags":
+			args[i+1] += "+temp_file"
+		}
+	}
+	out := args[len(args)-1]
+	extra := []string{"-start_number", strconv.Itoa(startSeg)}
+	if startSeg > 0 {
+		extra = append(extra, "-output_ts_offset", strconv.FormatFloat(vod.SegStart(startSeg), 'f', 6, 64))
+	}
+	return append(append(args[:len(args)-1:len(args)-1], extra...), out)
 }
 
 func (s *Session) Touch() {
@@ -1291,6 +1355,15 @@ func (s *Session) Touch() {
 }
 
 func (s *Session) Stop() {
+	s.stopProcess()
+	if s.Dir != "" {
+		_ = os.RemoveAll(s.Dir)
+	}
+}
+
+// stopProcess beendet ffmpeg (wartet bis zu 3 s), laesst das Verzeichnis aber
+// stehen — ein VOD-Neustart schreibt dort weiter (siehe restartVOD).
+func (s *Session) stopProcess() {
 	// `cancel` kann fehlen, wenn eine Sitzung nicht über `startLocked`
 	// entstanden ist (Tests, künftige Sonderpfade). Ein nil-Aufruf wäre ein
 	// Absturz des ganzen Servers — für eine reine Aufräumfunktion ein
@@ -1304,15 +1377,23 @@ func (s *Session) Stop() {
 		case <-time.After(3 * time.Second):
 		}
 	}
-	if s.Dir != "" {
-		_ = os.RemoveAll(s.Dir)
-	}
 }
+
+// VOD liefert den VOD-Plan der Sitzung (nil = EVENT-Playlist).
+func (s *Session) VOD() *VODPlan { return s.spec.vod }
 
 // Position gibt zurück, bis zu welcher Quelldatei-Sekunde ffmpeg transcodiert hat.
 // Wird aus der Summe der #EXTINF-Dauern in index.m3u8 + StartSec berechnet.
 // Verwendung: Client kann ahead = Position - currentTime anzeigen.
 func (s *Session) Position() (float64, error) {
+	// VOD: ffmpegs index.m3u8 zaehlt nur den LAUFENDEN Lauf, der nach einem
+	// Neustart bei Segment k beginnt.
+	if s.spec.vod != nil {
+		if _, err := os.Stat(filepath.Join(s.Dir, "index.m3u8")); err != nil {
+			return 0, err
+		}
+		return s.StartSec + s.spec.vod.SegStart(s.vodProduced()), nil
+	}
 	data, err := os.ReadFile(filepath.Join(s.Dir, "index.m3u8"))
 	if err != nil {
 		return 0, err

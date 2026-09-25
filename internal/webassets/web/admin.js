@@ -593,6 +593,7 @@ async function openSettings() {
   $("#maxTcVal").textContent = activeTc > 0
     ? `${maxTc} — aktuell ${activeTc} Umwandlung${activeTc === 1 ? "" : "en"} (${loadPct}% ausgelastet)`
     : `${maxTc} — aktuell keine Umwandlung aktiv`;
+  $("#hlsModeSelect").value = state.settings.transcodeHlsMode === "vod" ? "vod" : "event";
   $("#tmdbKeyInput").value = "";
   $("#omdbKeyInput").value = "";
   $("#tmdbStatus").innerHTML = state.settings.tmdbConfigured
@@ -630,6 +631,7 @@ async function saveSettings(e) {
     startBufferSeconds: parseInt($("#startBufRange").value, 10) || 0,
     trickplayIntervalSec: parseInt($("#tpInterval").value, 10),
     maxTranscodes: parseInt($("#maxTcRange").value, 10) || 4,
+    transcodeHlsMode: $("#hlsModeSelect").value || "event",
     hwaccelMode: $("#hwaccelMode").value || "auto",
     autoRenameConfirmedMovies: !!$("#autoRenameToggle").checked,
   };

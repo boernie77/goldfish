@@ -91,6 +91,10 @@ type settingsDTO struct {
 	ActiveTranscodes int `json:"activeTranscodes"`
 	// LoadPercent: Auslastung des gewichteten Budgets in Prozent (100 = voll).
 	LoadPercent int `json:"loadPercent"`
+	// TranscodeHLSMode: "event" (Standard, wachsende Playlist) oder "vod"
+	// (komplette Playlist sofort, siehe playback/vod.go). Leer im PUT-Body =
+	// nicht mitgeschickt, bleibt unveraendert.
+	TranscodeHLSMode string `json:"transcodeHlsMode"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
@@ -126,7 +130,34 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 		MaxTranscodes:             s.maxTranscodesSetting(),
 		ActiveTranscodes:          s.activeTranscodes(),
 		LoadPercent:               s.transcodeLoadPercent(),
+		TranscodeHLSMode:          s.transcodeHLSModeSetting(),
 	})
+}
+
+// transcodeHLSModeKey: Settings-Schluessel fuer den Playlist-Modus der
+// Transcodes ("event" | "vod").
+const transcodeHLSModeKey = "transcode_hls_mode"
+
+// transcodeHLSModeSetting liefert den gespeicherten Modus, Standard "event".
+func (s *Server) transcodeHLSModeSetting() string {
+	if v, _ := s.Store.GetSetting(transcodeHLSModeKey, ""); v == "vod" {
+		return "vod"
+	}
+	return "event"
+}
+
+// wantsVODPlaylist: soll diese Playlist-Anfrage eine komplette VOD-Playlist
+// bekommen? `?hls=vod` / `?hls=event` ueberschreibt die Einstellung fuer
+// genau diesen Client — zum Testen einzelner Geraete, bevor der Modus fuer
+// alle umgestellt wird.
+func (s *Server) wantsVODPlaylist(r *http.Request) bool {
+	switch r.URL.Query().Get("hls") {
+	case "vod":
+		return true
+	case "event":
+		return false
+	}
+	return s.transcodeHLSModeSetting() == "vod"
 }
 
 // maxTranscodesSettingKey ist der Settings-Schluessel fuer die Obergrenze
@@ -279,6 +310,17 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			s.Playback.SetMaxSessions(body.MaxTranscodes)
 		}
 	}
+	switch body.TranscodeHLSMode {
+	case "":
+	case "event", "vod":
+		if err := s.Store.SetSetting(transcodeHLSModeKey, body.TranscodeHLSMode); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+	default:
+		writeError(w, 400, "transcodeHlsMode muss event|vod sein")
+		return
+	}
 	hw, _ := s.Store.GetSetting("hwaccel_mode", "auto")
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "settings_change",
@@ -295,5 +337,6 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		MaxTranscodes:             s.maxTranscodesSetting(),
 		ActiveTranscodes:          s.activeTranscodes(),
 		LoadPercent:               s.transcodeLoadPercent(),
+		TranscodeHLSMode:          s.transcodeHLSModeSetting(),
 	})
 }
