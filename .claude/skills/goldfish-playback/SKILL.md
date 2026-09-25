@@ -470,6 +470,34 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
 - Benchmark (96-min-1080p, Intel iGPU + Quadro P400): VAAPI 60 s,
   NVENC 219 s, Software 703 s. Auf dieser Hardware VAAPI-Default richtig.
 
+#### VOD-Playlist hinter Schalter (2026-09-25, v1.4.39, Jellyfin-Ansatz)
+
+Einstellung `transcode_hls_mode` (`event` = Standard, `vod`), Admin-UI „Wiedergabe-Liste
+bei Umwandlungen", pro Anfrage überschreibbar mit `?hls=vod|event` (zum Testen einzelner
+Geräte). Code: `internal/playback/vod.go`, Tests `vod_test.go`.
+- **Playlist:** sofort komplett inkl. `ENDLIST`, jede Segment-URI trägt `hls=vod`.
+- **Segmentgrenzen nach Bildanzahl:** `force_key_frames expr:gte(n,n_forced*F)`,
+  F = ceil(2 × fps), Dauer F/fps. `-hls_time` = 0,95 × Dauer. **Gemessen** (29,97 fps,
+  VAAPI): alle Segmente exakt 2,002 s; Neustart bei Segment 7 lag 21 ms (Bild) / 45 ms
+  (Ton) neben dem Durchlauf. Bildrate per ffprobe (`r_frame_rate` = `avg_frame_rate`,
+  ±0,5 %, gecacht je Pfad).
+- **Fehlendes Segment** (`EnsureVODSegment`/`vodDecide`): warten, wenn ffmpeg in ≤ 5 s
+  dort ist (ExoPlayer-Zeitlimit 8 s), sonst `restartVOD` im **selben** Verzeichnis:
+  `-ss S+k·d`, `-output_ts_offset k·d`, `-start_number k`, `hls_flags +temp_file`
+  (Segment erscheint erst fertig). Geschriebene Segmente bleiben liegen.
+- **Anti-Ping-Pong:** Nur Anfragen, die NACH dem letzten Neustart der Sitzung ankamen,
+  dürfen neu starten.
+- **Segment-Anfragen dürfen im VOD-Weg eine Sitzung erzeugen** (die Playlist wird nie
+  neu geladen, nach 30-Min-GC käme sonst nichts mehr). Ausnahme: das Item wurde in den
+  letzten 10 min per `StopAllForItem` gestoppt (`StoppedWithin`), damit keine
+  Geister-Umwandlung nach dem Schließen entsteht.
+- **Kein VOD bei:** variabler Bildrate, Entflimmern (CPU-`bwdif` verdoppelt die
+  Bildrate), Musik, Laufzeit ≤ 0. Dann EVENT wie bisher.
+- **Bestehende Sitzungen behalten ihren Modus**, umgestellt wird nur für neue.
+- `Position()` rechnet im VOD über `vodStartSeg` + fertige Segmente des Laufs.
+- **Stand:** ausgeliefert, Standard `event`. Geräte-Tests (Browser, Apple TV, Android,
+  Fire TV, Linux) stehen aus, erst danach Standard umstellen.
+
 #### -12888 „Playlist File unchanged" auf Apple-Geräten (2026-09-25)
 
 tvOS-Abbruch mitten im Film, obwohl ffmpeg ~80 min VOR der Wiedergabe lag. Die
