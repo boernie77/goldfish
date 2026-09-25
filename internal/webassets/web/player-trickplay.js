@@ -56,6 +56,19 @@ async function attachTrickplayHover(vjs, vttUrl) {
     if (left < 0) left = 0;
     if (left + tileW > rect.width) left = rect.width - tileW;
     preview.style.left = left + "px";
+    // Über der Zielzeit-Anzeige von Video.js platzieren, nicht darauf
+    // (User-Report 2026-09-25: das Bild verdeckte die Zeit). Gemessen statt
+    // fest verdrahtet — Abstand und Größe der Anzeige hängen von Skin,
+    // Schriftgröße und Vollbild ab.
+    const tip = pcEl.querySelector(".vjs-mouse-display .vjs-time-tooltip");
+    const tr = tip && tip.getBoundingClientRect();
+    if (tr && tr.height > 0 && tr.top < rect.top) {
+      preview.style.bottom = (rect.bottom - tr.top + 4) + "px";
+      preview.style.marginBottom = "0";
+    } else {
+      preview.style.bottom = "100%";
+      preview.style.marginBottom = "8px";
+    }
   };
   const onLeave = () => { preview.style.display = "none"; };
 
