@@ -78,6 +78,10 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
   quantitatives Throttling und liefert dem User exakt das gewünschte "hat
   immer Vorrang". Tests: `internal/playback/activity_test.go`.
 - Asset-Endpoints: `/api/trickplay/{id}/thumbs.vtt`, `/api/trickplay/{id}/sprite.jpg`.
+- **Vorschaubild über der Zielzeit, nicht darauf** (v1.4.40, 2026-09-25): `player-trickplay.js`
+  misst beim Hovern `.vjs-mouse-display .vjs-time-tooltip` und setzt das Bild 4 px darüber.
+  Vorher lag es fest 8 px über der Leiste und verdeckte die Zeit. Nicht wieder auf einen
+  festen Abstand zurückbauen, der hängt von Skin, Schriftgröße und Vollbild ab.
 - UI: Eigenes kompaktes Hover-Plugin **direkt in `app.js`** (`attachTrickplayHover`,
   `parseThumbVTT`) — parst VTT, hängt Mousemove auf `progressControl`, zeigt
   Sprite-Ausschnitt via `background-position`. Kein externes JS-Plugin.
