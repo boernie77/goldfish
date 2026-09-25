@@ -127,6 +127,10 @@ type Session struct {
 	// Cache-Verzeichnis geloescht, sobald Done() true war — Client bekam
 	// 404 auf gerade geloeschte Segmente.
 	failed bool
+	// Playlist-Pacing (siehe pacing.go): wie viele Segmente die Playlist
+	// zuletzt zeigte und wann sich das zuletzt geändert hat. Geschützt durch mu.
+	paceExposed int
+	paceChanged time.Time
 }
 
 // UsesSoftwareDecode meldet, ob diese Sitzung bereits vollständig per CPU

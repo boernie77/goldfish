@@ -483,9 +483,16 @@ ist also genauso betroffen.
   frischen AVPlayer und springt an die aktuelle Stelle. Höchstens 3× in 2 min.
 - **Diagnose:** `docker exec goldfish ls -l --time-style=+%H:%M:%S /config/cache/<session>*/seg*.ts`
   → Lücken in den Schreibzeiten gegen die `[playback] FEHLER`-Zeile halten.
-- **Offen:** Android/Fire TV haben noch keine solche Wiederaufnahme. Ein serverseitiger
-  Dauerfix wäre eine VOD-Playlist mit allen Segmenten vorab (Jellyfin-Ansatz); größerer
-  Umbau, betrifft alle Clients.
+- **Serverseitiger Fix für ALLE Clients (v1.4.38, `internal/playback/pacing.go`):**
+  Playlist-Pacing. Liegt ffmpeg weit vorn, hält die Playlist bis zu
+  `paceReserveSegments` (30 = 60 s) fertige Segmente zurück. Jede Anfrage, die ≥ `paceStep`
+  (1 s) nach der letzten Änderung kommt, gibt ≥ 1 Segment frei. Stockt ffmpeg, wächst die
+  Playlist aus dem Vorrat weiter. Erste Anfrage, fertiges ffmpeg (Done/ENDLIST) und
+  langsames ffmpeg zeigen alles, also nie schlechter als vorher. Gekürzte Playlists tragen
+  **kein** ENDLIST. Deckt Stocken bis ~30 s ab, aber nur wenn ffmpeg vorher einen Vorrat
+  aufbauen konnte (> 2× Echtzeit). Bei 4K nahe Echtzeit bleibt das Risiko, dann hilft nur
+  eine VOD-Playlist (Jellyfin-Ansatz, großer Umbau). Tests: `pacing_test.go`
+  (u. a. `TestPaceSurvivesFFmpegStall`).
 
 #### Budget zählt nur laufende ffmpeg-Prozesse (2026-09-25, v1.4.35)
 

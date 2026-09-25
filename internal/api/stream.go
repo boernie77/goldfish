@@ -643,6 +643,16 @@ func (s *Server) transcodePlaylist(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	// Vorrat gegen ffmpeg-Stocken (siehe playback/pacing.go): liegt ffmpeg
+	// weit vorn, zeigt die Playlist nicht sofort jedes fertige Segment, damit
+	// sie auch während einer kurzen ffmpeg-Pause weiter wächst. Sonst bricht
+	// AVPlayer nach 3 s ohne Änderung mit -12888 ab (tvOS, 2026-09-25).
+	playlist := string(raw)
+	done := sess.Done() || strings.Contains(playlist, "#EXT-X-ENDLIST")
+	total := playback.CountPlaylistSegments(playlist)
+	playlist = playback.TruncatePlaylist(playlist, sess.PacedSegmentCount(total, done))
+	raw = []byte(playlist)
+
 	q := r.URL.RawQuery
 	var out strings.Builder
 	// Eine führende `#EXT-X-DISCONTINUITY`-Zeile (bevor das erste Segment
