@@ -999,3 +999,13 @@ Koordinaten in obiger Tabelle schon belegt sind. Empfohlene Folgeplätze:
   Aus Bulk-Auswahl heraus kann so auch direkt eine neue Playlist erstellt
   werden, die alle gewählten Videos enthält.
 
+
+
+### Player-Dialog: Backdrop-Klick vs. Größe ändern (2026-09-25, v1.4.36)
+Der Player-Dialog hat `resize: both`. Der Anfasser gehört zum `<dialog>` selbst, deshalb
+feuert das Loslassen nach dem Größeändern einen `click` mit `target === #playerDialog`.
+Der Backdrop-Schließen-Handler (seit 1.4.32) schloss daraufhin den Player. Regel:
+**Backdrop nie nur über `e.target === dialog` erkennen.** Zusätzlich müssen
+`pointerdown` UND `click` außerhalb von `getBoundingClientRect()` liegen (deckt auch
+das Verschieben per Kopfleiste ab, wenn es außerhalb endet). `cards.js`/`matching.js`
+nutzen noch das einfache Muster, sind aber nicht resizable.
