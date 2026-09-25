@@ -1,5 +1,25 @@
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Transcodes abgelehnt, obwohl kein ffmpeg lief — fertige Sitzungen belegten das Budget (2026-09-25, v1.4.35)
+
+- **User-Meldung:** „es klappen schon wieder keine Transcodes. Als wäre ich
+  wieder in einem Limit."
+- **Befund:** Log `ABGELEHNT … Budget erschoepft (355+50 von 400 Punkten,
+  8 Sitzungen aktiv)`. Gleichzeitig zeigte `docker top goldfish` **keinen**
+  ffmpeg-Prozess.
+- **Ursache:** Kurze Clips wandelt VAAPI in Sekunden bis Minuten komplett um.
+  Erfolgreich beendete Sitzungen bleiben bewusst bis zum 30-Min-Leerlauf-GC im
+  Pool, weil der Client die letzten Segmente noch abholen muss (Lehre aus dem
+  AV1-„Source error" vom 2026-09-17). `activeCostLocked`/
+  `activeVideoSessionsLocked` zählten sie aber weiter voll. Beim schnellen
+  Durchklicken vieler Videos war das Budget so mit „Geistern" gefüllt. Der Fix
+  vom 17.09. hatte nur *fehlgeschlagene* Sitzungen ausgebucht.
+- **Fix:** Beide Zählfunktionen überspringen `Done()==true`. Die Sitzungen
+  bleiben im Pool, belegen aber keine Punkte und zählen nicht zum Anzahl-Deckel.
+  Laufende, nur verlassene Sitzungen zählen weiter, weil sie die GPU tatsächlich
+  belasten. Die Schutzgrenze gegen den Host-Absturz ist damit unverändert.
+- **Test:** `TestFinishedSessionsDoNotBlockBudget` (mit Gegenprobe).
+
 ### ✅ WebVTT-Untertitel wurden nicht eingeblendet + Sidecar-Dateien komplett unsichtbar (2026-09-15)
 
 - **User-Meldung:** „kann Goldfish webvtt Untertitel verarbeiten?" — bei den
