@@ -20,8 +20,8 @@ media-server dependencies beyond `ffmpeg`.
   (Authentik/Keycloak/Authelia/Zitadel) alongside username/password
 - **Scheduled auto-scan** with per-folder exclusions, automatic database
   backups, and an admin activity log
-- **Native apps** for iOS, iPadOS, macOS, Apple TV and Android, in addition
-  to the built-in web UI
+- **Native apps** for iOS, iPadOS, macOS, Apple TV and Fire TV, in addition
+  to the built-in web UI (Android app in preparation)
 - **Embedded Video.js** player with trickplay hover previews, shuffle play,
   and bulk file operations (move, delete, download) with a shift-click
   range-select UI
