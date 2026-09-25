@@ -470,6 +470,23 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
 - Benchmark (96-min-1080p, Intel iGPU + Quadro P400): VAAPI 60 s,
   NVENC 219 s, Software 703 s. Auf dieser Hardware VAAPI-Default richtig.
 
+#### -12888 „Playlist File unchanged" auf Apple-Geräten (2026-09-25)
+
+tvOS-Abbruch mitten im Film, obwohl ffmpeg ~80 min VOR der Wiedergabe lag. Die
+Segment-mtimes zeigten eine **8-s-Pause von ffmpeg** (seg02778 → seg02779, Szene mit
+14-MB-Segmenten). AVPlayer toleriert bei einer EVENT-Playlist ohne `ENDLIST` nur
+1,5 × `TARGETDURATION` (= **3 s** bei `-hls_time 2`) ohne Änderung, **unabhängig vom
+Vorlauf**. ExoPlayer (Android/Fire TV) wirft `PlaylistStuckException` nach 3,5 × TD = 7 s,
+ist also genauso betroffen.
+- **Fix (Apple-App, Commit 8aa5c82 in goldfish-apple):** `recoverStalledTranscode()` öffnet
+  dieselbe Sitzung (gleiches `start=`, ohne `fresh=1`, also kein neues ffmpeg) in einem
+  frischen AVPlayer und springt an die aktuelle Stelle. Höchstens 3× in 2 min.
+- **Diagnose:** `docker exec goldfish ls -l --time-style=+%H:%M:%S /config/cache/<session>*/seg*.ts`
+  → Lücken in den Schreibzeiten gegen die `[playback] FEHLER`-Zeile halten.
+- **Offen:** Android/Fire TV haben noch keine solche Wiederaufnahme. Ein serverseitiger
+  Dauerfix wäre eine VOD-Playlist mit allen Segmenten vorab (Jellyfin-Ansatz); größerer
+  Umbau, betrifft alle Clients.
+
 #### Budget zählt nur laufende ffmpeg-Prozesse (2026-09-25, v1.4.35)
 
 `activeCostLocked`/`activeVideoSessionsLocked` überspringen Sitzungen mit
