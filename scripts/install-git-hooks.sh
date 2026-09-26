@@ -55,7 +55,23 @@ elif [ "$active" != "0" ]; then
   echo "  Warten, bis niemand mehr streamt, oder erzwingen mit 'git push --no-verify'."
   exit 1
 fi
-echo "✓ Keine aktive Transcode-Wiedergabe — Deploy unbedenklich."
+# Zweite Pruefung (2026-09-26): ffmpeg allein reicht nicht. Seit der
+# VOD-Playlist ist ein Film oft nach wenigen Minuten fertig umgewandelt,
+# waehrend weiter geschaut wird — ein Deploy riss so eine Mac-App-Wiedergabe
+# ab (HTTP 502 waehrend des Neustarts). Der Server meldet deshalb, wie lange
+# die letzte Wiedergabe-Aktivitaet (Segment-/Fortschritts-Abruf, Direct Play)
+# zurueckliegt — nur auf Anfragen aus dem Container selbst.
+idle=$(ssh -p 2202 -o ConnectTimeout=5 root@192.168.2.140 \
+  "docker exec goldfish curl -s --max-time 5 localhost:8096/api/health" 2>/dev/null \
+  | grep -o '"playbackIdleSec":-\?[0-9]*' | cut -d: -f2 || true)
+if [ -n "$idle" ] && [ "$idle" -ge 0 ] && [ "$idle" -lt 600 ]; then
+  echo ""
+  echo "✗ Push abgebrochen: vor ${idle}s wurde noch etwas abgespielt."
+  echo "  Ein Deploy jetzt wuerde die Wiedergabe unterbrechen (Neustart = kurz HTTP 502)."
+  echo "  Warten, bis niemand mehr schaut, oder erzwingen mit 'git push --no-verify'."
+  exit 1
+fi
+echo "✓ Keine aktive Wiedergabe — Deploy unbedenklich."
 
 range="$(git rev-parse @{u} 2>/dev/null || echo '')..HEAD"
 changed=""

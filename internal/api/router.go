@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"io/fs"
+	"net"
 	"net/http"
 	"strings"
 
@@ -382,6 +383,20 @@ func (s *Server) Router() http.Handler {
 	return r
 }
 
+// isLoopbackRequest: kommt die Anfrage direkt von localhost (nicht ueber den
+// Reverse-Proxy — der setzt X-Forwarded-For)?
+func isLoopbackRequest(r *http.Request) bool {
+	if r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("X-Real-IP") != "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // buildTag wird bei jedem Code-Push aktualisiert und ist im /api/health
 // sichtbar — schneller Smoke-Test, ob der laufende Container die aktuelle
 // Binärversion ist (statt z.B. eines fehlgeschlagenen Redeploys).
@@ -391,9 +406,9 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.42"
+const appVersion = "1.4.43"
 
-func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
 		"status":  "ok",
 		"version": appVersion,
@@ -411,6 +426,22 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"tmdb": map[string]any{
 			"enabled": s.Enrich != nil && s.Enrich.Client().Enabled(),
 		},
+	}
+	// Deploy-Schutz (scripts/install-git-hooks.sh, 2026-09-26): wie lange die
+	// letzte Wiedergabe-Aktivitaet zurueckliegt. Nur fuer Anfragen aus dem
+	// Container selbst (docker exec … curl localhost) — dieser Endpoint ist
+	// ohne Anmeldung auch von aussen erreichbar, und „gerade schaut jemand"
+	// geht niemanden draussen etwas an. Ausloeser: ein Deploy riss eine
+	// laufende Mac-App-Wiedergabe ab (HTTP 502 waehrend des Neustarts), weil
+	// der alte Schutz nur ffmpeg zaehlte und der Film per VOD schon fertig
+	// umgewandelt war.
+	if isLoopbackRequest(r) {
+		idle := playback.IdleFor()
+		secs := -1
+		if idle >= 0 {
+			secs = int(idle.Seconds())
+		}
+		resp["playbackIdleSec"] = secs
 	}
 	// Trickplay-Diagnose: Worker-Zustand + Status-Verteilung. Hilfreich für
 	// Außen-Checks („läuft der Worker?", „wie viele pending?") ohne Auth.

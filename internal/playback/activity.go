@@ -41,3 +41,16 @@ func Active() bool {
 	defer activityMu.Unlock()
 	return !lastActivity.IsZero() && time.Since(lastActivity) < activityWindow
 }
+
+// IdleFor liefert, wie lange die letzte beobachtete Wiedergabe-Aktivität
+// zurückliegt (-1 = seit dem Start keine). Für den Deploy-Schutz: ffmpeg
+// allein reicht dort nicht, seit der VOD-Playlist ist ein Film oft nach
+// wenigen Minuten fertig umgewandelt, während weiter geschaut wird.
+func IdleFor() time.Duration {
+	activityMu.Lock()
+	defer activityMu.Unlock()
+	if lastActivity.IsZero() {
+		return -1
+	}
+	return time.Since(lastActivity)
+}
