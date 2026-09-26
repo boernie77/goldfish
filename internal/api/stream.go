@@ -1,10 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -367,6 +369,41 @@ type playbackErrorRequest struct {
 // nie (z. B. ein Netzwerkabbruch beim Client, ein Decode-Fehler im Browser-
 // `<video>`-Element) — nur der Client weiß zuverlässig, dass die Wiedergabe
 // gerade fehlgeschlagen ist.
+// playbackDiag nimmt Diagnose-Messwerte des Browser-Players entgegen und
+// schreibt sie ins Server-Log (Zeile „[diag]"). Der Player schickt sie, wenn
+// die Wiedergabe ins Stocken gerät (Video.js „waiting"), mit den letzten
+// Messpunkten davor: Puffer, Downloads/Fehler von VHS, verworfene Bilder.
+// Anlass (2026-09-26): Ruckeln im Browser nach einer Pause, das der Server
+// nicht sieht (die Mac-App spielt dieselbe Sitzung ruckelfrei). Bewusst
+// nur Log, kein Aktivitätsprotokoll; Größe begrenzt.
+func (s *Server) playbackDiag(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItem(id)
+	if err != nil || it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	raw, _ := io.ReadAll(io.LimitReader(r.Body, 8192))
+	var compact bytes.Buffer
+	if json.Compact(&compact, raw) != nil {
+		writeError(w, 400, "ungültige Daten")
+		return
+	}
+	who := "unbekannt"
+	if me := currentUser(r); me != nil {
+		who = me.Username
+	}
+	log.Printf("[diag] item=%d benutzer=%s geraet=%q %s", it.ID, who, deviceLabel(r), compact.String())
+	w.WriteHeader(204)
+}
+
 func (s *Server) playbackError(w http.ResponseWriter, r *http.Request) {
 	id, err := pathInt(r, "id")
 	if err != nil {

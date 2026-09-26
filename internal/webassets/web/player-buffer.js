@@ -362,6 +362,78 @@ function tuneVhsBuffer(vjs) {
   videojs.Vhs.BACK_BUFFER_LENGTH = back;
 }
 
+// Wiedergabe-Diagnose (2026-09-26): Messpunkte alle 2 s, bei einem Stocken
+// (Video.js „waiting") ein paar Sekunden später die letzten Punkte ans
+// Server-Log (POST /api/playback/{id}/diag, Zeile „[diag]"). Anlass: Ruckeln
+// nach einer Pause, das nur der Browser-Player zeigt — ohne Messwerte aus
+// dem Browser nicht zu klären. Höchstens eine Meldung je 30 s.
+const PLAYBACK_DIAG_KEEP = 15;
+let playbackDiag = null;
+
+function playbackDiagSample(d) {
+  const vjs = d.vjs;
+  if (!vjs || state.vjs !== vjs) return;
+  const off = (state.playback && state.playback.virtualOffset) || 0;
+  const ct = vjs.currentTime() || 0;
+  const br = vjs.buffered();
+  const ranges = [];
+  for (let i = 0; i < br.length; i++) ranges.push([+br.start(i).toFixed(1), +br.end(i).toFixed(1)]);
+  let st = {};
+  try { st = vjs.tech({ IWillNotUseThisInPlugins: true }).vhs.stats || {}; } catch {}
+  const vid = vjs.el() ? vjs.el().querySelector("video") : null;
+  let q = null;
+  try { q = vid && vid.getVideoPlaybackQuality ? vid.getVideoPlaybackQuality() : null; } catch {}
+  d.samples.push({
+    t: Math.round(performance.now() / 1000), abs: Math.round(off + ct), ct: +ct.toFixed(1), br: ranges,
+    p: vjs.paused() ? 1 : 0, rs: vid ? vid.readyState : -1,
+    bw: st.bandwidth ? Math.round(st.bandwidth / 1e5) / 10 : 0,
+    req: st.mediaRequests || 0, err: st.mediaRequestsErrored || 0,
+    to: st.mediaRequestsTimedout || 0, ab: st.mediaRequestsAborted || 0,
+    mb: Math.round((st.mediaBytesTransferred || 0) / 1048576), sec: Math.round(st.mediaSecondsLoaded || 0),
+    g: vhsTuned.goal, b: vhsTuned.back,
+    drop: q ? q.droppedVideoFrames : null, frames: q ? q.totalVideoFrames : null,
+  });
+  if (d.samples.length > PLAYBACK_DIAG_KEEP) d.samples.shift();
+}
+
+function sendPlaybackDiag(d, reason) {
+  if (!d || playbackDiag !== d) return;
+  const now = Date.now();
+  if (now - d.lastSent < 30000) return;
+  d.lastSent = now;
+  playbackDiagSample(d);
+  const body = JSON.stringify({ reason, samples: d.samples });
+  fetch(`/api/playback/${d.itemId}/diag`, {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" }, body,
+  }).catch(() => {});
+}
+
+function startPlaybackDiag(vjs, item) {
+  stopPlaybackDiag();
+  if (!vjs || !item) return;
+  const d = { vjs, itemId: item.id, samples: [], lastSent: 0, timer: null, sendTimer: null };
+  d.onWaiting = () => {
+    playbackDiagSample(d);
+    // Etwas warten, damit auch die Sekunden NACH dem Stocken mitkommen.
+    if (!d.sendTimer) d.sendTimer = setTimeout(() => { d.sendTimer = null; sendPlaybackDiag(d, "waiting"); }, 6000);
+  };
+  d.onError = () => sendPlaybackDiag(d, "error");
+  vjs.on("waiting", d.onWaiting);
+  vjs.on("error", d.onError);
+  d.timer = setInterval(() => playbackDiagSample(d), 2000);
+  playbackDiag = d;
+}
+
+function stopPlaybackDiag() {
+  const d = playbackDiag;
+  if (!d) return;
+  playbackDiag = null;
+  clearInterval(d.timer);
+  if (d.sendTimer) clearTimeout(d.sendTimer);
+  try { d.vjs.off("waiting", d.onWaiting); d.vjs.off("error", d.onError); } catch {}
+}
+
 function startBufferDisplay(item, mode, profile, audioIdx) {
   stopTranscodeProgress();
   const el = $("#transcodeAhead");
@@ -465,6 +537,7 @@ function startBufferDisplay(item, mode, profile, audioIdx) {
       // Poll-Fehler — stumm
     }
   };
+  if (isTranscode) startPlaybackDiag(state.vjs, item);
   poll();
   // Timer alle 1s: in Transcode-Mode zieht das Server-Progress nach, sonst
   // reine Buffer-Anzeige. 1s fühlt sich bei Mouse-Move responsiver an als 2s.
@@ -515,6 +588,7 @@ function releasePlayerDuration(vjs) {
 // Stoppt nur den Poll-Timer, lässt aber das Overlay sichtbar.
 // So bleibt die Buffer/Auflösungs-Anzeige nach Transcode-Ende weiter bestehen.
 function stopTranscodeProgress() {
+  stopPlaybackDiag();
   if (state.transcodePollTimer) {
     clearInterval(state.transcodePollTimer);
     state.transcodePollTimer = null;

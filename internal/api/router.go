@@ -196,6 +196,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/playback/{id}/start", s.playbackStart)
 		r.Post("/playback/{id}/stop", s.playbackStop)
 		r.Post("/playback/{id}/error", s.playbackError)
+		r.Post("/playback/{id}/diag", s.playbackDiag)
 		r.Get("/stream/{id}", s.streamDirect)
 		r.Get("/transcode/{id}/index.m3u8", s.transcodePlaylist)
 		r.Get("/transcode/{id}/progress", s.transcodeProgress)
@@ -390,7 +391,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.41"
+const appVersion = "1.4.42"
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]any{
