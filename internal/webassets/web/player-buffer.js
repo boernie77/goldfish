@@ -275,20 +275,43 @@ function startPausePrefetch(vjs) {
   if (dei && dei !== "auto") params.set("deinterlace", dei);
   const playlistUrl = `/api/transcode/${item.id}/index.m3u8?${params}`;
 
+  // Nur ein Fenster ab der aktuellen Position vorladen, nicht die ganze
+  // Playlist (2026-09-26): seit der VOD-Playlist steht dort der KOMPLETTE
+  // Film — der Browser zog in jeder Pause den ganzen Rest herunter (bei
+  // „Original" schnell mehrere GB) und die Anfragen blockierten die
+  // Verbindungen, die der Player nach der Pause selbst braucht.
+  const PREFETCH_WINDOW_SEC = 300;
+  let running = false;
   const tick = async () => {
     // Sicherheitsnetz: Player kann zwischen Timer-Ticks weitergespielt oder
     // geschlossen worden sein, ohne dass stopPausePrefetch() zwischenzeitlich
     // gegriffen hat (z.B. Source-Wechsel ohne "play"-Event).
     if (!state.vjs || state.vjs !== vjs || !vjs.paused()) { stopPausePrefetch(); return; }
+    // Keine zweite Schleife neben einer noch laufenden (setInterval startet
+    // sonst alle 4 s eine weitere, die parallel mitlädt).
+    if (running) return;
+    running = true;
+    try { await prefetchWindow(); } finally { running = false; }
+  };
+  const prefetchWindow = async () => {
     let text;
     try {
       const res = await fetch(playlistUrl, { credentials: "same-origin" });
       if (!res.ok) return;
       text = await res.text();
     } catch { return; }
-    const segUrls = text.split("\n")
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith("#"));
+    // Segmente mit ihrer Startzeit (relativ zur Playlist) aus den EXTINF-Zeilen.
+    const cur = vjs.currentTime() || 0;
+    const segUrls = [];
+    let t = 0, dur = 0;
+    for (const raw of text.split("\n")) {
+      const l = raw.trim();
+      if (l.startsWith("#EXTINF:")) { dur = parseFloat(l.slice(8)) || 0; continue; }
+      if (!l || l.startsWith("#")) continue;
+      if (t + dur >= cur && t <= cur + PREFETCH_WINDOW_SEC) segUrls.push(l);
+      t += dur;
+      if (t > cur + PREFETCH_WINDOW_SEC) break;
+    }
     for (const rel of segUrls) {
       if (!pausePrefetchSeen || !vjs.paused()) return;
       let abs;
@@ -300,6 +323,43 @@ function startPausePrefetch(vjs) {
   };
   tick();
   pausePrefetchTimer = setInterval(tick, 4000);
+}
+
+// Puffergrenzen von VHS an die tatsächliche Bitrate anpassen (2026-09-26).
+//
+// VHS hält standardmäßig bis 60 s voraus und 30 s zurück — in SEKUNDEN, egal
+// wie groß die Segmente sind. Bei einer „Original"-Umwandlung mit ~19 Mbit/s
+// sind das über 200 MB. Firefox begrenzt den Video-Puffer einer Seite auf
+// rund 100 MB; wird er voll, verwirft der Browser geladene Stücke, VHS kann
+// nicht mehr anhängen, der Puffer läuft auf 0, es kommen ein paar Sekunden
+// rein, und das Spiel beginnt von vorn (User-Report: „Buffer geht bis 3
+// hoch, zählt auf 0 runter und ruckelt", besonders nach einer Pause, weil
+// VHS in der Pause bis zum Maximum vorlädt).
+//
+// Deshalb aus den VHS-Statistiken (geladene Bytes / geladene Sekunden) die
+// echte Bitrate messen und den Puffer auf ein BYTE-Budget begrenzen: 80 %
+// voraus, 20 % zurück, voraus nie mehr als die Puffer-Einstellung.
+// videojs.Vhs.* sind VHS-weite Werte, die VHS bei jeder Prüfung frisch liest
+// (goalBufferLength/trimBackBuffer) — es gibt immer nur einen Player.
+const VHS_BYTE_BUDGET = 90 * 1024 * 1024;
+let vhsTuned = { goal: 0, back: 0 };
+
+function tuneVhsBuffer(vjs) {
+  if (typeof videojs === "undefined" || !videojs.Vhs || !vjs) return;
+  let vhs;
+  try { vhs = vjs.tech({ IWillNotUseThisInPlugins: true }).vhs; } catch { return; }
+  const st = vhs && vhs.stats;
+  if (!st || !(st.mediaSecondsLoaded > 6) || !(st.mediaBytesTransferred > 0)) return;
+  const bytesPerSec = st.mediaBytesTransferred / st.mediaSecondsLoaded;
+  const userGoal = Number(state.settings && state.settings.bufferSeconds) || 30;
+  const goal = Math.max(8, Math.min(userGoal, Math.floor(VHS_BYTE_BUDGET * 0.8 / bytesPerSec)));
+  const back = Math.max(4, Math.min(30, Math.floor(VHS_BYTE_BUDGET * 0.2 / bytesPerSec)));
+  // Nur bei Änderung setzen — jeder Zugriff schreibt eine Warnung ins Log.
+  if (goal === vhsTuned.goal && back === vhsTuned.back) return;
+  vhsTuned = { goal, back };
+  videojs.Vhs.GOAL_BUFFER_LENGTH = goal;
+  videojs.Vhs.MAX_GOAL_BUFFER_LENGTH = goal;
+  videojs.Vhs.BACK_BUFFER_LENGTH = back;
 }
 
 function startBufferDisplay(item, mode, profile, audioIdx) {
@@ -367,6 +427,7 @@ function startBufferDisplay(item, mode, profile, audioIdx) {
   // nach Transcode-Ende bei jedem Mouse-Move aktuelle Werte zeigt.
   let transcodeDone = false;
   const poll = async () => {
+    if (isTranscode && state.vjs) tuneVhsBuffer(state.vjs);
     const clientAhead = clientBuffer();
     const res = currentPlayingRes();
     const resChip = res ? `${res} · ` : "";

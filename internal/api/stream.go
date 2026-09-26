@@ -940,9 +940,12 @@ func (s *Server) serveVODSegment(w http.ResponseWriter, r *http.Request, it *mod
 		return
 	}
 	w.Header().Set("Content-Type", "video/mp2t")
-	// Kein langes Caching: nach einem Neustart kann dasselbe Segment neu
-	// geschrieben werden (inhaltlich gleich, aber nicht byte-identisch).
-	w.Header().Set("Cache-Control", "private, max-age=60")
+	// Wie im EVENT-Weg 30 min: die Pausen-Vorladefunktion des Browsers legt
+	// Segmente im HTTP-Cache ab; mit 60 s waren sie nach einer längeren Pause
+	// schon verfallen und wurden erneut geladen. Ein nach einem Neustart neu
+	// geschriebenes Segment ist inhaltlich gleichwertig (gleiche Grenzen,
+	// Zeitstempel innerhalb eines Bildes), der alte Stand bleibt also gültig.
+	w.Header().Set("Cache-Control", "private, max-age=1800")
 	http.ServeFile(w, r, path)
 }
 
