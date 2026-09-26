@@ -816,6 +816,18 @@ Stufe 2 — maximal ein zusätzlicher Fehlversuch, nie eine tote Wiedergabe.
   Settings-Dropdown „Auto / VAAPI / NVENC / Software" (siehe
   „Hardware-Beschleunigung"-Abschnitt). Software-Fallback bei Runtime-Fehlern.
 - Konfigurierbarer **Client-Puffer** (5–180 s) über `hls.config.maxBufferLength`.
+- **⚠ Die `html5.vhs`-Optionen GOAL_BUFFER_LENGTH/MAX_GOAL_BUFFER_LENGTH in `player.js` wirken
+  NICHT** (VHS liest nur die globalen `videojs.Vhs.*`, Standard 30/60 s voraus, 30 s zurück).
+  Seit v1.4.41 (2026-09-26) setzt `tuneVhsBuffer()` (`player-buffer.js`, im 1-s-Poll) die globalen
+  Werte nach der **gemessenen Bitrate** (VHS-Stats Bytes/Sekunden): Budget 90 MB, 80 % voraus
+  (max. Puffer-Einstellung, min. 8 s), 20 % zurück (4–30 s). Auslöser: Firefox, 19-Mbit/s-
+  „Original", nach einer Pause lief der Puffer auf 0, kam auf 3 s und fiel wieder (Firefox
+  verwirft über ~100 MB Video-Puffer geladene Stücke). **Nicht verifizierbar im
+  Claude-in-Chrome-Tab** (verborgen, lädt nichts). Prüfen im echten Browser per Konsole:
+  `JSON.stringify({g: videojs.Vhs.GOAL_BUFFER_LENGTH, b: videojs.Vhs.BACK_BUFFER_LENGTH})`.
+- **Pausen-Vorladen** (`startPausePrefetch`) lädt seit v1.4.41 nur 300 s ab der aktuellen
+  Position und nur in einer Schleife. Vorher lud es die ganze Playlist, mit VOD also den
+  kompletten Film, in parallelen Schleifen alle 4 s.
 
 ### Player-UI (Video.js Custom Components)
 - `ensurePlayerComponents()` registriert Subklassen von `videojs.getComponent("Button")`
