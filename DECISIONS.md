@@ -1,5 +1,26 @@
 ## Bekannte Probleme & Lösungen (Decision Log)
 
+### ✅ Transcode-Playlist auf VOD umgestellt + Folgefixes (2026-09-25 bis 27, v1.4.37–1.4.46)
+
+- **Auslöser:** tvOS brach mit -12888 „Playlist File unchanged“ ab, obwohl ffmpeg ~80 min voraus
+  war. ffmpeg stockte 8 s, AVPlayer toleriert bei EVENT-Playlist mit 2-s-Segmenten nur 3 s.
+- **Entscheidung:** erst Playlist-Pacing (1.4.38, 60-s-Vorrat), dann auf ausdrücklichen
+  User-Wunsch der Jellyfin-Weg: komplette VOD-Playlist sofort (1.4.39, `playback/vod.go`),
+  zuerst hinter Schalter, seit 26.09. Standard. Begründung des Users: **keine App neu
+  einreichen müssen.** Segmentgrenzen nach Bildanzahl, am Server gemessen exakt (2,002 s).
+  Neustart mitten im Film liegt unter einem Einzelbild neben dem Durchlauf.
+- **Folgefix Browser (1.4.41):** Firefox ruckelte nach Pausen. VHS hielt 60 s voraus + 30 s
+  zurück (Sekunden, nicht Bytes, bei 19 Mbit/s über 200 MB gegenüber ~100 MB Firefox-Limit), und
+  das Pausen-Vorladen zog mit VOD den ganzen Film. Jetzt Puffer nach gemessener Bitrate
+  (90 MB-Budget), Vorladen nur 5 min. Die `html5.vhs`-Optionen in `player.js` wirkten nie.
+- **Folgefix Deploy-Schutz (1.4.43):** Ein Hintergrund-Push riss eine Mac-App-Wiedergabe ab
+  (HTTP 502 im Neustart), weil der Schutz nur ffmpeg zählte. Jetzt zusätzlich
+  `playbackIdleSec` (nur localhost). Lehre für den Agenten: nicht automatisch pushen, während
+  der User testet.
+- **Scan-Bericht (1.4.44–1.4.46):** Der Server sammelt alle Bibliotheken eines Durchlaufs
+  (vorher nur der Browser-Tab). Übersicht mit Klick in die Details, Bericht übersteht Neustarts.
+- Details: Skills `goldfish-playback`, `goldfish-library`, `goldfish-deploy-ops`.
+
 ### ✅ Transcodes abgelehnt, obwohl kein ffmpeg lief — fertige Sitzungen belegten das Budget (2026-09-25, v1.4.35)
 
 - **User-Meldung:** „es klappen schon wieder keine Transcodes. Als wäre ich

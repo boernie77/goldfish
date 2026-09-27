@@ -139,6 +139,24 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
 - **Stack-ID:** 37 (Name `videoplayer`)
 - **URL:** http://<UNRAID-LAN-IP>:8098
 
+### Push-Schutz und Neustart-Folgen (Stand 2026-09-27)
+- **Jeder Push auf `main` = Deploy = Container-Neustart**, auch bei reiner Doku. Während des
+  Neustarts (~6 s) antwortet der Reverse-Proxy mit **HTTP 502**. Apps ab dem nächsten
+  Apple-Build zeigen dafür keine Fehlermeldung mehr (835c84d), ältere schon.
+- **Pre-Push-Hook** (`scripts/install-git-hooks.sh` → `.git/hooks/pre-push`, nach Änderung neu
+  installieren): blockiert bei (1) laufendem ffmpeg auf dem Host (`ps aux`, zählt auch
+  kurzlebige Hintergrund-ffmpegs; im Zweifel eine Minute später erneut) und (2)
+  `playbackIdleSec < 600` aus `docker exec goldfish curl -s localhost:8096/api/health`. Das Feld
+  gibt der Server **nur an localhost ohne Proxy-Header** heraus (`isLoopbackRequest`,
+  Test `health_loopback_test.go`). Anlass: Ein Hintergrund-Push riss eine Mac-App-Wiedergabe ab,
+  der VOD-Film war längst fertig umgewandelt.
+- **Arbeitsspeicher-Zustand geht beim Deploy verloren** (Sessions, frische Caches). Was bleiben
+  muss, gehört in die DB (Beispiel: `last_scan_report`).
+- **App-Repos, Push vs. Release:** Linux baut ein `.deb`-Release nur bei Tag `v*`
+  (`release.yml`), ein Push auf main ist folgenlos. Fire TV und Android haben keine CI, Uploads
+  (Amazon, Play Console) macht der User selbst. Bei Linux vor dem Arbeiten `git pull`: Vom zweiten
+  Rechner kommen eigene Versionen (am 27.09. lagen 0.1.62–0.1.64 schon auf GitHub).
+
 ### Build & Redeploy-Flow (vom Entwicklerrechner ohne Go-Installation)
 
 1. **Tar** des Source-Trees (ohne macOS-xattrs):

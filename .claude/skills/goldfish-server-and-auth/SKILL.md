@@ -319,3 +319,15 @@ Stand früher unter der (falschen) H1-Überschrift „Mac/iOS/tvOS-App" am Anfan
 Ein schlanker Video-Streaming-Server auf Intel-iGPU-Hardware. Einzelner Go-Binärcontainer,
 eingebettetes Web-UI, SQLite, ffmpeg mit VAAPI.
 
+## Stand der Client-Apps (2026-09-27)
+- **Android 1.4.0 (110)**: Am 27.09. wurden `feature/aufgegliederte-trefferanzeige` (Fuzzy-Suche,
+  aufgegliederte Treffer, Person-Filter nach Serie; lag seit 21.09. ungemergt) und
+  `feature/gesehen-sync` in `main` gemergt. Die AAB ist gebaut, den Upload macht der User.
+  **Vor neuer Arbeit prüfen, ob Feature-Branches offen sind**: `git log main..<branch>`.
+- **Fire TV 0.5.0 (41)**: Amazon-Einspruch erledigt, App genehmigt und live. Gesehen-Sync in main
+  (nach 0.5.0, noch nicht eingereicht).
+- **Linux 0.1.65**: released (Tag), Infoseite erkennt einen fertigen Download sofort
+  („Offline abspielen“ mit lokaler Weiterschauen-Abfrage). Maintainer-Adresse in
+  `debian/changelog` und `debian/control` seit 27.09. GitHub-noreply (Repo ist öffentlich).
+- **Apple**: Letzte Archive vom 25.09. (Mac 1.7/248, iOS 1.13/217, tvOS 1.10/17). Zwei
+  Player-Fixes liegen nur auf GitHub (8aa5c82 -12888-Wiederaufnahme, 835c84d 502/504 still).

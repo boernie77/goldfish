@@ -362,6 +362,13 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
   Backups sind reine Sicherungen zum Herunterladen/Aufbewahren, kein
   automatisierter Restore-Pfad.
 
+### Gesehen-Sync zwischen zwei Konten: Oberflächen (Stand 2026-09-27)
+Server: `internal/api/watch_links.go` (`/api/users/names`, `/api/watch-links[/{partnerId}[/confirm]]`),
+Propagation beim Setzen von „gesehen“, nur für Titel, die der Partner selbst sehen darf
+(ACL/FSK). Oberflächen: Apple-App (`WatchLinkSettingsView`), **Browser seit 1.4.44**
+(Skill `goldfish-web-ui`), **Android 1.4.0 (110)** (Einstellungen → Konto), **Fire TV** (Menü →
+„Gesehen-Sync …“). Linux hat keine. Gerätetests Android/Fire TV stehen aus.
+
 ### Gesehen-Markierung
 - `items.watched` + `watched_at`.
 - Auto-Markierung bei 90 % Laufzeit (einmal pro Player-Session).

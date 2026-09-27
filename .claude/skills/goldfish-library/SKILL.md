@@ -58,6 +58,25 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
   unabhängig; feuert pro Aufgaben-ID max. einmal pro Minute.
 - **Menü-Subtitle** zeigt „✓ N aktive Aufgabe(n)" wenn mindestens eine aktiv.
 
+### Scan-Bericht über alle Bibliotheken (seit 2026-09-27, v1.4.44–1.4.46)
+- **Der Server sammelt**, nicht mehr der Browser-Tab: `Scanner.BeginBatch(n)`/`EndBatch()` rahmen
+  „Alle Bibliotheken“ (`startScanAll`, Durchlauf beginnt **synchron** vor der Antwort) und den
+  Auto-Scan ohne feste Bibliothek (`runAutoScanTask`). `ScanStatus` liefert `batchActive`,
+  `batchTotal`, `batchDone` und nach Ende `batchSummaries` (**nur** nach Ende, während des Scans
+  pollt das UI jede Sekunde). Vorher sammelte nur der Tab, der den Scan gestartet hatte und offen
+  blieb. Nach Zeitplan-Scan oder Neuladen sah man nur die letzte Bibliothek.
+- **Übersteht Neustarts** (1.4.46): Einzelscan sofort, Durchlauf am Ende nach
+  `settings.last_scan_report` (JSON aus lastSummary + batch), beim Start in `scanner.New` geladen.
+  Anlass: Ein Deploy direkt nach einem 24-Minuten-Vollscan warf den Bericht weg.
+- **UI (`scan.js`)**: Die Abfrageschleife wartet, solange `running || batchActive`. Danach
+  `showScanAllSummary(batchSummaries)` bei mehr als einer Bibliothek, sonst
+  `showScanSummary(lastSummary)`. In der Übersicht ist der Bibliotheksname ein Link
+  (`.scan-lib-link`) → `showScanSummary(s, {backToAll: true})` im selben Dialog mit
+  „← Alle Bibliotheken“. `openScanSummaryDialog()` statt direktem `showModal()` (Dialog ist beim
+  Wechsel schon offen). Statusleiste: „Bibliothek 3 von 7“, zwischen zwei Bibliotheken
+  „Nächste Bibliothek…“.
+- Tests: `internal/scanner/batch_test.go` (inkl. `TestLastReportSurvivesRestart`).
+
 ### Scan-Ausschlüsse — NUR Auto-Scan (seit 2026-09-09, LIVE 1.2.47, korrigiert 1.2.48)
 - User-Anlass: Unassigned-Devices-Laufwerke (externe Platten, gemountet
   unter `/mnt/disks`/`/mnt/remotes` auf dem Unraid-Host, seit diesem Datum

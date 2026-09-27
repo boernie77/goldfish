@@ -93,14 +93,25 @@ stabil, acht rissen den kompletten Unraid-Host mit** (Reboot nötig, nicht nur C
   **Eine abgelehnte Wiedergabe ist immer besser als ein toter Server.**
 - Die Kostenfaktoren sind auf der echten Hardware gemessen (VAAPI, 60 s Material, zweifach
   wiederholt) — Tabelle im Skill `goldfish-playback`. **Nicht schätzen, dort nachsehen.**
+- Gezählt werden nur Sitzungen, deren ffmpeg **noch läuft** (seit 1.4.35). Fertig umgewandelte
+  bleiben für die Segmente im Pool, belegen aber kein Budget.
 
 ## Deployment & Checks vor jedem Push
 
 - **Portainer-Stack 37 `videoplayer`**, Endpoint 3 (`<UNRAID-LAN-IP>:9000`), Image
-  `simple-videoplayer:latest`. Image-CI: selbst gehosteter Runner (`goldfish-ci`, Stack 38) baut
-  bei jedem Push auf `main`.
-- **Vor jedem Deploy prüfen, ob eine Transcode-Wiedergabe läuft** (ffmpeg-Prozess auf dem Server).
+  `simple-videoplayer:latest`, **Container heißt `goldfish`**. Image-CI: selbst gehosteter Runner
+  (`goldfish-ci`, Stack 38) baut bei **jedem** Push auf `main` (auch bei reiner Doku), der Container
+  startet dabei neu.
+- **Vor jedem Deploy prüfen, ob gerade jemand schaut.** Der Pre-Push-Hook
+  (`scripts/install-git-hooks.sh`) blockiert bei laufendem ffmpeg **und** bei Wiedergabe-Aktivität
+  in den letzten 10 Minuten (`playbackIdleSec` aus `/api/health`, nur per
+  `docker exec goldfish curl localhost:8096` sichtbar). ffmpeg allein reicht nicht: mit der
+  VOD-Playlist ist ein Film oft nach Minuten fertig umgewandelt, während weiter geschaut wird.
+  Nie mit `--no-verify` umgehen, während der User testet — lieber lokal committen und warten.
   Lieber den Deploy verschieben als eine laufende Wiedergabe zu killen.
+- **Ein Neustart wirft Arbeitsspeicher-Zustand weg.** Bevor etwas Neues nur im Speicher gehalten
+  wird, überlegen, ob es einen Deploy überstehen muss (Beispiel: der Scan-Bericht, seit 1.4.46 in
+  den Settings).
 - Keine lokale Go-Toolchain nötig — der Docker-Build via Portainer-API übernimmt das.
 - **Vor jedem Commit:** `./scripts/check-frontend.sh && go build ./... && go test ./...`.
   `node --check` über alle embedded JS-Files **niemals überspringen** — das hat schon einen

@@ -825,6 +825,13 @@ Stufe 2 — maximal ein zusätzlicher Fehlversuch, nie eine tote Wiedergabe.
   verwirft über ~100 MB Video-Puffer geladene Stücke). **Nicht verifizierbar im
   Claude-in-Chrome-Tab** (verborgen, lädt nichts). Prüfen im echten Browser per Konsole:
   `JSON.stringify({g: videojs.Vhs.GOAL_BUFFER_LENGTH, b: videojs.Vhs.BACK_BUFFER_LENGTH})`.
+- **Wiedergabe-Diagnose aus dem Browser** (v1.4.42): `startPlaybackDiag` (`player-buffer.js`)
+  nimmt bei Umwandlungen alle 2 s Puffer, VHS-Statistiken, Puffergrenzen und verworfene Bilder
+  auf und schickt bei „waiting“ die letzten 15 Punkte an `POST /api/playback/{id}/diag` →
+  Log-Zeile `[diag]` (höchstens 1 je 30 s, kein Aktivitätsprotokoll). Manuell in der
+  Browser-Konsole: `sendPlaybackDiag(playbackDiag, "manuell")`. **Erst prüfen, ob der User hart
+  neu geladen hat** (Cmd+Shift+R): Ein vermeintlich fortbestehendes Ruckeln am 26.09. lief noch
+  mit altem JS.
 - **Pausen-Vorladen** (`startPausePrefetch`) lädt seit v1.4.41 nur 300 s ab der aktuellen
   Position und nur in einer Schleife. Vorher lud es die ganze Playlist, mit VOD also den
   kompletten Film, in parallelen Schleifen alle 4 s.

@@ -1009,3 +1009,11 @@ Der Backdrop-Schließen-Handler (seit 1.4.32) schloss daraufhin den Player. Rege
 `pointerdown` UND `click` außerhalb von `getBoundingClientRect()` liegen (deckt auch
 das Verschieben per Kopfleiste ab, wenn es außerhalb endet). `cards.js`/`matching.js`
 nutzen noch das einfache Muster, sind aber nicht resizable.
+
+### Gesehen-Sync im Browser (2026-09-27, v1.4.44)
+Zahnrad-Menü → „Mein Konto“ → „🔗 Gesehen-Sync“ (`data-action="mywatchlink"`) → `#watchLinkDialog`.
+Logik in `admin.js` (`openWatchLinkDialog`, `renderWatchLinkDialog`, `refreshWatchLinkHint`), Aufbau
+und Texte wie `WatchLinkSettingsView.swift`. Verknüpfungen mit Status, „Bestätigen“, „Ablehnen“
+bzw. „Trennen“ (mit `appConfirm`), Auswahl ohne bereits verknüpfte Konten. `refreshWatchLinkHint()`
+läuft in `boot()` und schreibt eine wartende Anfrage orange in die Menüzeile
+(`.drawer-item-sub--attention`). Server-Endpunkte: Skill `goldfish-users`.
