@@ -4478,3 +4478,8 @@ button.danger:hover { background: #991b1b; }
   color: var(--muted);
   line-height: 1.2;
 }
+
+/* Gesehen-Sync: offene Anfrage im Zahnrad-Menü hervorheben (2026-09-27). */
+.drawer-item-sub--attention { color: #f5a623; font-weight: 600; }
+.watch-link-table td { vertical-align: middle; }
+.watch-link-table button + button { margin-left: 6px; }

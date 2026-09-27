@@ -316,6 +316,107 @@ async function handleMyPassword(e) {
   } catch (err) { appAlert(err.message); }
 }
 
+// --- Gesehen-Sync mit einem anderen Konto (seit 2026-09-27 auch im Browser) ---
+//
+// Der Server spiegelt „gesehen" zwischen zwei gegenseitig bestätigten Konten
+// (internal/api/watch_links.go, nur Titel, die der Partner selbst sehen
+// darf). Bisher gab es die Oberfläche nur in der Apple-App
+// (WatchLinkSettingsView.swift) — Aufbau und Texte bewusst gleich.
+
+const WATCH_LINK_STATUS = {
+  accepted: "Aktiv",
+  pending_incoming: "Wartet auf deine Bestätigung",
+  pending_outgoing: "Warte auf Bestätigung",
+};
+
+// Offene eingehende Anfrage direkt im Menü sichtbar machen — sonst merkt
+// das angefragte Konto nichts davon.
+async function refreshWatchLinkHint() {
+  const sub = document.getElementById("drawerWatchLinkSub");
+  if (!sub) return;
+  try {
+    const links = (await api("/api/watch-links")) || [];
+    const incoming = links.filter(l => l.status === "pending_incoming");
+    const active = links.filter(l => l.status === "accepted");
+    if (incoming.length) {
+      sub.textContent = `Anfrage von ${incoming.map(l => l.partnerName).join(", ")} wartet`;
+      sub.classList.add("drawer-item-sub--attention");
+    } else {
+      sub.textContent = active.length
+        ? `Verknüpft mit ${active.map(l => l.partnerName).join(", ")}`
+        : "Gesehen-Status mit einem anderen Konto teilen";
+      sub.classList.remove("drawer-item-sub--attention");
+    }
+  } catch { /* still: Menü funktioniert auch ohne den Hinweis */ }
+}
+
+async function openWatchLinkDialog() {
+  await renderWatchLinkDialog();
+  $("#watchLinkDialog").showModal();
+}
+
+async function renderWatchLinkDialog() {
+  const list = $("#watchLinkList");
+  const select = $("#watchLinkUser");
+  const sendBtn = $("#watchLinkSend");
+  let links = [], users = [];
+  try {
+    [links, users] = await Promise.all([api("/api/watch-links"), api("/api/users/names")]);
+  } catch (err) { appAlert(err.message); }
+  links = links || [];
+  users = users || [];
+
+  list.innerHTML = links.length ? `
+    <table class="scan-folder-table watch-link-table"><tbody>${links.map(l => `
+      <tr data-partner="${l.partnerId}">
+        <td><strong>${escapeHTML(l.partnerName)}</strong><div class="hint">${escapeHTML(WATCH_LINK_STATUS[l.status] || l.status)}</div></td>
+        <td style="text-align:right;white-space:nowrap">
+          ${l.status === "pending_incoming" ? `<button type="button" class="primary" data-wl="confirm">Bestätigen</button>` : ""}
+          <button type="button" class="danger" data-wl="unlink">${l.status === "pending_incoming" ? "Ablehnen" : "Trennen"}</button>
+        </td>
+      </tr>`).join("")}</tbody></table>` : `<p class="hint">Noch keine Verknüpfung.</p>`;
+
+  list.querySelectorAll("button[data-wl]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const tr = btn.closest("tr");
+      const partnerId = tr.dataset.partner;
+      const name = tr.querySelector("strong").textContent;
+      try {
+        if (btn.dataset.wl === "confirm") {
+          await api(`/api/watch-links/${partnerId}/confirm`, { method: "POST" });
+        } else {
+          const ok = await appConfirm(`Verknüpfung mit „${name}" wirklich ${btn.textContent === "Ablehnen" ? "ablehnen" : "trennen"}? Bereits übernommene Gesehen-Markierungen bleiben erhalten.`,
+            { okLabel: btn.textContent, danger: true });
+          if (!ok) return;
+          await api(`/api/watch-links/${partnerId}`, { method: "DELETE" });
+        }
+        await renderWatchLinkDialog();
+        refreshWatchLinkHint();
+      } catch (err) { appAlert(err.message); }
+    });
+  });
+
+  // Konten, mit denen schon eine Verknüpfung oder Anfrage besteht, nicht
+  // erneut anbieten.
+  const linked = new Set(links.map(l => String(l.partnerId)));
+  const free = users.filter(u => !linked.has(String(u.id)));
+  select.innerHTML = free.length
+    ? `<option value="">Bitte wählen</option>` + free.map(u => `<option value="${escapeHTML(u.username)}">${escapeHTML(u.username)}</option>`).join("")
+    : `<option value="">Keine weiteren Benutzer vorhanden</option>`;
+  select.disabled = !free.length;
+  sendBtn.disabled = true;
+  select.onchange = () => { sendBtn.disabled = !select.value; };
+  sendBtn.onclick = async () => {
+    if (!select.value) return;
+    sendBtn.disabled = true;
+    try {
+      await api("/api/watch-links", { method: "POST", body: JSON.stringify({ username: select.value }) });
+      await renderWatchLinkDialog();
+      refreshWatchLinkHint();
+    } catch (err) { appAlert(err.message); sendBtn.disabled = false; }
+  };
+}
+
 // --- Manage Libraries ---
 
 async function openManage() {

@@ -1649,6 +1649,7 @@ function wire() {
     switch (btn.dataset.action) {
       case "myhome":    openHomePrefsDialog(); break;
       case "mypassword": $("#passwordDialog").showModal(); break;
+      case "mywatchlink": openWatchLinkDialog(); break;
       case "anleitung": window.open("/anleitung.html", "_blank", "noopener"); break;
       case "displayprefs": openDisplayPrefsDialog(); break;
       case "settings":  openSettings(); break;
@@ -2143,6 +2144,7 @@ function glassTextColor(hex) {
     if (typeof startWhisperGlobalPoll === "function") startWhisperGlobalPoll();
   }
   renderUserMenu();
+  refreshWatchLinkHint();
   if (typeof initBell === "function") initBell();
   if (typeof wirePasswordToggles === "function") wirePasswordToggles();
   // Google-Cast SDK initialisieren — registriert sich beim Cast-Framework
