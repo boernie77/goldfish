@@ -56,7 +56,12 @@ func (s *Server) startScanAll(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = s.Store.LogActivity(me.ID, me.Username, "job", "scan_run", fmt.Sprintf("alle %d Bibliotheken%s", len(libs), forceNote), deviceLabel(r))
 	}
+	// Durchlauf SYNCHRON beginnen, vor der Antwort: fragt das UI den Status
+	// ab, bevor die Schleife unten den ersten Scan gestartet hat, sieht es
+	// sonst „nichts läuft" und hält den Scan für fertig.
+	s.Scanner.BeginBatch(len(libs))
 	go func() {
+		defer s.Scanner.EndBatch()
 		for _, l := range libs {
 			if err := s.Scanner.Start(l, force, "", false); err != nil {
 				// Scanner gibt Fehler zurück wenn bereits läuft — kurz warten

@@ -307,6 +307,17 @@ type ScanStatus struct {
 	// abgelegt — Frontend zeigt ihn als Abschluss-Dialog. Wird mit jedem neuen
 	// Scan-Start auf nil zurückgesetzt.
 	LastSummary *ScanSummary `json:"lastSummary,omitempty"`
+	// Durchlauf über mehrere Bibliotheken („Alle Bibliotheken", Auto-Scan
+	// ohne feste Bibliothek), seit 2026-09-27. Vorher überschrieb jeder
+	// Einzelscan den Bericht des vorigen — am Ende sah man nur die letzte
+	// Bibliothek. BatchTotal/BatchDone: Fortschritt („Bibliothek 3 von 7").
+	// BatchSummaries: alle Einzelberichte, NUR nach Ende des Durchlaufs
+	// befüllt (während des Scans pollt das UI jede Sekunde, die Pfadlisten
+	// aller Bibliotheken wären dann unnötig groß).
+	BatchActive    bool          `json:"batchActive,omitempty"`
+	BatchTotal     int           `json:"batchTotal,omitempty"`
+	BatchDone      int           `json:"batchDone,omitempty"`
+	BatchSummaries []ScanSummary `json:"batchSummaries,omitempty"`
 }
 
 // ScanSummary fasst das Ergebnis eines abgeschlossenen Scans zusammen.

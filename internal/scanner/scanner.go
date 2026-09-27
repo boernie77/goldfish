@@ -108,6 +108,10 @@ type Scanner struct {
 	newPaths     []string
 	updatedPaths []string
 	removedPaths []string
+	// Durchlauf über mehrere Bibliotheken, siehe BeginBatch.
+	batchActive bool
+	batchTotal  int
+	batch       []model.ScanSummary
 
 	// pauseCheck: wenn gesetzt und true zurückgibt, pausiert der Scan
 	// zwischen zwei Dateien (vor dem jeweils teuren ffprobe-Aufruf) — von
@@ -168,7 +172,34 @@ func (sc *Scanner) OnComplete(fn func()) {
 func (sc *Scanner) Status() model.ScanStatus {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
-	return sc.status
+	st := sc.status
+	if sc.batchActive || len(sc.batch) > 1 {
+		st.BatchActive = sc.batchActive
+		st.BatchTotal = sc.batchTotal
+		st.BatchDone = len(sc.batch)
+	}
+	if !sc.batchActive && len(sc.batch) > 1 {
+		st.BatchSummaries = append([]model.ScanSummary(nil), sc.batch...)
+	}
+	return st
+}
+
+// BeginBatch beginnt einen Durchlauf über total Bibliotheken: die Berichte
+// der folgenden Einzelscans werden gesammelt statt überschrieben, bis
+// EndBatch. Ein Einzelscan außerhalb eines Durchlaufs verwirft die Sammlung.
+func (sc *Scanner) BeginBatch(total int) {
+	sc.mu.Lock()
+	sc.batchActive = true
+	sc.batchTotal = total
+	sc.batch = nil
+	sc.mu.Unlock()
+}
+
+// EndBatch schließt den Durchlauf ab; Status() liefert danach alle Berichte.
+func (sc *Scanner) EndBatch() {
+	sc.mu.Lock()
+	sc.batchActive = false
+	sc.mu.Unlock()
 }
 
 func (sc *Scanner) Cancel() {
@@ -202,6 +233,9 @@ func (sc *Scanner) Start(lib model.Library, force bool, folder string, respectSc
 	ctx, cancel := context.WithCancel(context.Background())
 	sc.cancel = cancel
 	sc.status = model.ScanStatus{Running: true, LibraryID: lib.ID, Force: force, Folder: folder}
+	if !sc.batchActive {
+		sc.batch = nil
+	}
 	sc.folderStats = map[string]model.ScanFolderStats{}
 	sc.newPaths = nil
 	sc.updatedPaths = nil
@@ -234,6 +268,7 @@ func (sc *Scanner) Start(lib model.Library, force bool, folder string, respectSc
 				RemovedPaths: sc.removedPaths,
 			}
 			sc.status.LastSummary = summary
+			sc.batch = append(sc.batch, *summary)
 			cb := sc.onComplete
 			sc.mu.Unlock()
 			if cb != nil {

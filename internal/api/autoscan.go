@@ -157,9 +157,13 @@ func (s *Server) runAutoScanTask(task AutoScanTask) {
 			log.Printf("[autoscan] Aufgabe %d: ListLibraries: %v", task.ID, err)
 			return
 		}
+		// Als Durchlauf, damit am Ende der Bericht ALLER Bibliotheken
+		// abrufbar ist, nicht nur der letzten (2026-09-27).
+		s.Scanner.BeginBatch(len(libs))
 		for _, lib := range libs {
 			runLibScan(s, lib, task.Force)
 		}
+		s.Scanner.EndBatch()
 	} else {
 		lib, err := s.Store.GetLibrary(int64(task.LibraryID))
 		if err != nil || lib == nil {

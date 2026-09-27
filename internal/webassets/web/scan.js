@@ -18,12 +18,9 @@ async function startScan(mode = "incremental") {
   // mode: "incremental" | "force" | "folder" | "folder-force" | "all" | "all-force"
   try {
     if (mode === "all" || mode === "all-force") {
-      // Batch-Modus aktivieren: pollScan sammelt jede Lib-Zusammenfassung, statt
-      // sie einzeln anzuzeigen. Am Ende kommt EIN Dialog mit allen Libs.
-      state.expectingScanAll = true;
-      state.scanAllSummaries = [];
-      state.scanAllCaptured = new Set();
-      state.scanAllForce = (mode === "all-force");
+      // Die Berichte aller Bibliotheken sammelt der Server selbst
+      // (batchSummaries im Scan-Status, seit 2026-09-27) — unabhängig davon,
+      // ob dieser Tab die ganze Zeit offen bleibt.
       const qs = mode === "all-force" ? "?force=true" : "";
       await api(`/api/scan/all${qs}`, { method: "POST" });
     } else {
@@ -267,59 +264,25 @@ function pollScan() {
   `;
   bar.classList.remove("hidden");
 
-  // finalize wird nach Single- oder All-Scan einmalig zur Auflösung gerufen.
-  const finalize = () => {
-    clearInterval(state.scanPoll);
-    state.scanPoll = null;
-    state.scanHideTimer = setTimeout(() => { bar.classList.add("hidden"); state.scanHideTimer = null; }, 4000);
-    if (state.expectingScanAll) {
-      const list = state.scanAllSummaries || [];
-      state.expectingScanAll = false;
-      state.scanAllSummaries = null;
-      state.scanAllCaptured = null;
-      if (state.scanAllEndTimer) { clearTimeout(state.scanAllEndTimer); state.scanAllEndTimer = null; }
-      if (list.length === 1) showScanSummary(list[0]);
-      else if (list.length > 1) showScanAllSummary(list, !!state.scanAllForce);
-    }
-    loadItems();
-  };
-
   state.scanPoll = setInterval(async () => {
     try {
       const st = await api("/api/scan/status");
       renderScanStatus(st);
+      // Durchlauf über mehrere Bibliotheken: zwischen zwei Bibliotheken ist
+      // `running` kurz false, `batchActive` bleibt aber true — weiter warten.
+      if (st.running || st.batchActive) return;
 
-      // Batch-Mode: zwischen zwei Libs ist Running kurz false. Nicht abbrechen,
-      // sondern abwarten, ob die nächste Lib startet. Per-Lib-Summary einsammeln.
-      if (state.expectingScanAll) {
-        if (st.lastSummary) {
-          const sig = `${st.lastSummary.libraryId}|${st.lastSummary.finishedAt}`;
-          if (!state.scanAllCaptured.has(sig)) {
-            state.scanAllCaptured.add(sig);
-            state.scanAllSummaries.push(st.lastSummary);
-          }
-        }
-        if (st.running) {
-          // Nächste Lib läuft schon → End-Timer abbrechen falls gesetzt
-          if (state.scanAllEndTimer) { clearTimeout(state.scanAllEndTimer); state.scanAllEndTimer = null; }
-        } else {
-          // Running=false: könnte Pause zwischen Libs sein. 6 s warten, dann
-          // gilt der Batch als abgeschlossen.
-          if (!state.scanAllEndTimer) {
-            state.scanAllEndTimer = setTimeout(finalize, 6000);
-          }
-        }
-        return;
-      }
-
-      // Single-Lib-Modus: alte Logik
-      if (!st.running) {
-        clearInterval(state.scanPoll);
-        state.scanPoll = null;
-        state.scanHideTimer = setTimeout(() => { bar.classList.add("hidden"); state.scanHideTimer = null; }, 4000);
-        if (st.lastSummary) showScanSummary(st.lastSummary);
-        loadItems();
-      }
+      clearInterval(state.scanPoll);
+      state.scanPoll = null;
+      state.scanHideTimer = setTimeout(() => { bar.classList.add("hidden"); state.scanHideTimer = null; }, 4000);
+      // Nach einem Durchlauf liefert der Server die Berichte ALLER
+      // Bibliotheken (vorher sammelte das nur dieser Tab — wurde der Scan per
+      // Zeitplan ausgelöst oder der Tab neu geladen, sah man nur die letzte
+      // Bibliothek, User-Report 2026-09-27).
+      const batch = st.batchSummaries || [];
+      if (batch.length > 1) showScanAllSummary(batch, batch.some(s => s.force));
+      else if (st.lastSummary) showScanSummary(st.lastSummary);
+      loadItems();
     } catch (e) { console.warn(e); }
   }, 1000);
 }
@@ -329,7 +292,7 @@ function pollScan() {
 async function checkScanActive() {
   try {
     const st = await api("/api/scan/status");
-    if (st.running) {
+    if (st.running || st.batchActive) {
       renderScanStatus(st);
       pollScan();
     }
@@ -389,6 +352,11 @@ function renderScanStatus(st) {
   const bar = $("#scanStatus");
   const mode = st.force ? " (Force)" : "";
   const scope = st.folder ? ` · Ordner „${escapeHTML(st.folder)}"` : "";
+  // Zwischen zwei Bibliotheken eines Durchlaufs nicht „fertig" anzeigen.
+  if (!st.running && st.batchActive) {
+    bar.innerHTML = `Nächste Bibliothek… (${st.batchDone || 0} von ${st.batchTotal || "?"} fertig)`;
+    return;
+  }
   if (!st.running && !st.lastError) {
     bar.innerHTML = `✓ Scan fertig${mode}${scope} (${st.done}/${st.total}, neu/aktualisiert: ${st.new || 0}, übersprungen: ${st.skipped || 0})`;
     return;
@@ -396,9 +364,12 @@ function renderScanStatus(st) {
   if (st.lastError) { bar.innerHTML = `✗ Fehler: ${escapeHTML(st.lastError)}`; return; }
   const pct = st.total ? Math.round(st.done * 100 / st.total) : 0;
   const name = st.current ? st.current.split("/").pop() : "";
+  // Im Durchlauf über mehrere Bibliotheken: welche gerade dran ist.
+  const batch = st.batchActive && st.batchTotal > 1
+    ? ` · Bibliothek ${Math.min(st.batchDone + 1, st.batchTotal)} von ${st.batchTotal}` : "";
   bar.innerHTML = `
     <div class="statusbar-row">
-      <div class="statusbar-text">Scanne${mode}${scope}… ${st.done}/${st.total} (neu ${st.new || 0} · übersprungen ${st.skipped || 0}) – ${escapeHTML(name)}</div>
+      <div class="statusbar-text">Scanne${mode}${scope}${batch}… ${st.done}/${st.total} (neu ${st.new || 0} · übersprungen ${st.skipped || 0}) – ${escapeHTML(name)}</div>
       <button class="statusbar-cancel" data-action="cancel-scan" title="Scan abbrechen">✕</button>
     </div>
     <div class="bar"><div style="width:${pct}%"></div></div>
