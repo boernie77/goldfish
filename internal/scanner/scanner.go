@@ -149,7 +149,51 @@ func (sc *Scanner) waitWhilePaused(ctx context.Context) error {
 
 func New(s *store.Store, thumbDir string) *Scanner {
 	_ = os.MkdirAll(thumbDir, 0o755)
-	return &Scanner{store: s, thumbDir: thumbDir}
+	sc := &Scanner{store: s, thumbDir: thumbDir}
+	sc.loadLastReport()
+	return sc
+}
+
+// lastReportKey: Settings-Schlüssel für den letzten Scan-Bericht (2026-09-27).
+// Vorher lag er nur im Speicher — jeder Neustart (Deploy!) warf ihn weg,
+// auch direkt nachdem ein langer Scan über alle Bibliotheken fertig war.
+const lastReportKey = "last_scan_report"
+
+type lastReport struct {
+	LastSummary *model.ScanSummary  `json:"lastSummary,omitempty"`
+	Batch       []model.ScanSummary `json:"batch,omitempty"`
+}
+
+// saveLastReportLocked schreibt den aktuellen Bericht in die Datenbank.
+// Der Aufrufer MUSS sc.mu halten. Fehler sind nicht kritisch (nur Anzeige)
+// und werden bewusst verschluckt — store-Methoden loggen nicht selbst, und
+// der Scanner soll wegen eines Anzeige-Berichts nie scheitern.
+func (sc *Scanner) saveLastReportLocked() {
+	if sc.store == nil {
+		return
+	}
+	raw, err := json.Marshal(lastReport{LastSummary: sc.status.LastSummary, Batch: sc.batch})
+	if err != nil {
+		return
+	}
+	_ = sc.store.SetSetting(lastReportKey, string(raw))
+}
+
+// loadLastReport stellt den Bericht nach einem Neustart wieder her.
+func (sc *Scanner) loadLastReport() {
+	if sc.store == nil {
+		return
+	}
+	raw, err := sc.store.GetSetting(lastReportKey, "")
+	if err != nil || raw == "" {
+		return
+	}
+	var r lastReport
+	if json.Unmarshal([]byte(raw), &r) != nil {
+		return
+	}
+	sc.status.LastSummary = r.LastSummary
+	sc.batch = r.Batch
 }
 
 // SetAlbumArtDir setzt das Cache-Verzeichnis für aus Musikdateien extrahierte
@@ -199,6 +243,7 @@ func (sc *Scanner) BeginBatch(total int) {
 func (sc *Scanner) EndBatch() {
 	sc.mu.Lock()
 	sc.batchActive = false
+	sc.saveLastReportLocked()
 	sc.mu.Unlock()
 }
 
@@ -269,6 +314,10 @@ func (sc *Scanner) Start(lib model.Library, force bool, folder string, respectSc
 			}
 			sc.status.LastSummary = summary
 			sc.batch = append(sc.batch, *summary)
+			// Einzelscan sofort sichern; im Durchlauf erst am Ende (EndBatch).
+			if !sc.batchActive {
+				sc.saveLastReportLocked()
+			}
 			cb := sc.onComplete
 			sc.mu.Unlock()
 			if cb != nil {
