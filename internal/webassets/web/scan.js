@@ -50,7 +50,9 @@ async function startScan(mode = "incremental") {
 // showScanSummary öffnet einen Modal-Dialog mit der Bilanz eines beendeten
 // Scans. Stat-Kacheln und Folder-Zeilen sind klickbar — beim Klick wird die
 // passende Pfad-Liste in einer Detail-Box unter den Kacheln eingeblendet.
-function showScanSummary(s) {
+// opts.backToAll: aus der Übersicht eines Durchlaufs über alle Bibliotheken
+// geöffnet — dann oben ein Knopf zurück zur Übersicht (2026-09-27).
+function showScanSummary(s, opts = {}) {
   if (!s) return;
   state.lastScanSummary = s;
   const head = $("#scanSummaryHead");
@@ -63,11 +65,19 @@ function showScanSummary(s) {
     ? Math.max(0, Math.round((new Date(s.finishedAt) - new Date(s.startedAt)) / 1000))
     : 0;
   const scope = s.folder ? `Ordner <strong>${escapeHTML(s.folder)}</strong>` : "ganze Bibliothek";
+  const backToAll = opts.backToAll && state.lastScanAllSummaries && state.lastScanAllSummaries.length > 1;
   head.innerHTML = `
+    ${backToAll ? `<button type="button" class="scan-back-all">← Alle Bibliotheken</button>` : ""}
     <div><strong>${escapeHTML(s.libraryName || "?")}</strong> · ${scope}${s.force ? " · force" : ""}</div>
     <div class="hint">Dauer: ${dur}s · ${(new Date(s.finishedAt)).toLocaleTimeString()}</div>
     ${s.error ? `<div class="hint" style="color:#ef4444;margin-top:4px">Fehler: ${escapeHTML(s.error)}</div>` : ""}
   `;
+  if (backToAll) {
+    head.querySelector(".scan-back-all").addEventListener("click", () =>
+      showScanAllSummary(state.lastScanAllSummaries, !!state.lastScanAllForce));
+  }
+  const foldersTitle = $("#scanSummaryFoldersTitle");
+  if (foldersTitle) foldersTitle.textContent = "Pro Ordner";
 
   // Klickbare Stat-Kacheln. „Übersprungen" + „Gesamt" haben keine Pfad-Liste,
   // sind also nicht interaktiv.
@@ -124,7 +134,16 @@ function showScanSummary(s) {
 
   detail.classList.add("hidden");
   detail.innerHTML = "";
-  $("#scanSummaryDialog").showModal();
+  openScanSummaryDialog();
+}
+
+// Beim Wechsel zwischen Übersicht und Bibliotheks-Details ist der Dialog
+// schon offen — showModal() auf einem offenen Dialog wirft je nach Browser.
+function openScanSummaryDialog() {
+  const dlg = $("#scanSummaryDialog");
+  if (!dlg) return;
+  if (!dlg.open) dlg.showModal();
+  dlg.scrollTop = 0;
 }
 
 // showScanDetail blendet die Pfad-Liste für eine Kategorie (new/updated/removed)
@@ -176,6 +195,7 @@ function showScanDetail(kind, folderFilter) {
 function showScanAllSummary(summaries, force) {
   if (!summaries || !summaries.length) return;
   state.lastScanAllSummaries = summaries;
+  state.lastScanAllForce = !!force;
   const head = $("#scanSummaryHead");
   const stats = $("#scanSummaryStats");
   const folders = $("#scanSummaryFolders");
@@ -198,7 +218,10 @@ function showScanAllSummary(summaries, force) {
   head.innerHTML = `
     <div><strong>Alle Bibliotheken</strong> · ${summaries.length} Lib${summaries.length === 1 ? "" : "s"} gescannt${force ? " · force" : ""}</div>
     <div class="hint">Gesamtdauer: ${dur}s${latest ? " · " + latest.toLocaleTimeString() : ""}</div>
+    <div class="hint">Klick auf eine Bibliothek zeigt ihre Änderungen im Detail.</div>
   `;
+  const foldersTitle = $("#scanSummaryFoldersTitle");
+  if (foldersTitle) foldersTitle.textContent = "Pro Bibliothek";
 
   // Aggregat-Stats (nicht klickbar — die Pfade sind pro Lib aufgeteilt).
   const cells = [
@@ -222,7 +245,7 @@ function showScanAllSummary(summaries, force) {
       <thead><tr><th>Bibliothek</th><th>Neu</th><th>Aktual.</th><th>Entfernt</th><th>Übersp.</th><th>Gesamt</th></tr></thead>
       <tbody>${summaries.map((s, idx) => `
         <tr data-lib-idx="${idx}">
-          <td><span class="scan-folder-name">${escapeHTML(s.libraryName || "Bibliothek")}</span></td>
+          <td><button type="button" class="scan-lib-link" title="Änderungen dieser Bibliothek im Detail">${escapeHTML(s.libraryName || "Bibliothek")}${s.error ? " ⚠" : ""} ›</button></td>
           <td class="scan-cell ${(s.new||0)>0?"clickable":""}" data-kind="new">${s.new || 0}</td>
           <td class="scan-cell ${(s.updated||0)>0?"clickable":""}" data-kind="updated">${s.updated || 0}</td>
           <td class="scan-cell ${(s.removed||0)>0?"clickable":""}" data-kind="removed">${s.removed || 0}</td>
@@ -242,10 +265,18 @@ function showScanAllSummary(summaries, force) {
       showScanDetail(td.dataset.kind, null);
     });
   });
+  // Klick auf den Namen: volle Detailansicht dieser Bibliothek (Kennzahlen,
+  // pro Ordner, Dateilisten) im selben Dialog, mit Weg zurück (2026-09-27).
+  folders.querySelectorAll("button.scan-lib-link").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.closest("tr").dataset.libIdx);
+      showScanSummary(summaries[idx], { backToAll: true });
+    });
+  });
 
   detail.classList.add("hidden");
   detail.innerHTML = "";
-  $("#scanSummaryDialog").showModal();
+  openScanSummaryDialog();
 }
 
 function pollScan() {

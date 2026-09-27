@@ -4483,3 +4483,13 @@ button.danger:hover { background: #991b1b; }
 .drawer-item-sub--attention { color: #f5a623; font-weight: 600; }
 .watch-link-table td { vertical-align: middle; }
 .watch-link-table button + button { margin-left: 6px; }
+
+/* Scan-Gesamtbericht: Bibliotheksname führt in die Detailansicht (2026-09-27). */
+.scan-lib-link {
+  background: none; border: none; padding: 0; color: var(--accent); cursor: pointer;
+  font: inherit; font-weight: 600; text-align: left;
+}
+.scan-lib-link:hover { text-decoration: underline; }
+.scan-back-all {
+  margin-bottom: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer;
+}
