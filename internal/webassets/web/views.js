@@ -88,7 +88,7 @@ function renderHomeView(grid, data) {
   // anpassen"-Dialog) — Default an, wenn der Server (ältere Version) die
   // Flags noch nicht mitschickt.
   if (data.showContinue !== false) renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24));
-  if (data.showNextUp !== false) renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24), { nextUpHide: true });
+  if (data.showNextUp !== false) renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24), { nextUpHide: true, showPoster: true });
 
   // Pro Library: nur „Zuletzt hinzugefuegt", in Library-Reihenfolge.
   const flatAll = [...allContinue, ...allNextUp];
@@ -289,30 +289,34 @@ async function openHomePrefsDialog() {
   }
 
   // Verweildauer (User-Wunsch 2026-09-28): wie lange ein Film/eine Folge in
-  // "Fortsetzen" und "Als nächstes" bleibt, gemessen am letzten Abspielen.
-  // Pro Konto auf dem Server (PUT /api/home/strips, maxAgeDays) — gilt damit
-  // auch in den Apps. 0 = unbegrenzt.
-  {
+  // "Fortsetzen" bzw. "Als nächstes" bleibt, gemessen am letzten Abspielen —
+  // je Streifen getrennt. Pro Konto auf dem Server (PUT /api/home/strips),
+  // gilt damit auch in den Apps. 0 = unbegrenzt.
+  const maxAgeChoices = [[0, "unbegrenzt"], [7, "1 Woche"], [14, "2 Wochen"], [30, "1 Monat"],
+    [60, "2 Monate"], [90, "3 Monate"], [180, "6 Monate"], [365, "1 Jahr"]];
+  const maxAgeDefs = [
+    { key: "continueMaxAgeDays", text: "⏳ Fortsetzen bleibt " },
+    { key: "nextUpMaxAgeDays", text: "⏳ Als nächstes bleibt " },
+  ];
+  for (const def of maxAgeDefs) {
     const row = document.createElement("div");
     row.className = "home-pref-row";
     const label = document.createElement("label");
     label.className = "lib-toggle home-pref-toggle";
-    label.textContent = "⏳ Verweildauer ";
+    label.textContent = def.text;
     const sel = document.createElement("select");
-    const choices = [[0, "unbegrenzt"], [7, "1 Woche"], [14, "2 Wochen"], [30, "1 Monat"],
-      [60, "2 Monate"], [90, "3 Monate"], [180, "6 Monate"], [365, "1 Jahr"]];
-    for (const [days, text] of choices) {
+    for (const [days, text] of maxAgeChoices) {
       const opt = document.createElement("option");
       opt.value = String(days);
       opt.textContent = text;
       sel.appendChild(opt);
     }
-    sel.value = String(homeData.maxAgeDays || 0);
+    sel.value = String(homeData[def.key] || 0);
     let prev = sel.value;
     sel.addEventListener("change", async () => {
       sel.disabled = true;
       try {
-        await api("/api/home/strips", { method: "PUT", body: JSON.stringify({ maxAgeDays: Number(sel.value) }) });
+        await api("/api/home/strips", { method: "PUT", body: JSON.stringify({ [def.key]: Number(sel.value) }) });
         prev = sel.value;
         markDirty();
       } catch (e) {
@@ -324,12 +328,13 @@ async function openHomePrefsDialog() {
     });
     label.appendChild(sel);
     row.appendChild(label);
+    list.appendChild(row);
+  }
+  {
     const hint = document.createElement("div");
     hint.className = "hint";
-    hint.textContent = "Wie lange ein Film oder eine Folge in „Fortsetzen“ und „Als nächstes“ " +
-      "bleibt, gerechnet ab dem letzten Abspielen. Ältere Einträge verschwinden nur aus der Ansicht.";
-    row.appendChild(hint);
-    list.appendChild(row);
+    hint.textContent = "Gerechnet ab dem letzten Abspielen. Ältere Einträge verschwinden nur aus der Ansicht.";
+    list.appendChild(hint);
   }
 
   // 2) Wiedergabe — Pro-Konto-Schalter auf dem SERVER

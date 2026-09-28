@@ -13,10 +13,30 @@ import (
 const (
 	userSettingShowContinue = "home_show_continue"
 	userSettingShowNextUp   = "home_show_nextup"
-	// Verweildauer in "Fortsetzen"/"Als nächstes" in Tagen, 0 = unbegrenzt
-	// (User-Wunsch 2026-09-28). Gilt für beide Streifen gemeinsam.
-	userSettingHomeMaxAgeDays = "home_max_age_days"
+	// Verweildauer in Tagen, 0 = unbegrenzt (User-Wunsch 2026-09-28), je
+	// Streifen getrennt einstellbar (Nachtrag am selben Abend). Der gemeinsame
+	// Key aus 1.4.48 dient als Vorgabe, solange ein Streifen keinen eigenen
+	// Wert hat — so bleibt eine dort schon gewählte Dauer erhalten.
+	userSettingHomeMaxAgeDays         = "home_max_age_days"
+	userSettingHomeContinueMaxAgeDays = "home_continue_max_age_days"
+	userSettingHomeNextUpMaxAgeDays   = "home_nextup_max_age_days"
 )
+
+// homeMaxAges liefert die Verweildauern (Tage) für Fortsetzen und Als nächstes.
+func (s *Server) homeMaxAges(userID int64) (continueDays, nextUpDays int) {
+	legacy, _ := s.Store.GetUserSettingInt(userID, userSettingHomeMaxAgeDays, 0)
+	continueDays, _ = s.Store.GetUserSettingInt(userID, userSettingHomeContinueMaxAgeDays, legacy)
+	nextUpDays, _ = s.Store.GetUserSettingInt(userID, userSettingHomeNextUpMaxAgeDays, legacy)
+	return continueDays, nextUpDays
+}
+
+// sinceDays rechnet eine Verweildauer in den Stichtag um (Nullwert = unbegrenzt).
+func sinceDays(days int) time.Time {
+	if days <= 0 {
+		return time.Time{}
+	}
+	return time.Now().AddDate(0, 0, -days)
+}
 
 // homeMaxAgeChoices: im Menü angebotene Verweildauern (Tage). Der Server
 // nimmt nur diese Werte an, damit kein Client Unsinn speichert.
@@ -49,11 +69,8 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	maxAgeDays, _ := s.Store.GetUserSettingInt(me.ID, userSettingHomeMaxAgeDays, 0)
-	var since time.Time
-	if maxAgeDays > 0 {
-		since = time.Now().AddDate(0, 0, -maxAgeDays)
-	}
+	continueDays, nextUpDays := s.homeMaxAges(me.ID)
+	continueSince, nextUpSince := sinceDays(continueDays), sinceDays(nextUpDays)
 	libs, err := s.Store.ListLibraries()
 	if err != nil {
 		writeError(w, 500, err.Error())
@@ -89,14 +106,14 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		if !allowed {
 			continue
 		}
-		cont, err := s.Store.HomeContinueForLibrary(me.ID, lib.ID, 12, since)
+		cont, err := s.Store.HomeContinueForLibrary(me.ID, lib.ID, 12, continueSince)
 		if err != nil {
 			writeError(w, 500, err.Error())
 			return
 		}
 		var next []model.Item
 		if lib.Kind == model.KindTV {
-			next, err = s.Store.HomeNextUpForLibrary(me.ID, lib.ID, 12, since)
+			next, err = s.Store.HomeNextUpForLibrary(me.ID, lib.ID, 12, nextUpSince)
 			if err != nil {
 				writeError(w, 500, err.Error())
 				return
@@ -243,21 +260,22 @@ func (s *Server) myHomePreferences(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	maxAgeDays, _ := s.Store.GetUserSettingInt(me.ID, userSettingHomeMaxAgeDays, 0)
+	continueDays, nextUpDays := s.homeMaxAges(me.ID)
 	writeJSON(w, 200, map[string]any{
-		"libraries":    out,
-		"showContinue": showContinue,
-		"showNextUp":   showNextUp,
-		"maxAgeDays":   maxAgeDays,
+		"libraries":          out,
+		"showContinue":       showContinue,
+		"showNextUp":         showNextUp,
+		"continueMaxAgeDays": continueDays,
+		"nextUpMaxAgeDays":   nextUpDays,
 	})
 }
 
 // setMyHomeStrips togglet die Sichtbarkeit der beiden globalen Startseiten-
 // Streifen "▶ Fortsetzen"/"📺 Als nächstes" für den angemeldeten User.
-// Body: {"showContinue": bool, "showNextUp": bool, "maxAgeDays": int} — alle
-// Felder optional, nur mitgeschickte Felder werden geändert. maxAgeDays ist die
-// Verweildauer beider Streifen in Tagen (0 = unbegrenzt, erlaubt siehe
-// homeMaxAgeChoices).
+// Body: {"showContinue": bool, "showNextUp": bool, "continueMaxAgeDays": int,
+// "nextUpMaxAgeDays": int} — alle Felder optional, nur mitgeschickte Felder
+// werden geändert. Die MaxAgeDays-Felder sind die Verweildauer des jeweiligen
+// Streifens in Tagen (0 = unbegrenzt, erlaubt siehe homeMaxAgeChoices).
 func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	if me == nil {
@@ -267,15 +285,18 @@ func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ShowContinue *bool `json:"showContinue"`
 		ShowNextUp   *bool `json:"showNextUp"`
-		MaxAgeDays   *int  `json:"maxAgeDays"`
+		ContinueMaxAgeDays *int `json:"continueMaxAgeDays"`
+		NextUpMaxAgeDays   *int `json:"nextUpMaxAgeDays"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiges JSON")
 		return
 	}
-	if body.MaxAgeDays != nil && !homeMaxAgeChoices[*body.MaxAgeDays] {
-		writeError(w, 400, "ungültige Verweildauer")
-		return
+	for _, v := range []*int{body.ContinueMaxAgeDays, body.NextUpMaxAgeDays} {
+		if v != nil && !homeMaxAgeChoices[*v] {
+			writeError(w, 400, "ungültige Verweildauer")
+			return
+		}
 	}
 	if body.ShowContinue != nil {
 		if err := s.Store.SetUserSettingBool(me.ID, userSettingShowContinue, *body.ShowContinue); err != nil {
@@ -289,8 +310,14 @@ func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if body.MaxAgeDays != nil {
-		if err := s.Store.SetUserSettingInt(me.ID, userSettingHomeMaxAgeDays, *body.MaxAgeDays); err != nil {
+	if body.ContinueMaxAgeDays != nil {
+		if err := s.Store.SetUserSettingInt(me.ID, userSettingHomeContinueMaxAgeDays, *body.ContinueMaxAgeDays); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+	}
+	if body.NextUpMaxAgeDays != nil {
+		if err := s.Store.SetUserSettingInt(me.ID, userSettingHomeNextUpMaxAgeDays, *body.NextUpMaxAgeDays); err != nil {
 			writeError(w, 500, err.Error())
 			return
 		}

@@ -474,10 +474,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      Serverseitige Berechnung von continue/nextUp bleibt unverändert (das
      Frontend entscheidet nur, ob es rendert), `renderHomeView` prüft
      `data.showContinue`/`data.showNextUp`.
-     **Verweildauer** (seit 1.4.48, 2026-09-28): Key `home_max_age_days`
-     (0 = unbegrenzt, erlaubt nur 7/14/30/60/90/180/365 — `homeMaxAgeChoices`
-     in `api/home.go`), gesetzt über `PUT /api/home/strips {maxAgeDays}`,
-     geliefert in `/api/home/preferences`. **Wird serverseitig angewendet**
+     **Verweildauer** (seit 1.4.48, ab 1.4.49 je Streifen getrennt): Keys
+     `home_continue_max_age_days` / `home_nextup_max_age_days` (0 = unbegrenzt,
+     erlaubt nur 7/14/30/60/90/180/365 — `homeMaxAgeChoices` in `api/home.go`);
+     fehlt einer, gilt der gemeinsame Key `home_max_age_days` aus 1.4.48 als
+     Vorgabe. Gesetzt über `PUT /api/home/strips {continueMaxAgeDays,
+     nextUpMaxAgeDays}`, geliefert in `/api/home/preferences`. **Wird serverseitig angewendet**
      (`since`-Parameter von `HomeContinueForLibrary`/`HomeNextUpForLibrary`),
      wirkt also auch in allen Apps ohne App-Update. Fortsetzen misst an
      `last_played_at` (Einträge ohne → fallen bei gesetzter Grenze raus),
@@ -489,7 +491,7 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      Serie jünger als `hidden_at` ist (= weitergeschaut). Nur Ansicht —
      Gesehen-Status/Dateien bleiben. Kachel-Button `.nextup-hide-toggle`
      (renderCard-Option `nextUpHide`), in den Apps noch nicht umgesetzt.
-     **„🆕 Zuletzt hinzugefügt"** zeigt bei Folgen das Serienposter
+     **„🆕 Zuletzt hinzugefügt" und „📺 Als nächstes"** zeigen bei Folgen das Serienposter
      (renderCard-Option `showPoster`, Feld `metadata.showPosterPath` aus
      `attachMetadata`, Bild über `/api/poster/metadata/{parentId}`).
   2. **Bibliotheks-Reiterleiste (Topbar)** — eigene Tabelle `user_nav_prefs
@@ -855,7 +857,7 @@ Reihenfolge erweitern, sonst werden bestehende Elemente verdeckt:
 | `bottom:6 right:6`     | `.duration`      | auto   | 1:42 h                               |
 | `bottom:6 right:66`    | `.tp-badge`      | 24×24  | Trickplay-Status 🎞                  |
 | `top:66 right:6`       | `.delete-toggle` | 24×24  | 🗑 Musik-Titel löschen (nur Musik, admin) |
-| `top:66 right:6`       | `.nextup-hide-toggle` | 24×24 | ✕ aus „Als nächstes" (nur Folgen im Startseiten-Streifen) — teilt sich den Platz mit `.delete-toggle`, `.dupe-badge` (nur Filter „Datei in anderem Ordner") und `.user-rating-badge` (nur Privat); keins davon erscheint auf Startseiten-Folgen |
+| `top:36 left:6`        | `.nextup-hide-toggle` | 24×24 | ✕ aus „Als nächstes" (nur Folgen im Startseiten-Streifen, User-Wunsch: unter dem Gesehen-Haken) — teilt sich den Platz mit `.confirm-toggle`, das nur in Duplikat-/Prüf-Sortierungen erscheint |
 | `bottom:4 left:60`     | `.fav-badge`     | auto   | (Legacy, ungenutzt)                 |
 
 **Regel**: Wenn du einen neuen Overlay-Button brauchst, prüfe zuerst welche

@@ -725,8 +725,8 @@ function renderCard(it, opts = {}) {
   }
 
   if (opts.showPoster && isEpisode && it.metadata.parentId && it.metadata.showPosterPath) {
-    // Startseite "Zuletzt hinzugefügt": Serienposter statt Folgen-Still
-    // (User-Wunsch 2026-09-28). Titel/Folgencode bleiben unten stehen.
+    // Startseite "Zuletzt hinzugefügt" und "Als nächstes": Serienposter statt
+    // Folgen-Still (User-Wunsch 2026-09-28). Titel/Folgencode bleiben unten.
     imgUrl = `/api/poster/metadata/${it.metadata.parentId}?v=${encodeURIComponent(it.metadata.showPosterPath)}`;
   } else if (isMusicLib && it.musicAlbumId) {
     // Album-Cover statt Video-Thumbnail — Musik-Items haben nie ein eigenes
@@ -818,8 +818,9 @@ function renderCard(it, opts = {}) {
     ? `<button type="button" class="delete-toggle" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">${ICON_TRASH_SVG}</button>`
     : "";
   // ✕ "Aus Als nächstes entfernen" (nur Startseiten-Streifen, User-Wunsch
-  // 2026-09-28). Platz top:66 right:6 — dort sitzt sonst nur der Musik-🗑,
-  // der auf Serienkacheln nie erscheint.
+  // 2026-09-28). Direkt unter dem Gesehen-Haken (top:36 left:6, User-Wunsch)
+  // — dort sitzt sonst nur ✅ Bestätigen, das nur in den Duplikat-/Prüf-
+  // Sortierungen erscheint, nie auf der Startseite.
   const nextUpHide = (opts.nextUpHide && isEpisode)
     ? `<button type="button" class="nextup-hide-toggle" title="Aus „Als nächstes“ entfernen" data-nextup-hide aria-label="Aus Als nächstes entfernen">✕</button>`
     : "";

@@ -3663,12 +3663,12 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
 .card:hover .delete-toggle { opacity: 1; }
 .delete-toggle:hover { background: rgba(239, 68, 68, 0.9); }
 /* Startseite "Als nächstes": ✕ entfernt die Serie aus dem Streifen (seit
-   2026-09-28). Gleicher Platz wie .delete-toggle (top:66 right:6) — der
-   erscheint nur auf Musik-Kacheln, dieser nur auf Serienfolgen. */
+   2026-09-28). Unter dem Gesehen-Haken (top:36 left:6) — gleicher Platz wie
+   .confirm-toggle, das nur in Duplikat-/Prüf-Sortierungen erscheint. */
 .nextup-hide-toggle {
   position: absolute;
-  top: 66px;
-  right: 6px;
+  top: 36px;
+  left: 6px;
   width: 24px;
   height: 24px;
   border-radius: 50%;
