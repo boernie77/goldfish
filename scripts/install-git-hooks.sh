@@ -43,11 +43,18 @@ cat > .git/hooks/pre-push <<'EOF'
 set -e
 
 echo "→ Pruefe aktive Wiedergaben auf dem Server (Tower)..."
+# Nur Wiedergabe-Transcodes zaehlen (2026-09-28): frueher zaehlte hier JEDER
+# ffmpeg-Prozess auf dem Host — auch Intro-Erkennung, Trickplay und Whisper,
+# die im Hintergrund laufend kurze ffmpeg-Aufrufe starten. Ergebnis: "17
+# aktive Transcode-Wiedergaben", obwohl seit 37 Minuten niemand schaute, und
+# ein blockierter Deploy. Wiedergabe-Transcodes erkennt man eindeutig an der
+# HLS-Ausgabe (-hls_segment_filename, siehe playback/ffmpeg.go), und nur im
+# goldfish-Container (docker top braucht pid in der Spaltenliste).
 active=$(ssh -p 2202 -o ConnectTimeout=5 root@192.168.2.140 \
-  "ps aux 2>/dev/null | grep ffmpeg | grep -v grep | wc -l" 2>/dev/null || echo "?")
+  "docker top goldfish -eo pid,args 2>/dev/null | grep -c -- '-hls_segment_filename' || true" 2>/dev/null || echo "?")
 if [ "$active" = "?" ]; then
   echo "⚠ Konnte den Server nicht erreichen (SSH/Timeout) — Aktivitaets-Check uebersprungen."
-  echo "  Manuell pruefen: ssh -p 2202 root@192.168.2.140 \"ps aux | grep ffmpeg\""
+  echo "  Manuell pruefen: ssh -p 2202 root@192.168.2.140 \"docker top goldfish -eo pid,args | grep ffmpeg\""
 elif [ "$active" != "0" ]; then
   echo ""
   echo "✗ Push abgebrochen: $active aktive Transcode-Wiedergabe(n) auf dem Server."

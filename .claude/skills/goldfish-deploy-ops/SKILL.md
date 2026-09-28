@@ -144,8 +144,10 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
   Neustarts (~6 s) antwortet der Reverse-Proxy mit **HTTP 502**. Apps ab dem nächsten
   Apple-Build zeigen dafür keine Fehlermeldung mehr (835c84d), ältere schon.
 - **Pre-Push-Hook** (`scripts/install-git-hooks.sh` → `.git/hooks/pre-push`, nach Änderung neu
-  installieren): blockiert bei (1) laufendem ffmpeg auf dem Host (`ps aux`, zählt auch
-  kurzlebige Hintergrund-ffmpegs; im Zweifel eine Minute später erneut) und (2)
+  installieren): blockiert bei (1) laufendem Wiedergabe-Transcode im goldfish-Container
+  (`docker top goldfish -eo pid,args`, nur Prozesse mit `-hls_segment_filename`; seit
+  2026-09-28 — vorher zählte `ps aux` jeden ffmpeg des Hosts inkl. Intro-Erkennung/Trickplay/
+  Whisper und blockierte mit „17 Transcodes", obwohl niemand schaute) und (2)
   `playbackIdleSec < 600` aus `docker exec goldfish curl -s localhost:8096/api/health`. Das Feld
   gibt der Server **nur an localhost ohne Proxy-Header** heraus (`isLoopbackRequest`,
   Test `health_loopback_test.go`). Anlass: Ein Hintergrund-Push riss eine Mac-App-Wiedergabe ab,

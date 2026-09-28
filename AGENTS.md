@@ -103,7 +103,7 @@ stabil, acht rissen den kompletten Unraid-Host mit** (Reboot nötig, nicht nur C
   (`goldfish-ci`, Stack 38) baut bei **jedem** Push auf `main` (auch bei reiner Doku), der Container
   startet dabei neu.
 - **Vor jedem Deploy prüfen, ob gerade jemand schaut.** Der Pre-Push-Hook
-  (`scripts/install-git-hooks.sh`) blockiert bei laufendem ffmpeg **und** bei Wiedergabe-Aktivität
+  (`scripts/install-git-hooks.sh`) blockiert bei laufendem Wiedergabe-Transcode (HLS-ffmpeg im Container; Intro-/Trickplay-ffmpegs zählen nicht) **und** bei Wiedergabe-Aktivität
   in den letzten 10 Minuten (`playbackIdleSec` aus `/api/health`, nur per
   `docker exec goldfish curl localhost:8096` sichtbar). ffmpeg allein reicht nicht: mit der
   VOD-Playlist ist ein Film oft nach Minuten fertig umgewandelt, während weiter geschaut wird.
