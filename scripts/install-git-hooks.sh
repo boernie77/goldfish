@@ -13,6 +13,14 @@
 # Nutzertrennungs-Tests laufen (go test ./internal/store/... -run
 # 'ACL|FieldParity') — ein Push mit einer roten ACL-/Feld-Paritäts-
 # Suite wird geblockt. Umgeht man NUR mit `git push --no-verify`.
+#
+# Der Server für die Wiedergabe-Prüfung steht bewusst NICHT hier im
+# (öffentlichen) Repo, sondern in der lokalen Git-Konfiguration:
+#
+#   git config goldfish.deployHost root@<UNRAID-LAN-IP>
+#   git config goldfish.deploySshPort 2202   # optional, Default 2202
+#
+# Ohne Eintrag überspringt der Hook die Wiedergabe-Prüfung mit Warnung.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -43,6 +51,14 @@ cat > .git/hooks/pre-push <<'EOF'
 set -e
 
 echo "→ Pruefe aktive Wiedergaben auf dem Server (Tower)..."
+# Host/Port aus der lokalen Git-Konfiguration (nicht im oeffentlichen Repo),
+# siehe Kopfkommentar von scripts/install-git-hooks.sh.
+deploy_host=$(git config --get goldfish.deployHost || true)
+deploy_port=$(git config --get goldfish.deploySshPort || echo 2202)
+if [ -z "$deploy_host" ]; then
+  deploy_host="unset.invalid"
+  echo "⚠ git config goldfish.deployHost fehlt — Wiedergabe-Pruefung nicht moeglich."
+fi
 # Nur Wiedergabe-Transcodes zaehlen (2026-09-28): frueher zaehlte hier JEDER
 # ffmpeg-Prozess auf dem Host — auch Intro-Erkennung, Trickplay und Whisper,
 # die im Hintergrund laufend kurze ffmpeg-Aufrufe starten. Ergebnis: "17
@@ -50,11 +66,11 @@ echo "→ Pruefe aktive Wiedergaben auf dem Server (Tower)..."
 # ein blockierter Deploy. Wiedergabe-Transcodes erkennt man eindeutig an der
 # HLS-Ausgabe (-hls_segment_filename, siehe playback/ffmpeg.go), und nur im
 # goldfish-Container (docker top braucht pid in der Spaltenliste).
-active=$(ssh -p 2202 -o ConnectTimeout=5 root@192.168.2.140 \
+active=$(ssh -p "$deploy_port" -o ConnectTimeout=5 "$deploy_host" \
   "docker top goldfish -eo pid,args 2>/dev/null | grep -c -- '-hls_segment_filename' || true" 2>/dev/null || echo "?")
 if [ "$active" = "?" ]; then
   echo "⚠ Konnte den Server nicht erreichen (SSH/Timeout) — Aktivitaets-Check uebersprungen."
-  echo "  Manuell pruefen: ssh -p 2202 root@192.168.2.140 \"docker top goldfish -eo pid,args | grep ffmpeg\""
+  echo "  Manuell pruefen: ssh -p $deploy_port $deploy_host \"docker top goldfish -eo pid,args | grep ffmpeg\""
 elif [ "$active" != "0" ]; then
   echo ""
   echo "✗ Push abgebrochen: $active aktive Transcode-Wiedergabe(n) auf dem Server."
@@ -68,7 +84,7 @@ fi
 # ab (HTTP 502 waehrend des Neustarts). Der Server meldet deshalb, wie lange
 # die letzte Wiedergabe-Aktivitaet (Segment-/Fortschritts-Abruf, Direct Play)
 # zurueckliegt — nur auf Anfragen aus dem Container selbst.
-idle=$(ssh -p 2202 -o ConnectTimeout=5 root@192.168.2.140 \
+idle=$(ssh -p "$deploy_port" -o ConnectTimeout=5 "$deploy_host" \
   "docker exec goldfish curl -s --max-time 5 localhost:8096/api/health" 2>/dev/null \
   | grep -o '"playbackIdleSec":-\?[0-9]*' | cut -d: -f2 || true)
 if [ -n "$idle" ] && [ "$idle" -ge 0 ] && [ "$idle" -lt 600 ]; then
@@ -98,5 +114,9 @@ if echo "$changed" | grep -qE '\.go$'; then
 fi
 EOF
 chmod +x .git/hooks/pre-push
+if [ -z "$(git config --get goldfish.deployHost || true)" ]; then
+  echo "⚠ Fuer die Wiedergabe-Pruefung vor dem Push noch setzen:"
+  echo "    git config goldfish.deployHost root@<UNRAID-LAN-IP>"
+fi
 
 echo "✓ Pre-Commit- und Pre-Push-Hook installiert."
