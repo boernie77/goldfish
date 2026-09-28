@@ -3662,6 +3662,29 @@ body.has-alpha-sidebar #breadcrumb { padding-right: 36px; }
 }
 .card:hover .delete-toggle { opacity: 1; }
 .delete-toggle:hover { background: rgba(239, 68, 68, 0.9); }
+/* Startseite "Als nächstes": ✕ entfernt die Serie aus dem Streifen (seit
+   2026-09-28). Gleicher Platz wie .delete-toggle (top:66 right:6) — der
+   erscheint nur auf Musik-Kacheln, dieser nur auf Serienfolgen. */
+.nextup-hide-toggle {
+  position: absolute;
+  top: 66px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+}
+.nextup-hide-toggle:hover { background: rgba(239, 68, 68, 0.9); }
 .fav-toggle.is-on {
   opacity: 1;
   background: rgba(239, 68, 68, 0.9);

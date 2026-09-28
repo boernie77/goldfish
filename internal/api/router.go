@@ -90,6 +90,7 @@ func (s *Server) Router() http.Handler {
 		r.Put("/home/preferences/{id}", s.setMyHomePreference)
 		r.Put("/home/order", s.setMyHomeOrder)
 		r.Put("/home/strips", s.setMyHomeStrips)
+		r.Post("/home/nextup/{id}/hide", s.hideNextUp)
 		// Reiterleiste (Topbar) — bewusst getrennt von /home/*, siehe nav.go.
 		r.Get("/nav/preferences", s.myNavPreferences)
 		r.Put("/nav/preferences/{id}", s.setMyNavPreference)
@@ -406,7 +407,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.47"
+const appVersion = "1.4.48"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{

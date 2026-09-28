@@ -35,7 +35,9 @@ function renderHomeView(grid, data) {
 
   // Globaler Streifen: ein Titel, eine flache Reihe Kacheln aus allen
   // Libraries. Items werden vor dem Render gemerged (groupVariants).
-  const renderGlobalStrip = (parent, title, items) => {
+  // `cardOpts` wird an renderCard durchgereicht (nextUpHide: ✕-Knopf in
+  // "Als nächstes", showPoster: Serienposter statt Folgenbild).
+  const renderGlobalStrip = (parent, title, items, cardOpts = {}) => {
     if (!items || !items.length) return;
     const secEl = document.createElement("section");
     secEl.className = "home-section";
@@ -47,7 +49,7 @@ function renderHomeView(grid, data) {
     strip.className = "home-strip";
     const merged = groupVariants(items);
     for (const it of merged) {
-      const card = renderCard(it);
+      const card = renderCard(it, cardOpts);
       card.classList.add("home-card");
       strip.appendChild(card);
     }
@@ -86,7 +88,7 @@ function renderHomeView(grid, data) {
   // anpassen"-Dialog) — Default an, wenn der Server (ältere Version) die
   // Flags noch nicht mitschickt.
   if (data.showContinue !== false) renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24));
-  if (data.showNextUp !== false) renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24));
+  if (data.showNextUp !== false) renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24), { nextUpHide: true });
 
   // Pro Library: nur „Zuletzt hinzugefuegt", in Library-Reihenfolge.
   const flatAll = [...allContinue, ...allNextUp];
@@ -106,7 +108,9 @@ function renderHomeView(grid, data) {
       loadItems();
     });
     libBlock.appendChild(h2);
-    renderGlobalStrip(libBlock, "🆕 Zuletzt hinzugefügt", sec.recent);
+    // Serien-Folgen zeigen hier das Serienposter statt eines Ausschnitts
+    // aus der Folge (User-Wunsch 2026-09-28).
+    renderGlobalStrip(libBlock, "🆕 Zuletzt hinzugefügt", sec.recent, { showPoster: true });
     wrap.appendChild(libBlock);
     flatAll.push(...sec.recent);
   }
@@ -281,6 +285,50 @@ async function openHomePrefsDialog() {
     label.appendChild(box);
     label.appendChild(document.createTextNode(` ${def.text}`));
     row.appendChild(label);
+    list.appendChild(row);
+  }
+
+  // Verweildauer (User-Wunsch 2026-09-28): wie lange ein Film/eine Folge in
+  // "Fortsetzen" und "Als nächstes" bleibt, gemessen am letzten Abspielen.
+  // Pro Konto auf dem Server (PUT /api/home/strips, maxAgeDays) — gilt damit
+  // auch in den Apps. 0 = unbegrenzt.
+  {
+    const row = document.createElement("div");
+    row.className = "home-pref-row";
+    const label = document.createElement("label");
+    label.className = "lib-toggle home-pref-toggle";
+    label.textContent = "⏳ Verweildauer ";
+    const sel = document.createElement("select");
+    const choices = [[0, "unbegrenzt"], [7, "1 Woche"], [14, "2 Wochen"], [30, "1 Monat"],
+      [60, "2 Monate"], [90, "3 Monate"], [180, "6 Monate"], [365, "1 Jahr"]];
+    for (const [days, text] of choices) {
+      const opt = document.createElement("option");
+      opt.value = String(days);
+      opt.textContent = text;
+      sel.appendChild(opt);
+    }
+    sel.value = String(homeData.maxAgeDays || 0);
+    let prev = sel.value;
+    sel.addEventListener("change", async () => {
+      sel.disabled = true;
+      try {
+        await api("/api/home/strips", { method: "PUT", body: JSON.stringify({ maxAgeDays: Number(sel.value) }) });
+        prev = sel.value;
+        markDirty();
+      } catch (e) {
+        sel.value = prev;
+        appAlert(e.message);
+      } finally {
+        sel.disabled = false;
+      }
+    });
+    label.appendChild(sel);
+    row.appendChild(label);
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Wie lange ein Film oder eine Folge in „Fortsetzen“ und „Als nächstes“ " +
+      "bleibt, gerechnet ab dem letzten Abspielen. Ältere Einträge verschwinden nur aus der Ansicht.";
+    row.appendChild(hint);
     list.appendChild(row);
   }
 

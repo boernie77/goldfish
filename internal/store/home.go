@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/boernie77/goldfish/internal/model"
 )
@@ -119,9 +120,19 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 
 
 // HomeContinueForLibrary — Continue-Watching pro Library.
-func (s *Store) HomeContinueForLibrary(userID, libraryID int64, limit int) ([]model.Item, error) {
+// since: nur Einträge, die seit diesem Zeitpunkt abgespielt wurden (Pro-User-
+// Einstellung "Verweildauer", User-Wunsch 2026-09-28); Nullwert = unbegrenzt.
+// Einträge ganz ohne last_played_at (Altbestand) fallen bei gesetzter Grenze
+// heraus — ihr Alter ist unbekannt, sie sind also sicher nicht "frisch".
+func (s *Store) HomeContinueForLibrary(userID, libraryID int64, limit int, since time.Time) ([]model.Item, error) {
 	if limit <= 0 {
 		limit = 10
+	}
+	args := []any{userID, libraryID}
+	sinceCond := ""
+	if !since.IsZero() {
+		sinceCond = "AND us.last_played_at >= ?"
+		args = append(args, since)
 	}
 	q := fmt.Sprintf(`
 		SELECT %s
@@ -130,10 +141,12 @@ func (s *Store) HomeContinueForLibrary(userID, libraryID int64, limit int) ([]mo
 		WHERE i.library_id = ?
 		  AND us.resume_pos_sec > 0
 		  AND COALESCE(us.watched, 0) = 0
+		  %s
 		ORDER BY us.last_played_at IS NULL, us.last_played_at DESC, us.watched_at DESC
 		LIMIT ?
-	`, homeItemCols)
-	rows, err := s.db.Query(q, userID, libraryID, limit)
+	`, homeItemCols, sinceCond)
+	args = append(args, limit)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -142,9 +155,18 @@ func (s *Store) HomeContinueForLibrary(userID, libraryID int64, limit int) ([]mo
 
 // HomeNextUpForLibrary — nächste ungesehene Episode pro Serie in dieser Library.
 // Nur sinnvoll für TV-Libraries; andere liefern leer.
-func (s *Store) HomeNextUpForLibrary(userID, libraryID int64, limit int) ([]model.Item, error) {
+// since: wie bei HomeContinueForLibrary (Verweildauer, Nullwert = unbegrenzt),
+// gemessen an der letzten Aktivität in der Serie. Vom User per ✕ entfernte
+// Serien (user_nextup_hidden) bleiben weg, bis er darin weiterschaut.
+func (s *Store) HomeNextUpForLibrary(userID, libraryID int64, limit int, since time.Time) ([]model.Item, error) {
 	if limit <= 0 {
 		limit = 10
+	}
+	args := []any{userID, libraryID, userID, libraryID, userID, userID}
+	sinceCond := ""
+	if !since.IsZero() {
+		sinceCond = "AND ws.last_activity >= ?"
+		args = append(args, since)
 	}
 	q := fmt.Sprintf(`
 		WITH watched_shows AS (
@@ -185,10 +207,17 @@ func (s *Store) HomeNextUpForLibrary(userID, libraryID int64, limit int) ([]mode
 		JOIN watched_shows ws ON ws.show_id = c.show_id
 		LEFT JOIN user_item_state us ON us.item_id = i.id AND us.user_id = ?
 		WHERE c.rn = 1
+		  AND NOT EXISTS (
+			SELECT 1 FROM user_nextup_hidden h
+			WHERE h.user_id = ? AND h.show_id = c.show_id
+			  AND (ws.last_activity IS NULL OR h.hidden_at >= ws.last_activity)
+		  )
+		  %s
 		ORDER BY ws.last_activity IS NULL, ws.last_activity DESC, i.added_at DESC
 		LIMIT ?
-	`, homeItemCols)
-	rows, err := s.db.Query(q, userID, libraryID, userID, libraryID, userID, limit)
+	`, homeItemCols, sinceCond)
+	args = append(args, limit)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -305,4 +334,27 @@ func (s *Store) SetUserHomeOrder(userID int64, orderedLibraryIDs []int64) error 
 		}
 	}
 	return tx.Commit()
+}
+
+// HideNextUpShowForItem blendet die Serie, zu der das Item (eine Folge)
+// gehört, für diesen User aus "📺 Als nächstes" aus — reine Ansichtssache,
+// Gesehen-Status und Dateien bleiben unberührt. Liefert false, wenn das Item
+// keine einer Serie zugeordnete Folge ist.
+func (s *Store) HideNextUpShowForItem(userID, itemID int64) (bool, error) {
+	var showID sql.NullInt64
+	err := s.db.QueryRow(`
+		SELECT m.parent_id FROM items i
+		JOIN metadata m ON m.id = i.metadata_id AND m.tmdb_type = 'episode'
+		WHERE i.id = ?`, itemID).Scan(&showID)
+	if err == sql.ErrNoRows || (err == nil && (!showID.Valid || showID.Int64 == 0)) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	_, err = s.db.Exec(`
+		INSERT INTO user_nextup_hidden (user_id, show_id, hidden_at) VALUES (?, ?, ?)
+		ON CONFLICT(user_id, show_id) DO UPDATE SET hidden_at = excluded.hidden_at`,
+		userID, showID.Int64, time.Now())
+	return err == nil, err
 }

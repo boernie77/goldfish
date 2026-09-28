@@ -976,21 +976,24 @@ func (s *Store) attachMetadata(items []model.Item) {
 			pArgs = append(pArgs, id)
 		}
 		pRows, err := s.db.Query(
-			`SELECT id, title FROM metadata WHERE id IN (`+strings.Join(pPlaceholders, ",")+`)`,
+			`SELECT id, title, COALESCE(poster_path,'') FROM metadata WHERE id IN (`+strings.Join(pPlaceholders, ",")+`)`,
 			pArgs...)
 		if err == nil {
 			defer func() { _ = pRows.Close() }()
 			titleByID := map[int64]string{}
+			posterByID := map[int64]string{}
 			for pRows.Next() {
 				var id int64
-				var title string
-				if pRows.Scan(&id, &title) == nil {
+				var title, poster string
+				if pRows.Scan(&id, &title, &poster) == nil {
 					titleByID[id] = title
+					posterByID[id] = poster
 				}
 			}
 			for _, m := range byID {
 				if m.ParentID > 0 {
 					m.ShowTitle = titleByID[m.ParentID]
+					m.ShowPosterPath = posterByID[m.ParentID]
 				}
 			}
 		}

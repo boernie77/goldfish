@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/boernie77/goldfish/internal/model"
 )
@@ -12,7 +13,14 @@ import (
 const (
 	userSettingShowContinue = "home_show_continue"
 	userSettingShowNextUp   = "home_show_nextup"
+	// Verweildauer in "Fortsetzen"/"Als nächstes" in Tagen, 0 = unbegrenzt
+	// (User-Wunsch 2026-09-28). Gilt für beide Streifen gemeinsam.
+	userSettingHomeMaxAgeDays = "home_max_age_days"
 )
+
+// homeMaxAgeChoices: im Menü angebotene Verweildauern (Tage). Der Server
+// nimmt nur diese Werte an, damit kein Client Unsinn speichert.
+var homeMaxAgeChoices = map[int]bool{0: true, 7: true, 14: true, 30: true, 60: true, 90: true, 180: true, 365: true}
 
 // home liefert die Daten der Startseite, gruppiert nach Bibliothek:
 // für jede Library mit on_home=true werden Fortsetzen / Als nächstes /
@@ -40,6 +48,11 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	maxAgeDays, _ := s.Store.GetUserSettingInt(me.ID, userSettingHomeMaxAgeDays, 0)
+	var since time.Time
+	if maxAgeDays > 0 {
+		since = time.Now().AddDate(0, 0, -maxAgeDays)
 	}
 	libs, err := s.Store.ListLibraries()
 	if err != nil {
@@ -76,14 +89,14 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		if !allowed {
 			continue
 		}
-		cont, err := s.Store.HomeContinueForLibrary(me.ID, lib.ID, 12)
+		cont, err := s.Store.HomeContinueForLibrary(me.ID, lib.ID, 12, since)
 		if err != nil {
 			writeError(w, 500, err.Error())
 			return
 		}
 		var next []model.Item
 		if lib.Kind == model.KindTV {
-			next, err = s.Store.HomeNextUpForLibrary(me.ID, lib.ID, 12)
+			next, err = s.Store.HomeNextUpForLibrary(me.ID, lib.ID, 12, since)
 			if err != nil {
 				writeError(w, 500, err.Error())
 				return
@@ -230,17 +243,21 @@ func (s *Server) myHomePreferences(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	maxAgeDays, _ := s.Store.GetUserSettingInt(me.ID, userSettingHomeMaxAgeDays, 0)
 	writeJSON(w, 200, map[string]any{
 		"libraries":    out,
 		"showContinue": showContinue,
 		"showNextUp":   showNextUp,
+		"maxAgeDays":   maxAgeDays,
 	})
 }
 
 // setMyHomeStrips togglet die Sichtbarkeit der beiden globalen Startseiten-
 // Streifen "▶ Fortsetzen"/"📺 Als nächstes" für den angemeldeten User.
-// Body: {"showContinue": bool, "showNextUp": bool} — beide Felder optional,
-// nur mitgeschickte Felder werden geändert.
+// Body: {"showContinue": bool, "showNextUp": bool, "maxAgeDays": int} — alle
+// Felder optional, nur mitgeschickte Felder werden geändert. maxAgeDays ist die
+// Verweildauer beider Streifen in Tagen (0 = unbegrenzt, erlaubt siehe
+// homeMaxAgeChoices).
 func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
 	me := currentUser(r)
 	if me == nil {
@@ -250,9 +267,14 @@ func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ShowContinue *bool `json:"showContinue"`
 		ShowNextUp   *bool `json:"showNextUp"`
+		MaxAgeDays   *int  `json:"maxAgeDays"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if body.MaxAgeDays != nil && !homeMaxAgeChoices[*body.MaxAgeDays] {
+		writeError(w, 400, "ungültige Verweildauer")
 		return
 	}
 	if body.ShowContinue != nil {
@@ -266,6 +288,40 @@ func (s *Server) setMyHomeStrips(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 500, err.Error())
 			return
 		}
+	}
+	if body.MaxAgeDays != nil {
+		if err := s.Store.SetUserSettingInt(me.ID, userSettingHomeMaxAgeDays, *body.MaxAgeDays); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+	}
+	w.WriteHeader(204)
+}
+
+// hideNextUp entfernt die Serie der Folge {id} für den angemeldeten User aus
+// "📺 Als nächstes" (nur die Ansicht — Gesehen-Status, Fortschritt und Dateien
+// bleiben unberührt). Die Serie erscheint wieder, sobald der User darin
+// weiterschaut. Ein eigener Eintrag pro User, andere Konten sind nicht
+// betroffen.
+func (s *Server) hideNextUp(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	ok, err := s.Store.HideNextUpShowForItem(me.ID, id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if !ok {
+		writeError(w, 404, "keine Serienfolge")
+		return
 	}
 	w.WriteHeader(204)
 }

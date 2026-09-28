@@ -724,7 +724,11 @@ function renderCard(it, opts = {}) {
     }
   }
 
-  if (isMusicLib && it.musicAlbumId) {
+  if (opts.showPoster && isEpisode && it.metadata.parentId && it.metadata.showPosterPath) {
+    // Startseite "Zuletzt hinzugefügt": Serienposter statt Folgen-Still
+    // (User-Wunsch 2026-09-28). Titel/Folgencode bleiben unten stehen.
+    imgUrl = `/api/poster/metadata/${it.metadata.parentId}?v=${encodeURIComponent(it.metadata.showPosterPath)}`;
+  } else if (isMusicLib && it.musicAlbumId) {
     // Album-Cover statt Video-Thumbnail — Musik-Items haben nie ein eigenes
     // Thumbnail (Scanner überspringt makeThumbnail für kind=music), das
     // Cover gehört zum Album (siehe scanner.extractAlbumCovers).
@@ -813,6 +817,12 @@ function renderCard(it, opts = {}) {
   const deleteMeta = (isMusicLib && state.me && state.me.isAdmin)
     ? `<button type="button" class="delete-toggle" title="Titel löschen" data-toggle-delete-track aria-label="Titel löschen">${ICON_TRASH_SVG}</button>`
     : "";
+  // ✕ "Aus Als nächstes entfernen" (nur Startseiten-Streifen, User-Wunsch
+  // 2026-09-28). Platz top:66 right:6 — dort sitzt sonst nur der Musik-🗑,
+  // der auf Serienkacheln nie erscheint.
+  const nextUpHide = (opts.nextUpHide && isEpisode)
+    ? `<button type="button" class="nextup-hide-toggle" title="Aus „Als nächstes“ entfernen" data-nextup-hide aria-label="Aus Als nächstes entfernen">✕</button>`
+    : "";
   let tp = "";
   if (it.trickplayStatus === "done") {
     tp = `<span class="tp-badge" title="Trickplay vorhanden">${ICON_FILM_SVG}</span>`;
@@ -869,6 +879,7 @@ function renderCard(it, opts = {}) {
       ${fav}
       ${editMeta}
       ${deleteMeta}
+      ${nextUpHide}
       ${tp}
       ${variantBadge}
       ${dupeBadge}
@@ -957,6 +968,23 @@ function renderCard(it, opts = {}) {
     if (delTog) {
       ev.stopPropagation();
       deleteMusicTrack(it).then(ok => { if (ok) { invalidateItemsCache(); loadItems(); } });
+      return;
+    }
+    // Click auf ✕ im "Als nächstes"-Streifen: Serie nur aus der Ansicht
+    // entfernen (Gesehen-Status/Dateien bleiben), Kachel sofort ausblenden.
+    const hideTog = ev.target && ev.target.closest("[data-nextup-hide]");
+    if (hideTog) {
+      ev.stopPropagation();
+      hideTog.disabled = true;
+      api(`/api/home/nextup/${it.id}/hide`, { method: "POST" }).then(() => {
+        const section = el.closest(".home-section");
+        el.remove();
+        if (section && !section.querySelector(".card")) section.remove();
+        showToast("Aus „Als nächstes“ entfernt", { kind: "success" });
+      }).catch(err => {
+        hideTog.disabled = false;
+        appAlert("Fehler: " + err.message);
+      });
       return;
     }
     // Click auf den ✅-Confirm-Button (nur im Duplikate/Suspicious-Modus

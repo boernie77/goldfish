@@ -134,6 +134,12 @@ type Metadata struct {
 	// Seriencover ohne TMDB-Poster-Match auf Item-Ebene). Leer bei Filmen/
 	// Serien selbst und bei Episoden ohne auflösbaren Parent.
 	ShowTitle string `json:"showTitle,omitempty"`
+	// ShowPosterPath: bei Episoden der posterPath der Serie (leer ohne
+	// Serien-Poster). User-Wunsch 2026-09-28: "bei den zuletzt hinzugefügten
+	// Serien hätte ich gerne das Seriencover, statt nur einen Ausschnitt der
+	// Folge" — der Client lädt das Bild über /api/poster/metadata/{parentId}
+	// und nutzt diesen Wert als Cache-Buster.
+	ShowPosterPath string `json:"showPosterPath,omitempty"`
 }
 
 type Item struct {

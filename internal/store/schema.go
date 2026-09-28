@@ -188,6 +188,18 @@ func (s *Store) migrate() error {
 			value TEXT NOT NULL,
 			PRIMARY KEY (user_id, key)
 		)`,
+		// Pro-User aus "📺 Als nächstes" entfernte Serien (User-Wunsch
+		// 2026-09-28: "nur aus der Ansicht, nicht aus Goldfish"). Pro Serie
+		// (metadata.id der Show), nicht pro Folge — sonst rückte einfach die
+		// übernächste Folge nach. Die Serie taucht wieder auf, sobald der User
+		// darin weiterschaut (Aktivität nach hidden_at), siehe
+		// HomeNextUpForLibrary.
+		`CREATE TABLE IF NOT EXISTS user_nextup_hidden (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			show_id INTEGER NOT NULL,
+			hidden_at DATETIME NOT NULL,
+			PRIMARY KEY (user_id, show_id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS item_streams (
 			item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
 			stream_index INTEGER NOT NULL,
