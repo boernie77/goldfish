@@ -52,14 +52,17 @@ function renderHomeView(grid, data) {
       const card = renderCard(it, cardOpts);
       card.classList.add("home-card");
       // Einheitliche Kachelgröße auf der Startseite (User-Wunsch 2026-09-29):
-      // alles im 2:3-Posterformat. Bilder in anderem Format (16:9-Vorschau
-      // privater Bibliotheken, quadratische Musik-Cover) stehen vollständig
-      // in der Mitte, dahinter eine unscharfe Kopie desselben Bildes.
+      // alles im 2:3-Posterformat, Bild immer kachelfüllend. Videos ohne
+      // Poster (private Bibliotheken) bekommen vom Server ein eigenes, großes
+      // Hochformat-Bild (?format=portrait, 400×600 aus dem Originalvideo) —
+      // die erste Fassung (kleines 16:9-Bild vor unscharfer Kopie) sah laut
+      // User „furchtbar" aus.
       if (!card.classList.contains("card--poster")) {
         card.classList.add("home-card--fit");
         const img = card.querySelector(".thumb-img");
-        const thumb = card.querySelector(".thumb");
-        if (img && thumb) thumb.style.setProperty("--thumb-bg", `url("${img.getAttribute("src")}")`);
+        if (img && img.getAttribute("src") === `/api/thumb/${it.id}`) {
+          img.src = `/api/thumb/${it.id}?format=portrait`;
+        }
       }
       strip.appendChild(card);
     }

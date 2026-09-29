@@ -491,11 +491,15 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      Serie jünger als `hidden_at` ist (= weitergeschaut). Nur Ansicht —
      Gesehen-Status/Dateien bleiben. Kachel-Button `.nextup-hide-toggle`
      (renderCard-Option `nextUpHide`), in den Apps noch nicht umgesetzt.
-     **Einheitliche Kacheln auf der Startseite (seit 1.4.53):** alle Kacheln in allen
-     drei Streifen im 2:3-Format; Nicht-Poster (16:9 privat, 1:1 Musik) bekommen
-     `.home-card--fit` (views.js renderGlobalStrip): Bild `object-fit: contain`
-     mittig, dahinter `--thumb-bg` unscharf/abgedunkelt per `::before`. Gilt nur
-     auf der Startseite, Bibliotheks-Raster unverändert. Gleiche Regel in allen Apps.
+     **Einheitliche Kacheln auf der Startseite (seit 1.4.53, Bildquelle seit 1.4.54):**
+     alle Kacheln in allen drei Streifen im 2:3-Format, Bild IMMER kachelfüllend.
+     Videos ohne Poster (privat) laden `/api/thumb/{id}?format=portrait` — der
+     Server erzeugt beim ersten Abruf ein 400×600-Bild aus dem Originalvideo (Mitte
+     2:3, gleiche Stelle wie das Vorschaubild, `<thumb>_p.jpg`, max. 2 ffmpeg
+     gleichzeitig, Rückfall aufs normale Vorschaubild; `api/thumb.go`). Musik-Cover
+     mittig beschnitten. ⚠ Die erste Fassung (1.4.53: kleines 16:9-Bild `contain`
+     vor unscharfer Kopie) hat der User als „furchtbar" abgelehnt — nicht wieder
+     so machen. Nur Startseite, Bibliotheks-Raster unverändert. Gleiche Regel in allen Apps.
      **Alle drei Streifen (auch „▶ Fortsetzen", seit 1.4.53)** zeigen bei Folgen das Serienposter
      (renderCard-Option `showPoster`, Feld `metadata.showPosterPath` aus
      `attachMetadata`, Bild über `/api/poster/metadata/{parentId}`).
