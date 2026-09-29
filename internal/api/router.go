@@ -348,6 +348,21 @@ func (s *Server) Router() http.Handler {
 		r.Post("/ocrsubs/items/{id}/retry", requireAdmin(s.ocrSubRetryItem))
 	})
 
+	// Datenschutzerklärung der Apps: App Store Connect (Mac/iOS/tvOS) und
+	// Amazon verweisen auf /datenschutz.html. Die frühere eigene Seite wurde
+	// am 2026-09-04 entfernt (a87b8f4: Name + private E-Mail gehören nicht in
+	// die öffentliche Software) — seitdem gab es hier 404, was erst am
+	// 2026-09-29 auffiel. Jetzt Weiterleitung auf die EINE allgemeine
+	// Erklärung ohne personenbezogene Angaben (docs/privacy.html im Repo,
+	// GitHub Pages), statt eine zweite Kopie zu pflegen. 302 statt 301, damit
+	// eine spätere Änderung nicht in Browser-Caches hängen bleibt.
+	r.Get("/datenschutz.html", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://boernie77.github.io/goldfish/privacy.html", http.StatusFound)
+	})
+	r.Get("/account-deletion.html", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://boernie77.github.io/goldfish/account-deletion.html", http.StatusFound)
+	})
+
 	// Static frontend mit Cache-Control. Da wir kein Hash-Versioning haben,
 	// setzen wir einen moderaten max-age. HTML bleibt kurz cached, damit Releases
 	// nach dem Deploy zügig im Browser ankommen.
@@ -407,7 +422,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.54"
+const appVersion = "1.4.55"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
