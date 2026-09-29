@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,6 +137,7 @@ func (s *Server) executeRename(it *model.Item, triggeredBy string) (int64, strin
 		// Datei traegt bereits den Wunschnamen → no-op, kein History-Eintrag.
 		return 0, target, "", 0
 	}
+	sidecars := rename.PlanSidecars(it.Path, target)
 	if err := rename.RenameOnDisk(it.Path, target, false); err != nil {
 		return 0, "", "Rename auf Disk fehlgeschlagen: " + err.Error(), 500
 	}
@@ -150,6 +152,7 @@ func (s *Server) executeRename(it *model.Item, triggeredBy string) (int64, strin
 		_ = rename.RenameOnDisk(target, it.Path, false)
 		return 0, "", "DB-Update fehlgeschlagen: " + err.Error(), 500
 	}
+	s.moveSidecars(sidecars, false)
 	return histID, target, "", 0
 }
 
@@ -180,6 +183,7 @@ func (s *Server) renameUndo(w http.ResponseWriter, r *http.Request) {
 	// machen — der ueberquert dieselbe Geraete-Grenze zwangslaeufig ein zweites
 	// Mal, ein erneutes Zwischenfenster waere hier sinnlos (der User hat mit
 	// dem expliziten Undo-Klick schon entschieden).
+	sidecars := rename.PlanSidecars(entry.NewPath, entry.OldPath)
 	if err := rename.RenameOnDisk(entry.NewPath, entry.OldPath, true); err != nil {
 		writeError(w, 500, "Reverse-Rename fehlgeschlagen: "+err.Error())
 		return
@@ -191,6 +195,7 @@ func (s *Server) renameUndo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "DB-Update fehlgeschlagen: "+err.Error())
 		return
 	}
+	s.moveSidecars(sidecars, true)
 	w.WriteHeader(204)
 }
 
@@ -459,6 +464,7 @@ func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder
 	if err := os.MkdirAll(newDir, 0o755); err != nil {
 		return 0, "", "Zielordner konnte nicht angelegt werden: " + err.Error(), 500
 	}
+	sidecars := rename.PlanSidecars(it.Path, newPath)
 	if err := rename.RenameOnDisk(it.Path, newPath, allowCrossDevice); err != nil {
 		if errors.Is(err, rename.ErrCrossDevice) {
 			// Client fragt vorher per /api/items/move-preview nach — landet
@@ -477,6 +483,9 @@ func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder
 		_ = rename.RenameOnDisk(newPath, it.Path, true)
 		return 0, "", "DB-Update fehlgeschlagen: " + err.Error(), 500
 	}
+	// allowCrossDevice gilt für die Begleitdateien genauso — der User hat den
+	// Datenträgerwechsel für das Video bereits bestätigt.
+	s.moveSidecars(sidecars, allowCrossDevice)
 	return histID, newPath, "", 0
 }
 
@@ -684,4 +693,13 @@ func (s *Server) listAllFolders(w http.ResponseWriter, r *http.Request) {
 func (s *Server) settingAutoRenameOn() bool {
 	v, _ := s.Store.GetSetting(renameSettingKey, "")
 	return strings.EqualFold(v, "true") || v == "1"
+}
+
+// moveSidecars zieht NFO/Untertitel/Kodi-Bilder nach einem erfolgreichen
+// Umbenennen/Verschieben mit (siehe rename.PlanSidecars). Best-effort:
+// Fehler landen nur im Log, das Video selbst ist bereits am Ziel.
+func (s *Server) moveSidecars(plan []rename.SidecarMove, allowCrossDevice bool) {
+	for _, err := range rename.MoveSidecars(plan, allowCrossDevice) {
+		log.Printf("[rename] Begleitdatei nicht mitgenommen: %v", err)
+	}
 }

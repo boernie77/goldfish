@@ -1296,6 +1296,14 @@ Musik-UI unverändert bewusst schlank).
   Funktion warf beim `.disabled = true` und brach ab, BEVOR der `fetch()`
   losging — deshalb fand die Server-Diagnose auch keinerlei Spur (weder
   `rename_history` noch `activity_log`).
+- **Begleitdateien wandern mit (seit 1.4.50, 2026-09-29):** Umbenennen, Verschieben
+  und Undo nehmen NFO, Untertitel (`.srt/.vtt/.ass/.ssa/.sub/.idx/.sup`, auch mit
+  Sprach-Tokens wie `.de.srt`) und Kodi-Bilder (`<stamm>-poster.jpg` usw.) mit
+  (`internal/rename/sidecars.go`: `PlanSidecars` VOR dem Video-Rename, `MoveSidecars`
+  danach, best-effort mit Log). Liegen mehrere Videos im Ordner, gehört eine Datei
+  dem Video mit dem **längsten** passenden Stamm (`Film.2.de.srt` bleibt bei
+  `Film.2.mkv`). Anlass: Beim Umbenennen der Dupin-Filme blieben die gerade von
+  Goldfish geschriebenen NFOs unter dem alten Namen verwaist liegen.
 - **Thumbnails/Trickplay unberührt:** beide sind item-ID-keyed unter
   `/config/...`, nicht pfad-abhängig — ein Move invalidiert sie nicht.
 - Code: `internal/api/admin_rename.go` (`moveItem`, `moveItemsBulk`,
