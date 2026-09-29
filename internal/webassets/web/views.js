@@ -51,6 +51,16 @@ function renderHomeView(grid, data) {
     for (const it of merged) {
       const card = renderCard(it, cardOpts);
       card.classList.add("home-card");
+      // Einheitliche Kachelgröße auf der Startseite (User-Wunsch 2026-09-29):
+      // alles im 2:3-Posterformat. Bilder in anderem Format (16:9-Vorschau
+      // privater Bibliotheken, quadratische Musik-Cover) stehen vollständig
+      // in der Mitte, dahinter eine unscharfe Kopie desselben Bildes.
+      if (!card.classList.contains("card--poster")) {
+        card.classList.add("home-card--fit");
+        const img = card.querySelector(".thumb-img");
+        const thumb = card.querySelector(".thumb");
+        if (img && thumb) thumb.style.setProperty("--thumb-bg", `url("${img.getAttribute("src")}")`);
+      }
       strip.appendChild(card);
     }
     secEl.appendChild(strip);
@@ -87,7 +97,7 @@ function renderHomeView(grid, data) {
   // Sichtbarkeit pro User abschaltbar (seit 2026-09-02, "🏠 Startseite
   // anpassen"-Dialog) — Default an, wenn der Server (ältere Version) die
   // Flags noch nicht mitschickt.
-  if (data.showContinue !== false) renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24));
+  if (data.showContinue !== false) renderGlobalStrip(wrap, "▶ Fortsetzen", allContinue.slice(0, 24), { showPoster: true });
   if (data.showNextUp !== false) renderGlobalStrip(wrap, "📺 Als nächstes", allNextUp.slice(0, 24), { nextUpHide: true, showPoster: true });
 
   // Pro Library: nur „Zuletzt hinzugefuegt", in Library-Reihenfolge.

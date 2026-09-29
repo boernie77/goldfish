@@ -2990,6 +2990,23 @@ body.selection-mode .card { cursor: pointer; }
   /* Standard-Kachel-Breite, sonst platzen sie im Grid-Layout */
   width: 180px;
 }
+/* Einheitliches 2:3-Format auf der Startseite (seit 2026-09-29): Bilder in
+   anderem Format (16:9 privat, 1:1 Musik) vollständig mittig, dahinter eine
+   abgedunkelte, unscharfe Kopie (--thumb-bg, gesetzt in views.js). */
+.home-strip .home-card--fit .thumb {
+  aspect-ratio: 2 / 3;
+}
+.home-strip .home-card--fit .thumb::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  background: var(--thumb-bg) center / cover no-repeat;
+  filter: blur(14px) brightness(.55);
+}
+.home-strip .home-card--fit .thumb .thumb-img {
+  position: relative;
+  object-fit: contain;
+}
 
 /* TMDB-Attribution im Settings-Dialog (Lizenz-Pflicht) */
 .tmdb-attribution {

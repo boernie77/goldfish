@@ -725,8 +725,8 @@ function renderCard(it, opts = {}) {
   }
 
   if (opts.showPoster && isEpisode && it.metadata.parentId && it.metadata.showPosterPath) {
-    // Startseite "Zuletzt hinzugefügt" und "Als nächstes": Serienposter statt
-    // Folgen-Still (User-Wunsch 2026-09-28). Titel/Folgencode bleiben unten.
+    // Startseite (alle drei Streifen, "Fortsetzen" seit 2026-09-29):
+    // Serienposter statt Folgen-Still. Titel/Folgencode bleiben unten.
     imgUrl = `/api/poster/metadata/${it.metadata.parentId}?v=${encodeURIComponent(it.metadata.showPosterPath)}`;
   } else if (isMusicLib && it.musicAlbumId) {
     // Album-Cover statt Video-Thumbnail — Musik-Items haben nie ein eigenes

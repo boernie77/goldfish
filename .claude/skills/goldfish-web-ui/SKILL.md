@@ -491,7 +491,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      Serie jünger als `hidden_at` ist (= weitergeschaut). Nur Ansicht —
      Gesehen-Status/Dateien bleiben. Kachel-Button `.nextup-hide-toggle`
      (renderCard-Option `nextUpHide`), in den Apps noch nicht umgesetzt.
-     **„🆕 Zuletzt hinzugefügt" und „📺 Als nächstes"** zeigen bei Folgen das Serienposter
+     **Einheitliche Kacheln auf der Startseite (seit 1.4.53):** alle Kacheln in allen
+     drei Streifen im 2:3-Format; Nicht-Poster (16:9 privat, 1:1 Musik) bekommen
+     `.home-card--fit` (views.js renderGlobalStrip): Bild `object-fit: contain`
+     mittig, dahinter `--thumb-bg` unscharf/abgedunkelt per `::before`. Gilt nur
+     auf der Startseite, Bibliotheks-Raster unverändert. Gleiche Regel in allen Apps.
+     **Alle drei Streifen (auch „▶ Fortsetzen", seit 1.4.53)** zeigen bei Folgen das Serienposter
      (renderCard-Option `showPoster`, Feld `metadata.showPosterPath` aus
      `attachMetadata`, Bild über `/api/poster/metadata/{parentId}`).
   2. **Bibliotheks-Reiterleiste (Topbar)** — eigene Tabelle `user_nav_prefs
