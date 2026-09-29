@@ -15,7 +15,8 @@ const homeItemCols = `
 	COALESCE(i.metadata_id, 0),
 	COALESCE(us.watched, 0), us.watched_at, COALESCE(us.favorite, 0), us.favorited_at,
 	COALESCE(i.trickplay_status, ''),
-	COALESCE(i.variant_split, 0)
+	COALESCE(i.variant_split, 0),
+	us.last_played_at
 `
 
 func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
@@ -28,12 +29,13 @@ func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
 		var watched int
 		var favorite int
 		var variantSplit int
-		var watchedAt, favoritedAt sql.NullTime
+		var watchedAt, favoritedAt, lastPlayedAt sql.NullTime
 		if err := rows.Scan(&it.ID, &it.LibraryID, &it.Path, &it.RelPath, &it.Title,
 			&it.Container, &it.VideoCodec, &it.AudioCodec,
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps,
 			&it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
-			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &variantSplit); err != nil {
+			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &variantSplit,
+			&lastPlayedAt); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -45,6 +47,14 @@ func (s *Store) scanHomeItems(rows *sql.Rows) ([]model.Item, error) {
 		}
 		if favoritedAt.Valid {
 			it.FavoritedAt = favoritedAt.Time
+		}
+		// lastPlayedAt mitliefern (seit 1.4.52): Browser und Apps sortieren
+		// "Fortsetzen" über mehrere Bibliotheken hinweg danach. Fehlte bisher
+		// — die Clients fielen auf addedAt zurück, eine gerade geschaute Folge
+		// stand dadurch nicht vorn (User-Befund 2026-09-29, Linux-Test).
+		if lastPlayedAt.Valid {
+			t := lastPlayedAt.Time
+			it.LastPlayedAt = &t
 		}
 		it.ReleasedAt = parseDBTime(released.String)
 		if it.ReleasedAt.IsZero() {
@@ -73,7 +83,7 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 		var watched int
 		var favorite int
 		var variantSplit int
-		var watchedAt, favoritedAt sql.NullTime
+		var watchedAt, favoritedAt, lastPlayedAt sql.NullTime
 		// ⚠ show_last_activity kommt aus MAX(COALESCE(...)) über eine DATETIME-
 		// Spalte in einer CTE/Subquery — modernc.org/sqlite verliert dabei die
 		// Typ-Affinität der Spalte und liefert einen rohen String statt eines
@@ -90,7 +100,7 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 			&it.Width, &it.Height, &it.DurationSec, &it.SizeBytes, &it.BitrateKbps,
 			&it.ThumbPath, &hasThumb, &it.ModTime, &released, &it.AddedAt, &it.MetadataID,
 			&watched, &watchedAt, &favorite, &favoritedAt, &it.TrickplayStatus, &variantSplit,
-			&showLastActivity); err != nil {
+			&lastPlayedAt, &showLastActivity); err != nil {
 			return nil, err
 		}
 		it.HasThumb = hasThumb == 1
@@ -102,6 +112,14 @@ func (s *Store) scanHomeItemsWithShowActivity(rows *sql.Rows) ([]model.Item, err
 		}
 		if favoritedAt.Valid {
 			it.FavoritedAt = favoritedAt.Time
+		}
+		// lastPlayedAt mitliefern (seit 1.4.52): Browser und Apps sortieren
+		// "Fortsetzen" über mehrere Bibliotheken hinweg danach. Fehlte bisher
+		// — die Clients fielen auf addedAt zurück, eine gerade geschaute Folge
+		// stand dadurch nicht vorn (User-Befund 2026-09-29, Linux-Test).
+		if lastPlayedAt.Valid {
+			t := lastPlayedAt.Time
+			it.LastPlayedAt = &t
 		}
 		it.ShowLastActivity = parseDBTime(showLastActivity.String)
 		it.ReleasedAt = parseDBTime(released.String)

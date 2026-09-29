@@ -161,4 +161,12 @@ func TestHomeNextUpHideAndMaxAge(t *testing.T) {
 	if n := cont(time.Now().AddDate(0, 0, -7)); n != 1 {
 		t.Errorf("Fortsetzen nach reinem SetResumePosition: erwartet 1, bekam %d", n)
 	}
+	// lastPlayedAt muss im JSON stehen — Clients sortieren danach (1.4.52).
+	items, err := s.HomeContinueForLibrary(bob, libID, 12, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].LastPlayedAt == nil {
+		t.Errorf("Fortsetzen-Eintrag ohne LastPlayedAt: %+v", items)
+	}
 }
