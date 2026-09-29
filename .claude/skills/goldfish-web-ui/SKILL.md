@@ -500,6 +500,11 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
      mittig beschnitten. ⚠ Die erste Fassung (1.4.53: kleines 16:9-Bild `contain`
      vor unscharfer Kopie) hat der User als „furchtbar" abgelehnt — nicht wieder
      so machen. Nur Startseite, Bibliotheks-Raster unverändert. Gleiche Regel in allen Apps.
+     **Folgen ohne eigene Zuordnung** (Tatort: 1139 Folgen, keine hat metadata_id)
+     bekommen über dieselbe URL `?format=portrait` das Cover ihres Serien-Ordners
+     (`folderShowPoster` in api/thumb.go, seit 1.4.56: TV-Bibliothek + folder_metadata
+     des obersten Ordners). Rein serverseitig — alle Apps fragen für Kacheln ohne
+     Poster ohnehin `?format=portrait` an.
      **Alle drei Streifen (auch „▶ Fortsetzen", seit 1.4.53)** zeigen bei Folgen das Serienposter
      (renderCard-Option `showPoster`, Feld `metadata.showPosterPath` aus
      `attachMetadata`, Bild über `/api/poster/metadata/{parentId}`).

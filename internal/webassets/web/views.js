@@ -57,12 +57,14 @@ function renderHomeView(grid, data) {
       // Hochformat-Bild (?format=portrait, 400×600 aus dem Originalvideo) —
       // die erste Fassung (kleines 16:9-Bild vor unscharfer Kopie) sah laut
       // User „furchtbar" aus.
-      if (!card.classList.contains("card--poster")) {
-        card.classList.add("home-card--fit");
-        const img = card.querySelector(".thumb-img");
-        if (img && img.getAttribute("src") === `/api/thumb/${it.id}`) {
-          img.src = `/api/thumb/${it.id}?format=portrait`;
-        }
+      if (!card.classList.contains("card--poster")) card.classList.add("home-card--fit");
+      // Jede Kachel, die nur das Vorschaubild hat (kein Poster), holt das
+      // Hochformat-Bild — auch Folgen in Serien-Bibliotheken ohne eigene
+      // Zuordnung (Tatort): für die liefert der Server dort das Cover des
+      // Serien-Ordners (api/thumb.go folderShowPoster, seit 1.4.56).
+      const img = card.querySelector(".thumb-img");
+      if (img && img.getAttribute("src") === `/api/thumb/${it.id}`) {
+        img.src = `/api/thumb/${it.id}?format=portrait`;
       }
       strip.appendChild(card);
     }

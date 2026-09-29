@@ -36,7 +36,9 @@ func (s *Server) getThumb(w http.ResponseWriter, r *http.Request) {
 	// der Startseite (seit 1.4.54). Fehlt es oder schlägt die Erzeugung fehl,
 	// gibt es das normale Vorschaubild — die Kachel bleibt nie leer.
 	if r.URL.Query().Get("format") == "portrait" {
-		if p := ensurePortraitThumb(r.Context(), it); p != "" {
+		if p := s.folderShowPoster(r.Context(), it); p != "" {
+			path = p
+		} else if p := ensurePortraitThumb(r.Context(), it); p != "" {
 			path = p
 		}
 	}
@@ -50,6 +52,36 @@ func (s *Server) getThumb(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeContent(w, r, path, info.ModTime(), f)
+}
+
+// folderShowPoster: Folgen in Serien-Bibliotheken OHNE eigene Zuordnung
+// (z. B. alle 1139 Tatort-Folgen — TMDB kennt die Nummerierung nicht) zeigen
+// auf der Startseite das Cover ihres Serien-Ordners statt eines Videobildes
+// (User-Wunsch 2026-09-29: „In Serien ist es bereits vorhanden, nur bei den
+// Folgen nicht"). Clients fragen für solche Kacheln ohnehin ?format=portrait
+// an, deshalb reicht diese Server-Weiche — kein App-Update nötig.
+// Leerer String = kein passendes Cover, normaler Hochformat-Weg.
+func (s *Server) folderShowPoster(ctx context.Context, it *model.Item) string {
+	if it.MetadataID > 0 || s.Enrich == nil {
+		return ""
+	}
+	lib, err := s.Store.GetLibrary(it.LibraryID)
+	if err != nil || lib == nil || lib.Kind != model.KindTV {
+		return ""
+	}
+	top, _, found := strings.Cut(it.RelPath, "/")
+	if !found || top == "" {
+		return ""
+	}
+	metaID, err := s.Store.GetFolderMetadataID(it.LibraryID, top)
+	if err != nil || metaID == 0 {
+		return ""
+	}
+	meta, err := s.Store.GetMetadata(metaID)
+	if err != nil || meta == nil {
+		return ""
+	}
+	return s.Enrich.EnsurePosterCached(ctx, meta)
 }
 
 // portraitSlots begrenzt die gleichzeitigen ffmpeg-Aufrufe für Hochformat-
