@@ -443,11 +443,19 @@ func (s *Store) SetResumePosition(userID, itemID int64, posSec float64) error {
 		`, userID, itemID)
 		return err
 	}
+	// last_played_at mitsetzen (seit 1.4.51): „Fortsetzen" sortiert und filtert
+	// (Verweildauer) danach. Die Linux-App ruft POST /items/{id}/played nie auf,
+	// ihre angefangenen Folgen hatten dadurch KEIN Datum — sie rutschten ans Ende
+	// bzw. fielen bei gesetzter Verweildauer ganz aus „Fortsetzen" (User-Befund
+	// 2026-09-29). Wer eine Position speichert, schaut gerade — das ist genau
+	// „zuletzt abgespielt". play_count bleibt Sache von TouchLastPlayed.
 	_, err := s.db.Exec(`
-		INSERT INTO user_item_state(user_id, item_id, resume_pos_sec)
-		VALUES(?, ?, ?)
-		ON CONFLICT(user_id, item_id) DO UPDATE SET resume_pos_sec=excluded.resume_pos_sec
-	`, userID, itemID, posSec)
+		INSERT INTO user_item_state(user_id, item_id, resume_pos_sec, last_played_at)
+		VALUES(?, ?, ?, ?)
+		ON CONFLICT(user_id, item_id) DO UPDATE SET
+			resume_pos_sec = excluded.resume_pos_sec,
+			last_played_at = excluded.last_played_at
+	`, userID, itemID, posSec, time.Now())
 	return err
 }
 

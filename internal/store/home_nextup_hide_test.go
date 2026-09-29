@@ -152,4 +152,13 @@ func TestHomeNextUpHideAndMaxAge(t *testing.T) {
 	if n := cont(time.Now().AddDate(0, 0, -7)); n != 0 {
 		t.Errorf("Fortsetzen 7 Tage, vor 10 Tagen gespielt: erwartet 0, bekam %d", n)
 	}
+
+	// Linux-Fall (2026-09-29): Client speichert nur die Position, ruft aber
+	// nie /played auf — muss trotzdem frisch in "Fortsetzen" stehen.
+	if err := s.SetResumePosition(bob, e3, 300); err != nil {
+		t.Fatal(err)
+	}
+	if n := cont(time.Now().AddDate(0, 0, -7)); n != 1 {
+		t.Errorf("Fortsetzen nach reinem SetResumePosition: erwartet 1, bekam %d", n)
+	}
 }
