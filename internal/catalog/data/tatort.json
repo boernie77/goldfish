@@ -1,0 +1,13540 @@
+{
+"source": "https://de.wikipedia.org/wiki/Liste_der_Tatort-Folgen (CC BY-SA 4.0)",
+"tmdbShowId": 3034,
+"episodes": [
+{
+"nr": "1",
+"title": "Taxi nach Leipzig",
+"sender": "NDR",
+"date": "1970-11-29",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "2",
+"title": "Saarbrücken, an einem Montag …",
+"sender": "SR",
+"date": "1970-12-13",
+"ermittler": [
+"Liersdahl und Schäfermann"
+],
+"orf": false
+},
+{
+"nr": "3",
+"title": "Kressin und der tote Mann im Fleet",
+"sender": "WDR",
+"date": "1971-01-10",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "4",
+"title": "Auf offener Straße",
+"sender": "SDR",
+"date": "1971-02-07",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "5",
+"title": "Kressin und der Laster nach Lüttich",
+"sender": "WDR",
+"date": "1971-03-07",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "6",
+"title": "Frankfurter Gold",
+"sender": "HR",
+"date": "1971-04-04",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "7",
+"title": "Kressin stoppt den Nordexpress",
+"sender": "WDR",
+"date": "1971-05-02",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "8",
+"title": "Blechschaden",
+"sender": "NDR",
+"date": "1971-06-13",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "9",
+"title": "Exklusiv!",
+"sender": "NDR",
+"date": "1971-07-11",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "10",
+"title": "AE612 ohne Landeerlaubnis",
+"sender": "NDR",
+"date": "1971-09-12",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "11",
+"title": "Der Richter in Weiss",
+"sender": "NDR",
+"date": "1971-10-10",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "12",
+"title": "Mordverdacht",
+"sender": "ORF",
+"date": "1971-11-07",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "13",
+"title": "Der Boss",
+"sender": "SFB",
+"date": "1971-12-19",
+"ermittler": [
+"Kasulke"
+],
+"orf": false
+},
+{
+"nr": "14",
+"title": "Münchner Kindl",
+"sender": "BR",
+"date": "1972-01-09",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "15",
+"title": "Wenn Steine sprechen",
+"sender": "SWF",
+"date": "1972-02-13",
+"ermittler": [
+"Pflüger"
+],
+"orf": false
+},
+{
+"nr": "16",
+"title": "Der Fall Geisterbahn",
+"sender": "HR",
+"date": "1972-03-12",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "17",
+"title": "Kennwort Fähre",
+"sender": "SDR",
+"date": "1972-04-03",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "18",
+"title": "Kressin und die Frau des Malers",
+"sender": "WDR",
+"date": "1972-05-28",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "19",
+"title": "Strandgut",
+"sender": "NDR",
+"date": "1972-06-25",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "20",
+"title": "Kressin und der Mann mit dem gelben Koffer",
+"sender": "WDR",
+"date": "1972-07-09",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "21",
+"title": "Rechnen Sie mit dem Schlimmsten",
+"sender": "NDR",
+"date": "1972-09-24",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "22",
+"title": "Rattennest",
+"sender": "SFB",
+"date": "1972-10-08",
+"ermittler": [
+"Kasulke"
+],
+"orf": false
+},
+{
+"nr": "23",
+"title": "Die Samtfalle",
+"sender": "ORF",
+"date": "1972-11-12",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "24",
+"title": "Kennwort Gute Reise",
+"sender": "HR",
+"date": "1972-12-10",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "25",
+"title": "Tote Taube in der Beethovenstraße",
+"sender": "WDR",
+"date": "1973-01-07",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "26",
+"title": "Ein ganz gewöhnlicher Mord",
+"sender": "Radio Bremen",
+"date": "1973-02-04",
+"ermittler": [
+"Böck"
+],
+"orf": false
+},
+{
+"nr": "27",
+"title": "Cherchez la femme oder Die Geister vom Mummelsee",
+"sender": "SWF",
+"date": "1973-03-04",
+"ermittler": [
+"Gerber"
+],
+"orf": false
+},
+{
+"nr": "28",
+"title": "Stuttgarter Blüten",
+"sender": "SDR",
+"date": "1973-04-01",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "29",
+"title": "Jagdrevier",
+"sender": "NDR",
+"date": "1973-05-13",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "30",
+"title": "Weißblaue Turnschuhe",
+"sender": "BR",
+"date": "1973-06-24",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "31",
+"title": "Kressin und die zwei Damen aus Jade",
+"sender": "WDR",
+"date": "1973-07-08",
+"ermittler": [
+"Kressin"
+],
+"orf": false
+},
+{
+"nr": "32",
+"title": "Platzverweis für Trimmel",
+"sender": "NDR",
+"date": "1973-08-19",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "33",
+"title": "Das fehlende Gewicht",
+"sender": "SR",
+"date": "1973-09-30",
+"ermittler": [
+"Liersdahl und Schäfermann"
+],
+"orf": false
+},
+{
+"nr": "34",
+"title": "Tote brauchen keine Wohnung",
+"sender": "BR",
+"date": "1973-11-11",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "35",
+"title": "Frauenmord",
+"sender": "ORF",
+"date": "1973-12-09",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "36",
+"title": "Nachtfrost",
+"sender": "NDR",
+"date": "1974-01-20",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "37",
+"title": "Eine todsichere Sache",
+"sender": "HR",
+"date": "1974-02-17",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "38",
+"title": "Playback oder die Show geht weiter",
+"sender": "SWF",
+"date": "1974-03-17",
+"ermittler": [
+"Gerber"
+],
+"orf": false
+},
+{
+"nr": "39",
+"title": "Acht Jahre später",
+"sender": "WDR",
+"date": "1974-04-28",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "40",
+"title": "3:0 für Veigl",
+"sender": "BR",
+"date": "1974-05-26",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "41",
+"title": "Zweikampf",
+"sender": "WDR",
+"date": "1974-06-23",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "42",
+"title": "Gift",
+"sender": "NDR",
+"date": "1974-07-21",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "43",
+"title": "Gefährliche Wanzen",
+"sender": "SDR",
+"date": "1974-09-29",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "44",
+"title": "Mord im Ministerium",
+"sender": "ORF",
+"date": "1974-10-13",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "45",
+"title": "Kneipenbekanntschaft",
+"sender": "NDR",
+"date": "1974-11-10",
+"ermittler": [
+"Brammer"
+],
+"orf": false
+},
+{
+"nr": "46",
+"title": "Der Mann aus Zimmer 22",
+"sender": "WDR",
+"date": "1974-12-08",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "47",
+"title": "Die Rechnung wird nachgereicht",
+"sender": "HR",
+"date": "1975-01-19",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "48",
+"title": "Als gestohlen gemeldet",
+"sender": "BR",
+"date": "1975-02-16",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "49",
+"title": "Tod eines Einbrechers",
+"sender": "SWF",
+"date": "1975-03-16",
+"ermittler": [
+"Gerber"
+],
+"orf": false
+},
+{
+"nr": "50",
+"title": "Wodka Bitter-Lemon",
+"sender": "WDR",
+"date": "1975-04-13",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "51",
+"title": "Das zweite Geständnis",
+"sender": "BR",
+"date": "1975-05-11",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "52",
+"title": "Die Abrechnung",
+"sender": "WDR",
+"date": "1975-06-08",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "53",
+"title": "Mordgedanken",
+"sender": "NDR",
+"date": "1975-07-06",
+"ermittler": [
+"Brammer"
+],
+"orf": false
+},
+{
+"nr": "54",
+"title": "Schöne Belinda",
+"sender": "SDR",
+"date": "1975-08-31",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "55",
+"title": "Urlaubsmord",
+"sender": "ORF",
+"date": "1975-09-28",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "56",
+"title": "Treffpunkt Friedhof",
+"sender": "WDR",
+"date": "1975-10-12",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "57",
+"title": "Tod im U-Bahnschacht",
+"sender": "SFB",
+"date": "1975-11-09",
+"ermittler": [
+"Schmidt"
+],
+"orf": false
+},
+{
+"nr": "58",
+"title": "Kurzschluß",
+"sender": "NDR",
+"date": "1975-12-07",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "59",
+"title": "Augenzeuge",
+"sender": "SDR",
+"date": "1976-01-18",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "60",
+"title": "Kassensturz",
+"sender": "SWF",
+"date": "1976-02-15",
+"ermittler": [
+"Gerber"
+],
+"orf": false
+},
+{
+"nr": "61",
+"title": "Zwei Leben",
+"sender": "WDR",
+"date": "1976-03-14",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "62",
+"title": "Zwei Flugkarten nach Rio",
+"sender": "HR",
+"date": "1976-04-11",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "63",
+"title": "Wohnheim Westendstraße",
+"sender": "BR",
+"date": "1976-05-09",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "64",
+"title": "Fortuna III",
+"sender": "WDR",
+"date": "1976-06-07",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "65",
+"title": "… und dann ist Zahltag",
+"sender": "NDR",
+"date": "1976-08-15",
+"ermittler": [
+"Brammer"
+],
+"orf": false
+},
+{
+"nr": "66",
+"title": "Annoncen-Mord",
+"sender": "ORF",
+"date": "1976-09-12",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "67",
+"title": "Trimmel und der Tulpendieb",
+"sender": "NDR",
+"date": "1976-10-10",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "68",
+"title": "Abendstern",
+"sender": "WDR",
+"date": "1976-11-07",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "69",
+"title": "Transit ins Jenseits",
+"sender": "SFB",
+"date": "1976-12-05",
+"ermittler": [
+"Schmidt"
+],
+"orf": false
+},
+{
+"nr": "70",
+"title": "Das Mädchen am Klavier",
+"sender": "BR",
+"date": "1977-01-02",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "71",
+"title": "Himmelblau mit Silberstreifen",
+"sender": "SDR",
+"date": "1977-01-30",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "72",
+"title": "Flieder für Jaczek",
+"sender": "HR",
+"date": "1977-02-27",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "73",
+"title": "Reifezeugnis",
+"sender": "NDR",
+"date": "1977-03-27",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "74",
+"title": "Finderlohn",
+"sender": "SWF",
+"date": "1977-04-24",
+"ermittler": [
+"Gerber"
+],
+"orf": false
+},
+{
+"nr": "75",
+"title": "Spätlese",
+"sender": "WDR",
+"date": "1977-05-22",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "76",
+"title": "Wer andern eine Grube gräbt …",
+"sender": "SR",
+"date": "1977-06-19",
+"ermittler": [
+"Schäfermann"
+],
+"orf": false
+},
+{
+"nr": "77",
+"title": "Schüsse in der Schonzeit",
+"sender": "BR",
+"date": "1977-07-17",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "78",
+"title": "Drei Schlingen",
+"sender": "WDR",
+"date": "1977-08-28",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "79",
+"title": "Der vergessene Mord",
+"sender": "ORF",
+"date": "1977-09-11",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "80",
+"title": "Feuerzauber",
+"sender": "SFB",
+"date": "1977-10-09",
+"ermittler": [
+"Schmidt"
+],
+"orf": false
+},
+{
+"nr": "81",
+"title": "Das stille Geschäft",
+"sender": "NDR",
+"date": "1977-11-06",
+"ermittler": [
+"Brammer"
+],
+"orf": false
+},
+{
+"nr": "82",
+"title": "Das Mädchen von gegenüber",
+"sender": "WDR",
+"date": "1977-12-04",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "83",
+"title": "Rot – rot – tot",
+"sender": "SDR",
+"date": "1978-01-01",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "84",
+"title": "Der Mann auf dem Hochsitz",
+"sender": "SWF",
+"date": "1978-01-29",
+"ermittler": [
+"Buchmüller"
+],
+"orf": false
+},
+{
+"nr": "85",
+"title": "Zürcher Früchte",
+"sender": "HR",
+"date": "1978-02-12",
+"ermittler": [
+"Bergmann"
+],
+"orf": false
+},
+{
+"nr": "86",
+"title": "Trimmel hält ein Plädoyer",
+"sender": "NDR",
+"date": "1978-03-27",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "87",
+"title": "Rechnung mit einer Unbekannten",
+"sender": "WDR",
+"date": "1978-04-23",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "88",
+"title": "Schlußverkauf",
+"sender": "BR",
+"date": "1978-05-21",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "89",
+"title": "Lockruf",
+"sender": "WDR",
+"date": "1978-07-02",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "90",
+"title": "Himmelfahrt",
+"sender": "NDR",
+"date": "1978-08-13",
+"ermittler": [
+"Finke"
+],
+"orf": false
+},
+{
+"nr": "91",
+"title": "Der Feinkosthändler",
+"sender": "WDR",
+"date": "1978-09-10",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "92",
+"title": "Mord im Krankenhaus",
+"sender": "ORF",
+"date": "1978-10-08",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "93",
+"title": "Sterne für den Orient",
+"sender": "SFB",
+"date": "1978-11-05",
+"ermittler": [
+"Behnke"
+],
+"orf": false
+},
+{
+"nr": "94",
+"title": "Schwarze Einser",
+"sender": "BR",
+"date": "1978-12-03",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "95",
+"title": "Die Kugel im Leib",
+"sender": "WDR",
+"date": "1979-01-14",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "96",
+"title": "Der King",
+"sender": "HR",
+"date": "1979-02-11",
+"ermittler": [
+"Konrad"
+],
+"orf": false
+},
+{
+"nr": "97",
+"title": "Alles umsonst",
+"sender": "NDR",
+"date": "1979-03-11",
+"ermittler": [
+"Nagel"
+],
+"orf": false
+},
+{
+"nr": "98",
+"title": "30 Liter Super",
+"sender": "SR",
+"date": "1979-04-08",
+"ermittler": [
+"Schäfermann"
+],
+"orf": false
+},
+{
+"nr": "99",
+"title": "Ende der Vorstellung",
+"sender": "BR",
+"date": "1979-05-06",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "100",
+"title": "Ein Schuß zuviel",
+"sender": "WDR",
+"date": "1979-06-04",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "101",
+"title": "Freund Gregor",
+"sender": "NDR",
+"date": "1979-07-01",
+"ermittler": [
+"Delius"
+],
+"orf": false
+},
+{
+"nr": "102",
+"title": "Zweierlei Knoten",
+"sender": "SDR",
+"date": "1979-07-29",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "103",
+"title": "Mitternacht, oder kurz danach",
+"sender": "SWF",
+"date": "1979-08-26",
+"ermittler": [
+"Buchmüller"
+],
+"orf": false
+},
+{
+"nr": "104",
+"title": "Gefährliche Träume",
+"sender": "SFB",
+"date": "1979-09-23",
+"ermittler": [
+"Behnke"
+],
+"orf": false
+},
+{
+"nr": "105",
+"title": "Mord im Grandhotel",
+"sender": "ORF",
+"date": "1979-10-21",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "106",
+"title": "Schweigegeld",
+"sender": "WDR",
+"date": "1979-11-18",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "107",
+"title": "Maria im Elend",
+"sender": "BR",
+"date": "1979-12-16",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "108",
+"title": "Kein Kinderspiel",
+"sender": "SDR",
+"date": "1980-01-13",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "109",
+"title": "Der gelbe Unterrock",
+"sender": "SWF",
+"date": "1980-02-10",
+"ermittler": [
+"Buchmüller"
+],
+"orf": false
+},
+{
+"nr": "110",
+"title": "Mit nackten Füßen",
+"sender": "HR",
+"date": "1980-03-09",
+"ermittler": [
+"Sander"
+],
+"orf": false
+},
+{
+"nr": "111",
+"title": "Der Zeuge",
+"sender": "WDR",
+"date": "1980-04-07",
+"ermittler": [
+"Enders und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "112",
+"title": "Hände hoch, Herr Trimmel!",
+"sender": "NDR",
+"date": "1980-05-04",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "113",
+"title": "Schußfahrt",
+"sender": "WDR",
+"date": "1980-06-01",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "114",
+"title": "Spiel mit Karten",
+"sender": "BR",
+"date": "1980-07-27",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "115",
+"title": "Streifschuß",
+"sender": "NDR",
+"date": "1980-08-24",
+"ermittler": [
+"Piper"
+],
+"orf": false
+},
+{
+"nr": "116",
+"title": "Tote reisen nicht umsonst",
+"sender": "SR",
+"date": "1980-09-21",
+"ermittler": [
+"Schäfermann"
+],
+"orf": false
+},
+{
+"nr": "117",
+"title": "Mord auf Raten",
+"sender": "ORF",
+"date": "1980-10-19",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "118",
+"title": "Schönes Wochenende",
+"sender": "WDR",
+"date": "1980-11-16",
+"ermittler": [
+"Haferkamp und Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "119",
+"title": "Herzjagd",
+"sender": "WDR",
+"date": "1980-12-14",
+"ermittler": [
+"Kreutzer"
+],
+"orf": false
+},
+{
+"nr": "120",
+"title": "Nebengeschäfte",
+"sender": "SDR",
+"date": "1981-01-11",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "121",
+"title": "Schattenboxen",
+"sender": "HR",
+"date": "1981-02-08",
+"ermittler": [
+"Bergmann"
+],
+"orf": false
+},
+{
+"nr": "122",
+"title": "Beweisaufnahme",
+"sender": "SFB",
+"date": "1981-03-08",
+"ermittler": [
+"Walther"
+],
+"orf": false
+},
+{
+"nr": "123",
+"title": "Usambaraveilchen",
+"sender": "BR",
+"date": "1981-04-20",
+"ermittler": [
+"Veigl"
+],
+"orf": false
+},
+{
+"nr": "124",
+"title": "Das Lederherz",
+"sender": "SWF",
+"date": "1981-05-03",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "125",
+"title": "Das Zittern der Tenöre",
+"sender": "NDR",
+"date": "1981-05-31",
+"ermittler": [
+"Greve"
+],
+"orf": false
+},
+{
+"nr": "126",
+"title": "Duisburg-Ruhrort",
+"sender": "WDR",
+"date": "1981-06-28",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "127",
+"title": "Katz und Mäuse",
+"sender": "SFB",
+"date": "1981-08-23",
+"ermittler": [
+"Walther"
+],
+"orf": false
+},
+{
+"nr": "128",
+"title": "Slalom",
+"sender": "NDR",
+"date": "1981-09-13",
+"ermittler": [
+"Beck"
+],
+"orf": false
+},
+{
+"nr": "129",
+"title": "Mord in der Oper",
+"sender": "ORF",
+"date": "1981-10-18",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "130",
+"title": "Im Fadenkreuz",
+"sender": "BR",
+"date": "1981-11-15",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "131",
+"title": "Grenzgänger",
+"sender": "WDR",
+"date": "1981-12-13",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "132",
+"title": "Blinde Wut",
+"sender": "SDR",
+"date": "1982-01-10",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "133",
+"title": "So ein Tag …",
+"sender": "HR",
+"date": "1982-02-07",
+"ermittler": [
+"Rolfs"
+],
+"orf": false
+},
+{
+"nr": "134",
+"title": "Der unsichtbare Gegner",
+"sender": "WDR",
+"date": "1982-03-07",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "135",
+"title": "Tod auf dem Rastplatz",
+"sender": "BR",
+"date": "1982-04-12",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "136",
+"title": "Wat Recht is, mutt Recht blieben",
+"sender": "NDR",
+"date": "1982-05-02",
+"ermittler": [
+"Schnoor"
+],
+"orf": false
+},
+{
+"nr": "137",
+"title": "Sterben und sterben lassen",
+"sender": "SFB",
+"date": "1982-05-31",
+"ermittler": [
+"Walther"
+],
+"orf": false
+},
+{
+"nr": "138",
+"title": "Das Mädchen auf der Treppe",
+"sender": "WDR",
+"date": "1982-06-27",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "139",
+"title": "Blaßlila Briefe",
+"sender": "SWF",
+"date": "1982-07-25",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "140",
+"title": "Kindergeld",
+"sender": "NDR",
+"date": "1982-08-22",
+"ermittler": [
+"Piper"
+],
+"orf": false
+},
+{
+"nr": "141",
+"title": "Trimmel und Isolde",
+"sender": "NDR",
+"date": "1982-09-19",
+"ermittler": [
+"Trimmel"
+],
+"orf": false
+},
+{
+"nr": "142",
+"title": "Mordkommando",
+"sender": "ORF",
+"date": "1982-10-17",
+"ermittler": [
+"Marek"
+],
+"orf": false
+},
+{
+"nr": "143",
+"title": "Kuscheltiere",
+"sender": "WDR",
+"date": "1982-12-12",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "144",
+"title": "Mord ist kein Geschäft",
+"sender": "SDR",
+"date": "1983-01-09",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "145",
+"title": "Fluppys Masche",
+"sender": "SFB",
+"date": "1983-02-06",
+"ermittler": [
+"Walther"
+],
+"orf": false
+},
+{
+"nr": "146",
+"title": "Miriam",
+"sender": "WDR",
+"date": "1983-04-04",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "147",
+"title": "Blütenträume",
+"sender": "HR",
+"date": "1983-05-01",
+"ermittler": [
+"Bergmann"
+],
+"orf": false
+},
+{
+"nr": "148",
+"title": "Peggy hat Angst",
+"sender": "SWF",
+"date": "1983-05-23",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "149",
+"title": "Wenn alle Brünnlein fließen",
+"sender": "NDR",
+"date": "1983-06-26",
+"ermittler": [
+"Ronke"
+],
+"orf": false
+},
+{
+"nr": "150",
+"title": "Mord in der U-Bahn",
+"sender": "ORF",
+"date": "1983-09-18",
+"ermittler": [
+"Marek a. D."
+],
+"orf": false
+},
+{
+"nr": "151",
+"title": "Roulette mit 6 Kugeln",
+"sender": "BR",
+"date": "1983-10-16",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "152",
+"title": "Der Schläfer",
+"sender": "NDR",
+"date": "1983-11-06",
+"ermittler": [
+"Delius"
+],
+"orf": false
+},
+{
+"nr": "153",
+"title": "Rubecks Traum",
+"sender": "HR",
+"date": "1984-01-08",
+"ermittler": [
+"Rullmann"
+],
+"orf": false
+},
+{
+"nr": "154",
+"title": "Freiwild",
+"sender": "SFB",
+"date": "1984-02-05",
+"ermittler": [
+"Walther"
+],
+"orf": false
+},
+{
+"nr": "155",
+"title": "Verdeckte Ermittlung",
+"sender": "SDR",
+"date": "1984-02-26",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "156",
+"title": "Kielwasser",
+"sender": "WDR",
+"date": "1984-03-25",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "157",
+"title": "Haie vor Helgoland",
+"sender": "NDR",
+"date": "1984-04-23",
+"ermittler": [
+"Stoever"
+],
+"orf": false
+},
+{
+"nr": "158",
+"title": "Täter und Opfer",
+"sender": "SWF",
+"date": "1984-05-27",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "159",
+"title": "Zweierlei Blut",
+"sender": "WDR",
+"date": "1984-07-22",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "160",
+"title": "Gelegenheit macht Liebe",
+"sender": "NDR",
+"date": "1984-08-19",
+"ermittler": [
+"Stoever"
+],
+"orf": false
+},
+{
+"nr": "161",
+"title": "Heißer Schnee",
+"sender": "BR",
+"date": "1984-09-09",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "162",
+"title": "Geburtstagsgrüße",
+"sender": "SR",
+"date": "1984-11-04",
+"ermittler": [
+"Schäfermann"
+],
+"orf": false
+},
+{
+"nr": "163",
+"title": "Der Mann mit den Rosen",
+"sender": "ORF",
+"date": "1984-11-25",
+"ermittler": [
+"Hirth"
+],
+"orf": false
+},
+{
+"nr": "164",
+"title": "Rechnung ohne Wirt",
+"sender": "WDR",
+"date": "1984-12-09",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "165",
+"title": "Ordnung ist das halbe Sterben",
+"sender": "SFB",
+"date": "1985-01-06",
+"ermittler": [
+"Walther"
+],
+"orf": false
+},
+{
+"nr": "166",
+"title": "Acht, neun – aus",
+"sender": "HR",
+"date": "1985-02-10",
+"ermittler": [
+"Dietze"
+],
+"orf": false
+},
+{
+"nr": "167",
+"title": "Doppelspiel",
+"sender": "WDR",
+"date": "1985-03-31",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "168",
+"title": "Irren ist tödlich",
+"sender": "NDR",
+"date": "1985-04-14",
+"ermittler": [
+"Stoever"
+],
+"orf": false
+},
+{
+"nr": "169",
+"title": "Miese Tricks",
+"sender": "SDR",
+"date": "1985-05-26",
+"ermittler": [
+"Lutz"
+],
+"orf": false
+},
+{
+"nr": "170",
+"title": "Der Mord danach",
+"sender": "SWF",
+"date": "1985-06-23",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "171",
+"title": "Das Haus im Wald",
+"sender": "WDR",
+"date": "1985-08-18",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "172",
+"title": "Nachtstreife",
+"sender": "ORF",
+"date": "1985-09-15",
+"ermittler": [
+"Hirth"
+],
+"orf": false
+},
+{
+"nr": "173",
+"title": "Schmerzensgeld",
+"sender": "HR",
+"date": "1985-10-13",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "174",
+"title": "Tod macht erfinderisch",
+"sender": "SFB",
+"date": "1985-11-10",
+"ermittler": [
+"Bülow"
+],
+"orf": false
+},
+{
+"nr": "175",
+"title": "Baranskis Geschäft",
+"sender": "NDR",
+"date": "1985-12-01",
+"ermittler": [
+"Delius a. D."
+],
+"orf": false
+},
+{
+"nr": "176",
+"title": "Schicki-Micki",
+"sender": "BR",
+"date": "1985-12-29",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "177",
+"title": "Die kleine Kanaille",
+"sender": "SFB",
+"date": "1986-01-26",
+"ermittler": [
+"Bülow"
+],
+"orf": false
+},
+{
+"nr": "178",
+"title": "Einer sah den Mörder",
+"sender": "SDR",
+"date": "1986-02-23",
+"ermittler": [
+"Lutz und Schreitle"
+],
+"orf": false
+},
+{
+"nr": "179",
+"title": "Leiche im Keller",
+"sender": "NDR",
+"date": "1986-03-31",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "180",
+"title": "Der Tausch",
+"sender": "WDR",
+"date": "1986-04-13",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "181",
+"title": "Riedmüller, Vorname Sigi",
+"sender": "BR",
+"date": "1986-05-19",
+"ermittler": [
+"Riedmüller"
+],
+"orf": false
+},
+{
+"nr": "182",
+"title": "Aus der Traum",
+"sender": "SWF",
+"date": "1986-06-15",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "183",
+"title": "Tödliche Blende",
+"sender": "SFB",
+"date": "1986-07-13",
+"ermittler": [
+"Bülow"
+],
+"orf": false
+},
+{
+"nr": "184",
+"title": "Schwarzes Wochenende",
+"sender": "WDR",
+"date": "1986-08-10",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "185",
+"title": "Tod auf Eis",
+"sender": "NDR",
+"date": "1986-09-07",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "186",
+"title": "Wir werden ihn Mischa nennen",
+"sender": "ORF",
+"date": "1986-09-21",
+"ermittler": [
+"Hirth"
+],
+"orf": false
+},
+{
+"nr": "187",
+"title": "Automord",
+"sender": "HR",
+"date": "1986-11-30",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "188",
+"title": "Freunde",
+"sender": "WDR",
+"date": "1986-12-28",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "189",
+"title": "Die Macht des Schicksals",
+"sender": "BR",
+"date": "1987-01-25",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "190",
+"title": "Eine Million Mäuse",
+"sender": "SDR",
+"date": "1987-02-22",
+"ermittler": [
+"Schreitle"
+],
+"orf": false
+},
+{
+"nr": "191",
+"title": "Blindflug",
+"sender": "HR",
+"date": "1987-03-29",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "192",
+"title": "Tod im Elefantenhaus",
+"sender": "NDR",
+"date": "1987-04-20",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "193",
+"title": "Spiel mit dem Feuer",
+"sender": "SWF",
+"date": "1987-05-17",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "194",
+"title": "Spielverderber",
+"sender": "WDR",
+"date": "1987-06-08",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "195",
+"title": "Pension Tosca oder Die Sterne lügen nicht",
+"sender": "BR",
+"date": "1987-07-12",
+"ermittler": [
+"Scherrer"
+],
+"orf": false
+},
+{
+"nr": "196",
+"title": "Wunschlos tot",
+"sender": "ORF",
+"date": "1987-08-30",
+"ermittler": [
+"Pfeifer"
+],
+"orf": false
+},
+{
+"nr": "197",
+"title": "Gegenspieler",
+"sender": "BR",
+"date": "1987-09-13",
+"ermittler": [
+"Lenz"
+],
+"orf": false
+},
+{
+"nr": "198",
+"title": "Voll auf Haß",
+"sender": "NDR",
+"date": "1987-11-08",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "199",
+"title": "Der letzte Mord",
+"sender": "ORF",
+"date": "1987-11-29",
+"ermittler": [
+"Pfeifer"
+],
+"orf": false
+},
+{
+"nr": "200",
+"title": "Zahn um Zahn",
+"sender": "WDR",
+"date": "1987-12-27",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "201",
+"title": "Salü Palu",
+"sender": "SR",
+"date": "1988-01-24",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "202",
+"title": "Schuldlos schuldig",
+"sender": "SFB",
+"date": "1988-02-28",
+"ermittler": [
+"Bülow"
+],
+"orf": false
+},
+{
+"nr": "203",
+"title": "Sein letzter Wille",
+"sender": "SDR",
+"date": "1988-04-04",
+"ermittler": [
+"Schreitle"
+],
+"orf": false
+},
+{
+"nr": "204",
+"title": "Die Brüder",
+"sender": "HR",
+"date": "1988-04-17",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "205",
+"title": "Gebrochene Blüten",
+"sender": "WDR",
+"date": "1988-05-01",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "206",
+"title": "Ausgeklinkt",
+"sender": "SWF",
+"date": "1988-05-23",
+"ermittler": [
+"Wiegand"
+],
+"orf": false
+},
+{
+"nr": "207",
+"title": "Spuk aus der Eiszeit",
+"sender": "NDR",
+"date": "1988-07-10",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "208",
+"title": "Pleitegeier",
+"sender": "NDR",
+"date": "1988-08-07",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "209",
+"title": "Einzelhaft",
+"sender": "WDR",
+"date": "1988-08-21",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "210",
+"title": "Tödlicher Treff",
+"sender": "SDR",
+"date": "1988-09-04",
+"ermittler": [
+"Schreitle"
+],
+"orf": false
+},
+{
+"nr": "211",
+"title": "Feuerwerk für eine Leiche",
+"sender": "ORF",
+"date": "1988-10-02",
+"ermittler": [
+"Pfeifer"
+],
+"orf": false
+},
+{
+"nr": "212",
+"title": "Winterschach",
+"sender": "SR",
+"date": "1988-11-13",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "213",
+"title": "Programmiert auf Mord",
+"sender": "BR",
+"date": "1988-12-11",
+"ermittler": [
+"Brandenburg"
+],
+"orf": false
+},
+{
+"nr": "214",
+"title": "Moltke",
+"sender": "WDR",
+"date": "1988-12-28",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "215",
+"title": "Kopflos",
+"sender": "HR",
+"date": "1989-01-22",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "216",
+"title": "Schmutzarbeit",
+"sender": "NDR",
+"date": "1989-02-19",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "217",
+"title": "Der Pott",
+"sender": "WDR",
+"date": "1989-04-09",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "218",
+"title": "Bier vom Faß",
+"sender": "BR",
+"date": "1989-05-14",
+"ermittler": [
+"Brandenburg"
+],
+"orf": false
+},
+{
+"nr": "219",
+"title": "Keine Tricks, Herr Bülow",
+"sender": "SFB",
+"date": "1989-05-28",
+"ermittler": [
+"Bülow"
+],
+"orf": false
+},
+{
+"nr": "220",
+"title": "Armer Nanosh",
+"sender": "NDR",
+"date": "1989-07-09",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "221",
+"title": "Alles Theater",
+"sender": "SFB",
+"date": "1989-07-30",
+"ermittler": [
+"Bülow"
+],
+"orf": false
+},
+{
+"nr": "222",
+"title": "Blutspur",
+"sender": "WDR",
+"date": "1989-08-20",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "223",
+"title": "Blinde Angst",
+"sender": "ORF",
+"date": "1989-10-01",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "224",
+"title": "Die Neue",
+"sender": "SWF",
+"date": "1989-10-29",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "225",
+"title": "Katjas Schweigen",
+"sender": "WDR",
+"date": "1989-12-03",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "226",
+"title": "Herzversagen",
+"sender": "SR",
+"date": "1989-12-27",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "227",
+"title": "Lauf eines Todes",
+"sender": "NDR",
+"date": "1990-01-21",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "228",
+"title": "Tod einer Ärztin",
+"sender": "HR",
+"date": "1990-02-18",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "229",
+"title": "Howalds Fall",
+"sender": "SF",
+"date": "1990-04-16",
+"ermittler": [
+"Howald"
+],
+"orf": false
+},
+{
+"nr": "230",
+"title": "Medizinmänner",
+"sender": "WDR",
+"date": "1990-05-13",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "231",
+"title": "Rendezvous",
+"sender": "SWF",
+"date": "1990-06-04",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "232",
+"title": "Zabou",
+"sender": "WDR",
+"date": "1990-07-22",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "233",
+"title": "Zeitzünder",
+"sender": "NDR",
+"date": "1990-08-04",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "234",
+"title": "Schimanskis Waffe",
+"sender": "WDR",
+"date": "1990-09-02",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "235",
+"title": "Unter Brüdern",
+"sender": "WDR/DFF",
+"date": "1990-10-28",
+"ermittler": [
+"Schimanski und Thanner",
+"Fuchs und Grawe"
+],
+"orf": false
+},
+{
+"nr": "236",
+"title": "Seven Eleven",
+"sender": "ORF",
+"date": "1990-11-11",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "237",
+"title": "Blue Lady",
+"sender": "SR",
+"date": "1990-12-09",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "238",
+"title": "Animals",
+"sender": "BR",
+"date": "1991-01-01",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "239",
+"title": "Finale am Rothenbaum",
+"sender": "NDR",
+"date": "1991-01-20",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "240",
+"title": "Wer zweimal stirbt",
+"sender": "BR",
+"date": "1991-03-03",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "241",
+"title": "Rikki",
+"sender": "HR",
+"date": "1991-03-17",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "242",
+"title": "Kameraden",
+"sender": "SF",
+"date": "1991-04-01",
+"ermittler": [
+"Carlucci"
+],
+"orf": false
+},
+{
+"nr": "243",
+"title": "Tödliche Vergangenheit",
+"sender": "SFB",
+"date": "1991-05-20",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "244",
+"title": "Bis zum Hals im Dreck",
+"sender": "WDR",
+"date": "1991-06-09",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "245",
+"title": "Tini",
+"sender": "SFB",
+"date": "1991-07-07",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "246",
+"title": "Tod eines Mädchens",
+"sender": "NDR",
+"date": "1991-08-04",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "247",
+"title": "Telefongeld",
+"sender": "ORF",
+"date": "1991-09-15",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "248",
+"title": "Blutwurstwalzer",
+"sender": "SFB",
+"date": "1991-09-22",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "249",
+"title": "Tod im Häcksler",
+"sender": "SWF",
+"date": "1991-10-13",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "250",
+"title": "Kinderlieb",
+"sender": "WDR",
+"date": "1991-10-27",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "251",
+"title": "Die chinesische Methode",
+"sender": "BR",
+"date": "1991-11-10",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "252",
+"title": "Der Fall Schimanski",
+"sender": "WDR",
+"date": "1991-12-29",
+"ermittler": [
+"Schimanski und Thanner"
+],
+"orf": false
+},
+{
+"nr": "253",
+"title": "Ein Fall für Ehrlicher",
+"sender": "MDR",
+"date": "1992-01-19",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "254",
+"title": "Camerone",
+"sender": "SR",
+"date": "1992-02-16",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "255",
+"title": "Verspekuliert",
+"sender": "HR",
+"date": "1992-03-15",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "256",
+"title": "Blindekuh",
+"sender": "NDR",
+"date": "1992-04-20",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "257",
+"title": "Experiment",
+"sender": "NDR",
+"date": "1992-05-03",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "258",
+"title": "Der Mörder und der Prinz",
+"sender": "WDR",
+"date": "1992-05-17",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "259",
+"title": "Tod aus der Vergangenheit",
+"sender": "MDR",
+"date": "1992-06-08",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "260",
+"title": "Stoevers Fall",
+"sender": "NDR",
+"date": "1992-07-05",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "261",
+"title": "Kinderspiel",
+"sender": "ORF",
+"date": "1992-08-16",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "262",
+"title": "Kainsmale",
+"sender": "BR",
+"date": "1992-09-20",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "263",
+"title": "Unversöhnlich",
+"sender": "WDR",
+"date": "1992-10-04",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "264",
+"title": "Marion",
+"sender": "SF",
+"date": "1992-10-11",
+"ermittler": [
+"Carlucci und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "265",
+"title": "Tod eines Wachmanns",
+"sender": "WDR",
+"date": "1992-10-25",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "266",
+"title": "Bienzle und der Biedermann",
+"sender": "SDR",
+"date": "1992-12-06",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "267",
+"title": "Falsche Liebe",
+"sender": "SWF",
+"date": "1992-12-20",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "268",
+"title": "Amoklauf",
+"sender": "NDR",
+"date": "1993-01-03",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "269",
+"title": "Berlin – beste Lage",
+"sender": "SFB",
+"date": "1993-01-10",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "270",
+"title": "Renis Tod",
+"sender": "HR",
+"date": "1993-01-31",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "271",
+"title": "Verbranntes Spiel",
+"sender": "MDR",
+"date": "1993-02-28",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "272",
+"title": "Kesseltreiben",
+"sender": "SR",
+"date": "1993-03-07",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "273",
+"title": "Bienzle und die schöne Lau",
+"sender": "SDR",
+"date": "1993-03-28",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "274",
+"title": "Flucht nach Miami",
+"sender": "WDR",
+"date": "1993-04-18",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "275",
+"title": "Tod einer alten Frau",
+"sender": "SFB",
+"date": "1993-04-25",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "276",
+"title": "Gehirnwäsche",
+"sender": "SF",
+"date": "1993-06-06",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "277",
+"title": "Gefährliche Freundschaft",
+"sender": "WDR",
+"date": "1993-07-11",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "278",
+"title": "Ein Sommernachtstraum",
+"sender": "BR",
+"date": "1993-07-25",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "279",
+"title": "Alles Palermo",
+"sender": "BR",
+"date": "1993-08-29",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "280",
+"title": "Um Haus und Hof",
+"sender": "NDR",
+"date": "1993-09-26",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "281",
+"title": "Stahlwalzer",
+"sender": "ORF",
+"date": "1993-10-24",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "282",
+"title": "Die Zärtlichkeit des Monsters",
+"sender": "SWF",
+"date": "1993-10-31",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "283",
+"title": "Bauernopfer",
+"sender": "MDR",
+"date": "1993-11-21",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "284",
+"title": "Himmel und Erde",
+"sender": "BR",
+"date": "1993-11-28",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "285",
+"title": "Deserteure",
+"sender": "WDR",
+"date": "1993-12-19",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "286",
+"title": "Bienzle und das Narrenspiel",
+"sender": "SDR",
+"date": "1994-01-23",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "287",
+"title": "Die Sache Baryschna",
+"sender": "SFB",
+"date": "1994-02-06",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "288",
+"title": "Ein Wodka zuviel",
+"sender": "NDR",
+"date": "1994-03-06",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "289",
+"title": "Der Rastplatzmörder",
+"sender": "HR",
+"date": "1994-03-27",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "290",
+"title": "Mord in der Akademie",
+"sender": "WDR",
+"date": "1994-04-24",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "291",
+"title": "Laura mein Engel",
+"sender": "MDR",
+"date": "1994-05-01",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "292",
+"title": "Singvogel",
+"sender": "NDR",
+"date": "1994-05-23",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "293",
+"title": "Klassen-Kampf",
+"sender": "BR",
+"date": "1994-06-05",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "294",
+"title": "Jetzt und Alles",
+"sender": "MDR",
+"date": "1994-07-31",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "295",
+"title": "Die Frau an der Straße",
+"sender": "WDR",
+"date": "1994-08-14",
+"ermittler": [
+"Flemming, Koch und Ballauf"
+],
+"orf": false
+},
+{
+"nr": "296",
+"title": "Geschlossene Akten",
+"sender": "SFB",
+"date": "1994-09-04",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "297",
+"title": "Herrenboxer",
+"sender": "SF",
+"date": "1994-10-16",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "298",
+"title": "Ostwärts",
+"sender": "ORF",
+"date": "1994-10-30",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "299",
+"title": "Der schwarze Engel",
+"sender": "SWF",
+"date": "1994-11-13",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "300",
+"title": "… und die Musi spielt dazu",
+"sender": "BR",
+"date": "1994-12-11",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "301",
+"title": "Tod eines Polizisten",
+"sender": "NDR",
+"date": "1995-01-01",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "302",
+"title": "Ein ehrenwertes Haus",
+"sender": "MDR",
+"date": "1995-01-08",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "303",
+"title": "Eine mörderische Rolle",
+"sender": "HR",
+"date": "1995-02-19",
+"ermittler": [
+"Felber"
+],
+"orf": false
+},
+{
+"nr": "304",
+"title": "Die Kampagne",
+"sender": "SWF",
+"date": "1995-03-05",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "305",
+"title": "Endstation",
+"sender": "SFB",
+"date": "1995-03-12",
+"ermittler": [
+"Markowitz"
+],
+"orf": false
+},
+{
+"nr": "306",
+"title": "Mordnacht",
+"sender": "HR",
+"date": "1995-03-26",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "307",
+"title": "Im Herzen Eiszeit",
+"sender": "BR",
+"date": "1995-04-02",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "308",
+"title": "Die schwarzen Bilder",
+"sender": "WDR",
+"date": "1995-04-17",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "309",
+"title": "Bienzle und der Mord im Park",
+"sender": "SDR",
+"date": "1995-05-07",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "310",
+"title": "Tödliche Freundschaft",
+"sender": "NDR",
+"date": "1995-05-21",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "311",
+"title": "Rückfällig",
+"sender": "SF",
+"date": "1995-06-05",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "312",
+"title": "Falsches Alibi",
+"sender": "MDR",
+"date": "1995-06-18",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "313",
+"title": "Tod eines Auktionators",
+"sender": "WDR",
+"date": "1995-06-25",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "314",
+"title": "Mordauftrag",
+"sender": "HR",
+"date": "1995-07-09",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "315",
+"title": "Bienzle und die Feuerwand",
+"sender": "SDR",
+"date": "1995-07-16",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "316",
+"title": "Herz As",
+"sender": "WDR",
+"date": "1995-07-30",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "317",
+"title": "Die Freundin",
+"sender": "ORF",
+"date": "1995-08-13",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "318",
+"title": "Der König kehrt zurück",
+"sender": "NDR",
+"date": "1995-09-17",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "319",
+"title": "Bomben für Ehrlicher",
+"sender": "MDR",
+"date": "1995-10-01",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "320",
+"title": "Eine todsichere Falle",
+"sender": "SR",
+"date": "1995-10-15",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "321",
+"title": "Blutiger Asphalt",
+"sender": "BR",
+"date": "1995-11-12",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "322",
+"title": "Frau Bu lacht",
+"sender": "BR",
+"date": "1995-11-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "323",
+"title": "Der Spezialist",
+"sender": "WDR",
+"date": "1996-01-01",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "324",
+"title": "Heilig Blut",
+"sender": "WDR",
+"date": "1996-01-14",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "325",
+"title": "Freitagsmörder",
+"sender": "HR",
+"date": "1996-01-21",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "326",
+"title": "Schneefieber",
+"sender": "SWF",
+"date": "1996-02-18",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "327",
+"title": "Wer nicht schweigt, muß sterben",
+"sender": "MDR",
+"date": "1996-03-10",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "328",
+"title": "Tod auf Neuwerk",
+"sender": "NDR",
+"date": "1996-03-24",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "329",
+"title": "Bei Auftritt Mord",
+"sender": "MDR",
+"date": "1996-03-31",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "330",
+"title": "Das Mädchen mit der Puppe",
+"sender": "WDR",
+"date": "1996-04-08",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "331",
+"title": "Fetischzauber",
+"sender": "NDR",
+"date": "1996-05-05",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "332",
+"title": "Die Abrechnung",
+"sender": "SF",
+"date": "1996-05-12",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "333",
+"title": "Kolportage",
+"sender": "ORF",
+"date": "1996-05-19",
+"ermittler": [
+"Fichtl"
+],
+"orf": false
+},
+{
+"nr": "334",
+"title": "Lockvögel",
+"sender": "NDR",
+"date": "1996-05-27",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "335",
+"title": "Tod im Jaguar",
+"sender": "SFB",
+"date": "1996-06-09",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "336",
+"title": "Frankfurt–Miami",
+"sender": "HR",
+"date": "1996-06-23",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "337",
+"title": "Aida",
+"sender": "BR",
+"date": "1996-07-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "338",
+"title": "Mein ist die Rache",
+"sender": "ORF",
+"date": "1996-07-14",
+"ermittler": [
+"Becker"
+],
+"orf": false
+},
+{
+"nr": "339",
+"title": "Der Phoenix-Deal",
+"sender": "SFB",
+"date": "1996-07-28",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "340",
+"title": "Schlaflose Nächte",
+"sender": "SWF",
+"date": "1996-09-08",
+"ermittler": [
+"Odenthal"
+],
+"orf": false
+},
+{
+"nr": "341",
+"title": "Schattenwelt",
+"sender": "BR",
+"date": "1996-09-22",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "342",
+"title": "Bienzle und der Traum vom Glück",
+"sender": "SDR",
+"date": "1996-09-29",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "343",
+"title": "Der kalte Tod",
+"sender": "SWF",
+"date": "1996-10-06",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "344",
+"title": "Buntes Wasser",
+"sender": "SFB",
+"date": "1996-10-13",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "345",
+"title": "Parteifreunde",
+"sender": "NDR",
+"date": "1996-10-27",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "346",
+"title": "Krokodilwächter",
+"sender": "SFB",
+"date": "1996-11-10",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "347",
+"title": "Der Entscheider",
+"sender": "SR",
+"date": "1996-11-24",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "348",
+"title": "Perfect Mind – Im Labyrinth",
+"sender": "BR",
+"date": "1996-12-15",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "349",
+"title": "Die Reise in den Tod",
+"sender": "MDR",
+"date": "1996-12-29",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "350",
+"title": "Tod im All",
+"sender": "SWF",
+"date": "1997-01-12",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "351",
+"title": "Akt in der Sonne",
+"sender": "HR",
+"date": "1997-02-02",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "352",
+"title": "Ausgespielt",
+"sender": "NDR",
+"date": "1997-02-23",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "353",
+"title": "Eulenburg",
+"sender": "HR",
+"date": "1997-03-02",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "354",
+"title": "Brüder",
+"sender": "WDR",
+"date": "1997-03-23",
+"ermittler": [
+"Flemming und Koch"
+],
+"orf": false
+},
+{
+"nr": "355",
+"title": "Gefährliche Übertragung",
+"sender": "NDR",
+"date": "1997-03-31",
+"ermittler": [
+"Sommer"
+],
+"orf": false
+},
+{
+"nr": "356",
+"title": "Liebe, Sex, Tod",
+"sender": "BR",
+"date": "1997-04-06",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "357",
+"title": "Bierkrieg",
+"sender": "MDR",
+"date": "1997-04-13",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "358",
+"title": "Hahnenkampf",
+"sender": "ORF",
+"date": "1997-04-20",
+"ermittler": [
+"Kant und Varanasi"
+],
+"orf": false
+},
+{
+"nr": "359",
+"title": "Alptraum",
+"sender": "NDR",
+"date": "1997-05-04",
+"ermittler": [
+"Sommer"
+],
+"orf": false
+},
+{
+"nr": "360",
+"title": "Morde ohne Leichen",
+"sender": "ORF",
+"date": "1997-05-19",
+"ermittler": [
+"Kant und Varanasi"
+],
+"orf": false
+},
+{
+"nr": "361",
+"title": "Mordsgeschäfte",
+"sender": "SFB",
+"date": "1997-05-25",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "362",
+"title": "Das Totenspiel",
+"sender": "HR",
+"date": "1997-06-01",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "363",
+"title": "Mord hinterm Deich",
+"sender": "NDR",
+"date": "1997-06-08",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "364",
+"title": "Tödlicher Galopp",
+"sender": "MDR",
+"date": "1997-06-29",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "365",
+"title": "Bienzle und der tiefe Sturz",
+"sender": "SDR",
+"date": "1997-07-06",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "366",
+"title": "Der Tod spielt mit",
+"sender": "MDR",
+"date": "1997-07-27",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "367",
+"title": "Schlüssel zum Mord",
+"sender": "SFB",
+"date": "1997-08-10",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "368",
+"title": "Geld oder Leben",
+"sender": "SFB",
+"date": "1997-09-07",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "369",
+"title": "Der Teufel",
+"sender": "BR",
+"date": "1997-09-14",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "370",
+"title": "Eiskalt",
+"sender": "SFB",
+"date": "1997-09-28",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "371",
+"title": "Willkommen in Köln",
+"sender": "WDR",
+"date": "1997-10-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "372",
+"title": "Bombenstimmung",
+"sender": "WDR",
+"date": "1997-10-12",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "373",
+"title": "Nahkampf",
+"sender": "SWF",
+"date": "1997-10-19",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "374",
+"title": "Undercover-Camping",
+"sender": "NDR",
+"date": "1997-11-02",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "375",
+"title": "Bluthunde",
+"sender": "BR",
+"date": "1997-12-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "376",
+"title": "Inflagranti",
+"sender": "Radio Bremen",
+"date": "1997-12-28",
+"ermittler": [
+"Lürsen"
+],
+"orf": false
+},
+{
+"nr": "377",
+"title": "Russisches Roulette",
+"sender": "SF",
+"date": "1998-01-18",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "378",
+"title": "Rosen für Nadja",
+"sender": "HR",
+"date": "1998-02-15",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "379",
+"title": "In der Falle",
+"sender": "BR",
+"date": "1998-03-01",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "380",
+"title": "Jagdfieber",
+"sender": "SWF",
+"date": "1998-03-29",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "381",
+"title": "Blick in den Abgrund",
+"sender": "SFB",
+"date": "1998-04-05",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "382",
+"title": "Gefährliche Zeugin",
+"sender": "HR",
+"date": "1998-04-13",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "383",
+"title": "Manila",
+"sender": "WDR",
+"date": "1998-04-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "384",
+"title": "Brandwunden",
+"sender": "Radio Bremen",
+"date": "1998-04-26",
+"ermittler": [
+"Lürsen"
+],
+"orf": false
+},
+{
+"nr": "385",
+"title": "Am Ende der Welt",
+"sender": "SF",
+"date": "1998-05-03",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "386",
+"title": "Arme Püppi",
+"sender": "NDR",
+"date": "1998-05-10",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "387",
+"title": "Fürstenschüler",
+"sender": "MDR",
+"date": "1998-05-17",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "388",
+"title": "Bildersturm",
+"sender": "WDR",
+"date": "1998-06-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "389",
+"title": "Schüsse auf der Autobahn",
+"sender": "NDR",
+"date": "1998-07-05",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "390",
+"title": "Ein Hauch von Hollywood",
+"sender": "SFB",
+"date": "1998-07-13",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "391",
+"title": "Tanz auf dem Hochseil",
+"sender": "MDR",
+"date": "1998-07-26",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "392",
+"title": "Money! Money!",
+"sender": "MDR",
+"date": "1998-08-09",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "393",
+"title": "Der zweite Mann",
+"sender": "SFB",
+"date": "1998-08-16",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "394",
+"title": "Bienzle und der Champion",
+"sender": "SDR",
+"date": "1998-08-23",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "395",
+"title": "Todesbote",
+"sender": "HR",
+"date": "1998-08-30",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "396",
+"title": "Voll ins Herz",
+"sender": "Radio Bremen",
+"date": "1998-09-13",
+"ermittler": [
+"Lürsen"
+],
+"orf": false
+},
+{
+"nr": "397",
+"title": "Gefallene Engel",
+"sender": "BR",
+"date": "1998-09-20",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "398",
+"title": "Streng geheimer Auftrag",
+"sender": "WDR",
+"date": "1998-10-11",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "399",
+"title": "Engelchen flieg",
+"sender": "SWR",
+"date": "1998-11-01",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "400",
+"title": "Schwarzer Advent",
+"sender": "BR",
+"date": "1998-11-08",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "401",
+"title": "Berliner Weiße",
+"sender": "SFB",
+"date": "1998-11-22",
+"ermittler": [
+"Roiter und Zorowski"
+],
+"orf": false
+},
+{
+"nr": "402",
+"title": "Allein in der Falle",
+"sender": "SR",
+"date": "1998-12-27",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "403",
+"title": "Habgier",
+"sender": "NDR",
+"date": "1999-01-10",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "404",
+"title": "Nie wieder Oper",
+"sender": "ORF",
+"date": "1999-01-17",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "405",
+"title": "Der Heckenschütze",
+"sender": "HR",
+"date": "1999-02-07",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "406",
+"title": "Restrisiko",
+"sender": "WDR",
+"date": "1999-02-14",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "407",
+"title": "Starkbier",
+"sender": "BR",
+"date": "1999-03-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "408",
+"title": "Alp-Traum",
+"sender": "SF",
+"date": "1999-03-21",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "409",
+"title": "Mordfieber",
+"sender": "SWR",
+"date": "1999-04-05",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "410",
+"title": "Der Tod fährt Achterbahn",
+"sender": "HR",
+"date": "1999-04-25",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "411",
+"title": "Kinder der Gewalt",
+"sender": "WDR",
+"date": "1999-05-02",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "412",
+"title": "Blinde Kuriere",
+"sender": "HR",
+"date": "1999-05-09",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "413",
+"title": "Todesangst",
+"sender": "MDR",
+"date": "1999-05-23",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "414",
+"title": "Traumhaus",
+"sender": "NDR",
+"date": "1999-05-30",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "415",
+"title": "Absolute Diskretion",
+"sender": "ORF",
+"date": "1999-06-27",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "416",
+"title": "Licht und Schatten",
+"sender": "WDR",
+"date": "1999-07-04",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "417",
+"title": "Dagoberts Enkel",
+"sender": "SFB",
+"date": "1999-07-25",
+"ermittler": [
+"Hellmann und Ritter"
+],
+"orf": false
+},
+{
+"nr": "418",
+"title": "Auf dem Kriegspfad",
+"sender": "MDR",
+"date": "1999-08-01",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "419",
+"title": "Bienzle und der Zuckerbäcker",
+"sender": "SWR",
+"date": "1999-08-15",
+"ermittler": [
+"Bienzle und Gächter"
+],
+"orf": false
+},
+{
+"nr": "420",
+"title": "Der Duft des Geldes",
+"sender": "NDR",
+"date": "1999-08-29",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "421",
+"title": "Strafstoß",
+"sender": "SR",
+"date": "1999-09-05",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "422",
+"title": "Drei Affen",
+"sender": "WDR",
+"date": "1999-09-26",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "423",
+"title": "Das Glockenbachgeheimnis",
+"sender": "BR",
+"date": "1999-10-03",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "424",
+"title": "Kriegsspuren",
+"sender": "SWR",
+"date": "1999-10-10",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "425",
+"title": "Die apokalyptischen Reiter",
+"sender": "Radio Bremen",
+"date": "1999-10-24",
+"ermittler": [
+"Lürsen"
+],
+"orf": false
+},
+{
+"nr": "426",
+"title": "Fluch des Bernsteinzimmers",
+"sender": "MDR",
+"date": "1999-10-31",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "427",
+"title": "Bienzle und die blinde Wut",
+"sender": "SWR",
+"date": "1999-11-14",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "428",
+"title": "Norbert",
+"sender": "BR",
+"date": "1999-11-28",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "429",
+"title": "Martinsfeuer",
+"sender": "WDR",
+"date": "1999-12-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "430",
+"title": "Tödliches Labyrinth",
+"sender": "SFB",
+"date": "1999-12-12",
+"ermittler": [
+"Hellmann und Ritter"
+],
+"orf": false
+},
+{
+"nr": "431",
+"title": "Offene Rechnung",
+"sender": "SWR",
+"date": "1999-12-19",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "432",
+"title": "Einsatz in Leipzig",
+"sender": "MDR",
+"date": "2000-01-02",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "433",
+"title": "Blaues Blut",
+"sender": "NDR",
+"date": "2000-01-09",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "434",
+"title": "Nach eigenen Gesetzen",
+"sender": "HR",
+"date": "2000-01-16",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "435",
+"title": "Der Millenniumsmörder",
+"sender": "ORF",
+"date": "2000-01-30",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "436",
+"title": "Blüten aus Werder",
+"sender": "SFB",
+"date": "2000-02-13",
+"ermittler": [
+"Hellmann und Ritter"
+],
+"orf": false
+},
+{
+"nr": "437",
+"title": "Bittere Mandeln",
+"sender": "WDR",
+"date": "2000-03-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "438",
+"title": "Viktualienmarkt",
+"sender": "BR",
+"date": "2000-03-12",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "439",
+"title": "Bienzle und der Mann im Dunkeln",
+"sender": "SWR",
+"date": "2000-03-26",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "440",
+"title": "Kalte Herzen",
+"sender": "SWR",
+"date": "2000-04-02",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "441",
+"title": "Chaos",
+"sender": "SF",
+"date": "2000-04-09",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "442",
+"title": "Tödliches Verlangen",
+"sender": "MDR",
+"date": "2000-04-24",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "443",
+"title": "Der schwarze Ritter",
+"sender": "SWR",
+"date": "2000-05-21",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "444",
+"title": "Rattenlinie",
+"sender": "NDR",
+"date": "2000-05-28",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "445",
+"title": "Von Bullen und Bären",
+"sender": "SFB",
+"date": "2000-06-04",
+"ermittler": [
+"Hellmann und Ritter"
+],
+"orf": false
+},
+{
+"nr": "446",
+"title": "Das letzte Rodeo",
+"sender": "SFB",
+"date": "2000-07-09",
+"ermittler": [
+"Hellmann und Ritter"
+],
+"orf": false
+},
+{
+"nr": "447",
+"title": "Trittbrettfahrer",
+"sender": "WDR",
+"date": "2000-07-16",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "448",
+"title": "Passion",
+"sender": "ORF",
+"date": "2000-07-30",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "449",
+"title": "Direkt ins Herz",
+"sender": "WDR",
+"date": "2000-08-06",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "450",
+"title": "Die Möwe",
+"sender": "SR",
+"date": "2000-08-13",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "451",
+"title": "Der Trippler",
+"sender": "SFB",
+"date": "2000-08-20",
+"ermittler": [
+"Hellmann und Ritter"
+],
+"orf": false
+},
+{
+"nr": "452",
+"title": "Die kleine Zeugin",
+"sender": "SWR",
+"date": "2000-08-27",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "453",
+"title": "Kleine Diebe",
+"sender": "BR",
+"date": "2000-09-03",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "454",
+"title": "Mord am Fluss",
+"sender": "HR",
+"date": "2000-09-10",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "455",
+"title": "Mauer des Schweigens",
+"sender": "HR",
+"date": "2000-09-24",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "456",
+"title": "Der schwarze Skorpion",
+"sender": "NDR",
+"date": "2000-10-15",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "457",
+"title": "Einmal täglich",
+"sender": "BR",
+"date": "2000-10-29",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "458",
+"title": "Quartett in Leipzig",
+"sender": "MDR/WDR",
+"date": "2000-11-26",
+"ermittler": [
+"Ehrlicher und Kain /"
+],
+"orf": false
+},
+{
+"nr": "459",
+"title": "Bienzle und das Doppelspiel",
+"sender": "SWR",
+"date": "2000-12-10",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "460",
+"title": "Die Frau im Zug",
+"sender": "WDR",
+"date": "2000-12-17",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "461",
+"title": "Tod vor Scharhörn",
+"sender": "NDR",
+"date": "2001-01-07",
+"ermittler": [
+"Stoever und Brockmöller"
+],
+"orf": false
+},
+{
+"nr": "462",
+"title": "Nichts mehr im Griff",
+"sender": "ORF",
+"date": "2001-01-28",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "463",
+"title": "Mördergrube",
+"sender": "WDR",
+"date": "2001-02-25",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "464",
+"title": "Ein mörderisches Märchen",
+"sender": "BR",
+"date": "2001-03-04",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "465",
+"title": "Trübe Wasser",
+"sender": "MDR",
+"date": "2001-03-11",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "466",
+"title": "Berliner Bärchen",
+"sender": "SFB",
+"date": "2001-03-25",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "467",
+"title": "Unschuldig",
+"sender": "HR",
+"date": "2001-04-16",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "468",
+"title": "Der Präsident",
+"sender": "SWR",
+"date": "2001-04-22",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "469",
+"title": "Bienzle und der heimliche Zeuge",
+"sender": "SWR",
+"date": "2001-05-06",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "470",
+"title": "Gute Freunde",
+"sender": "SWR",
+"date": "2001-05-13",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "471",
+"title": "Totenmesse",
+"sender": "MDR",
+"date": "2001-05-20",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "472",
+"title": "Kindstod",
+"sender": "WDR",
+"date": "2001-06-17",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "473",
+"title": "Der lange Arm des Zufalls",
+"sender": "SFB",
+"date": "2001-07-08",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "474",
+"title": "Fette Krieger",
+"sender": "SWR",
+"date": "2001-07-15",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "475",
+"title": "Böses Blut",
+"sender": "ORF",
+"date": "2001-07-22",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "476",
+"title": "Tot bist Du!",
+"sender": "SFB",
+"date": "2001-08-05",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "477",
+"title": "Verhängnisvolle Begierde",
+"sender": "MDR",
+"date": "2001-08-26",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "478",
+"title": "Du hast keine Chance",
+"sender": "SR",
+"date": "2001-09-02",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "479",
+"title": "Bienzle und der Todesschrei",
+"sender": "SWR",
+"date": "2001-09-09",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "480",
+"title": "Havarie",
+"sender": "HR",
+"date": "2001-09-16",
+"ermittler": [
+"Brinkmann"
+],
+"orf": false
+},
+{
+"nr": "481",
+"title": "Zielscheibe",
+"sender": "SR",
+"date": "2001-10-14",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "482",
+"title": "Kalte Wut",
+"sender": "Radio Bremen",
+"date": "2001-10-21",
+"ermittler": [
+"Lürsen"
+],
+"orf": false
+},
+{
+"nr": "483",
+"title": "Exil!",
+"sender": "NDR",
+"date": "2001-10-28",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "484",
+"title": "Im freien Fall",
+"sender": "BR",
+"date": "2001-11-04",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "485",
+"title": "Eine unscheinbare Frau",
+"sender": "Radio Bremen",
+"date": "2001-11-11",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "486",
+"title": "Hasard!",
+"sender": "NDR",
+"date": "2001-11-18",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "487",
+"title": "Bestien",
+"sender": "WDR",
+"date": "2001-11-25",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "488",
+"title": "Gewaltfieber",
+"sender": "SWR",
+"date": "2001-12-02",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "489",
+"title": "Und dahinter liegt New York",
+"sender": "BR",
+"date": "2001-12-23",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "490",
+"title": "Schrott und Totschlag",
+"sender": "SWR",
+"date": "2002-01-06",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "491",
+"title": "Todesfahrt",
+"sender": "MDR",
+"date": "2002-01-20",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "492",
+"title": "Wolf im Schafspelz",
+"sender": "BR",
+"date": "2002-02-24",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "493",
+"title": "Schützlinge",
+"sender": "WDR",
+"date": "2002-03-03",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "494",
+"title": "Bienzle und der Tag der Rache",
+"sender": "SWR",
+"date": "2002-03-10",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "495",
+"title": "Zahltag",
+"sender": "SFB",
+"date": "2002-03-24",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "496",
+"title": "Lastrumer Mischung",
+"sender": "NDR",
+"date": "2002-04-07",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "497",
+"title": "Tödliche Tagung",
+"sender": "ORF",
+"date": "2002-04-14",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "498",
+"title": "Oskar",
+"sender": "HR",
+"date": "2002-04-21",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "499",
+"title": "Schlaraffenland",
+"sender": "SWR",
+"date": "2002-04-28",
+"ermittler": [
+"Blum"
+],
+"orf": false
+},
+{
+"nr": "500",
+"title": "Endspiel",
+"sender": "Radio Bremen",
+"date": "2002-05-20",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "501",
+"title": "Der Passagier",
+"sender": "NDR",
+"date": "2002-06-02",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "502",
+"title": "Schlaf, Kindlein, schlaf",
+"sender": "WDR",
+"date": "2002-06-16",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "503",
+"title": "Heiße Grüße aus Prag",
+"sender": "MDR",
+"date": "2002-07-07",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "504",
+"title": "Elvis lebt!",
+"sender": "ORF",
+"date": "2002-07-11",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "505",
+"title": "Bienzle und der süße Tod",
+"sender": "SWR",
+"date": "2002-07-14",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "506",
+"title": "Schatten",
+"sender": "Radio Bremen",
+"date": "2002-07-28",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "507",
+"title": "Flashback",
+"sender": "SWR",
+"date": "2002-08-11",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "508",
+"title": "Filmriss",
+"sender": "SFB",
+"date": "2002-08-18",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "509",
+"title": "Verrat",
+"sender": "WDR",
+"date": "2002-09-01",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "510",
+"title": "Totentanz",
+"sender": "BR",
+"date": "2002-10-13",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "511",
+"title": "Der dunkle Fleck",
+"sender": "WDR",
+"date": "2002-10-20",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "512",
+"title": "Undercover",
+"sender": "NDR",
+"date": "2002-10-27",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "513",
+"title": "1000 Tode",
+"sender": "SWR",
+"date": "2002-11-03",
+"ermittler": [
+"Blum"
+],
+"orf": false
+},
+{
+"nr": "514",
+"title": "Rückspiel",
+"sender": "WDR/MDR",
+"date": "2002-11-10",
+"ermittler": [
+"Ballauf und Schenk /"
+],
+"orf": false
+},
+{
+"nr": "515",
+"title": "Der Fremdwohner",
+"sender": "BR",
+"date": "2002-11-17",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "516",
+"title": "Alibi für Amelie",
+"sender": "SR",
+"date": "2002-11-24",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "517",
+"title": "Fakten, Fakten …",
+"sender": "WDR",
+"date": "2002-12-01",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "518",
+"title": "Zartbitterschokolade",
+"sender": "SFB",
+"date": "2002-12-15",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "519",
+"title": "Time-Out",
+"sender": "SF",
+"date": "2002-12-22",
+"ermittler": [
+"von Burg und Gertsch"
+],
+"orf": false
+},
+{
+"nr": "520",
+"title": "Reise ins Nichts",
+"sender": "SR",
+"date": "2002-12-29",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "521",
+"title": "Romeo und Julia",
+"sender": "SWR",
+"date": "2003-01-05",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "522",
+"title": "Rotkäppchen",
+"sender": "MDR",
+"date": "2003-01-12",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "523",
+"title": "Stiller Tod",
+"sender": "SWR",
+"date": "2003-01-26",
+"ermittler": [
+"Blum"
+],
+"orf": false
+},
+{
+"nr": "524",
+"title": "Die Liebe und ihr Preis",
+"sender": "SFB",
+"date": "2003-02-09",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "525",
+"title": "Bienzle und der Tod im Teig",
+"sender": "SWR",
+"date": "2003-03-02",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "526",
+"title": "Frauenmorde",
+"sender": "HR",
+"date": "2003-03-09",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "527",
+"title": "Mutterliebe",
+"sender": "WDR",
+"date": "2003-03-23",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "528",
+"title": "Schöner sterben",
+"sender": "SWR",
+"date": "2003-03-30",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "529",
+"title": "Hexentanz",
+"sender": "NDR",
+"date": "2003-04-13",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "530",
+"title": "Der Prügelknabe",
+"sender": "BR",
+"date": "2003-04-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "531",
+"title": "Schattenlos",
+"sender": "WDR",
+"date": "2003-04-27",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "532",
+"title": "Außer Kontrolle",
+"sender": "MDR",
+"date": "2003-05-11",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "533",
+"title": "Der schwarze Troll",
+"sender": "Radio Bremen",
+"date": "2003-05-25",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "534",
+"title": "Harte Hunde",
+"sender": "NDR",
+"date": "2003-06-01",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "535",
+"title": "Das Phantom",
+"sender": "WDR",
+"date": "2003-06-09",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "536",
+"title": "Tödliche Souvenirs",
+"sender": "ORF",
+"date": "2003-06-22",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "537",
+"title": "Rosenholz",
+"sender": "RBB",
+"date": "2003-07-06",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "538",
+"title": "Bienzle und der Taximord",
+"sender": "SWR",
+"date": "2003-08-03",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "539",
+"title": "Leyla",
+"sender": "SWR",
+"date": "2003-08-31",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "540",
+"title": "Bermuda",
+"sender": "WDR",
+"date": "2003-09-14",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "541",
+"title": "Mietsache",
+"sender": "NDR",
+"date": "2003-10-05",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "542",
+"title": "Wenn Frauen Austern essen",
+"sender": "BR",
+"date": "2003-10-12",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "543",
+"title": "Dreimal schwarzer Kater",
+"sender": "WDR",
+"date": "2003-10-19",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "544",
+"title": "Dschungelbrüder",
+"sender": "RBB",
+"date": "2003-10-26",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "545",
+"title": "Sonne und Sturm",
+"sender": "NDR",
+"date": "2003-11-02",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "546",
+"title": "Atlantis",
+"sender": "MDR",
+"date": "2003-11-09",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "547",
+"title": "Die Liebe der Schlachter",
+"sender": "Radio Bremen",
+"date": "2003-11-16",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "548",
+"title": "Im Visier",
+"sender": "BR",
+"date": "2003-11-23",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "549",
+"title": "Väter",
+"sender": "NDR",
+"date": "2003-11-30",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "550",
+"title": "Der Schächter",
+"sender": "SWR",
+"date": "2003-12-07",
+"ermittler": [
+"Blum"
+],
+"orf": false
+},
+{
+"nr": "551",
+"title": "Sag nichts",
+"sender": "WDR",
+"date": "2003-12-14",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "552",
+"title": "Das Böse",
+"sender": "HR",
+"date": "2003-12-21",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "553",
+"title": "Veras Waffen",
+"sender": "SR",
+"date": "2003-12-28",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "554",
+"title": "Eine ehrliche Haut",
+"sender": "RBB",
+"date": "2004-01-04",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "555",
+"title": "Bitteres Brot",
+"sender": "SWR",
+"date": "2004-01-18",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "556",
+"title": "Todes-Bande",
+"sender": "NDR",
+"date": "2004-01-25",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "557",
+"title": "Waidmanns Heil",
+"sender": "MDR",
+"date": "2004-02-01",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "558",
+"title": "Große Liebe",
+"sender": "SWR",
+"date": "2004-02-22",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "559",
+"title": "Heimspiel",
+"sender": "NDR",
+"date": "2004-02-29",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "560",
+"title": "Tod unter der Orgel",
+"sender": "ORF",
+"date": "2004-03-14",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "561",
+"title": "Schichtwechsel",
+"sender": "NDR",
+"date": "2004-03-28",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "562",
+"title": "Abschaum",
+"sender": "Radio Bremen",
+"date": "2004-04-04",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "563",
+"title": "Hundeleben",
+"sender": "WDR",
+"date": "2004-04-12",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "564",
+"title": "Janus",
+"sender": "HR",
+"date": "2004-04-18",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "565",
+"title": "Mörderspiele",
+"sender": "WDR",
+"date": "2004-04-25",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "566",
+"title": "Sechs zum Essen",
+"sender": "BR",
+"date": "2004-05-02",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "567",
+"title": "Der vierte Mann",
+"sender": "RBB",
+"date": "2004-05-09",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "568",
+"title": "Abgezockt",
+"sender": "SWR",
+"date": "2004-05-16",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "569",
+"title": "Odins Rache",
+"sender": "WDR",
+"date": "2004-07-11",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "570",
+"title": "Gefährliches Schweigen",
+"sender": "SWR",
+"date": "2004-07-18",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "571",
+"title": "Bienzle und der steinerne Gast",
+"sender": "SWR",
+"date": "2004-07-25",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "572",
+"title": "Der Wächter der Quelle",
+"sender": "ORF",
+"date": "2004-08-08",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "573",
+"title": "Verraten und verkauft",
+"sender": "WDR",
+"date": "2004-09-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "574",
+"title": "Stirb und werde",
+"sender": "NDR",
+"date": "2004-10-10",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "575",
+"title": "Herzversagen",
+"sender": "HR",
+"date": "2004-10-17",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "576",
+"title": "Märchenwald",
+"sender": "NDR",
+"date": "2004-10-24",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "577",
+"title": "Teufelskreis",
+"sender": "MDR",
+"date": "2004-10-31",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "578",
+"title": "Nicht jugendfrei",
+"sender": "BR",
+"date": "2004-11-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "579",
+"title": "Teufel im Leib",
+"sender": "SR",
+"date": "2004-11-14",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "580",
+"title": "Verlorene Töchter",
+"sender": "NDR",
+"date": "2004-11-21",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "581",
+"title": "Abseits",
+"sender": "MDR",
+"date": "2004-11-28",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "582",
+"title": "Eine Leiche zu viel",
+"sender": "WDR",
+"date": "2004-12-05",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "583",
+"title": "Vorstadtballade",
+"sender": "BR",
+"date": "2004-12-12",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "584",
+"title": "Bienzle und der Feuerteufel",
+"sender": "SWR",
+"date": "2005-01-02",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "585",
+"title": "Die Spieler",
+"sender": "SWR",
+"date": "2005-01-09",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "586",
+"title": "Dunkle Wege",
+"sender": "NDR",
+"date": "2005-01-16",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "587",
+"title": "Ein Glücksgefühl",
+"sender": "NDR",
+"date": "2005-01-30",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "588",
+"title": "Feuertaufe",
+"sender": "MDR",
+"date": "2005-02-06",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "589",
+"title": "Schürfwunden",
+"sender": "WDR",
+"date": "2005-02-13",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "590",
+"title": "Der Name der Orchidee",
+"sender": "SWR",
+"date": "2005-03-06",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "591",
+"title": "Todesbrücke",
+"sender": "RBB",
+"date": "2005-03-13",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "592",
+"title": "Schattenhochzeit",
+"sender": "NDR",
+"date": "2005-03-20",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "593",
+"title": "Letzte Zweifel",
+"sender": "SWR",
+"date": "2005-03-28",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "594",
+"title": "Der Frauenflüsterer",
+"sender": "WDR",
+"date": "2005-04-03",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "595",
+"title": "Wo ist Max Gravert?",
+"sender": "HR",
+"date": "2005-04-17",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "596",
+"title": "Am Abgrund",
+"sender": "SWR",
+"date": "2005-04-24",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "597",
+"title": "Minenspiel",
+"sender": "WDR",
+"date": "2005-05-08",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "598",
+"title": "Nur ein Spiel",
+"sender": "BR",
+"date": "2005-05-22",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "599",
+"title": "Die schlafende Schöne",
+"sender": "ORF",
+"date": "2005-05-29",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "600",
+"title": "Scheherazade",
+"sender": "Radio Bremen",
+"date": "2005-06-05",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "601",
+"title": "Tiefer Fall",
+"sender": "MDR",
+"date": "2005-06-12",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "602",
+"title": "Todesengel",
+"sender": "Radio Bremen",
+"date": "2005-07-10",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "603",
+"title": "Bienzle und der Sizilianer",
+"sender": "SWR",
+"date": "2005-07-24",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "604",
+"title": "Der Teufel vom Berg",
+"sender": "ORF",
+"date": "2005-08-07",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "605",
+"title": "Erfroren",
+"sender": "WDR",
+"date": "2005-08-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "606",
+"title": "Ohne Beweise",
+"sender": "SWR",
+"date": "2005-08-28",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "607",
+"title": "Requiem",
+"sender": "Radio Bremen",
+"date": "2005-09-25",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "608",
+"title": "Borowski in der Unterwelt",
+"sender": "NDR",
+"date": "2005-10-02",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "609",
+"title": "Leerstand",
+"sender": "HR",
+"date": "2005-10-09",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "610",
+"title": "Leiden wie ein Tier",
+"sender": "RBB",
+"date": "2005-10-16",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "611",
+"title": "Atemnot",
+"sender": "NDR",
+"date": "2005-10-23",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "612",
+"title": "Freischwimmer",
+"sender": "MDR",
+"date": "2005-10-30",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "613",
+"title": "Tod auf der Walz",
+"sender": "BR",
+"date": "2005-11-06",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "614",
+"title": "Rache-Engel",
+"sender": "SR",
+"date": "2005-11-13",
+"ermittler": [
+"Palu"
+],
+"orf": false
+},
+{
+"nr": "615",
+"title": "Der doppelte Lott",
+"sender": "WDR",
+"date": "2005-11-20",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "616",
+"title": "Im Alleingang",
+"sender": "NDR",
+"date": "2005-11-27",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "617",
+"title": "Schneetreiben",
+"sender": "BR",
+"date": "2005-12-18",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "618",
+"title": "Das Lächeln der Madonna",
+"sender": "SWR",
+"date": "2005-12-25",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "619",
+"title": "Sonnenfinsternis",
+"sender": "MDR",
+"date": "2006-01-01",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "620",
+"title": "Blutdiamanten",
+"sender": "WDR",
+"date": "2006-01-15",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "621",
+"title": "Schwarzes Herz",
+"sender": "NDR",
+"date": "2006-01-22",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "622",
+"title": "Das ewig Böse",
+"sender": "WDR",
+"date": "2006-02-05",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "623",
+"title": "Unter Kontrolle",
+"sender": "SWR",
+"date": "2006-03-05",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "624",
+"title": "Feuerkämpfer",
+"sender": "NDR",
+"date": "2006-03-12",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "625",
+"title": "Pechmarie",
+"sender": "WDR",
+"date": "2006-03-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "626",
+"title": "Der schwedische Freund",
+"sender": "SWR",
+"date": "2006-03-26",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "627",
+"title": "Sternenkinder",
+"sender": "NDR",
+"date": "2006-04-02",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "628",
+"title": "Kunstfehler",
+"sender": "RBB",
+"date": "2006-04-17",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "629",
+"title": "Revanche",
+"sender": "SWR",
+"date": "2006-04-23",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "630",
+"title": "Außer Gefecht",
+"sender": "BR",
+"date": "2006-05-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "631",
+"title": "Tödliches Vertrauen",
+"sender": "ORF",
+"date": "2006-05-14",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "632",
+"title": "Stille Tage",
+"sender": "Radio Bremen/WDR",
+"date": "2006-05-21",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "633",
+"title": "Bienzle und der Tod in der Markthalle",
+"sender": "SWR",
+"date": "2006-05-28",
+"ermittler": [
+"Bienzle und Gächter"
+],
+"orf": false
+},
+{
+"nr": "634",
+"title": "Blutschrift",
+"sender": "MDR",
+"date": "2006-06-05",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "635",
+"title": "Tod aus Afrika",
+"sender": "ORF",
+"date": "2006-07-02",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "636",
+"title": "Gebrochene Herzen",
+"sender": "SWR",
+"date": "2006-07-23",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "637",
+"title": "Schattenspiele",
+"sender": "NDR",
+"date": "2006-08-20",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "638",
+"title": "Der Lippenstiftmörder",
+"sender": "SWR",
+"date": "2006-08-27",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "639",
+"title": "Mann über Bord",
+"sender": "NDR",
+"date": "2006-09-10",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "640",
+"title": "Pauline",
+"sender": "NDR",
+"date": "2006-09-24",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "641",
+"title": "Bienzle und der Tod im Weinberg",
+"sender": "SWR",
+"date": "2006-10-01",
+"ermittler": [
+"Bienzle und Gächter"
+],
+"orf": false
+},
+{
+"nr": "642",
+"title": "Nachtwanderer",
+"sender": "SWR",
+"date": "2006-10-08",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "643",
+"title": "Aus der Traum…",
+"sender": "SR",
+"date": "2006-10-15",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "644",
+"title": "Das letzte Rennen",
+"sender": "HR",
+"date": "2006-10-29",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "645",
+"title": "Liebe am Nachmittag",
+"sender": "WDR",
+"date": "2006-11-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "646",
+"title": "Das zweite Gesicht",
+"sender": "WDR",
+"date": "2006-11-12",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "647",
+"title": "Liebe macht blind",
+"sender": "RBB",
+"date": "2006-11-19",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "648",
+"title": "Das verlorene Kind",
+"sender": "BR",
+"date": "2006-11-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "649",
+"title": "Der Tag des Jägers",
+"sender": "HR",
+"date": "2006-12-03",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "650",
+"title": "Schlaflos in Weimar",
+"sender": "MDR",
+"date": "2006-12-17",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "651",
+"title": "Die Blume des Bösen",
+"sender": "WDR",
+"date": "2007-01-01",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "652",
+"title": "Bienzle und die große Liebe",
+"sender": "SWR",
+"date": "2007-01-07",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "653",
+"title": "Schwelbrand",
+"sender": "Radio Bremen",
+"date": "2007-01-21",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "654",
+"title": "Roter Tod",
+"sender": "SWR",
+"date": "2007-01-28",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "655",
+"title": "Das Ende des Schweigens",
+"sender": "NDR",
+"date": "2007-02-11",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "656",
+"title": "Der Tote vom Straßenrand",
+"sender": "SR",
+"date": "2007-02-18",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "657",
+"title": "Bienzle und sein schwerster Fall",
+"sender": "SWR",
+"date": "2007-02-25",
+"ermittler": [
+"Bienzle"
+],
+"orf": false
+},
+{
+"nr": "658",
+"title": "Liebeshunger",
+"sender": "NDR",
+"date": "2007-03-11",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "659",
+"title": "Ruhe sanft!",
+"sender": "WDR",
+"date": "2007-03-18",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "660",
+"title": "Dornröschens Rache",
+"sender": "RBB",
+"date": "2007-03-25",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "661",
+"title": "Die Anwältin",
+"sender": "MDR",
+"date": "2007-04-01",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "662",
+"title": "Engel der Nacht",
+"sender": "SWR",
+"date": "2007-04-09",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "663",
+"title": "Das namenlose Mädchen",
+"sender": "NDR",
+"date": "2007-04-15",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "664",
+"title": "Der Finger",
+"sender": "BR",
+"date": "2007-04-29",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "665",
+"title": "Die dunkle Seite",
+"sender": "SWR",
+"date": "2007-05-06",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "666",
+"title": "Familiensache",
+"sender": "ORF",
+"date": "2007-05-20",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "667",
+"title": "Racheengel",
+"sender": "MDR",
+"date": "2007-05-28",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "668",
+"title": "Investigativ",
+"sender": "NDR",
+"date": "2007-06-10",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "669",
+"title": "Tödliche Habgier",
+"sender": "ORF",
+"date": "2007-06-24",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "670",
+"title": "Sterben für die Erben",
+"sender": "SWR",
+"date": "2007-07-01",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "671",
+"title": "Strahlende Zukunft",
+"sender": "Radio Bremen",
+"date": "2007-08-26",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "672",
+"title": "Blutsbande",
+"sender": "SWR",
+"date": "2007-09-09",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "673",
+"title": "Macht der Angst",
+"sender": "NDR",
+"date": "2007-09-16",
+"ermittler": [
+"Borowski und Jung"
+],
+"orf": false
+},
+{
+"nr": "674",
+"title": "A gmahde Wiesn",
+"sender": "BR",
+"date": "2007-09-23",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "675",
+"title": "Nachtgeflüster",
+"sender": "WDR",
+"date": "2007-10-07",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "676",
+"title": "Unter uns",
+"sender": "HR",
+"date": "2007-10-14",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "677",
+"title": "Der Traum von der Au",
+"sender": "BR",
+"date": "2007-10-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "678",
+"title": "Satisfaktion",
+"sender": "WDR",
+"date": "2007-10-28",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "679",
+"title": "Die Falle",
+"sender": "MDR",
+"date": "2007-11-11",
+"ermittler": [
+"Ehrlicher und Kain"
+],
+"orf": false
+},
+{
+"nr": "680",
+"title": "Bevor es dunkel wird",
+"sender": "HR",
+"date": "2007-11-25",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "681",
+"title": "Spätschicht",
+"sender": "WDR",
+"date": "2007-12-02",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "682",
+"title": "Schleichendes Gift",
+"sender": "RBB",
+"date": "2007-12-09",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "683",
+"title": "Kleine Herzen",
+"sender": "BR",
+"date": "2007-12-16",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "684",
+"title": "Wem Ehre gebührt",
+"sender": "NDR",
+"date": "2007-12-23",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "685",
+"title": "Fettkiller",
+"sender": "SWR",
+"date": "2007-12-30",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "686",
+"title": "Der Kormorankrieg",
+"sender": "SWR",
+"date": "2008-01-06",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "687",
+"title": "Verdammt",
+"sender": "WDR",
+"date": "2008-01-27",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "688",
+"title": "Borowski und das Mädchen im Moor",
+"sender": "NDR",
+"date": "2008-02-17",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "689",
+"title": "Und Tschüss",
+"sender": "NDR",
+"date": "2008-02-24",
+"ermittler": [
+"Casstorff und Holicek"
+],
+"orf": false
+},
+{
+"nr": "690",
+"title": "Hart an der Grenze",
+"sender": "SWR",
+"date": "2008-03-09",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "691",
+"title": "Tod einer Heuschrecke",
+"sender": "RBB",
+"date": "2008-03-16",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "692",
+"title": "Seenot",
+"sender": "SWR/SF",
+"date": "2008-03-24",
+"ermittler": [
+"Blum, Perlmann und Flückiger"
+],
+"orf": false
+},
+{
+"nr": "693",
+"title": "Erntedank e. V.",
+"sender": "NDR",
+"date": "2008-03-30",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "694",
+"title": "Schatten der Angst",
+"sender": "SWR",
+"date": "2008-04-06",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "695",
+"title": "Müll",
+"sender": "WDR",
+"date": "2008-04-20",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "696",
+"title": "Der oide Depp",
+"sender": "BR",
+"date": "2008-04-27",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "697",
+"title": "Exitus",
+"sender": "ORF",
+"date": "2008-05-04",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "698",
+"title": "Der frühe Abschied",
+"sender": "HR",
+"date": "2008-05-12",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "699",
+"title": "Krumme Hunde",
+"sender": "WDR",
+"date": "2008-05-18",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "700",
+"title": "Todesstrafe",
+"sender": "MDR",
+"date": "2008-05-25",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "701",
+"title": "Ausweglos",
+"sender": "MDR",
+"date": "2008-07-06",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "702",
+"title": "In eigener Sache",
+"sender": "SWR",
+"date": "2008-08-17",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "703",
+"title": "Blinder Glaube",
+"sender": "RBB",
+"date": "2008-08-31",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "704",
+"title": "Das schwarze Grab",
+"sender": "SR",
+"date": "2008-09-14",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "705",
+"title": "Liebeswirren",
+"sender": "BR",
+"date": "2008-09-28",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "706",
+"title": "Der glückliche Tod",
+"sender": "SWR",
+"date": "2008-10-05",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "707",
+"title": "Borowski und die einsamen Herzen",
+"sender": "NDR",
+"date": "2008-10-12",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "708",
+"title": "Brandmal",
+"sender": "WDR",
+"date": "2008-10-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "709",
+"title": "Auf der Sonnenseite",
+"sender": "NDR",
+"date": "2008-10-26",
+"ermittler": [
+"Batu"
+],
+"orf": false
+},
+{
+"nr": "710",
+"title": "Wolfsstunde",
+"sender": "WDR",
+"date": "2008-11-09",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "711",
+"title": "Salzleiche",
+"sender": "NDR",
+"date": "2008-11-16",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "712",
+"title": "Häschen in der Grube",
+"sender": "BR",
+"date": "2008-11-23",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "713",
+"title": "Unbestechlich",
+"sender": "MDR",
+"date": "2008-12-07",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "714",
+"title": "Waffenschwestern",
+"sender": "HR",
+"date": "2008-12-14",
+"ermittler": [
+"Sänger"
+],
+"orf": false
+},
+{
+"nr": "715",
+"title": "Granit",
+"sender": "ORF",
+"date": "2008-12-21",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "716",
+"title": "Der tote Chinese",
+"sender": "HR",
+"date": "2008-12-28",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "717",
+"title": "Baum der Erlösung",
+"sender": "ORF",
+"date": "2009-01-04",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "718",
+"title": "Schwarzer Peter",
+"sender": "MDR",
+"date": "2009-01-18",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "719",
+"title": "Rabenherz",
+"sender": "WDR",
+"date": "2009-01-25",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "720",
+"title": "Kassensturz",
+"sender": "SWR",
+"date": "2009-02-01",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "721",
+"title": "Familienaufstellung",
+"sender": "Radio Bremen",
+"date": "2009-02-08",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "722",
+"title": "Neuland",
+"sender": "HR",
+"date": "2009-02-15",
+"ermittler": [
+"Dellwo"
+],
+"orf": false
+},
+{
+"nr": "723",
+"title": "Herz aus Eis",
+"sender": "SWR",
+"date": "2009-02-22",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "724",
+"title": "Tödliche Tarnung",
+"sender": "SWR",
+"date": "2009-03-01",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "725",
+"title": "Mauerblümchen",
+"sender": "MDR",
+"date": "2009-03-08",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "726",
+"title": "Das Gespenst",
+"sender": "NDR",
+"date": "2009-03-15",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "727",
+"title": "Höllenfahrt",
+"sender": "WDR",
+"date": "2009-03-22",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "728",
+"title": "Gesang der toten Dinge",
+"sender": "BR",
+"date": "2009-03-29",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "729",
+"title": "Häuserkampf",
+"sender": "NDR",
+"date": "2009-04-13",
+"ermittler": [
+"Batu"
+],
+"orf": false
+},
+{
+"nr": "730",
+"title": "Oben und unten",
+"sender": "RBB",
+"date": "2009-04-19",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "731",
+"title": "Bittere Trauben",
+"sender": "SR",
+"date": "2009-04-26",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "732",
+"title": "Borowski und die heile Welt",
+"sender": "NDR",
+"date": "2009-05-03",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "733",
+"title": "Tödlicher Einsatz",
+"sender": "SWR",
+"date": "2009-05-10",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "734",
+"title": "Schiffe versenken",
+"sender": "Radio Bremen",
+"date": "2009-05-24",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "735",
+"title": "Kinderwunsch",
+"sender": "ORF",
+"date": "2009-06-01",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "736",
+"title": "Im Sog des Bösen",
+"sender": "SWR",
+"date": "2009-06-07",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "737",
+"title": "Tote Männer",
+"sender": "Radio Bremen/WDR",
+"date": "2009-06-14",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "738",
+"title": "Das Mädchen Galina",
+"sender": "SWR",
+"date": "2009-06-21",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "739",
+"title": "Mit ruhiger Hand",
+"sender": "WDR",
+"date": "2009-08-23",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "740",
+"title": "Architektur eines Todes",
+"sender": "HR",
+"date": "2009-09-06",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "741",
+"title": "Borowski und die Sterne",
+"sender": "NDR",
+"date": "2009-09-20",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "742",
+"title": "Platt gemacht",
+"sender": "WDR",
+"date": "2009-10-04",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "743",
+"title": "Vermisst",
+"sender": "SWR",
+"date": "2009-10-11",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "744",
+"title": "Um jeden Preis",
+"sender": "BR",
+"date": "2009-10-18",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "745",
+"title": "Tempelräuber",
+"sender": "WDR",
+"date": "2009-10-25",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "746",
+"title": "Schweinegeld",
+"sender": "RBB",
+"date": "2009-11-01",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "747",
+"title": "… es wird Trauer sein und Schmerz",
+"sender": "NDR",
+"date": "2009-11-15",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "748",
+"title": "Falsches Leben",
+"sender": "MDR",
+"date": "2009-12-06",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "749",
+"title": "Wir sind die Guten",
+"sender": "BR",
+"date": "2009-12-13",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "750",
+"title": "Altlasten",
+"sender": "SWR",
+"date": "2009-12-27",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "751",
+"title": "Weil sie böse sind",
+"sender": "HR",
+"date": "2010-01-03",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "752",
+"title": "Klassentreffen",
+"sender": "WDR",
+"date": "2010-01-10",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "753",
+"title": "Der Polizistinnenmörder",
+"sender": "SWR/SRF",
+"date": "2010-01-17",
+"ermittler": [
+"Blum, Perlmann und Flückiger"
+],
+"orf": false
+},
+{
+"nr": "754",
+"title": "Hilflos",
+"sender": "SR",
+"date": "2010-01-24",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "755",
+"title": "Vergessene Erinnerung",
+"sender": "NDR",
+"date": "2010-01-31",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "756",
+"title": "Königskinder",
+"sender": "Radio Bremen",
+"date": "2010-02-07",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "757",
+"title": "Tod auf dem Rhein",
+"sender": "SWR",
+"date": "2010-02-28",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "758",
+"title": "Absturz",
+"sender": "MDR",
+"date": "2010-03-14",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "759",
+"title": "Kaltes Herz",
+"sender": "WDR",
+"date": "2010-03-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "760",
+"title": "Vergissmeinnicht",
+"sender": "NDR",
+"date": "2010-03-28",
+"ermittler": [
+"Batu"
+],
+"orf": false
+},
+{
+"nr": "761",
+"title": "Tango für Borowski",
+"sender": "NDR",
+"date": "2010-04-04",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "762",
+"title": "Blutgeld",
+"sender": "SWR",
+"date": "2010-04-25",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "763",
+"title": "Der Fluch der Mumie",
+"sender": "WDR",
+"date": "2010-05-16",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "764",
+"title": "Hitchcock und Frau Wernicke",
+"sender": "RBB",
+"date": "2010-05-24",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "765",
+"title": "Schlafende Hunde",
+"sender": "Radio Bremen",
+"date": "2010-05-30",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "766",
+"title": "Heimwärts",
+"sender": "MDR",
+"date": "2010-06-06",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "767",
+"title": "Operation Hiob",
+"sender": "ORF",
+"date": "2010-07-04",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "768",
+"title": "Hauch des Todes",
+"sender": "SWR",
+"date": "2010-08-22",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "769",
+"title": "Glaube, Liebe, Tod",
+"sender": "ORF",
+"date": "2010-08-29",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "770",
+"title": "Am Ende des Tages",
+"sender": "HR",
+"date": "2010-09-05",
+"ermittler": [
+"Dellwo und Sänger"
+],
+"orf": false
+},
+{
+"nr": "771",
+"title": "Schmale Schultern",
+"sender": "WDR",
+"date": "2010-09-12",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "772",
+"title": "Bluthochzeit",
+"sender": "SWR",
+"date": "2010-09-19",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "773",
+"title": "Die Unmöglichkeit, sich den Tod vorzustellen",
+"sender": "RBB",
+"date": "2010-09-26",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "774",
+"title": "Die Heilige",
+"sender": "BR",
+"date": "2010-10-03",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "775",
+"title": "Spargelzeit",
+"sender": "WDR",
+"date": "2010-10-10",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "776",
+"title": "Der Schrei",
+"sender": "SWR",
+"date": "2010-10-17",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "777",
+"title": "Borowski und eine Frage von reinem Geschmack",
+"sender": "NDR",
+"date": "2010-10-24",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "778",
+"title": "Der letzte Patient",
+"sender": "NDR",
+"date": "2010-10-31",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "779",
+"title": "Die Unsichtbare",
+"sender": "SWR",
+"date": "2010-11-14",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "780",
+"title": "Unsterblich schön",
+"sender": "BR",
+"date": "2010-11-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "781",
+"title": "Wie einst Lilly",
+"sender": "HR",
+"date": "2010-11-28",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "782",
+"title": "Familienbande",
+"sender": "WDR",
+"date": "2010-12-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "783",
+"title": "Schön ist anders",
+"sender": "MDR",
+"date": "2010-12-12",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "784",
+"title": "Nie wieder frei sein",
+"sender": "BR",
+"date": "2010-12-19",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "785",
+"title": "Borowski und der vierte Mann",
+"sender": "NDR",
+"date": "2010-12-26",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "786",
+"title": "Tödliche Ermittlungen",
+"sender": "SWR",
+"date": "2011-01-02",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "787",
+"title": "Unter Druck",
+"sender": "WDR",
+"date": "2011-01-09",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "788",
+"title": "Der schöne Schein",
+"sender": "SWR/SRF",
+"date": "2011-01-16",
+"ermittler": [
+"Blum, Perlmann und Flückiger"
+],
+"orf": false
+},
+{
+"nr": "789",
+"title": "Heimatfront",
+"sender": "SR",
+"date": "2011-01-23",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "790",
+"title": "Stille Wasser",
+"sender": "Radio Bremen/WDR",
+"date": "2011-02-13",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "791",
+"title": "Rendezvous mit dem Tod",
+"sender": "MDR",
+"date": "2011-02-20",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "792",
+"title": "Leben gegen Leben",
+"sender": "NDR",
+"date": "2011-02-27",
+"ermittler": [
+"Batu"
+],
+"orf": false
+},
+{
+"nr": "793",
+"title": "Vergeltung",
+"sender": "ORF",
+"date": "2011-03-06",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "794",
+"title": "Mord in der ersten Liga",
+"sender": "NDR",
+"date": "2011-03-20",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "795",
+"title": "Im Netz der Lügen",
+"sender": "SWR",
+"date": "2011-03-27",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "796",
+"title": "Edel sei der Mensch und gesund",
+"sender": "RBB",
+"date": "2011-04-03",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "797",
+"title": "Jagdzeit",
+"sender": "BR",
+"date": "2011-04-10",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "798",
+"title": "Grabenkämpfe",
+"sender": "SWR",
+"date": "2011-04-25",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "799",
+"title": "Herrenabend",
+"sender": "WDR",
+"date": "2011-05-01",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "800",
+"title": "Eine bessere Welt",
+"sender": "HR",
+"date": "2011-05-08",
+"ermittler": [
+"Steier und Mey"
+],
+"orf": false
+},
+{
+"nr": "801",
+"title": "Der illegale Tod",
+"sender": "Radio Bremen",
+"date": "2011-05-15",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "802",
+"title": "Ausgelöscht",
+"sender": "ORF",
+"date": "2011-05-29",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "803",
+"title": "Gestern war kein Tag",
+"sender": "BR",
+"date": "2011-06-05",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "804",
+"title": "Nasse Sachen",
+"sender": "MDR",
+"date": "2011-06-13",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "805",
+"title": "Im Abseits",
+"sender": "SWR",
+"date": "2011-06-19",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "806",
+"title": "Wunschdenken",
+"sender": "SRF",
+"date": "2011-08-14",
+"ermittler": [
+"Flückiger und Lanning"
+],
+"orf": false
+},
+{
+"nr": "807",
+"title": "Lohn der Arbeit",
+"sender": "ORF",
+"date": "2011-08-28",
+"ermittler": [
+"Eisner"
+],
+"orf": false
+},
+{
+"nr": "808",
+"title": "Altes Eisen",
+"sender": "WDR",
+"date": "2011-09-04",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "809",
+"title": "Tod einer Lehrerin",
+"sender": "SWR",
+"date": "2011-09-11",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "810",
+"title": "Zwischen den Ohren",
+"sender": "WDR",
+"date": "2011-09-18",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "811",
+"title": "Auskreuzung",
+"sender": "WDR",
+"date": "2011-09-25",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "812",
+"title": "Borowski und die Frau am Fenster",
+"sender": "NDR",
+"date": "2011-10-02",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "813",
+"title": "Das erste Opfer",
+"sender": "SWR",
+"date": "2011-10-09",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "814",
+"title": "Das schwarze Haus",
+"sender": "SWR",
+"date": "2011-10-16",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "815",
+"title": "Mauerpark",
+"sender": "RBB",
+"date": "2011-10-23",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "816",
+"title": "Borowski und der coole Hund",
+"sender": "NDR",
+"date": "2011-11-06",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "817",
+"title": "Der Tote im Nachtzug",
+"sender": "HR",
+"date": "2011-11-20",
+"ermittler": [
+"Steier und Mey"
+],
+"orf": false
+},
+{
+"nr": "818",
+"title": "Ein ganz normaler Fall",
+"sender": "BR",
+"date": "2011-11-27",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "819",
+"title": "Das Dorf",
+"sender": "HR",
+"date": "2011-12-04",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "820",
+"title": "Schwarze Tiger, weiße Löwen",
+"sender": "NDR",
+"date": "2011-12-11",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "821",
+"title": "Der Weg ins Paradies",
+"sender": "NDR",
+"date": "2011-12-18",
+"ermittler": [
+"Batu"
+],
+"orf": false
+},
+{
+"nr": "822",
+"title": "Tödliche Häppchen",
+"sender": "SWR",
+"date": "2012-01-01",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "823",
+"title": "Keine Polizei",
+"sender": "WDR",
+"date": "2012-01-08",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "824",
+"title": "Todesbilder",
+"sender": "MDR",
+"date": "2012-01-15",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "825",
+"title": "Verschleppt",
+"sender": "SR",
+"date": "2012-01-22",
+"ermittler": [
+"Kappl und Deininger"
+],
+"orf": false
+},
+{
+"nr": "826",
+"title": "Schmuggler",
+"sender": "SWR",
+"date": "2012-01-29",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "827",
+"title": "Kein Entkommen",
+"sender": "ORF",
+"date": "2012-02-05",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "828",
+"title": "Ordnung im Lot",
+"sender": "Radio Bremen",
+"date": "2012-02-12",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "829",
+"title": "Der traurige König",
+"sender": "BR",
+"date": "2012-02-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "830",
+"title": "Scherbenhaufen",
+"sender": "SWR",
+"date": "2012-03-04",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "831",
+"title": "Hinkebein",
+"sender": "WDR",
+"date": "2012-03-11",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "832",
+"title": "Falsch verpackt",
+"sender": "ORF",
+"date": "2012-03-25",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "833",
+"title": "Alles hat seinen Preis",
+"sender": "RBB",
+"date": "2012-04-01",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "834",
+"title": "Kinderland",
+"sender": "MDR",
+"date": "2012-04-08",
+"ermittler": [
+"Saalfeld und Keppler /"
+],
+"orf": false
+},
+{
+"nr": "835",
+"title": "Ihr Kinderlein kommet",
+"sender": "WDR",
+"date": "2012-04-09",
+"ermittler": [
+"Ballauf und Schenk /"
+],
+"orf": false
+},
+{
+"nr": "836",
+"title": "Es ist böse",
+"sender": "HR",
+"date": "2012-04-22",
+"ermittler": [
+"Steier und Mey"
+],
+"orf": false
+},
+{
+"nr": "837",
+"title": "Die Ballade von Cenk und Valerie",
+"sender": "NDR",
+"date": "2012-05-06",
+"ermittler": [
+"Batu"
+],
+"orf": false
+},
+{
+"nr": "838",
+"title": "Der Wald steht schwarz und schweiget",
+"sender": "SWR",
+"date": "2012-05-13",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "839",
+"title": "Skalpell",
+"sender": "SRF",
+"date": "2012-05-28",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "840",
+"title": "Hanglage mit Aussicht",
+"sender": "SRF",
+"date": "2012-08-26",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "841",
+"title": "Fette Hunde",
+"sender": "WDR",
+"date": "2012-09-02",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "842",
+"title": "Borowski und der stille Gast",
+"sender": "NDR",
+"date": "2012-09-09",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "843",
+"title": "Hochzeitsnacht",
+"sender": "Radio Bremen",
+"date": "2012-09-16",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "844",
+"title": "Alter Ego",
+"sender": "WDR",
+"date": "2012-09-23",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "845",
+"title": "Nachtkrapp",
+"sender": "SWR/SRF",
+"date": "2012-10-07",
+"ermittler": [
+"Blum, Perlmann und Lüthi"
+],
+"orf": false
+},
+{
+"nr": "846",
+"title": "Borowski und der freie Fall",
+"sender": "NDR",
+"date": "2012-10-14",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "847",
+"title": "Tote Erde",
+"sender": "SWR",
+"date": "2012-10-21",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "848",
+"title": "Ein neues Leben",
+"sender": "BR",
+"date": "2012-10-28",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "849",
+"title": "Mein Revier",
+"sender": "WDR",
+"date": "2012-11-11",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "850",
+"title": "Dinge, die noch zu tun sind",
+"sender": "RBB",
+"date": "2012-11-18",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "851",
+"title": "Das Wunder von Wolbeck",
+"sender": "WDR",
+"date": "2012-11-25",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "852",
+"title": "Todesschütze",
+"sender": "MDR",
+"date": "2012-12-02",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "853",
+"title": "Wegwerfmädchen",
+"sender": "NDR",
+"date": "2012-12-09",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "854",
+"title": "Das goldene Band",
+"sender": "NDR",
+"date": "2012-12-16",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "855",
+"title": "Im Namen des Vaters",
+"sender": "HR",
+"date": "2012-12-26",
+"ermittler": [
+"Steier und Mey"
+],
+"orf": false
+},
+{
+"nr": "856",
+"title": "Der tiefe Schlaf",
+"sender": "BR",
+"date": "2012-12-30",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "857",
+"title": "Scheinwelten",
+"sender": "WDR",
+"date": "2013-01-01",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "858",
+"title": "Machtlos",
+"sender": "RBB",
+"date": "2013-01-06",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "859",
+"title": "Kaltblütig",
+"sender": "SWR",
+"date": "2013-01-13",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "860",
+"title": "Melinda",
+"sender": "SR",
+"date": "2013-01-27",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "861",
+"title": "Die schöne Mona ist tot",
+"sender": "SWR",
+"date": "2013-02-03",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "862",
+"title": "Schmutziger Donnerstag",
+"sender": "SRF",
+"date": "2013-02-10",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "863",
+"title": "Zwischen den Fronten",
+"sender": "ORF",
+"date": "2013-02-17",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "864",
+"title": "Puppenspieler",
+"sender": "Radio Bremen/WDR",
+"date": "2013-02-24",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "865",
+"title": "Willkommen in Hamburg",
+"sender": "NDR",
+"date": "2013-03-10",
+"ermittler": [
+"Tschiller und Gümer"
+],
+"orf": false
+},
+{
+"nr": "866",
+"title": "Schwarzer Afghane",
+"sender": "MDR",
+"date": "2013-03-17",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "867",
+"title": "Summ, Summ, Summ",
+"sender": "WDR",
+"date": "2013-03-24",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "868",
+"title": "Macht und Ohnmacht",
+"sender": "BR",
+"date": "2013-04-01",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "869",
+"title": "Eine Handvoll Paradies",
+"sender": "SR",
+"date": "2013-04-07",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "870",
+"title": "Wer das Schweigen bricht",
+"sender": "HR",
+"date": "2013-04-14",
+"ermittler": [
+"Steier und Mey"
+],
+"orf": false
+},
+{
+"nr": "871",
+"title": "Trautes Heim",
+"sender": "WDR",
+"date": "2013-04-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "872",
+"title": "Feuerteufel",
+"sender": "NDR",
+"date": "2013-04-28",
+"ermittler": [
+"Falke und Lorenz"
+],
+"orf": false
+},
+{
+"nr": "873",
+"title": "Borowski und der brennende Mann",
+"sender": "NDR",
+"date": "2013-05-12",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "874",
+"title": "Unvergessen",
+"sender": "ORF",
+"date": "2013-05-20",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "875",
+"title": "Spiel auf Zeit",
+"sender": "SWR",
+"date": "2013-05-26",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "876",
+"title": "Er wird töten",
+"sender": "Radio Bremen",
+"date": "2013-06-09",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "877",
+"title": "Die Wahrheit stirbt zuerst",
+"sender": "MDR",
+"date": "2013-06-16",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "878",
+"title": "Letzte Tage",
+"sender": "SWR/SRF",
+"date": "2013-06-23",
+"ermittler": [
+"Blum, Perlmann und Lüthi"
+],
+"orf": false
+},
+{
+"nr": "879",
+"title": "Geburtstagskind",
+"sender": "SRF",
+"date": "2013-08-18",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "880",
+"title": "Gegen den Kopf",
+"sender": "RBB",
+"date": "2013-09-08",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "881",
+"title": "Angezählt",
+"sender": "ORF",
+"date": "2013-09-15",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "882",
+"title": "Freunde bis in den Tod",
+"sender": "SWR",
+"date": "2013-10-06",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "883",
+"title": "Die chinesische Prinzessin",
+"sender": "WDR",
+"date": "2013-10-20",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "884",
+"title": "Aus der Tiefe der Zeit",
+"sender": "BR",
+"date": "2013-10-27",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "885",
+"title": "Kalter Engel",
+"sender": "MDR",
+"date": "2013-11-03",
+"ermittler": [
+"Funck, Schaffert und Grewel"
+],
+"orf": false
+},
+{
+"nr": "886",
+"title": "Eine andere Welt",
+"sender": "WDR",
+"date": "2013-11-17",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "887",
+"title": "Mord auf Langeoog",
+"sender": "NDR",
+"date": "2013-11-24",
+"ermittler": [
+"Falke und Lorenz"
+],
+"orf": false
+},
+{
+"nr": "888",
+"title": "Happy Birthday, Sarah",
+"sender": "SWR",
+"date": "2013-12-01",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "889",
+"title": "Schwindelfrei",
+"sender": "HR",
+"date": "2013-12-08",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "890",
+"title": "Allmächtig",
+"sender": "BR",
+"date": "2013-12-22",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "891",
+"title": "Die Fette Hoppe",
+"sender": "MDR",
+"date": "2013-12-26",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "892",
+"title": "Borowski und der Engel",
+"sender": "NDR",
+"date": "2013-12-29",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "893",
+"title": "Türkischer Honig",
+"sender": "MDR",
+"date": "2014-01-01",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "894",
+"title": "Der Eskimo",
+"sender": "HR",
+"date": "2014-01-05",
+"ermittler": [
+"Steier"
+],
+"orf": false
+},
+{
+"nr": "895",
+"title": "Franziska",
+"sender": "WDR",
+"date": "2014-01-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "896",
+"title": "Todesspiel",
+"sender": "SWR",
+"date": "2014-01-19",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "897",
+"title": "Adams Alptraum",
+"sender": "SR",
+"date": "2014-01-26",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "898",
+"title": "Auf ewig Dein",
+"sender": "WDR",
+"date": "2014-02-02",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "899",
+"title": "Großer schwarzer Vogel",
+"sender": "RBB",
+"date": "2014-02-09",
+"ermittler": [
+"Ritter und Stark"
+],
+"orf": false
+},
+{
+"nr": "900",
+"title": "Zirkuskind",
+"sender": "SWR",
+"date": "2014-02-16",
+"ermittler": [
+"Odenthal und Kopper"
+],
+"orf": false
+},
+{
+"nr": "901",
+"title": "Brüder",
+"sender": "Radio Bremen/WDR",
+"date": "2014-02-23",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "902",
+"title": "Abgründe",
+"sender": "ORF",
+"date": "2014-03-02",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "903",
+"title": "Kopfgeld",
+"sender": "NDR",
+"date": "2014-03-09",
+"ermittler": [
+"Tschiller und Gümer"
+],
+"orf": false
+},
+{
+"nr": "904",
+"title": "Frühstück für immer",
+"sender": "MDR",
+"date": "2014-03-16",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "905",
+"title": "Der Fall Reinhardt",
+"sender": "WDR",
+"date": "2014-03-23",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "906",
+"title": "Borowski und das Meer",
+"sender": "NDR",
+"date": "2014-03-30",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "907",
+"title": "Der Hammer",
+"sender": "WDR",
+"date": "2014-04-13",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "908",
+"title": "Zwischen zwei Welten",
+"sender": "SRF",
+"date": "2014-04-21",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "909",
+"title": "Kaltstart",
+"sender": "NDR",
+"date": "2014-04-27",
+"ermittler": [
+"Falke und Lorenz"
+],
+"orf": false
+},
+{
+"nr": "910",
+"title": "Am Ende des Flurs",
+"sender": "BR",
+"date": "2014-05-04",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "911",
+"title": "Ohnmacht",
+"sender": "WDR",
+"date": "2014-05-11",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "912",
+"title": "Alle meine Jungs",
+"sender": "Radio Bremen",
+"date": "2014-05-18",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "913",
+"title": "Freigang",
+"sender": "SWR",
+"date": "2014-06-09",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "914",
+"title": "Paradies",
+"sender": "ORF",
+"date": "2014-08-31",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "915",
+"title": "Verfolgt",
+"sender": "SRF",
+"date": "2014-09-07",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "916",
+"title": "Der Wüstensohn",
+"sender": "BR",
+"date": "2014-09-14",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "917",
+"title": "Mord ist die beste Medizin",
+"sender": "WDR",
+"date": "2014-09-21",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "918",
+"title": "Wahre Liebe",
+"sender": "WDR",
+"date": "2014-09-28",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "919",
+"title": "Winternebel",
+"sender": "SWR/SRF",
+"date": "2014-10-05",
+"ermittler": [
+"Blum, Perlmann und Lüthi"
+],
+"orf": false
+},
+{
+"nr": "920",
+"title": "Im Schmerz geboren",
+"sender": "HR",
+"date": "2014-10-12",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "921",
+"title": "Blackout",
+"sender": "SWR",
+"date": "2014-10-26",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "922",
+"title": "Vielleicht",
+"sender": "RBB",
+"date": "2014-11-16",
+"ermittler": [
+"Stark"
+],
+"orf": false
+},
+{
+"nr": "923",
+"title": "Eine Frage des Gewissens",
+"sender": "SWR",
+"date": "2014-11-23",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "924",
+"title": "Die Feigheit des Löwen",
+"sender": "NDR",
+"date": "2014-11-30",
+"ermittler": [
+"Falke und Lorenz"
+],
+"orf": false
+},
+{
+"nr": "925",
+"title": "Der sanfte Tod",
+"sender": "NDR",
+"date": "2014-12-07",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "926",
+"title": "Der Maulwurf",
+"sender": "MDR",
+"date": "2014-12-21",
+"ermittler": [
+"Funck, Schaffert und Grewel"
+],
+"orf": false
+},
+{
+"nr": "927",
+"title": "Weihnachtsgeld",
+"sender": "SR",
+"date": "2014-12-26",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "928",
+"title": "Das verkaufte Lächeln",
+"sender": "BR",
+"date": "2014-12-28",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "929",
+"title": "Der Irre Iwan",
+"sender": "MDR",
+"date": "2015-01-01",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "930",
+"title": "Deckname Kidon",
+"sender": "ORF",
+"date": "2015-01-04",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "931",
+"title": "Hydra",
+"sender": "WDR",
+"date": "2015-01-11",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "932",
+"title": "Die Sonne stirbt wie ein Tier",
+"sender": "SWR",
+"date": "2015-01-18",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "933",
+"title": "Borowski und der Himmel über Kiel",
+"sender": "NDR",
+"date": "2015-01-25",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "934",
+"title": "Freddy tanzt",
+"sender": "WDR",
+"date": "2015-02-01",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "935",
+"title": "Château Mort",
+"sender": "SWR/SRF",
+"date": "2015-02-08",
+"ermittler": [
+"Blum, Perlmann und Lüthi"
+],
+"orf": false
+},
+{
+"nr": "936",
+"title": "Blutschuld",
+"sender": "MDR",
+"date": "2015-02-15",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "937",
+"title": "Das Haus am Ende der Straße",
+"sender": "HR",
+"date": "2015-02-22",
+"ermittler": [
+"Steier"
+],
+"orf": false
+},
+{
+"nr": "938",
+"title": "Grenzfall",
+"sender": "ORF",
+"date": "2015-03-08",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "939",
+"title": "Die Wiederkehr",
+"sender": "Radio Bremen",
+"date": "2015-03-15",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "940",
+"title": "Das Muli",
+"sender": "RBB",
+"date": "2015-03-22",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "941",
+"title": "Borowski und die Kinder von Gaarden",
+"sender": "NDR",
+"date": "2015-03-29",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "942",
+"title": "Frohe Ostern, Falke",
+"sender": "NDR",
+"date": "2015-04-06",
+"ermittler": [
+"Falke und Lorenz"
+],
+"orf": false
+},
+{
+"nr": "943",
+"title": "Der Himmel ist ein Platz auf Erden",
+"sender": "BR",
+"date": "2015-04-12",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "944",
+"title": "Dicker als Wasser",
+"sender": "WDR",
+"date": "2015-04-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "945",
+"title": "Niedere Instinkte",
+"sender": "MDR",
+"date": "2015-04-26",
+"ermittler": [
+"Saalfeld und Keppler"
+],
+"orf": false
+},
+{
+"nr": "946",
+"title": "Schwerelos",
+"sender": "WDR",
+"date": "2015-05-03",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "947",
+"title": "Kälter als der Tod",
+"sender": "HR",
+"date": "2015-05-17",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "948",
+"title": "Roomservice",
+"sender": "SWR",
+"date": "2015-05-25",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "949",
+"title": "Erkläre Chimäre",
+"sender": "WDR",
+"date": "2015-05-31",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "950",
+"title": "Gier",
+"sender": "ORF",
+"date": "2015-06-07",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "951",
+"title": "Wer Wind erntet, sät Sturm!",
+"sender": "Radio Bremen",
+"date": "2015-06-14",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "952",
+"title": "Der Inder",
+"sender": "SWR",
+"date": "2015-06-21",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "953",
+"title": "Schutzlos",
+"sender": "SRF",
+"date": "2015-07-05",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "954",
+"title": "Ihr werdet gerichtet",
+"sender": "SRF",
+"date": "2015-09-06",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "955",
+"title": "Hinter dem Spiegel",
+"sender": "HR",
+"date": "2015-09-13",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "956",
+"title": "Die letzte Wiesn",
+"sender": "BR",
+"date": "2015-09-20",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "957",
+"title": "Verbrannt",
+"sender": "NDR",
+"date": "2015-10-11",
+"ermittler": [
+"Falke und Lorenz"
+],
+"orf": false
+},
+{
+"nr": "958",
+"title": "Kollaps",
+"sender": "WDR",
+"date": "2015-10-18",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "959",
+"title": "Preis des Lebens",
+"sender": "SWR",
+"date": "2015-10-25",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "960",
+"title": "Côte d’Azur",
+"sender": "SWR",
+"date": "2015-11-01",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "961",
+"title": "Schwanensee",
+"sender": "WDR",
+"date": "2015-11-08",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "962",
+"title": "Ätzend",
+"sender": "RBB",
+"date": "2015-11-15",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "963",
+"title": "Spielverderber",
+"sender": "NDR",
+"date": "2015-11-22",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "964",
+"title": "Borowski und die Rückkehr des stillen Gastes",
+"sender": "NDR",
+"date": "2015-11-29",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "965",
+"title": "Einmal wirklich sterben",
+"sender": "BR",
+"date": "2015-12-06",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "966",
+"title": "LU",
+"sender": "SWR",
+"date": "2015-12-13",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "967",
+"title": "Benutzt",
+"sender": "WDR",
+"date": "2015-12-26",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "968",
+"title": "Wer bin ich?",
+"sender": "HR",
+"date": "2015-12-27",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "969",
+"title": "Der große Schmerz",
+"sender": "NDR",
+"date": "2016-01-01",
+"ermittler": [
+"Tschiller und Gümer"
+],
+"orf": false
+},
+{
+"nr": "970",
+"title": "Fegefeuer",
+"sender": "NDR",
+"date": "2016-01-03",
+"ermittler": [
+"Tschiller und Gümer"
+],
+"orf": false
+},
+{
+"nr": "971",
+"title": "Rebecca",
+"sender": "SWR",
+"date": "2016-01-10",
+"ermittler": [
+"Blum und Perlmann"
+],
+"orf": false
+},
+{
+"nr": "972",
+"title": "Totenstille",
+"sender": "SR",
+"date": "2016-01-24",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "973",
+"title": "Hundstage",
+"sender": "WDR",
+"date": "2016-01-31",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "974",
+"title": "Sternschnuppe",
+"sender": "ORF",
+"date": "2016-02-07",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "975",
+"title": "Du gehörst mir",
+"sender": "SWR",
+"date": "2016-02-14",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "976",
+"title": "Im gelobten Land",
+"sender": "SWR",
+"date": "2016-02-21",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "977",
+"title": "Kartenhaus",
+"sender": "WDR",
+"date": "2016-02-28",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "978",
+"title": "Auf einen Schlag",
+"sender": "MDR",
+"date": "2016-03-06",
+"ermittler": [
+"Sieland, Gorniak, Mohr und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "979",
+"title": "Kleine Prinzen",
+"sender": "SRF",
+"date": "2016-03-13",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "980",
+"title": "Zorn Gottes",
+"sender": "NDR",
+"date": "2016-03-20",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "981",
+"title": "Fünf Minuten Himmel",
+"sender": "SWR",
+"date": "2016-03-28",
+"ermittler": [
+"Berlinger"
+],
+"orf": false
+},
+{
+"nr": "982",
+"title": "Mia san jetz da wo’s weh tut",
+"sender": "BR",
+"date": "2016-04-03",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "983",
+"title": "Die Geschichte vom bösen Friederich",
+"sender": "HR",
+"date": "2016-04-10",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "984",
+"title": "Der treue Roy",
+"sender": "MDR",
+"date": "2016-04-24",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "985",
+"title": "Narben",
+"sender": "WDR",
+"date": "2016-05-01",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "986",
+"title": "Ein Fuß kommt selten allein",
+"sender": "WDR",
+"date": "2016-05-08",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "987",
+"title": "Der hundertste Affe",
+"sender": "Radio Bremen",
+"date": "2016-05-16",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "988",
+"title": "Das Recht, sich zu sorgen",
+"sender": "BR",
+"date": "2016-05-22",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "989",
+"title": "Wir – Ihr – Sie",
+"sender": "RBB",
+"date": "2016-06-05",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "990",
+"title": "Durchgedreht",
+"sender": "WDR",
+"date": "2016-08-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "991",
+"title": "HAL",
+"sender": "SWR",
+"date": "2016-08-28",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "992",
+"title": "Die Kunst des Krieges",
+"sender": "ORF",
+"date": "2016-09-04",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "993",
+"title": "Freitod",
+"sender": "SRF",
+"date": "2016-09-18",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "994",
+"title": "Feierstunde",
+"sender": "WDR",
+"date": "2016-09-25",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "995",
+"title": "Der König der Gosse",
+"sender": "MDR",
+"date": "2016-10-02",
+"ermittler": [
+"Sieland, Gorniak und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "996",
+"title": "Zahltag",
+"sender": "WDR",
+"date": "2016-10-09",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "997",
+"title": "Die Wahrheit",
+"sender": "BR",
+"date": "2016-10-23",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "998",
+"title": "Echolot",
+"sender": "Radio Bremen",
+"date": "2016-10-30",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "999",
+"title": "Borowski und das verlorene Mädchen",
+"sender": "NDR",
+"date": "2016-11-06",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "1000",
+"title": "Taxi nach Leipzig",
+"sender": "NDR",
+"date": "2016-11-13",
+"ermittler": [
+"Borowski",
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "1001",
+"title": "Es lebe der Tod",
+"sender": "HR",
+"date": "2016-11-20",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1002",
+"title": "Wofür es sich zu leben lohnt",
+"sender": "SWR/SRF",
+"date": "2016-12-04",
+"ermittler": [
+"Blum, Perlmann und Lüthi"
+],
+"orf": false
+},
+{
+"nr": "1003",
+"title": "Dunkelfeld",
+"sender": "RBB",
+"date": "2016-12-11",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1004",
+"title": "Wendehammer",
+"sender": "HR",
+"date": "2016-12-18",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1005",
+"title": "Klingelingeling",
+"sender": "BR",
+"date": "2016-12-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1006",
+"title": "Land in dieser Zeit",
+"sender": "HR",
+"date": "2017-01-08",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1007",
+"title": "Wacht am Rhein",
+"sender": "WDR",
+"date": "2017-01-15",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1008",
+"title": "Schock",
+"sender": "ORF",
+"date": "2017-01-22",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1009",
+"title": "Söhne und Väter",
+"sender": "SR",
+"date": "2017-01-29",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "1010",
+"title": "Der scheidende Schupo",
+"sender": "MDR",
+"date": "2017-02-05",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1011",
+"title": "Tanzmariechen",
+"sender": "WDR",
+"date": "2017-02-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1012",
+"title": "Babbeldasch",
+"sender": "SWR",
+"date": "2017-02-26",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "1013",
+"title": "Kriegssplitter",
+"sender": "SRF",
+"date": "2017-03-05",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "1014",
+"title": "Nachtsicht",
+"sender": "Radio Bremen",
+"date": "2017-03-12",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "1015",
+"title": "Borowski und das dunkle Netz",
+"sender": "NDR",
+"date": "2017-03-19",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "1016",
+"title": "Nachbarn",
+"sender": "WDR",
+"date": "2017-03-26",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1017",
+"title": "Fangschuss",
+"sender": "WDR",
+"date": "2017-04-02",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1018",
+"title": "Am Ende geht man nackt",
+"sender": "BR",
+"date": "2017-04-09",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "1019",
+"title": "Sturm",
+"sender": "WDR",
+"date": "2017-04-17",
+"ermittler": [
+"Faber, Bönisch, Dalay und Kossik"
+],
+"orf": false
+},
+{
+"nr": "1020",
+"title": "Wehrlos",
+"sender": "ORF",
+"date": "2017-04-23",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1021",
+"title": "Der Tod ist unser ganzes Leben",
+"sender": "BR",
+"date": "2017-04-30",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1022",
+"title": "Die Liebe, ein seltsames Spiel",
+"sender": "BR",
+"date": "2017-05-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1023",
+"title": "Amour Fou",
+"sender": "RBB",
+"date": "2017-06-05",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1024",
+"title": "Level X",
+"sender": "MDR",
+"date": "2017-06-11",
+"ermittler": [
+"Sieland, Gorniak und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1025",
+"title": "Borowski und das Fest des Nordens",
+"sender": "NDR",
+"date": "2017-06-18",
+"ermittler": [
+"Borowski und Brandt"
+],
+"orf": false
+},
+{
+"nr": "1026",
+"title": "Virus",
+"sender": "ORF",
+"date": "2017-08-27",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1027",
+"title": "Stau",
+"sender": "SWR",
+"date": "2017-09-10",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1028",
+"title": "Zwei Leben",
+"sender": "SRF",
+"date": "2017-09-17",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "1029",
+"title": "Goldbach",
+"sender": "SWR",
+"date": "2017-10-01",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1030",
+"title": "Hardcore",
+"sender": "BR",
+"date": "2017-10-08",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1031",
+"title": "Der rote Schatten",
+"sender": "SWR",
+"date": "2017-10-15",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1032",
+"title": "Zurück ins Licht",
+"sender": "Radio Bremen",
+"date": "2017-10-22",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "1033",
+"title": "Fürchte dich",
+"sender": "HR",
+"date": "2017-10-29",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1034",
+"title": "Der Fall Holdt",
+"sender": "NDR",
+"date": "2017-11-05",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "1035",
+"title": "Auge um Auge",
+"sender": "MDR",
+"date": "2017-11-12",
+"ermittler": [
+"Sieland, Gorniak und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1036",
+"title": "Gott ist auch nur ein Mensch",
+"sender": "WDR",
+"date": "2017-11-19",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1037",
+"title": "Böser Boden",
+"sender": "NDR",
+"date": "2017-11-26",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1038",
+"title": "Dein Name sei Harbinger",
+"sender": "RBB",
+"date": "2017-12-10",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1039",
+"title": "Dunkle Zeit",
+"sender": "NDR",
+"date": "2017-12-17",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1040",
+"title": "Der wüste Gobi",
+"sender": "MDR",
+"date": "2017-12-26",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1041",
+"title": "Mord ex Machina",
+"sender": "SR",
+"date": "2018-01-01",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "1042",
+"title": "Kopper",
+"sender": "SWR",
+"date": "2018-01-07",
+"ermittler": [
+"Odenthal, Kopper und Stern"
+],
+"orf": false
+},
+{
+"nr": "1043",
+"title": "Die Faust",
+"sender": "ORF",
+"date": "2018-01-14",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1044",
+"title": "Bausünden",
+"sender": "WDR",
+"date": "2018-01-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1045",
+"title": "Déjà-vu",
+"sender": "MDR",
+"date": "2018-01-28",
+"ermittler": [
+"Sieland, Gorniak und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1046",
+"title": "Tollwut",
+"sender": "WDR",
+"date": "2018-02-04",
+"ermittler": [
+"Faber, Bönisch und Dalay"
+],
+"orf": false
+},
+{
+"nr": "1047",
+"title": "Der kalte Fritte",
+"sender": "MDR",
+"date": "2018-02-11",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1048",
+"title": "Meta",
+"sender": "RBB",
+"date": "2018-02-18",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1049",
+"title": "Borowski und das Land zwischen den Meeren",
+"sender": "NDR",
+"date": "2018-02-25",
+"ermittler": [
+"Borowski"
+],
+"orf": false
+},
+{
+"nr": "1050",
+"title": "Waldlust",
+"sender": "SWR",
+"date": "2018-03-04",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1051",
+"title": "Im toten Winkel",
+"sender": "Radio Bremen",
+"date": "2018-03-11",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "1052",
+"title": "Mitgehangen",
+"sender": "WDR",
+"date": "2018-03-18",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1053",
+"title": "Zeit der Frösche",
+"sender": "SWR",
+"date": "2018-04-02",
+"ermittler": [
+"Berlinger und Rascher"
+],
+"orf": false
+},
+{
+"nr": "1054",
+"title": "Unter Kriegern",
+"sender": "HR",
+"date": "2018-04-08",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1055",
+"title": "Ich töte niemand",
+"sender": "BR",
+"date": "2018-04-15",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "1056",
+"title": "Alles was Sie sagen",
+"sender": "NDR",
+"date": "2018-04-22",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1057",
+"title": "Familien",
+"sender": "WDR",
+"date": "2018-05-06",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1058",
+"title": "Sonnenwende",
+"sender": "SWR",
+"date": "2018-05-13",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1059",
+"title": "Wer jetzt allein ist",
+"sender": "MDR",
+"date": "2018-05-21",
+"ermittler": [
+"Sieland, Gorniak und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1060",
+"title": "Schlangengrube",
+"sender": "WDR",
+"date": "2018-05-27",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1061",
+"title": "Freies Land",
+"sender": "BR",
+"date": "2018-06-03",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1062",
+"title": "Tschiller: Off Duty",
+"sender": "NDR",
+"date": "2018-07-08",
+"ermittler": [
+"Tschiller und Gümer"
+],
+"orf": false
+},
+{
+"nr": "1063",
+"title": "Die Musik stirbt zuletzt",
+"sender": "SRF",
+"date": "2018-08-05",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "1064",
+"title": "Die robuste Roswita",
+"sender": "MDR",
+"date": "2018-08-26",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1065",
+"title": "Borowski und das Haus der Geister",
+"sender": "NDR",
+"date": "2018-09-02",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1066",
+"title": "Tiere der Großstadt",
+"sender": "RBB",
+"date": "2018-09-16",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1067",
+"title": "Tod und Spiele",
+"sender": "WDR",
+"date": "2018-10-07",
+"ermittler": [
+"Faber, Bönisch, Dalay und Pawlak"
+],
+"orf": false
+},
+{
+"nr": "1068",
+"title": "Her mit der Marie!",
+"sender": "ORF",
+"date": "2018-10-14",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1069",
+"title": "KI",
+"sender": "BR",
+"date": "2018-10-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1070",
+"title": "Blut",
+"sender": "Radio Bremen",
+"date": "2018-10-28",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "1071",
+"title": "Der Mann, der lügt",
+"sender": "SWR",
+"date": "2018-11-04",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1072",
+"title": "Treibjagd",
+"sender": "NDR",
+"date": "2018-11-18",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1073",
+"title": "Wir kriegen euch alle",
+"sender": "BR",
+"date": "2018-12-02",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1074",
+"title": "Vom Himmel hoch",
+"sender": "SWR",
+"date": "2018-12-09",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1075",
+"title": "Damian",
+"sender": "SWR",
+"date": "2018-12-23",
+"ermittler": [
+"Tobler"
+],
+"orf": false
+},
+{
+"nr": "1076",
+"title": "Der Turm",
+"sender": "HR",
+"date": "2018-12-26",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1077",
+"title": "Friss oder stirb",
+"sender": "SRF",
+"date": "2018-12-30",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "1078",
+"title": "Der höllische Heinz",
+"sender": "MDR",
+"date": "2019-01-01",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1079",
+"title": "Weiter, immer weiter",
+"sender": "WDR",
+"date": "2019-01-06",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1080",
+"title": "Wahre Lügen",
+"sender": "ORF",
+"date": "2019-01-13",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1081",
+"title": "Zorn",
+"sender": "WDR",
+"date": "2019-01-20",
+"ermittler": [
+"Faber, Bönisch, Dalay und Pawlak"
+],
+"orf": false
+},
+{
+"nr": "1082",
+"title": "Der Pakt",
+"sender": "SR",
+"date": "2019-01-27",
+"ermittler": [
+"Stellbrink und Marx"
+],
+"orf": false
+},
+{
+"nr": "1083",
+"title": "Das verschwundene Kind",
+"sender": "NDR",
+"date": "2019-02-03",
+"ermittler": [
+"Lindholm und Schmitz"
+],
+"orf": false
+},
+{
+"nr": "1084",
+"title": "Murot und das Murmeltier",
+"sender": "HR",
+"date": "2019-02-17",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1085",
+"title": "Ein Tag wie jeder andere",
+"sender": "BR",
+"date": "2019-02-24",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "1086",
+"title": "Borowski und das Glück der Anderen",
+"sender": "NDR",
+"date": "2019-03-03",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1087",
+"title": "Für immer und dich",
+"sender": "SWR",
+"date": "2019-03-10",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1088",
+"title": "Spieglein, Spieglein",
+"sender": "WDR",
+"date": "2019-03-17",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1089",
+"title": "Bombengeschäft",
+"sender": "WDR",
+"date": "2019-03-31",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1090",
+"title": "Inferno",
+"sender": "WDR",
+"date": "2019-04-14",
+"ermittler": [
+"Faber, Bönisch, Dalay und Pawlak"
+],
+"orf": false
+},
+{
+"nr": "1091",
+"title": "Wo ist nur mein Schatz geblieben?",
+"sender": "Radio Bremen",
+"date": "2019-04-22",
+"ermittler": [
+"Lürsen und Stedefreund"
+],
+"orf": false
+},
+{
+"nr": "1092",
+"title": "Das Nest",
+"sender": "MDR",
+"date": "2019-04-28",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1093",
+"title": "Der gute Weg",
+"sender": "RBB",
+"date": "2019-05-05",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1094",
+"title": "Das Monster von Kassel",
+"sender": "HR",
+"date": "2019-05-12",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1095",
+"title": "Anne und der Tod",
+"sender": "SWR",
+"date": "2019-05-19",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1096",
+"title": "Die ewige Welle",
+"sender": "BR",
+"date": "2019-05-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1097",
+"title": "Glück allein",
+"sender": "ORF",
+"date": "2019-06-02",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1098",
+"title": "Kaputt",
+"sender": "WDR",
+"date": "2019-06-10",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1099",
+"title": "Ausgezählt",
+"sender": "SRF",
+"date": "2019-06-16",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "1100",
+"title": "Nemesis",
+"sender": "MDR",
+"date": "2019-08-18",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1101",
+"title": "Falscher Hase",
+"sender": "HR",
+"date": "2019-09-01",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1102",
+"title": "Maleficius",
+"sender": "SWR",
+"date": "2019-09-08",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1103",
+"title": "Die harte Kern",
+"sender": "MDR",
+"date": "2019-09-22",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1104",
+"title": "Hüter der Schwelle",
+"sender": "SWR",
+"date": "2019-09-29",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1105",
+"title": "Angriff auf Wache 08",
+"sender": "HR",
+"date": "2019-10-20",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1106",
+"title": "Der Elefant im Raum",
+"sender": "SRF",
+"date": "2019-10-27",
+"ermittler": [
+"Flückiger und Ritschard"
+],
+"orf": false
+},
+{
+"nr": "1107",
+"title": "Lakritz",
+"sender": "WDR",
+"date": "2019-11-03",
+"ermittler": [
+"|Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1108",
+"title": "Das Leben nach dem Tod",
+"sender": "RBB",
+"date": "2019-11-10",
+"ermittler": [
+"|Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1109",
+"title": "Die Pfalz von oben",
+"sender": "SWR",
+"date": "2019-11-17",
+"ermittler": [
+"|Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1110",
+"title": "Baum fällt",
+"sender": "ORF",
+"date": "2019-11-24",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1111",
+"title": "Querschläger",
+"sender": "NDR",
+"date": "2019-12-01",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1112",
+"title": "Borowski und das Haus am Meer",
+"sender": "NDR",
+"date": "2019-12-15",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1113",
+"title": "Väterchen Frost",
+"sender": "WDR",
+"date": "2019-12-22",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1114",
+"title": "One Way Ticket",
+"sender": "BR",
+"date": "2019-12-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1115",
+"title": "Das Team",
+"sender": "WDR",
+"date": "2020-01-01",
+"ermittler": [
+"Faber und Bönisch"
+],
+"orf": false
+},
+{
+"nr": "1116",
+"title": "Tschill Out",
+"sender": "NDR",
+"date": "2020-01-05",
+"ermittler": [
+"Tschiller und Gümer"
+],
+"orf": false
+},
+{
+"nr": "1117",
+"title": "Kein Mitleid, keine Gnade",
+"sender": "WDR",
+"date": "2020-01-12",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1118",
+"title": "Unklare Lage",
+"sender": "BR",
+"date": "2020-01-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1119",
+"title": "Monster",
+"sender": "WDR",
+"date": "2020-02-02",
+"ermittler": [
+"Faber, Bönisch, Dalay und Pawlak"
+],
+"orf": false
+},
+{
+"nr": "1120",
+"title": "Die goldene Zeit",
+"sender": "NDR",
+"date": "2020-02-09",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1121",
+"title": "Ich hab im Traum geweinet",
+"sender": "SWR",
+"date": "2020-02-23",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1122",
+"title": "Die Nacht gehört dir",
+"sender": "BR",
+"date": "2020-03-01",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "1123",
+"title": "Leonessa",
+"sender": "SWR",
+"date": "2020-03-08",
+"ermittler": [
+"|Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1124",
+"title": "Das perfekte Verbrechen",
+"sender": "RBB",
+"date": "2020-03-15",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1125",
+"title": "Niemals ohne mich",
+"sender": "WDR",
+"date": "2020-03-22",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1126",
+"title": "Krieg im Kopf",
+"sender": "NDR",
+"date": "2020-03-29",
+"ermittler": [
+"Lindholm und Schmitz"
+],
+"orf": false
+},
+{
+"nr": "1127",
+"title": "Die Zeit ist gekommen",
+"sender": "MDR",
+"date": "2020-04-05",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1128",
+"title": "Das fleißige Lieschen",
+"sender": "SR",
+"date": "2020-04-13",
+"ermittler": [
+"Schürk, Hölzer, Baumann und Heinrich"
+],
+"orf": false
+},
+{
+"nr": "1129",
+"title": "Die Guten und die Bösen",
+"sender": "HR",
+"date": "2020-04-19",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1130",
+"title": "National feminin",
+"sender": "NDR",
+"date": "2020-04-26",
+"ermittler": [
+"Lindholm und Schmitz"
+],
+"orf": false
+},
+{
+"nr": "1131",
+"title": "Borowski und der Fluch der weißen Möwe",
+"sender": "NDR",
+"date": "2020-05-10",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1132",
+"title": "Gefangen",
+"sender": "WDR",
+"date": "2020-05-17",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1133",
+"title": "Du allein",
+"sender": "SWR",
+"date": "2020-05-24",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1134",
+"title": "Der letzte Schrey",
+"sender": "MDR",
+"date": "2020-06-01",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1135",
+"title": "Lass den Mond am Himmel stehn",
+"sender": "BR",
+"date": "2020-06-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1136",
+"title": "Pumpen",
+"sender": "ORF",
+"date": "2020-09-06",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1137",
+"title": "Funkstille",
+"sender": "HR",
+"date": "2020-09-13",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1138",
+"title": "Rebland",
+"sender": "SWR",
+"date": "2020-09-27",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1139",
+"title": "Ein paar Worte nach Mitternacht",
+"sender": "RBB",
+"date": "2020-10-04",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1140",
+"title": "Züri brännt",
+"sender": "SRF",
+"date": "2020-10-18",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1141",
+"title": "Krank",
+"sender": "ORF",
+"date": "2020-10-25",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1142",
+"title": "Der Welten Lohn",
+"sender": "SWR",
+"date": "2020-11-01",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1143",
+"title": "Limbus",
+"sender": "WDR",
+"date": "2020-11-08",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1144",
+"title": "Parasomnia",
+"sender": "MDR",
+"date": "2020-11-15",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1145",
+"title": "Die Ferien des Monsieur Murot",
+"sender": "HR",
+"date": "2020-11-22",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1146",
+"title": "In der Familie – Teil 1",
+"sender": "WDR",
+"date": "2020-11-29",
+"ermittler": [
+"Faber, Bönisch, Dalay und Pawlak",
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1147",
+"title": "In der Familie – Teil 2",
+"sender": "BR/WDR",
+"date": "2020-12-06",
+"ermittler": [
+"Batic und Leitmayr",
+"Faber"
+],
+"orf": false
+},
+{
+"nr": "1148",
+"title": "Es lebe der König!",
+"sender": "WDR",
+"date": "2020-12-13",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1149",
+"title": "Unten",
+"sender": "ORF",
+"date": "2020-12-20",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1150",
+"title": "Unter Wölfen",
+"sender": "SWR",
+"date": "2020-12-26",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1151",
+"title": "Der feine Geist",
+"sender": "MDR",
+"date": "2021-01-01",
+"ermittler": [
+"Lessing und Dorn"
+],
+"orf": false
+},
+{
+"nr": "1152",
+"title": "Der Tod der Anderen",
+"sender": "WDR",
+"date": "2021-01-10",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1153",
+"title": "Das ist unser Haus",
+"sender": "SWR",
+"date": "2021-01-17",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1154",
+"title": "Tödliche Flut",
+"sender": "NDR",
+"date": "2021-01-24",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1155",
+"title": "Rettung so nah",
+"sender": "MDR",
+"date": "2021-02-07",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1156",
+"title": "Hetzjagd",
+"sender": "SWR",
+"date": "2021-02-14",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1157",
+"title": "Heile Welt",
+"sender": "WDR",
+"date": "2021-02-21",
+"ermittler": [
+"Faber, Bönisch, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1158",
+"title": "Schoggiläbe",
+"sender": "SRF",
+"date": "2021-02-28",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1159",
+"title": "Borowski und die Angst der weißen Männer",
+"sender": "NDR",
+"date": "2021-03-07",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1160",
+"title": "Wie alle anderen auch",
+"sender": "WDR",
+"date": "2021-03-21",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1161",
+"title": "Die Amme",
+"sender": "ORF",
+"date": "2021-03-28",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1162",
+"title": "Der Herr des Waldes",
+"sender": "SR",
+"date": "2021-04-05",
+"ermittler": [
+"Schürk, Hölzer, Baumann und Heinrich"
+],
+"orf": false
+},
+{
+"nr": "1163",
+"title": "Der böse König",
+"sender": "SWR",
+"date": "2021-04-11",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1164",
+"title": "Macht der Familie",
+"sender": "NDR",
+"date": "2021-04-18",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1165",
+"title": "Was wir erben",
+"sender": "SWR",
+"date": "2021-04-25",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1166",
+"title": "Rhythm and Love",
+"sender": "WDR",
+"date": "2021-05-02",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1167",
+"title": "Verschwörung",
+"sender": "ORF",
+"date": "2021-05-09",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1168",
+"title": "Wo ist Mike?",
+"sender": "BR",
+"date": "2021-05-16",
+"ermittler": [
+"Voss, Ringelhahn, Goldwasser, Fleischer und Schatz"
+],
+"orf": false
+},
+{
+"nr": "1169",
+"title": "Neugeboren",
+"sender": "Radio Bremen",
+"date": "2021-05-24",
+"ermittler": [
+"Moormann, Andersen und Selb"
+],
+"orf": false
+},
+{
+"nr": "1170",
+"title": "Die dritte Haut",
+"sender": "RBB",
+"date": "2021-06-06",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1171",
+"title": "Wer zögert, ist tot",
+"sender": "HR",
+"date": "2021-08-29",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1172",
+"title": "Der Reiz des Bösen",
+"sender": "WDR",
+"date": "2021-09-19",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1173",
+"title": "Borowski und der gute Mensch",
+"sender": "NDR",
+"date": "2021-10-03",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1174",
+"title": "Unsichtbar",
+"sender": "MDR",
+"date": "2021-10-17",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1175",
+"title": "Blind Date",
+"sender": "SWR",
+"date": "2021-10-24",
+"ermittler": [
+"Berlinger und Rascher"
+],
+"orf": false
+},
+{
+"nr": "1176",
+"title": "Luna frisst oder stirbt",
+"sender": "HR",
+"date": "2021-10-31",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1177",
+"title": "Dreams",
+"sender": "BR",
+"date": "2021-11-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1178",
+"title": "Die Kalten und die Toten",
+"sender": "RBB",
+"date": "2021-11-14",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1179",
+"title": "Murot und das Prinzip Hoffnung",
+"sender": "HR",
+"date": "2021-11-21",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1180",
+"title": "Masken",
+"sender": "WDR",
+"date": "2021-11-28",
+"ermittler": [
+"Faber, Bönisch, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1181",
+"title": "Und immer gewinnt die Nacht",
+"sender": "Radio Bremen",
+"date": "2021-12-12",
+"ermittler": [
+"Moormann, Andersen und Selb"
+],
+"orf": false
+},
+{
+"nr": "1182",
+"title": "Wunder gibt es immer wieder",
+"sender": "BR",
+"date": "2021-12-19",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1183",
+"title": "Alles kommt zurück",
+"sender": "NDR",
+"date": "2021-12-26",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "1184",
+"title": "Videobeweis",
+"sender": "SWR",
+"date": "2022-01-01",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1185",
+"title": "Gier und Angst",
+"sender": "WDR",
+"date": "2022-01-02",
+"ermittler": [
+"Faber, Bönisch, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1186",
+"title": "Des Teufels langer Atem",
+"sender": "WDR",
+"date": "2022-01-16",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1187",
+"title": "Das Herz der Schlange",
+"sender": "SR",
+"date": "2022-01-23",
+"ermittler": [
+"Schürk und Hölzer"
+],
+"orf": false
+},
+{
+"nr": "1188",
+"title": "Vier Jahre",
+"sender": "WDR",
+"date": "2022-02-06",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1189",
+"title": "Saras Geständnis",
+"sender": "SWR",
+"date": "2022-02-13",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1190",
+"title": "Liebe mich",
+"sender": "WDR",
+"date": "2022-02-20",
+"ermittler": [
+"Faber, Bönisch, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1191",
+"title": "Kehraus",
+"sender": "BR",
+"date": "2022-02-27",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1192",
+"title": "Propheteus",
+"sender": "WDR",
+"date": "2022-03-06",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1193",
+"title": "Schattenkinder",
+"sender": "SRF",
+"date": "2022-03-13",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1194",
+"title": "Tyrannenmord",
+"sender": "NDR",
+"date": "2022-03-20",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1195",
+"title": "Hubertys Rache",
+"sender": "WDR",
+"date": "2022-03-27",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1196",
+"title": "Alles was Recht ist",
+"sender": "ORF",
+"date": "2022-04-03",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1197",
+"title": "Borowski und der Schatten des Mondes",
+"sender": "NDR",
+"date": "2022-04-10",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1198",
+"title": "Finsternis",
+"sender": "HR",
+"date": "2022-04-18",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1199",
+"title": "Warum",
+"sender": "BR",
+"date": "2022-05-01",
+"ermittler": [
+"Voss und Ringelhahn"
+],
+"orf": false
+},
+{
+"nr": "1200",
+"title": "Marlon",
+"sender": "SWR",
+"date": "2022-05-08",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1201",
+"title": "Das Mädchen, das allein nach Haus’ geht",
+"sender": "RBB",
+"date": "2022-05-22",
+"ermittler": [
+"Rubin und Karow"
+],
+"orf": false
+},
+{
+"nr": "1202",
+"title": "Liebeswut",
+"sender": "Radio Bremen",
+"date": "2022-05-29",
+"ermittler": [
+"Moormann und Selb"
+],
+"orf": false
+},
+{
+"nr": "1203",
+"title": "Das kalte Haus",
+"sender": "MDR",
+"date": "2022-06-06",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1204",
+"title": "Schattenleben",
+"sender": "NDR",
+"date": "2022-06-12",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1205",
+"title": "Flash",
+"sender": "BR",
+"date": "2022-06-19",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1206",
+"title": "In seinen Augen",
+"sender": "SWR",
+"date": "2022-06-26",
+"ermittler": [
+"Berlinger und Rascher"
+],
+"orf": false
+},
+{
+"nr": "1207",
+"title": "Das Verhör",
+"sender": "SWR",
+"date": "2022-09-04",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1208",
+"title": "Risiken mit Nebenwirkungen",
+"sender": "SRF",
+"date": "2022-09-11",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1209",
+"title": "Der Mörder in mir",
+"sender": "SWR",
+"date": "2022-09-18",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1210",
+"title": "Murot und das Gesetz des Karma",
+"sender": "HR",
+"date": "2022-09-25",
+"ermittler": [
+"Murot"
+],
+"orf": false
+},
+{
+"nr": "1211",
+"title": "Das Tor zur Hölle",
+"sender": "ORF",
+"date": "2022-10-02",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1212",
+"title": "Die Rache an der Welt",
+"sender": "NDR",
+"date": "2022-10-09",
+"ermittler": [
+"Lindholm und Schmitz"
+],
+"orf": false
+},
+{
+"nr": "1213",
+"title": "Leben Tod Ekstase",
+"sender": "HR",
+"date": "2022-10-16",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1214",
+"title": "Spur des Blutes",
+"sender": "WDR",
+"date": "2022-10-23",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1215",
+"title": "Die Blicke der Anderen",
+"sender": "SWR",
+"date": "2022-11-06",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1216",
+"title": "Ein Freund, ein guter Freund",
+"sender": "WDR",
+"date": "2022-11-13",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1217",
+"title": "Katz und Maus",
+"sender": "MDR",
+"date": "2022-11-20",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1218",
+"title": "Das Opfer",
+"sender": "RBB",
+"date": "2022-12-18",
+"ermittler": [
+"Karow"
+],
+"orf": false
+},
+{
+"nr": "1219",
+"title": "Mord unter Misteln",
+"sender": "BR",
+"date": "2022-12-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1220",
+"title": "Schutzmaßnahmen",
+"sender": "WDR",
+"date": "2023-01-01",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1221",
+"title": "Totes Herz",
+"sender": "MDR",
+"date": "2023-01-08",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1222",
+"title": "Du bleibst hier",
+"sender": "WDR",
+"date": "2023-01-15",
+"ermittler": [
+"Faber, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1223",
+"title": "Lenas Tante",
+"sender": "SWR",
+"date": "2023-01-22",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1224",
+"title": "Die Kälte der Erde",
+"sender": "SR",
+"date": "2023-01-29",
+"ermittler": [
+"Schürk und Hölzer"
+],
+"orf": false
+},
+{
+"nr": "1225",
+"title": "Unten im Tal",
+"sender": "SWR",
+"date": "2023-02-12",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1226",
+"title": "Was ist das für eine Welt",
+"sender": "ORF",
+"date": "2023-02-26",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1227",
+"title": "MagicMom",
+"sender": "WDR",
+"date": "2023-03-05",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1228",
+"title": "Hackl",
+"sender": "BR",
+"date": "2023-03-12",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1229",
+"title": "Abbruchkante",
+"sender": "WDR",
+"date": "2023-03-26",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1230",
+"title": "Donuts",
+"sender": "Radio Bremen",
+"date": "2023-04-02",
+"ermittler": [
+"Moormann, Andersen und Selb"
+],
+"orf": false
+},
+{
+"nr": "1231",
+"title": "Nichts als die Wahrheit (Teil 1)",
+"sender": "RBB",
+"date": "2023-04-09",
+"ermittler": [
+"Karow und Bonard"
+],
+"orf": false
+},
+{
+"nr": "1232",
+"title": "Nichts als die Wahrheit (Teil 2)",
+"sender": "RBB",
+"date": "2023-04-10",
+"ermittler": [
+"Karow und Bonard"
+],
+"orf": false
+},
+{
+"nr": "1233",
+"title": "Verborgen",
+"sender": "NDR",
+"date": "2023-04-16",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1234",
+"title": "Love is Pain",
+"sender": "WDR",
+"date": "2023-04-23",
+"ermittler": [
+"Faber, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1235",
+"title": "Seilschaft",
+"sender": "SRF",
+"date": "2023-04-30",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1236",
+"title": "Borowski und die große Wut",
+"sender": "NDR",
+"date": "2023-05-07",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1237",
+"title": "Das geheime Leben unserer Kinder",
+"sender": "SWR",
+"date": "2023-05-14",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1238",
+"title": "Game Over",
+"sender": "BR",
+"date": "2023-05-21",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1239",
+"title": "Azra",
+"sender": "ORF",
+"date": "2023-05-29",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1240",
+"title": "Hochamt für Toni",
+"sender": "BR",
+"date": "2023-06-04",
+"ermittler": [
+"Voss und Ringelhahn"
+],
+"orf": false
+},
+{
+"nr": "1241",
+"title": "Die Nacht der Kommissare",
+"sender": "SWR",
+"date": "2023-06-18",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1242",
+"title": "Gold",
+"sender": "SWR",
+"date": "2023-09-03",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1243",
+"title": "Erbarmen. Zu spät.",
+"sender": "HR",
+"date": "2023-09-10",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1244",
+"title": "Blinder Fleck",
+"sender": "SRF",
+"date": "2023-09-24",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1245",
+"title": "Aus dem Dunkel",
+"sender": "SWR",
+"date": "2023-10-08",
+"ermittler": [
+"Berlinger"
+],
+"orf": false
+},
+{
+"nr": "1246",
+"title": "Bauernsterben",
+"sender": "ORF",
+"date": "2023-10-15",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1247",
+"title": "Murot und das Paradies",
+"sender": "HR",
+"date": "2023-10-22",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1248",
+"title": "Königinnen",
+"sender": "BR",
+"date": "2023-10-29",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1249",
+"title": "Was ihr nicht seht",
+"sender": "MDR",
+"date": "2023-11-05",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1250",
+"title": "Vergebung",
+"sender": "SWR",
+"date": "2023-11-19",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1251",
+"title": "Borowski und das unschuldige Kind von Wacken",
+"sender": "NDR",
+"date": "2023-11-26",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1252",
+"title": "Des anderen Last",
+"sender": "WDR",
+"date": "2023-12-03",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1253",
+"title": "Der Mann, der in den Dschungel fiel",
+"sender": "WDR",
+"date": "2023-12-10",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1254",
+"title": "Kontrollverlust",
+"sender": "HR",
+"date": "2023-12-26",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1255",
+"title": "Was bleibt",
+"sender": "NDR",
+"date": "2024-01-01",
+"ermittler": [
+"Falke und Grosz"
+],
+"orf": false
+},
+{
+"nr": "1256",
+"title": "Avatar",
+"sender": "SWR",
+"date": "2024-01-07",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1257",
+"title": "Pyramide",
+"sender": "WDR",
+"date": "2024-01-14",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1258",
+"title": "Zerrissen",
+"sender": "SWR",
+"date": "2024-01-21",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1259",
+"title": "Der Fluch des Geldes",
+"sender": "SR",
+"date": "2024-01-28",
+"ermittler": [
+"Schürk und Hölzer"
+],
+"orf": false
+},
+{
+"nr": "1260",
+"title": "Das Wunderkind",
+"sender": "BR",
+"date": "2024-02-04",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1261",
+"title": "Geisterfahrt",
+"sender": "NDR",
+"date": "2024-02-11",
+"ermittler": [
+"Lindholm und Schmitz"
+],
+"orf": false
+},
+{
+"nr": "1262",
+"title": "Cash",
+"sender": "WDR",
+"date": "2024-02-18",
+"ermittler": [
+"Faber, Pawlak und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1263",
+"title": "Borowski und der Wiedergänger",
+"sender": "NDR",
+"date": "2024-03-03",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1264",
+"title": "Dein Verlust",
+"sender": "ORF",
+"date": "2024-03-10",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1265",
+"title": "Unter Gärtnern",
+"sender": "WDR",
+"date": "2024-03-17",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1266",
+"title": "Angst im Dunkeln",
+"sender": "Radio Bremen",
+"date": "2024-04-01",
+"ermittler": [
+"Moormann und Selb"
+],
+"orf": false
+},
+{
+"nr": "1267",
+"title": "Schau mich an",
+"sender": "BR",
+"date": "2024-04-07",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1268",
+"title": "Von Affen und Menschen",
+"sender": "SRF",
+"date": "2024-04-14",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1269",
+"title": "Diesmal ist es anders",
+"sender": "WDR",
+"date": "2024-04-28",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1270",
+"title": "Am Tag der wandernden Seelen",
+"sender": "RBB",
+"date": "2024-05-05",
+"ermittler": [
+"Karow und Bonard"
+],
+"orf": false
+},
+{
+"nr": "1271",
+"title": "Letzter Ausflug Schauinsland",
+"sender": "SWR",
+"date": "2024-05-20",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1272",
+"title": "Deine Mutter",
+"sender": "ORF",
+"date": "2024-09-15",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1273",
+"title": "Ad Acta",
+"sender": "SWR",
+"date": "2024-09-22",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1274",
+"title": "Es grünt so grün, wenn Frankfurts Berge blüh’n",
+"sender": "HR",
+"date": "2024-09-29",
+"ermittler": [
+"Janneke und Brix"
+],
+"orf": false
+},
+{
+"nr": "1275",
+"title": "Trotzdem",
+"sender": "BR",
+"date": "2024-10-06",
+"ermittler": [
+"Voss und Ringelhahn"
+],
+"orf": false
+},
+{
+"nr": "1276",
+"title": "Murot und das 1000-jährige Reich",
+"sender": "HR",
+"date": "2024-10-20",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1277",
+"title": "Dein gutes Recht",
+"sender": "SWR",
+"date": "2024-10-27",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1278",
+"title": "Unter Feuer",
+"sender": "MDR",
+"date": "2024-11-03",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1279",
+"title": "Borowski und das ewige Meer",
+"sender": "NDR",
+"date": "2024-11-10",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1280",
+"title": "Lass sie gehen",
+"sender": "SWR",
+"date": "2024-11-17",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1281",
+"title": "Siebte Etage",
+"sender": "WDR",
+"date": "2024-11-24",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1282",
+"title": "Schweigen",
+"sender": "NDR",
+"date": "2024-12-01",
+"ermittler": [
+"Falke"
+],
+"orf": false
+},
+{
+"nr": "1283",
+"title": "Stille Nacht",
+"sender": "Radio Bremen",
+"date": "2024-12-08",
+"ermittler": [
+"Moormann und Selb"
+],
+"orf": false
+},
+{
+"nr": "1284",
+"title": "Man stirbt nur zweimal",
+"sender": "WDR",
+"date": "2024-12-15",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1285",
+"title": "Fährmann",
+"sender": "SRF",
+"date": "2024-12-22",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1286",
+"title": "Made in China",
+"sender": "WDR",
+"date": "2024-12-26",
+"ermittler": [
+"Faber und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1287",
+"title": "Der Stelzenmann",
+"sender": "SWR",
+"date": "2025-01-01",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1288",
+"title": "Restschuld",
+"sender": "WDR",
+"date": "2025-01-05",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1289",
+"title": "Borowski und das hungrige Herz",
+"sender": "NDR",
+"date": "2025-01-12",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1290",
+"title": "Verblendung",
+"sender": "SWR",
+"date": "2025-01-19",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1291",
+"title": "Das Ende der Nacht",
+"sender": "SR",
+"date": "2025-01-26",
+"ermittler": [
+"Schürk und Hölzer"
+],
+"orf": false
+},
+{
+"nr": "1292",
+"title": "Herz der Dunkelheit",
+"sender": "MDR",
+"date": "2025-02-02",
+"ermittler": [
+"Gorniak, Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1293",
+"title": "Vier Leben",
+"sender": "RBB",
+"date": "2025-02-16",
+"ermittler": [
+"Karow und Bonard"
+],
+"orf": false
+},
+{
+"nr": "1294",
+"title": "Charlie",
+"sender": "BR",
+"date": "2025-03-02",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1295",
+"title": "Colonius",
+"sender": "WDR",
+"date": "2025-03-09",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1296",
+"title": "Borowski und das Haupt der Medusa",
+"sender": "NDR",
+"date": "2025-03-16",
+"ermittler": [
+"Borowski und Sahin"
+],
+"orf": false
+},
+{
+"nr": "1297",
+"title": "Die große Angst",
+"sender": "SWR",
+"date": "2025-03-23",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1298",
+"title": "Abstellgleis",
+"sender": "WDR",
+"date": "2025-03-30",
+"ermittler": [
+"Faber und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1299",
+"title": "Fiderallala",
+"sender": "WDR",
+"date": "2025-04-06",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1300",
+"title": "Messer",
+"sender": "ORF",
+"date": "2025-04-13",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1301",
+"title": "Im Wahn",
+"sender": "NDR",
+"date": "2025-04-21",
+"ermittler": [
+"Falke"
+],
+"orf": false
+},
+{
+"nr": "1302",
+"title": "Zugzwang",
+"sender": "BR",
+"date": "2025-04-27",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1303",
+"title": "Solange du atmest",
+"sender": "Radio Bremen",
+"date": "2025-05-11",
+"ermittler": [
+"Moormann und Selb"
+],
+"orf": false
+},
+{
+"nr": "1304",
+"title": "Wir sind nicht zu fassen!",
+"sender": "ORF",
+"date": "2025-06-01",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1305",
+"title": "Feuer",
+"sender": "WDR",
+"date": "2025-06-09",
+"ermittler": [
+"Faber und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1306",
+"title": "Rapunzel",
+"sender": "SRF",
+"date": "2025-06-15",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1307",
+"title": "Ich sehe dich",
+"sender": "BR",
+"date": "2025-09-14",
+"ermittler": [
+"Voss"
+],
+"orf": false
+},
+{
+"nr": "1308",
+"title": "Kammerflimmern",
+"sender": "SRF",
+"date": "2025-09-28",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1309",
+"title": "Dunkelheit",
+"sender": "HR",
+"date": "2025-10-05",
+"ermittler": [
+"Azadi und Kulina"
+],
+"orf": false
+},
+{
+"nr": "1310",
+"title": "Siebenschläfer",
+"sender": "MDR",
+"date": "2025-10-12",
+"ermittler": [
+"Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1311",
+"title": "Letzte Ernte",
+"sender": "NDR",
+"date": "2025-10-26",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "1312",
+"title": "Erika Mustermann",
+"sender": "RBB",
+"date": "2025-11-02",
+"ermittler": [
+"Karow und Bonard"
+],
+"orf": false
+},
+{
+"nr": "1313",
+"title": "Mike & Nisha",
+"sender": "SWR",
+"date": "2025-11-09",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1314",
+"title": "Der Reini",
+"sender": "SWR",
+"date": "2025-11-16",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1315",
+"title": "Überlebe wenigstens bis morgen",
+"sender": "SWR",
+"date": "2025-11-23",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1316",
+"title": "Licht",
+"sender": "HR",
+"date": "2025-11-30",
+"ermittler": [
+"Azadi und Kulina"
+],
+"orf": false
+},
+{
+"nr": "1317",
+"title": "Die Erfindung des Rades",
+"sender": "WDR",
+"date": "2025-12-07",
+"ermittler": [
+"Thiel und Boerne"
+],
+"orf": false
+},
+{
+"nr": "1318",
+"title": "Der Elektriker",
+"sender": "ORF",
+"date": "2025-12-14",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1319",
+"title": "Ein guter Tag",
+"sender": "NDR",
+"date": "2025-12-21",
+"ermittler": [
+"Falke und Schmitt"
+],
+"orf": false
+},
+{
+"nr": "1320",
+"title": "Schwarzer Schnee",
+"sender": "NDR",
+"date": "2025-12-21",
+"ermittler": [
+"Falke und Schmitt"
+],
+"orf": false
+},
+{
+"nr": "1321",
+"title": "Das Verlangen",
+"sender": "BR",
+"date": "2025-12-26",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1322",
+"title": "Murot und der Elefant im Raum",
+"sender": "HR",
+"date": "2025-12-28",
+"ermittler": [
+"Murot und Wächter"
+],
+"orf": false
+},
+{
+"nr": "1323",
+"title": "Nachtschatten",
+"sender": "MDR",
+"date": "2026-01-01",
+"ermittler": [
+"Winkler und Schnabel"
+],
+"orf": false
+},
+{
+"nr": "1324",
+"title": "Das jüngste Geißlein",
+"sender": "SWR",
+"date": "2026-01-04",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1325",
+"title": "Die Schöpfung",
+"sender": "WDR",
+"date": "2026-01-11",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1326",
+"title": "Ex-It",
+"sender": "SWR",
+"date": "2026-01-18",
+"ermittler": [
+"Lannert und Bootz"
+],
+"orf": false
+},
+{
+"nr": "1327",
+"title": "Wenn man nur einen retten könnte",
+"sender": "Radio Bremen",
+"date": "2026-01-25",
+"ermittler": [
+"Moormann und Selb"
+],
+"orf": false
+},
+{
+"nr": "1328",
+"title": "Gefahrengebiet",
+"sender": "RBB",
+"date": "2026-02-01",
+"ermittler": [
+"Karow und Bonard"
+],
+"orf": false
+},
+{
+"nr": "1329",
+"title": "Das Böse in dir",
+"sender": "SR",
+"date": "2026-02-08",
+"ermittler": [
+"Schürk und Hölzer"
+],
+"orf": false
+},
+{
+"nr": "1330",
+"title": "Schmerz",
+"sender": "WDR",
+"date": "2026-02-22",
+"ermittler": [
+"Faber und Herzog"
+],
+"orf": false
+},
+{
+"nr": "1331",
+"title": "Sashimi Spezial",
+"sender": "SWR",
+"date": "2026-03-01",
+"ermittler": [
+"Odenthal und Stern"
+],
+"orf": false
+},
+{
+"nr": "1332",
+"title": "Fackel",
+"sender": "HR",
+"date": "2026-03-22",
+"ermittler": [
+"Azadi und Kulina"
+],
+"orf": false
+},
+{
+"nr": "1333",
+"title": "Unvergänglich – Teil 1",
+"sender": "BR",
+"date": "2026-04-05",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1334",
+"title": "Unvergänglich – Teil 2",
+"sender": "BR",
+"date": "2026-04-06",
+"ermittler": [
+"Batic und Leitmayr"
+],
+"orf": false
+},
+{
+"nr": "1335",
+"title": "Showtime",
+"sender": "WDR",
+"date": "2026-04-12",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "1336",
+"title": "Innere Angelegenheiten",
+"sender": "SWR",
+"date": "2026-04-19",
+"ermittler": [
+"Tobler und Berg"
+],
+"orf": false
+},
+{
+"nr": "1337",
+"title": "Gegen die Zeit",
+"sender": "ORF",
+"date": "2026-04-26",
+"ermittler": [
+"Eisner und Fellner"
+],
+"orf": false
+},
+{
+"nr": "1338",
+"title": "Könige der Nacht",
+"sender": "SRF",
+"date": "2026-05-03",
+"ermittler": [
+"Grandjean und Ott"
+],
+"orf": false
+},
+{
+"nr": "1339",
+"title": "König in Gelb",
+"sender": "NDR",
+"date": "2026-09-13",
+"ermittler": [
+"Lindholm"
+],
+"orf": false
+},
+{
+"nr": "1340",
+"title": "Die letzten Menschen von Köln",
+"sender": "WDR",
+"date": "2026-09-20",
+"ermittler": [
+"Ballauf und Schenk"
+],
+"orf": false
+},
+{
+"nr": "168a",
+"title": "Fahrerflucht",
+"sender": "ORF",
+"date": "1985-05-19",
+"ermittler": [
+"Hirth"
+],
+"orf": true
+},
+{
+"nr": "171a",
+"title": "Des Glückes Rohstoff",
+"sender": "ORF",
+"date": "1985-09-08",
+"ermittler": [
+"Hirth"
+],
+"orf": true
+},
+{
+"nr": "176a",
+"title": "Strindbergs Früchte",
+"sender": "ORF",
+"date": "1986-01-12",
+"ermittler": [
+"Hirth"
+],
+"orf": true
+},
+{
+"nr": "178a",
+"title": "Das Archiv",
+"sender": "ORF",
+"date": "1986-03-02",
+"ermittler": [
+"Hirth"
+],
+"orf": true
+},
+{
+"nr": "181a",
+"title": "Die Spieler",
+"sender": "ORF",
+"date": "1986-06-13",
+"ermittler": [
+"Hirth"
+],
+"orf": true
+},
+{
+"nr": "184a",
+"title": "Alleingang",
+"sender": "ORF",
+"date": "1986-08-24",
+"ermittler": [
+"Hirth"
+],
+"orf": true
+},
+{
+"nr": "186a",
+"title": "Der Schnee vom vergangenen Jahr",
+"sender": "ORF/BR",
+"date": "1986-10-12",
+"ermittler": [
+"Lutinsky"
+],
+"orf": true
+},
+{
+"nr": "187a",
+"title": "Der Tod des Tänzers",
+"sender": "ORF/BR",
+"date": "1986-12-18",
+"ermittler": [
+"Pfeifer"
+],
+"orf": true
+},
+{
+"nr": "188a",
+"title": "Die offene Rechnung",
+"sender": "ORF/BR",
+"date": "1987-01-11",
+"ermittler": [
+"Pfeifer"
+],
+"orf": true
+},
+{
+"nr": "192a",
+"title": "Superzwölfer",
+"sender": "ORF/BR",
+"date": "1987-04-25",
+"ermittler": [
+"Pfeifer"
+],
+"orf": true
+},
+{
+"nr": "199a",
+"title": "Atahualpa",
+"sender": "ORF",
+"date": "1987-12-08",
+"ermittler": [
+"Pfeifer"
+],
+"orf": true
+},
+{
+"nr": "199b",
+"title": "Flucht in den Tod",
+"sender": "ORF",
+"date": "1987-12-19",
+"ermittler": [
+"Pfeifer"
+],
+"orf": true
+},
+{
+"nr": "218a",
+"title": "Geld für den Griechen",
+"sender": "ORF",
+"date": "1989-05-21",
+"ermittler": [
+"Fichtl"
+],
+"orf": true
+}
+]
+}

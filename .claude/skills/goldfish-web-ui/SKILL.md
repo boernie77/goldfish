@@ -546,6 +546,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Admin-Schalter pro Bibliothek; auf User-Wunsch wieder ausgebaut, Spalte show_file_size bleibt
   in bestehenden DBs ungenutzt liegen.) Apps beachten die Kommissar-Zeile noch nicht.
 
+### Ermittler-Katalog / fehlende Folgen je Kommissar (seit 1.4.65)
+- Daten: `internal/catalog/data/tatort.json` (Wikipedia „Liste der Tatort-Folgen", CC BY-SA,
+  eingelesen mit `scripts/import_tatort_catalog.py`, go:embed). Pro Folge Nr/Titel/Sender/Datum/
+  Ermittler-Teams (Crossover = mehrere Teams, Gastauftritte entfernt). Neu einlesen: Skript
+  laufen lassen + committen.
+- `GET /api/libraries/{id}/catalog?folder=…[&team=…]` (api/catalog.go): ordnet vorhandene
+  Dateien per TMDB-Titel + Erstausstrahlung (±7 Tage) bzw. Nummer im Dateinamen einer Zeile
+  zu; ein Team gehört zu dem Unterordner mit den MEISTEN seiner Folgen. Serien-Ordner →
+  `groups`, Kommissar-Ordner/Team → `missing` + `owned/total`.
+- Browser (views.js `applyCatalogGaps`, nur in `forcedFolderView`): Kommissar-Ansicht bekommt
+  „Fehlt"-Kacheln chronologisch einsortiert + Zähler im Breadcrumb; Tatort-Sammlung bekommt
+  Abschnitt „Ermittler ohne eigenen Ordner" → `state.catalogTeam` → Teamliste.
+
 ### Ordner-Sammlungen (seit 1.4.57, 2026-09-30)
 - Admin-Knopf „📚 Als Sammlung" in der Ordner-Kopfzeile (`renderFolderCollectionToggle`,
   views.js) legt eine eigene Kachel unter „Sammlungen" an: `PUT /api/collections/folder

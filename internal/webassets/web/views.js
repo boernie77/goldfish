@@ -1937,3 +1937,141 @@ async function startTrickplayPoll(libId, folder) {
     } catch (e) { console.warn(e); }
   }, 3000);
 }
+
+// --- Ermittler-Katalog (Tatort, seit 1.4.65) ---
+// Fehlende Folgen je Kommissar aus dem Wikipedia-Katalog des Servers
+// (GET /api/libraries/{id}/catalog, internal/catalog). Greift nur innerhalb
+// einer erzwungenen Ordner-Ansicht (Tatort-Sammlung bzw. Kommissar-Klick).
+
+function renderCatalogMissingCard(e) {
+  const el = document.createElement("article");
+  el.className = "card card--poster collection-part is-missing";
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  const team = (e.ermittler || []).join(" / ");
+  const date = e.date ? e.date.split("-").reverse().join(".") : "";
+  el.innerHTML = `
+    <div class="thumb">
+      <img class="thumb-img" loading="lazy" decoding="async" alt="" src="/placeholder.svg">
+      <span class="missing-badge" title="Folge nicht in der Bibliothek">Fehlt</span>
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${escapeHTML(e.title)}">${escapeHTML(e.title)}</div>
+      <div class="card-meta">
+        <span class="episode-code">Nr. ${escapeHTML(e.nr)}</span>
+        ${date ? `<span>${date}</span>` : ""}
+        <span style="color:#ef4444;font-weight:600">Fehlt</span>
+      </div>
+      <div class="card-group">${escapeHTML(team)}</div>
+    </div>
+  `;
+  el.addEventListener("click", () => {
+    appAlert(`Tatort Nr. ${e.nr}: ${e.title}\n${e.sender || ""}${date ? " · Erstausstrahlung " + date : ""}\nErmittler: ${team}\n\nFehlt in der Bibliothek.`);
+  });
+  return el;
+}
+
+// catalogContext: liefert {libId, top, sub} wenn der aktuelle Ordner in einer
+// erzwungenen Ordner-Ansicht liegt, sonst null.
+function catalogContext() {
+  const fv = state.forcedFolderView;
+  const f = state.currentFolder || "";
+  if (!fv || fv.libraryId != state.currentLibrary || !f) return null;
+  if (f !== fv.folder && !f.startsWith(fv.folder + "/")) return null;
+  const [top, sub] = f.split("/");
+  return { libId: state.currentLibrary, top, sub: sub || "" };
+}
+
+// applyCatalogGaps: nach dem normalen Grid-Render aufrufen. Kommissar-Ordner →
+// „Fehlt"-Kacheln in die Zeitleiste einsortieren + Zähler im Breadcrumb.
+// Serien-Ordner (Tatort-Sammlung) → Abschnitt „Ermittler ohne eigenen Ordner".
+async function applyCatalogGaps(grid, stale) {
+  const ctx = catalogContext();
+  if (!ctx) return;
+  let data;
+  try {
+    data = await api(`/api/libraries/${ctx.libId}/catalog?folder=${encodeURIComponent(state.currentFolder)}`);
+  } catch { return; }
+  if (stale() || !data || !data.available) return;
+
+  if (!ctx.sub) {
+    const loose = (data.groups || []).filter(g => !g.folder);
+    if (!loose.length) return;
+    const h = document.createElement("div");
+    h.className = "person-section-title";
+    h.textContent = `🕵 Ermittler ohne eigenen Ordner (${loose.length})`;
+    grid.appendChild(h);
+    for (const g of loose) grid.appendChild(renderCatalogTeamCard(ctx, g));
+    return;
+  }
+
+  const count = $("#bc-count");
+  if (count && data.total) count.textContent += ` · ${data.owned}/${data.total} Folgen vorhanden`;
+  const missing = data.missing || [];
+  if (!missing.length) return;
+  // In die chronologische Reihenfolge einsortieren, wenn nach Erstausstrahlung
+  // aufsteigend sortiert wird — sonst hinten anhängen.
+  const byId = new Map((state.lastRenderedItems || []).map(it => [String(it.id), it]));
+  const chrono = $("#sortSelect").value === "released" && effectiveSortDir() === "asc";
+  const cards = [...grid.querySelectorAll(":scope > .card:not(.folder)")];
+  const dateOf = c => {
+    const it = byId.get(c.dataset.itemId);
+    const d = it && it.metadata && it.metadata.releaseDate;
+    return d ? String(d).slice(0, 10) : "";
+  };
+  for (const e of missing) {
+    const card = renderCatalogMissingCard(e);
+    const before = chrono ? cards.find(c => { const d = dateOf(c); return d && d > e.date; }) : null;
+    if (before) grid.insertBefore(card, before);
+    else grid.appendChild(card);
+  }
+}
+
+function renderCatalogTeamCard(ctx, g) {
+  const el = document.createElement("article");
+  el.className = "card folder card--poster collection-part is-missing";
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  el.innerHTML = `
+    <div class="thumb">
+      <img class="thumb-img" loading="lazy" decoding="async" alt="" src="/placeholder.svg">
+      <span class="folder-count">${g.owned}/${g.total} Folge${g.total === 1 ? "" : "n"}</span>
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${escapeHTML(g.team)}">${escapeHTML(g.team)}</div>
+      <div class="card-meta"><span>kein eigener Ordner</span></div>
+    </div>
+  `;
+  const open = () => {
+    state.catalogTeam = { libraryId: ctx.libId, folder: ctx.top, team: g.team };
+    loadItems();
+  };
+  el.addEventListener("click", open);
+  el.addEventListener("keydown", (ev) => { if (ev.key === "Enter") open(); });
+  return el;
+}
+
+// renderCatalogTeamView: alle Folgen eines Teams ohne eigenen Ordner.
+async function renderCatalogTeamView(grid, stale) {
+  const ct = state.catalogTeam;
+  grid.innerHTML = `<div class="empty">Lädt…</div>`;
+  let data;
+  try {
+    data = await api(`/api/libraries/${ct.libraryId}/catalog?folder=${encodeURIComponent(ct.folder)}&team=${encodeURIComponent(ct.team)}`);
+  } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
+  if (stale()) return;
+  grid.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "person-section-title";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "back-btn";
+  back.textContent = "←";
+  back.title = "Zurück zur Übersicht";
+  back.addEventListener("click", () => { state.catalogTeam = null; loadItems(); });
+  head.appendChild(back);
+  head.appendChild(document.createTextNode(` 🕵 ${ct.team} — ${data.owned || 0}/${data.total || 0} Folgen vorhanden`));
+  grid.appendChild(head);
+  for (const e of (data.missing || [])) grid.appendChild(renderCatalogMissingCard(e));
+  state.lastRenderedItems = [];
+}

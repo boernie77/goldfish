@@ -257,6 +257,18 @@ async function loadItemsBody() {
   // Collections-Ansicht: zeigt alle TMDB-Sammlungen, in die mindestens ein Film fällt.
   if (state.collectionsView) return await renderCollectionsBranch();
 
+  // Ermittler-Katalog: Team ohne eigenen Ordner (views.js, seit 1.4.65). Gilt
+  // nur, solange man im Serien-Ordner steht, aus dem das Team geöffnet wurde.
+  if (state.catalogTeam) {
+    const ct = state.catalogTeam;
+    if (ct.libraryId == state.currentLibrary && ct.folder === state.currentFolder &&
+        !state.homeView && !state.playlistsView && !state.personFilter) {
+      renderBreadcrumb({});
+      return await renderCatalogTeamView(grid, stale);
+    }
+    state.catalogTeam = null;
+  }
+
   // Person-Filter-Ansicht: zeigt quer über alle Libraries alle Items, bei denen
   // die gewählte Person im Cast ist. Filme und Serien werden getrennt gerendert:
   //   - Filme: Standard-Kacheln, chronologisch sortiert (neueste zuerst)
@@ -1535,6 +1547,8 @@ async function loadItemsBody() {
       : renderShowHeader(info, null);
     grid.insertBefore(header, grid.firstChild);
   }
+  // Fehlende Folgen je Kommissar (Tatort-Katalog, seit 1.4.65).
+  applyCatalogGaps(grid, stale);
   }
 
 }
