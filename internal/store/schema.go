@@ -526,6 +526,10 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "show_release_date", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Dateigröße auf der Kachel pro Library (seit 1.4.61, Default an).
+	if err := addCol("libraries", "show_file_size", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		return err
+	}
 	// Pro-User-Reihenfolge der Startseiten-Streifen (zusätzlich zum
 	// pro-User on_home-Override in derselben Tabelle). addCol nötig, weil
 	// user_home_prefs bereits vor dieser Spalte live war (CREATE TABLE IF

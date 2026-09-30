@@ -925,7 +925,7 @@ function renderCard(it, opts = {}) {
         ${episodeName ? `<span class="episode-name">${escapeHTML(episodeName)}</span>` :
           isMusicLib ? (it.trackNo ? `<span>Track ${it.trackNo}</span>` : "") :
           (subtitle ? `<span>${escapeHTML(subtitle)}</span>` : `<span>${it.width || "?"}×${it.height || "?"}</span>`)}
-        <span>${fmtSize(it.sizeBytes)}</span>
+        ${itLib && itLib.showFileSize === false ? "" : `<span>${fmtSize(it.sizeBytes)}</span>`}
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>

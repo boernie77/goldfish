@@ -504,3 +504,25 @@ func (s *Server) setLibraryShowReleaseDate(w http.ResponseWriter, r *http.Reques
 	}
 	w.WriteHeader(204)
 }
+
+// setLibraryShowFileSize togglet die Dateigröße auf der Kachel pro Library
+// (siehe model.Library.ShowFileSize). Admin-only. Body: {"enabled": bool}
+func (s *Server) setLibraryShowFileSize(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, 400, "ungültiges JSON")
+		return
+	}
+	if err := s.Store.SetLibraryShowFileSize(id, body.Enabled); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}

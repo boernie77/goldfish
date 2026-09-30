@@ -101,6 +101,10 @@ type Library struct {
 	// im "🔤 Anzeige"-Menü — dort ist es fuer private/YouTube-Bibliotheken
 	// relevant, da es dort kein TMDB-Jahr auf der Infokarte gibt.
 	ShowReleaseDate bool      `json:"showReleaseDate"`
+	// ShowFileSize zeigt die Dateigröße auf der Kachel (seit 1.4.61, Default
+	// an). User-Wunsch 2026-09-30: bei Serien darf sie weg, dafür steht dort
+	// jetzt z. B. der Tatort-Kommissar.
+	ShowFileSize bool `json:"showFileSize"`
 	CreatedAt       time.Time `json:"createdAt"`
 }
 

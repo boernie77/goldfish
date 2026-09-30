@@ -536,6 +536,34 @@ async function openManage() {
       toolbar.appendChild(dateLabel);
       header.appendChild(toolbar);
     }
+    // Dateigröße auf der Kachel (seit 1.4.61, alle Video-Bibliotheken,
+    // Default an). User-Wunsch 2026-09-30: bei Serien darf sie weg.
+    if (l.kind !== "music") {
+      let sizeBar = header.querySelector(".lib-toolbar");
+      if (!sizeBar) {
+        sizeBar = document.createElement("div");
+        sizeBar.className = "lib-toolbar";
+        header.appendChild(sizeBar);
+      }
+      const sizeLabel = document.createElement("label");
+      sizeLabel.className = "lib-toggle";
+      sizeLabel.title = "Dateigröße auf den Kacheln dieser Bibliothek anzeigen.";
+      const sizeBox = document.createElement("input");
+      sizeBox.type = "checkbox";
+      sizeBox.checked = l.showFileSize !== false;
+      sizeBox.addEventListener("change", async () => {
+        try {
+          await api(`/api/libraries/${l.id}/show-file-size`, {
+            method: "PUT",
+            body: JSON.stringify({ enabled: sizeBox.checked }),
+          });
+          await loadLibraries();
+        } catch (e) { appAlert(e.message); }
+      });
+      sizeLabel.appendChild(sizeBox);
+      sizeLabel.appendChild(document.createTextNode(" 💾 Größe"));
+      sizeBar.appendChild(sizeLabel);
+    }
     li.appendChild(header);
 
     // Paths-Liste
