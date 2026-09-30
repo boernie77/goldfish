@@ -190,3 +190,31 @@ die Spur im Dropdown stand und der Server sie korrekt lieferte.
 Kontext IMMER aus `state` lesen (`state.playback.playingItem`,
 `state.playback.streams`), nie aus einer Closure. Chronik: DECISIONS.md.
 
+
+### 💡 Offene Idee: eingeblendeten Text aus dem Bild lesen (Stand 2026-09-30, nicht begonnen)
+
+- **Anlass:** Sprachkurs-Videos von YouTube (Ordner `Youtube/`), bei denen der
+  italienische Text **fest ins Bild eingebrannt** ist. Gewünscht ist eine
+  deutsche Untertitel-Spur, die den eingeblendeten Text übersetzt — nicht
+  das Gehörte (Whisper).
+- **Erst YouTube-Spuren prüfen, das ist meist der bessere Weg.** Der Media
+  Fetcher (Projekt `Tatort_Fetcher`) bettet seit 2026-09-30 die manuellen
+  YouTube-Spuren `de`/`en`/`it` ein. Damit ist **Talkie Italiano** gelöst
+  (handgemachte deutsche Übersetzung), **Everyday Italian Talks** teilweise.
+- **Wofür die Idee bleibt:** Kanäle ohne manuelle Spuren, deren Ton Deutsch
+  und Italienisch mischt — z.B. **Einfach Italienisch - Scuola di Lingue**.
+  Dort ist YouTubes Auto-Spur unbrauchbar, und Whisper hätte dasselbe
+  Problem. Der eingeblendete Text ist die einzige saubere Quelle.
+- **Skizze** (neuer Worker, Aufbau wie `internal/ocrsub`, Opt-in pro Ordner):
+  1. ffmpeg zieht ~2 Bilder/s, zugeschnitten auf den Textbereich
+     (`fps=2,crop=…`; Bereich pro Ordner einstellbar oder automatisch finden).
+  2. Tesseract (`ita` ist im Image schon installiert) liest den Text.
+  3. Textwechsel ergeben die Cue-Grenzen; gleiche aufeinanderfolgende Texte
+     zusammenfassen, OCR-Rauschen per Ähnlichkeitsvergleich glätten.
+  4. Übersetzen über das vorhandene Backend (`internal/translate`, DeepL
+     oder LibreTranslate), Original-Italienisch zusätzlich behalten.
+  5. Ablage als `{ietf}-ocr.vtt` → erscheint über den bestehenden
+     OCR-Pfad im Player, keine Client-Änderung nötig.
+- **Offene Punkte:** Qualität hängt an Schrift/Hintergrund; bei Videos, die
+  deutsche UND italienische Zeilen gleichzeitig einblenden, müssen die
+  Sprachen getrennt werden (Position oder Spracherkennung pro Zeile).
