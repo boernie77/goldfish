@@ -557,6 +557,17 @@ function openDisplayPrefsDialog() {
     try { localStorage.setItem("showFilenameTv", tvBox.checked ? "1" : "0"); } catch {}
     loadItems();
   };
+  // Dateigröße je Bibliotheksart (seit 1.4.62) — gleiches Muster wie oben.
+  for (const [id, key] of [["#displayPrefsSizeMovies", "showSizeMovies"], ["#displayPrefsSizeTv", "showSizeTv"], ["#displayPrefsSizePrivate", "showSizePrivate"]]) {
+    const box = $(id);
+    if (!box) continue;
+    box.checked = state[key] !== false;
+    box.onchange = () => {
+      state[key] = box.checked;
+      try { localStorage.setItem(key, box.checked ? "1" : "0"); } catch {}
+      loadItems();
+    };
+  }
 
   if (!dlg.open) dlg.showModal();
 }

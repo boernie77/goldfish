@@ -12,7 +12,7 @@ import (
 )
 
 func (s *Store) ListLibraries() ([]model.Library, error) {
-	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), COALESCE(delete_watched_button_enabled, 0), COALESCE(show_release_date, 0), COALESCE(show_file_size, 1), created_at FROM libraries ORDER BY sort_order, name`)
+	rows, err := s.db.Query(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), COALESCE(delete_watched_button_enabled, 0), COALESCE(show_release_date, 0), created_at FROM libraries ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -21,8 +21,8 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 	for rows.Next() {
 		var l model.Library
 		var kind string
-		var onHome, channelTop, deleteWatchedBtn, showReleaseDate, showFileSize int
-		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &deleteWatchedBtn, &showReleaseDate, &showFileSize, &l.CreatedAt); err != nil {
+		var onHome, channelTop, deleteWatchedBtn, showReleaseDate int
+		if err := rows.Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &deleteWatchedBtn, &showReleaseDate, &l.CreatedAt); err != nil {
 			return nil, err
 		}
 		l.Kind = model.LibraryKind(kind)
@@ -30,7 +30,6 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 		l.ChannelLabelOnTop = channelTop == 1
 		l.DeleteWatchedButtonEnabled = deleteWatchedBtn == 1
 		l.ShowReleaseDate = showReleaseDate == 1
-		l.ShowFileSize = showFileSize == 1
 		out = append(out, l)
 	}
 	return out, rows.Err()
@@ -39,9 +38,9 @@ func (s *Store) ListLibraries() ([]model.Library, error) {
 func (s *Store) GetLibrary(id int64) (*model.Library, error) {
 	var l model.Library
 	var kind string
-	var onHome, channelTop, deleteWatchedBtn, showReleaseDate, showFileSize int
-	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), COALESCE(delete_watched_button_enabled, 0), COALESCE(show_release_date, 0), COALESCE(show_file_size, 1), created_at FROM libraries WHERE id = ?`, id).
-		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &deleteWatchedBtn, &showReleaseDate, &showFileSize, &l.CreatedAt)
+	var onHome, channelTop, deleteWatchedBtn, showReleaseDate int
+	err := s.db.QueryRow(`SELECT id, name, path, kind, COALESCE(on_home, 1), COALESCE(sort_order, 0), COALESCE(channel_label_on_top, 1), COALESCE(delete_watched_button_enabled, 0), COALESCE(show_release_date, 0), created_at FROM libraries WHERE id = ?`, id).
+		Scan(&l.ID, &l.Name, &l.Path, &kind, &onHome, &l.SortOrder, &channelTop, &deleteWatchedBtn, &showReleaseDate, &l.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -50,7 +49,6 @@ func (s *Store) GetLibrary(id int64) (*model.Library, error) {
 	l.ChannelLabelOnTop = channelTop == 1
 	l.DeleteWatchedButtonEnabled = deleteWatchedBtn == 1
 	l.ShowReleaseDate = showReleaseDate == 1
-		l.ShowFileSize = showFileSize == 1
 	return &l, err
 }
 
@@ -271,13 +269,3 @@ func (s *Store) DeleteLibrary(id int64) error {
 	return err
 }
 
-// SetLibraryShowFileSize togglet die Dateigrößen-Anzeige auf der Kachel
-// (siehe model.Library.ShowFileSize).
-func (s *Store) SetLibraryShowFileSize(libraryID int64, v bool) error {
-	flag := 0
-	if v {
-		flag = 1
-	}
-	_, err := s.db.Exec(`UPDATE libraries SET show_file_size = ? WHERE id = ?`, flag, libraryID)
-	return err
-}

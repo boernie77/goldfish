@@ -798,6 +798,12 @@ function renderCard(it, opts = {}) {
   // card-filename-Zeile bei Filmen bzw. Serien (Zahnrad-Menü → "Anzeige").
   // Private/Musik-Bibliotheken sind davon unberührt (dort ist die Zeile Teil
   // des eigentlichen Titel-Layouts, kein optionales Extra).
+  // Dateigröße je Bibliotheksart ein-/ausblendbar (Menü „Anzeige", seit 1.4.62).
+  const showSize = !itLib ? true
+    : itLib.kind === "movies" ? state.showSizeMovies !== false
+    : itLib.kind === "tv" ? state.showSizeTv !== false
+    : itLib.kind === "private" ? state.showSizePrivate !== false
+    : true;
   const showFilenameLine = itLib && itLib.kind === "movies" ? state.showFilenameMovies
     : itLib && itLib.kind === "tv" ? state.showFilenameTv
     : true;
@@ -925,7 +931,7 @@ function renderCard(it, opts = {}) {
         ${episodeName ? `<span class="episode-name">${escapeHTML(episodeName)}</span>` :
           isMusicLib ? (it.trackNo ? `<span>Track ${it.trackNo}</span>` : "") :
           (subtitle ? `<span>${escapeHTML(subtitle)}</span>` : `<span>${it.width || "?"}×${it.height || "?"}</span>`)}
-        ${itLib && itLib.showFileSize === false ? "" : `<span>${fmtSize(it.sizeBytes)}</span>`}
+        ${showSize ? `<span>${fmtSize(it.sizeBytes)}</span>` : ""}
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>

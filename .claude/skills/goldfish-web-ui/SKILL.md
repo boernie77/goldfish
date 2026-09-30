@@ -537,9 +537,10 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 ### Kachel-Zeilen: Kommissar/Zwischenordner + Dateigröße pro Bibliothek (seit 1.4.60/1.4.61)
 - Serienfolgen zeigen den Zwischenordner (`relPath` Segment 2) als eigene Zeile `.card-group`,
   wenn er kein Staffel-/Specials-Ordner ist (Regex in cards.js) — Tatort: Kommissar.
-- `libraries.show_file_size` (Default 1), Schalter „💾 Größe" im Bibliotheks-Manager (alle
-  Video-Bibliotheken), `PUT /api/libraries/{id}/show-file-size`. „Serien" steht auf AUS.
-  Apps beachten beides noch nicht (nächstes App-Update, zusammen mit Ordner-Sammlungen).
+- Dateigröße: seit 1.4.62 im Menü „Anzeige" je Bibliotheksart (Film/Serien/Privat), localStorage
+  `showSizeMovies/Tv/Private`, Default an — wie die Dateinamen. (1.4.61 hatte kurz einen
+  Admin-Schalter pro Bibliothek; auf User-Wunsch wieder ausgebaut, Spalte show_file_size bleibt
+  in bestehenden DBs ungenutzt liegen.) Apps beachten die Kommissar-Zeile noch nicht.
 
 ### Ordner-Sammlungen (seit 1.4.57, 2026-09-30)
 - Admin-Knopf „📚 Als Sammlung" in der Ordner-Kopfzeile (`renderFolderCollectionToggle`,

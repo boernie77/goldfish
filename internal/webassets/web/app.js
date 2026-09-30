@@ -28,6 +28,11 @@ const state = {
   // Default an (Verhalten unverändert gegenüber vorher, wo card-filename immer lief).
   showFilenameMovies: (() => { try { return localStorage.getItem("showFilenameMovies") !== "0"; } catch { return true; } })(),
   showFilenameTv: (() => { try { return localStorage.getItem("showFilenameTv") !== "0"; } catch { return true; } })(),
+  // Dateigröße auf den Kacheln je Bibliotheksart (seit 1.4.62, Default an,
+  // pro Browser wie die Dateinamen — User-Wunsch 2026-09-30).
+  showSizeMovies: (() => { try { return localStorage.getItem("showSizeMovies") !== "0"; } catch { return true; } })(),
+  showSizeTv: (() => { try { return localStorage.getItem("showSizeTv") !== "0"; } catch { return true; } })(),
+  showSizePrivate: (() => { try { return localStorage.getItem("showSizePrivate") !== "0"; } catch { return true; } })(),
   // Oberflächen-Stil (Topbar/Bibliotheks-Leiste/Hintergrund) + Player-Steuerleiste,
   // beide rein optisch, per-User/-Browser via localStorage — siehe applyUiSkin()
   // und player.js applyPlayerSkin(). User-Wunsch 2026-09-08 nach Vorschau-Artifact
