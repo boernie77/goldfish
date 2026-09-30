@@ -534,6 +534,13 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   falls vorhanden, sonst `libraries.sort_order`). Sichtbarkeit analog:
   `user_home_prefs`-Zeile falls vorhanden, sonst `libraries.on_home`.
 
+### Kachel-Zeilen: Kommissar/Zwischenordner + Dateigröße pro Bibliothek (seit 1.4.60/1.4.61)
+- Serienfolgen zeigen den Zwischenordner (`relPath` Segment 2) als eigene Zeile `.card-group`,
+  wenn er kein Staffel-/Specials-Ordner ist (Regex in cards.js) — Tatort: Kommissar.
+- `libraries.show_file_size` (Default 1), Schalter „💾 Größe" im Bibliotheks-Manager (alle
+  Video-Bibliotheken), `PUT /api/libraries/{id}/show-file-size`. „Serien" steht auf AUS.
+  Apps beachten beides noch nicht (nächstes App-Update, zusammen mit Ordner-Sammlungen).
+
 ### Ordner-Sammlungen (seit 1.4.57, 2026-09-30)
 - Admin-Knopf „📚 Als Sammlung" in der Ordner-Kopfzeile (`renderFolderCollectionToggle`,
   views.js) legt eine eigene Kachel unter „Sammlungen" an: `PUT /api/collections/folder
