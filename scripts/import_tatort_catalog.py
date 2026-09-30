@@ -91,7 +91,9 @@ def parse_table(text: str, heading: str, orf: bool):
             "title": plain(c[1]),
             "sender": plain(c[2]),
             "date": parse_date(c[3]),
-            "ermittler": teams(plain(c[4])),
+            # Crossover steht als „A /<br />B" — den Umbruch nach „/" als
+            # Team-Trenner behandeln, sonst schneidet plain() Team B ab.
+            "ermittler": teams(plain(re.sub(r"/\s*<br\s*/?>", " / ", c[4]))),
             "orf": orf,
         })
     return out

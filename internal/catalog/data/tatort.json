@@ -4579,7 +4579,8 @@
 "sender": "MDR/WDR",
 "date": "2000-11-26",
 "ermittler": [
-"Ehrlicher und Kain /"
+"Ehrlicher und Kain",
+"Ballauf und Schenk"
 ],
 "orf": false
 },
@@ -5139,7 +5140,8 @@
 "sender": "WDR/MDR",
 "date": "2002-11-10",
 "ermittler": [
-"Ballauf und Schenk /"
+"Ballauf und Schenk",
+"Ehrlicher und Kain"
 ],
 "orf": false
 },
@@ -8339,7 +8341,8 @@
 "sender": "MDR",
 "date": "2012-04-08",
 "ermittler": [
-"Saalfeld und Keppler /"
+"Saalfeld und Keppler",
+"Ballauf und Schenk"
 ],
 "orf": false
 },
@@ -8349,7 +8352,8 @@
 "sender": "WDR",
 "date": "2012-04-09",
 "ermittler": [
-"Ballauf und Schenk /"
+"Ballauf und Schenk",
+"Saalfeld und Keppler"
 ],
 "orf": false
 },
