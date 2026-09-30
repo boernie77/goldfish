@@ -118,6 +118,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		Width       int
 		Height      int
 		DurationSec float64
+		RelPath     string
 	}
 	maxSeason := 0
 	haveSeasons := map[int]struct{}{}
@@ -144,7 +145,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-			slot := ownedSlot{ItemID: e.ItemID, ItemIDs: []int64{e.ItemID}, Width: e.Width, Height: e.Height, DurationSec: e.DurationSec}
+			slot := ownedSlot{ItemID: e.ItemID, ItemIDs: []int64{e.ItemID}, Width: e.Width, Height: e.Height, DurationSec: e.DurationSec, RelPath: e.RelPath}
 			if e.EpisodeEnd > e.Episode {
 				slot.EpisodeEnd = e.EpisodeEnd
 			}
@@ -310,6 +311,8 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		Width       int     `json:"width,omitempty"`
 		Height      int     `json:"height,omitempty"`
 		DurationSec float64 `json:"durationSec,omitempty"`
+		// RelPath der (ersten) Datei — Zwischenordner-Zeile in den Apps (1.4.69).
+		RelPath string `json:"relPath,omitempty"`
 	}
 	type seasonOut struct {
 		SeasonNumber int          `json:"seasonNumber"`
@@ -415,6 +418,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 				ItemID:      slot.ItemID,
 				ItemIDs:     slot.ItemIDs,
 				EpisodeEnd:  slot.EpisodeEnd,
+				RelPath:     slot.RelPath,
 				TMDBID:      ep.ID,
 				Width:       slot.Width,
 				Height:      slot.Height,

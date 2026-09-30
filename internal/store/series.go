@@ -17,6 +17,9 @@ type SeriesOwnedEpisode struct {
 	Width       int
 	Height      int
 	DurationSec float64
+	// RelPath (seit 1.4.69): Pfad der Datei — Clients bilden daraus die
+	// Zwischenordner-Zeile (Tatort-Kommissar) auch in der Staffel-Ansicht.
+	RelPath string
 }
 
 // folderScopeClause baut eine OR-verknüpfte LIKE-Bedingung für einen oder
@@ -49,7 +52,8 @@ func (s *Store) SeriesOwnedEpisodes(libraryID int64, folders []string) ([]Series
 		SELECT i.id, COALESCE(m.season,0), COALESCE(m.episode,0),
 		       COALESCE(i.episode_end, 0),
 		       COALESCE(m.tmdb_id, 0), COALESCE(parent.tmdb_id, 0),
-		       COALESCE(i.width, 0), COALESCE(i.height, 0), COALESCE(i.duration_sec, 0)
+		       COALESCE(i.width, 0), COALESCE(i.height, 0), COALESCE(i.duration_sec, 0),
+		       i.rel_path
 		FROM items i
 		JOIN metadata m ON m.id = i.metadata_id AND m.tmdb_type = 'episode'
 		LEFT JOIN metadata parent ON parent.id = m.parent_id
@@ -65,7 +69,7 @@ func (s *Store) SeriesOwnedEpisodes(libraryID int64, folders []string) ([]Series
 	var showID int64
 	for rows.Next() {
 		var e SeriesOwnedEpisode
-		if err := rows.Scan(&e.ItemID, &e.Season, &e.Episode, &e.EpisodeEnd, &e.MetaTMDB, &e.ShowTMDB, &e.Width, &e.Height, &e.DurationSec); err != nil {
+		if err := rows.Scan(&e.ItemID, &e.Season, &e.Episode, &e.EpisodeEnd, &e.MetaTMDB, &e.ShowTMDB, &e.Width, &e.Height, &e.DurationSec, &e.RelPath); err != nil {
 			return nil, 0, err
 		}
 		if showID == 0 && e.ShowTMDB != 0 {
