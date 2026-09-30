@@ -711,6 +711,7 @@ function renderCard(it, opts = {}) {
   let subtitle = "";
   let episodeCode = ""; // separat, damit wir fett+groß stylen können
   let episodeName = ""; // TMDB-Episodentitel (kommt als 2. Zeile)
+  let episodeGroup = ""; // Zwischenordner, z. B. Tatort-Kommissar (3. Zeile)
 
   // Episode-Handling IMMER wenn TMDB-Type=episode, unabhängig davon ob ein
   // Still-Bild (posterPath) vorhanden ist. Vorher haben Episoden ohne
@@ -731,6 +732,13 @@ function renderCard(it, opts = {}) {
       episodeCode = `S${sn}E${ep}-${ee}`;
     }
     episodeName = it.metadata.title || "";
+    // Zwischenordner der Serie anzeigen, wenn er KEIN Staffel-Ordner ist —
+    // beim Tatort der Kommissar (`Tatort/Batic und Leitmayr/…`). User-Wunsch
+    // 2026-09-30, nach der TMDB-Zuordnung stand er nirgends mehr auf der
+    // Kachel. Staffel-/Specials-Ordner normaler Serien bleiben unsichtbar.
+    if (rel.length > 2 && !/^(staffel|season|serie|s)\s*\d+$|^specials?$|^extras?$/i.test(rel[1].trim())) {
+      episodeGroup = rel[1];
+    }
   } else if (itLib && itLib.kind === "tv") {
     // Unmatched TV-Item (z. B. Hallmark-Special, das TMDB unter Season 0
     // hat): Show-Name aus rel_path[0], Episodencode aus dem Filename
@@ -921,6 +929,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
+      ${episodeGroup ? `<div class="card-group" title="${escapeHTML(episodeGroup)}">${escapeHTML(episodeGroup)}</div>` : ""}
       ${showFilenameLine ? `<div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (title === rawTitle && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>` : ""}
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
       ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch: ${(() => {
