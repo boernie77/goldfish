@@ -534,6 +534,19 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   falls vorhanden, sonst `libraries.sort_order`). Sichtbarkeit analog:
   `user_home_prefs`-Zeile falls vorhanden, sonst `libraries.on_home`.
 
+### Ordner-Sammlungen (seit 1.4.57, 2026-09-30)
+- Admin-Knopf „📚 Als Sammlung" in der Ordner-Kopfzeile (`renderFolderCollectionToggle`,
+  views.js) legt eine eigene Kachel unter „Sammlungen" an: `PUT /api/collections/folder
+  {libraryId, folder, enabled, name?}`, Abfrage `GET /api/collections/folder?libraryId&folder`.
+  Tabelle `folder_collections`, Store `folder_collections.go`.
+- Im `/api/collections`-Listing mit **negativer ID**, `kind:"folder"`, `libraryId`, `folder`,
+  Cover über `/api/poster/collection/{negId}` (Serien-Poster des Ordners). Alte Clients, die die
+  Kachel wie eine Film-Sammlung öffnen, bekommen über `/collections/{negId}/items` alle Dateien
+  flach — nie kaputt.
+- Browser: Klick setzt `state.forcedFolderView` → grid.js schaltet innerhalb dieses Ordners die
+  Staffel-Ansicht ab (auch Unterordner); beim Verlassen des Ordners fällt die Sperre weg.
+- Zweck: Tatort unter „Serien" nach TMDB-Staffeln (Jahre), unter „Sammlungen" nach Kommissar.
+
 ### Staffel-Ansicht für Serien
 - **Auflösungsfilter weicht auf die normale flache Ordner-Liste zurück**
   (seit 2026-09-02, `grid.js`, gleiches Muster wie der bestehende „Ohne

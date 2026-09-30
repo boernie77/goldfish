@@ -76,6 +76,12 @@ type Collection struct {
 	// Kachelbild genutzt werden kann, wenn die Sammlung selbst kein Poster hat.
 	FallbackMetaID int64     `json:"fallbackMetaId,omitempty"`
 	UpdatedAt      time.Time `json:"updatedAt"`
+	// Kind "folder" = Ordner-Sammlung (folder_collections.go, ID negativ):
+	// Clients öffnen LibraryID/Folder in der Ordner-Ansicht statt der
+	// Film-Liste. Leer = klassische TMDB-Sammlung.
+	Kind      string `json:"kind,omitempty"`
+	LibraryID int64  `json:"libraryId,omitempty"`
+	Folder    string `json:"folder,omitempty"`
 }
 
 // UpsertCollection legt eine Sammlung an oder aktualisiert sie. Liefert die

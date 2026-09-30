@@ -536,7 +536,10 @@ function renderCollectionCard(c) {
         ? `<span class="collection-complete" title="Alle erschienenen Filme vorhanden — ${unreleased} noch nicht erschienen">✓ komplett</span>`
         : `<span class="collection-complete" title="Sammlung komplett">✓ komplett</span>`)
     : "";
-  const countLabel = c.partCount
+  const isFolderCol = c.kind === "folder";
+  const countLabel = isFolderCol
+    ? `${c.movieCount} Datei${c.movieCount === 1 ? "" : "en"}`
+    : c.partCount
     ? `${c.movieCount}/${effectiveTotal} Film${effectiveTotal === 1 ? "" : "e"}`
     : `${c.movieCount} Film${c.movieCount === 1 ? "" : "e"}`;
   el.innerHTML = `
@@ -551,6 +554,22 @@ function renderCollectionCard(c) {
     </div>
   `;
   const open = () => {
+    if (isFolderCol) {
+      // Ordner-Sammlung (seit 1.4.57): Ordner in der Ordner-Ansicht öffnen,
+      // auch wenn er unter „Serien" in der Staffel-Ansicht läuft (grid.js
+      // folderViewForced). Gilt, solange man innerhalb dieses Ordners bleibt.
+      state.collectionsView = false;
+      state.currentCollection = null;
+      state.homeView = false;
+      state.currentLibrary = c.libraryId;
+      state.currentFolder = c.folder;
+      state.currentFolderDrilldown = false;
+      state.currentSeason = null;
+      state.forcedFolderView = { libraryId: c.libraryId, folder: c.folder };
+      const ls = $("#librarySelect"); if (ls) ls.value = "lib:" + c.libraryId;
+      loadItems();
+      return;
+    }
     state.currentCollection = { id: c.id, name: c.name };
     loadItems();
   };

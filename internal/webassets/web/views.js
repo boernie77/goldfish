@@ -1813,8 +1813,46 @@ function renderBreadcrumb(opts) {
     btn.addEventListener("click", () => openMatchFolder(lib.id, state.currentFolder));
     toolbar.appendChild(btn);
   }
+  if (lib && state.me && state.me.isAdmin && state.currentFolder) {
+    renderFolderCollectionToggle(toolbar, lib.id, state.currentFolder);
+  }
 
   if (lib && lib.kind !== "music") renderTrickplayToolbar(toolbar, lib.id, state.currentFolder);
+}
+
+// renderFolderCollectionToggle (Admin, seit 1.4.57): Ordner als eigene Kachel
+// unter „📚 Sammlungen" an-/abmelden. Die Kachel öffnet den Ordner immer in der
+// Ordner-Ansicht (Tatort nach Kommissar), unabhängig von der Staffel-Ansicht
+// unter „Serien" — siehe internal/store/folder_collections.go.
+async function renderFolderCollectionToggle(toolbar, libId, folder) {
+  let enabled = false;
+  try {
+    const d = await api(`/api/collections/folder?libraryId=${libId}&folder=${encodeURIComponent(folder)}`);
+    enabled = !!d.enabled;
+  } catch { return; }
+  const btn = document.createElement("button");
+  const paint = () => {
+    btn.textContent = enabled ? "📚 Sammlung ✓" : "📚 Als Sammlung";
+    btn.title = enabled
+      ? "Dieser Ordner hat eine eigene Kachel unter „Sammlungen“ (Ordner-Ansicht). Klick entfernt sie wieder."
+      : "Eigene Kachel unter „Sammlungen“ anlegen, die diesen Ordner immer in der Ordner-Ansicht öffnet.";
+    btn.classList.toggle("active", enabled);
+  };
+  paint();
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await api("/api/collections/folder", { method: "PUT", body: JSON.stringify({ libraryId: libId, folder, enabled: !enabled }) });
+      enabled = !enabled;
+      paint();
+      showToast(enabled ? "Kachel unter „Sammlungen“ angelegt" : "Kachel unter „Sammlungen“ entfernt", { kind: "success" });
+    } catch (e) {
+      appAlert("Fehler: " + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  toolbar.appendChild(btn);
 }
 
 async function renderTrickplayToolbar(toolbar, libId, folder) {

@@ -194,6 +194,16 @@ func (s *Store) migrate() error {
 		// übernächste Folge nach. Die Serie taucht wieder auf, sobald der User
 		// darin weiterschaut (Aktivität nach hidden_at), siehe
 		// HomeNextUpForLibrary.
+		// Ordner-Sammlungen (2026-09-30, Tatort nach Kommissar unter
+		// „Sammlungen"), siehe folder_collections.go.
+		`CREATE TABLE IF NOT EXISTS folder_collections (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			name TEXT NOT NULL,
+			created_at DATETIME NOT NULL,
+			UNIQUE (library_id, folder)
+		)`,
 		`CREATE TABLE IF NOT EXISTS user_nextup_hidden (
 			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			show_id INTEGER NOT NULL,

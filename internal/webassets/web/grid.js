@@ -140,7 +140,14 @@ async function loadItemsBody() {
   // Effective-State wird aus library-weitem Default + optional pro-Serie-Override gebildet.
   {
     const lib0 = state.libraries.find(l => l.id == state.currentLibrary);
-    const eligible = lib0 && lib0.kind === "tv";
+    // Ordner-Sammlung (1.4.57): innerhalb des über „Sammlungen" geöffneten
+    // Ordners nie die Staffel-Ansicht. Wer den Ordner verlässt (Bibliotheks-
+    // Wurzel, andere Serie, Startseite …), verliert die Sperre wieder.
+    const fv = state.forcedFolderView;
+    const forced = !!(fv && fv.libraryId == state.currentLibrary && state.currentFolder &&
+      (state.currentFolder === fv.folder || state.currentFolder.startsWith(fv.folder + "/")));
+    if (fv && !forced) state.forcedFolderView = null;
+    const eligible = lib0 && lib0.kind === "tv" && !forced;
     $("#seasonViewBtn").classList.toggle("hidden", !eligible);
     if (!eligible) { state.seasonView = false; state.currentSeason = null; }
     else {

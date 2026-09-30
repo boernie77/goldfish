@@ -248,6 +248,10 @@ func (s *Server) Router() http.Handler {
 
 		// Collections
 		r.Get("/collections", s.listCollections)
+		// Ordner-Sammlungen (seit 1.4.57): Ordner als eigene Kachel unter
+		// „Sammlungen", öffnet immer in der Ordner-Ansicht (Tatort nach Kommissar).
+		r.Get("/collections/folder", s.getFolderCollection)
+		r.Put("/collections/folder", requireAdmin(s.setFolderCollection))
 		r.Get("/collections/{id}/items", s.collectionItems)
 		r.Post("/collections/{id}/parts/{tmdbMovieId}/hide", s.hideCollectionPart)
 		r.Delete("/collections/{id}/parts/{tmdbMovieId}/hide", s.unhideCollectionPart)
@@ -422,7 +426,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.56"
+const appVersion = "1.4.57"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
