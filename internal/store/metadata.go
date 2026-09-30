@@ -33,7 +33,16 @@ func (s *Store) UpsertMetadata(m *model.Metadata) (int64, error) {
 			original_title=excluded.original_title,
 			year=excluded.year,
 			release_date=excluded.release_date,
-			overview=excluded.overview,
+			-- Maschinell übersetzte Beschreibung behalten, solange TMDB denselben
+			-- (englischen) Ausgangstext liefert — sonst würde jede Neu-Anreicherung
+			-- die deutsche Fassung überschreiben und DeepL erneut bezahlen
+			-- (seit 1.4.70, overview_translate.go).
+			overview=CASE WHEN metadata.overview_translated = 1 AND excluded.overview = metadata.overview_source
+			              THEN metadata.overview ELSE excluded.overview END,
+			overview_translated=CASE WHEN metadata.overview_translated = 1 AND excluded.overview = metadata.overview_source
+			              THEN 1
+			              WHEN excluded.overview = metadata.overview THEN metadata.overview_translated
+			              ELSE 0 END,
 			rating=excluded.rating,
 			genres=excluded.genres,
 			runtime_min=excluded.runtime_min,
@@ -440,4 +449,46 @@ func (s *Store) PendingFolders(limit int) ([]PendingFolder, error) {
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// OverviewCandidate ist eine noch nicht geprüfte Folgen-Beschreibung.
+type OverviewCandidate struct {
+	ID       int64
+	Overview string
+}
+
+// PendingOverviews liefert Folgen-Beschreibungen, die noch nicht auf Sprache
+// geprüft/übersetzt wurden (overview_translated = 0). 1 = übersetzt,
+// 2 = geprüft, keine Übersetzung nötig (deutsch).
+func (s *Store) PendingOverviews(limit int) ([]OverviewCandidate, error) {
+	rows, err := s.db.Query(`SELECT id, overview FROM metadata
+		WHERE tmdb_type = 'episode' AND COALESCE(overview_translated, 0) = 0
+		  AND overview IS NOT NULL AND overview <> ''
+		ORDER BY id LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []OverviewCandidate
+	for rows.Next() {
+		var c OverviewCandidate
+		if err := rows.Scan(&c.ID, &c.Overview); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// MarkOverviewChecked: Beschreibung ist bereits deutsch (kein DeepL nötig).
+func (s *Store) MarkOverviewChecked(id int64) error {
+	_, err := s.db.Exec(`UPDATE metadata SET overview_translated = 2 WHERE id = ?`, id)
+	return err
+}
+
+// SetTranslatedOverview speichert die Übersetzung samt Ausgangstext.
+func (s *Store) SetTranslatedOverview(id int64, translated, source string) error {
+	_, err := s.db.Exec(`UPDATE metadata SET overview = ?, overview_source = ?, overview_translated = 1 WHERE id = ?`,
+		translated, source, id)
+	return err
 }

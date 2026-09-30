@@ -1184,3 +1184,15 @@ Feature über alle Clients (Browser, iOS/macOS/tvOS, Android, Fire TV, Linux):
   Login: 401 ohne Session, 200 mit, PUT/GET-Roundtrip, Trennung zweier Konten).
 
 
+
+
+## Übersetzung englischer Folgenbeschreibungen (seit 1.4.70, 2026-09-30)
+- TMDB hat für viele Folgen (Tatort!) keine deutsche Beschreibung; tmdb/client.go fällt auf Englisch zurück.
+- `api/overview_translate.go` `RunOverviewTranslator`: 2 min nach Start, dann alle 30 min. Prüft
+  `metadata.overview_translated = 0` (Episoden), `looksEnglish` (Funktionswörter) → Batch-Übersetzung
+  mit dem Dienst aus den Untertitel-Einstellungen (`translation_backend`, User wählte DeepL), sonst
+  Markierung 2 = bereits deutsch. Speichert `overview_source` (Original). `UpsertMetadata` behält die
+  Übersetzung, solange TMDB denselben Ausgangstext liefert → jeder Text kostet DeepL nur einmal.
+- Fehler (z. B. DeepL 456 Kontingent) beenden den Lauf; nächster Lauf setzt fort. Ein Protokoll-Eintrag
+  `job/overview_translate` pro Lauf.
+- Rund 2/3 der Tatort-Folgen haben bei TMDB GAR KEINE Beschreibung — die bleiben leer.

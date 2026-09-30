@@ -526,6 +526,16 @@ func (s *Store) migrate() error {
 	if err := addCol("libraries", "show_release_date", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// Maschinelle Übersetzung englischer TMDB-Folgenbeschreibungen (seit 1.4.70):
+	// overview_translated 0 = ungeprüft, 1 = übersetzt, 2 = bereits deutsch;
+	// overview_source = englischer Ausgangstext (Wiederverwendung statt neuer
+	// DeepL-Anfrage, siehe UpsertMetadata).
+	if err := addCol("metadata", "overview_source", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := addCol("metadata", "overview_translated", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	// Pro-User-Reihenfolge der Startseiten-Streifen (zusätzlich zum
 	// pro-User on_home-Override in derselben Tabelle). addCol nötig, weil
 	// user_home_prefs bereits vor dieser Spalte live war (CREATE TABLE IF

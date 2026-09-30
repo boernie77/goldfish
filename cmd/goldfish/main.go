@@ -213,6 +213,8 @@ func main() {
 	go srv.RunAutoScan(workerCtx)
 	go srv.RunAutoBackup(workerCtx)
 	go srv.RunDownloadCacheCleanup(workerCtx)
+	// Englische TMDB-Folgenbeschreibungen übersetzen (seit 1.4.70).
+	go srv.RunOverviewTranslator(workerCtx)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
