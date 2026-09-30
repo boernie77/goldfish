@@ -82,6 +82,9 @@ type Collection struct {
 	Kind      string `json:"kind,omitempty"`
 	LibraryID int64  `json:"libraryId,omitempty"`
 	Folder    string `json:"folder,omitempty"`
+	// Drilldown: Ordner zeigt Unterordner als Kacheln (folder_nav) — der
+	// Client übernimmt das beim Öffnen einer Ordner-Sammlung.
+	Drilldown bool `json:"drilldown,omitempty"`
 }
 
 // UpsertCollection legt eine Sammlung an oder aktualisiert sie. Liefert die

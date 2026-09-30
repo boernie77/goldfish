@@ -83,7 +83,8 @@ func (s *Store) ListFolderCollections(userID int64, isAdmin bool, maxAgeRating i
 		           AND ` + aclSQL + `) AS cnt,
 		       COALESCE(fm.metadata_id, 0),
 		       COALESCE(m.poster_path, ''),
-		       fc.created_at
+		       fc.created_at,
+		       COALESCE((SELECT fn.drilldown FROM folder_nav fn WHERE fn.library_id = fc.library_id AND fn.folder = fc.folder), 0)
 		FROM folder_collections fc
 		LEFT JOIN folder_metadata fm ON fm.library_id = fc.library_id AND fm.folder = fc.folder
 		LEFT JOIN metadata m ON m.id = fm.metadata_id
@@ -97,8 +98,9 @@ func (s *Store) ListFolderCollections(userID int64, isAdmin bool, maxAgeRating i
 	for rows.Next() {
 		var c Collection
 		var id int64
+		var drill int
 		if err := rows.Scan(&id, &c.LibraryID, &c.Folder, &c.Name, &c.MovieCount,
-			&c.FallbackMetaID, &c.PosterPath, &c.UpdatedAt); err != nil {
+			&c.FallbackMetaID, &c.PosterPath, &c.UpdatedAt, &drill); err != nil {
 			return nil, err
 		}
 		if c.MovieCount == 0 {
@@ -106,6 +108,7 @@ func (s *Store) ListFolderCollections(userID int64, isAdmin bool, maxAgeRating i
 		}
 		c.ID = -id
 		c.Kind = "folder"
+		c.Drilldown = drill == 1
 		out = append(out, c)
 	}
 	return out, rows.Err()

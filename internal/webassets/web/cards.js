@@ -563,7 +563,9 @@ function renderCollectionCard(c) {
       state.homeView = false;
       state.currentLibrary = c.libraryId;
       state.currentFolder = c.folder;
-      state.currentFolderDrilldown = false;
+      // „Unterordner einzeln anzeigen" des Ordners übernehmen (Tatort:
+      // Kommissar-Ordner als Kacheln statt aller Folgen flach).
+      state.currentFolderDrilldown = !!c.drilldown;
       state.currentSeason = null;
       state.forcedFolderView = { libraryId: c.libraryId, folder: c.folder };
       const ls = $("#librarySelect"); if (ls) ls.value = "lib:" + c.libraryId;

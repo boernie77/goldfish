@@ -99,14 +99,8 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		// GetFolderMetadataID ist bewusst ohne tmdb_type-Filter (deckt tv UND
 		// custom ab), anders als ShowTMDBForFolder/ShowMetadataIDForFolder
 		// oben, die nur echte TMDB-Shows berücksichtigen.
-		if folderMetaID, _ := s.Store.GetFolderMetadataID(libID, folder); folderMetaID > 0 {
-			if meta, _ := s.Store.GetMetadata(folderMetaID); meta != nil {
-				resp["show"] = map[string]any{
-					"metadataId": meta.ID,
-					"title":      meta.Title,
-					"posterPath": meta.PosterPath,
-				}
-			}
+		if show := s.folderShowSummary(libID, folder); show != nil {
+			resp["show"] = show
 		}
 		writeJSON(w, 200, resp)
 		return
@@ -196,10 +190,14 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if maxSeason == 0 {
-		writeJSON(w, 200, map[string]any{
-			"showTmdbId": showTMDB,
-			"seasons":    []any{},
-		})
+		// Zugeordnete Serie, aber (noch) keine Folge mit Staffel/Episode —
+		// z. B. Tatort vor der Folgen-Zuordnung. Ohne "show" zeigte der
+		// Browser fälschlich „Noch keine Serien-Zuordnung" (Befund 2026-09-30).
+		resp := map[string]any{"showTmdbId": showTMDB, "seasons": []any{}}
+		if show := s.folderShowSummary(libID, folder); show != nil {
+			resp["show"] = show
+		}
+		writeJSON(w, 200, resp)
 		return
 	}
 
@@ -490,4 +488,23 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		"show":       show,
 		"seasons":    seasons,
 	})
+}
+
+// folderShowSummary: Kurzangaben (ID, Titel, Poster) der Serien-Zuordnung eines
+// Ordners für den Info-Header, wenn es keine vollständigen Staffeldaten gibt.
+// GetFolderMetadataID ist bewusst ohne tmdb_type-Filter (tv UND custom).
+func (s *Server) folderShowSummary(libID int64, folder string) map[string]any {
+	folderMetaID, _ := s.Store.GetFolderMetadataID(libID, folder)
+	if folderMetaID <= 0 {
+		return nil
+	}
+	meta, _ := s.Store.GetMetadata(folderMetaID)
+	if meta == nil {
+		return nil
+	}
+	return map[string]any{
+		"metadataId": meta.ID,
+		"title":      meta.Title,
+		"posterPath": meta.PosterPath,
+	}
 }
