@@ -537,6 +537,8 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 ### Kachel-Zeilen: Kommissar/Zwischenordner + Dateigröße pro Bibliothek (seit 1.4.60/1.4.61)
 - Serienfolgen zeigen den Zwischenordner (`relPath` Segment 2) als eigene Zeile `.card-group`,
   wenn er kein Staffel-/Specials-Ordner ist (Regex in cards.js) — Tatort: Kommissar.
+  Klick darauf (seit 1.4.63, `data-group-link`) öffnet `rel[0]/rel[1]` mit `forcedFolderView`
+  → alle Folgen dieses Kommissars, wie ein Schauspieler-Klick.
 - Dateigröße: seit 1.4.62 im Menü „Anzeige" je Bibliotheksart (Film/Serien/Privat), localStorage
   `showSizeMovies/Tv/Private`, Default an — wie die Dateinamen. (1.4.61 hatte kurz einen
   Admin-Schalter pro Bibliothek; auf User-Wunsch wieder ausgebaut, Spalte show_file_size bleibt

@@ -1449,7 +1449,10 @@ body.selection-mode .track-row-select { display: flex; }
   text-overflow: ellipsis;
 }
 /* Dateiname unter der Meta-Zeile — wichtig für Release-spezifische Unterscheidung */
-/* Zwischenordner einer Serienfolge (Tatort: Kommissar), seit 1.4.60 */
+/* Zwischenordner einer Serienfolge (Tatort: Kommissar), seit 1.4.60;
+   klickbar seit 1.4.63 (öffnet alle Folgen dieses Ordners) */
+.card-group[data-group-link] { cursor: pointer; }
+.card-group[data-group-link]:hover { color: #60a5fa; text-decoration: underline; }
 .card-group {
   margin-top: 2px;
   font-size: 11px;

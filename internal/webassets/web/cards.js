@@ -935,7 +935,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
-      ${episodeGroup ? `<div class="card-group" title="${escapeHTML(episodeGroup)}">${escapeHTML(episodeGroup)}</div>` : ""}
+      ${episodeGroup ? `<div class="card-group" data-group-link="1" title="Alle Folgen: ${escapeHTML(episodeGroup)}">${escapeHTML(episodeGroup)}</div>` : ""}
       ${showFilenameLine ? `<div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (title === rawTitle && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>` : ""}
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
       ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch: ${(() => {
@@ -1049,6 +1049,32 @@ function renderCard(it, opts = {}) {
       return;
     }
     // Click auf den Serien-Titel (nur wenn Episode): zum Serien-Ordner springen
+    // Klick auf den Zwischenordner (Tatort: Kommissar, seit 1.4.63) öffnet
+    // diesen Ordner mit allen Folgen — wie ein Klick auf einen Schauspieler.
+    // Immer Ordner-Ansicht (forcedFolderView), sonst würde grid.js für den
+    // Unterordner eine Staffel-Ansicht versuchen.
+    const groupLink = ev.target && ev.target.closest('[data-group-link="1"]');
+    if (groupLink) {
+      ev.stopPropagation();
+      const rel = (it.relPath || "").split("/");
+      if (rel.length > 2) {
+        const folder = rel[0] + "/" + rel[1];
+        state.homeView = false;
+        state.collectionsView = false;
+        state.currentCollection = null;
+        state.playlistsView = false;
+        state.personFilter = null;
+        state.personFilterShow = null;
+        state.currentLibrary = it.libraryId;
+        state.currentFolder = folder;
+        state.currentFolderDrilldown = false;
+        state.currentSeason = null;
+        state.forcedFolderView = { libraryId: it.libraryId, folder };
+        $("#librarySelect").value = "lib:" + it.libraryId;
+        loadItems();
+        return;
+      }
+    }
     const showLink = ev.target && ev.target.closest('[data-show-link="1"]');
     if (showLink) {
       ev.stopPropagation();
