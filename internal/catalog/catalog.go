@@ -34,6 +34,25 @@ type Catalog struct {
 	Source     string    `json:"source"`
 	TMDBShowID int64     `json:"tmdbShowId"`
 	Episodes   []Episode `json:"episodes"`
+
+	// Einmal beim Laden aufgebaut (Match lief vorher für jede Datei über
+	// alle Zeilen und normalisierte jeden Titel neu — 17 s für den Tatort).
+	byTitle map[string][]int
+	byDay   map[string][]int
+	days    []time.Time
+}
+
+func (c *Catalog) index() {
+	c.byTitle = map[string][]int{}
+	c.byDay = map[string][]int{}
+	c.days = make([]time.Time, len(c.Episodes))
+	for i, e := range c.Episodes {
+		c.byTitle[NormTitle(e.Title)] = append(c.byTitle[NormTitle(e.Title)], i)
+		if d, err := time.Parse("2006-01-02", e.Date); err == nil {
+			c.days[i] = d
+			c.byDay[e.Date] = append(c.byDay[e.Date], i)
+		}
+	}
 }
 
 var (
@@ -45,6 +64,7 @@ func load() {
 	byShowID = map[int64]*Catalog{}
 	var c Catalog
 	if err := json.Unmarshal(tatortJSON, &c); err == nil && c.TMDBShowID > 0 {
+		c.index()
 		byShowID[c.TMDBShowID] = &c
 	}
 }
@@ -79,29 +99,40 @@ func NormTitle(s string) string {
 // 25. vs. 26.06.1972), sonst exakt gleiches Datum bei ähnlichem Titel
 // (enthält/enthalten). -1 = kein Treffer.
 func (c *Catalog) Match(title string, aired time.Time) int {
+	if aired.IsZero() {
+		return -1
+	}
 	nt := NormTitle(title)
+	absDays := func(i int) int {
+		d := int(aired.Sub(c.days[i]).Hours() / 24)
+		if d < 0 {
+			d = -d
+		}
+		return d
+	}
 	best, bestScore := -1, 0
-	for i, e := range c.Episodes {
-		d, err := time.Parse("2006-01-02", e.Date)
-		if err != nil || aired.IsZero() {
+	// Gleicher Titel: ≤ 7 Tage → sicher, ≤ 400 Tage → schwacher Treffer.
+	for _, i := range c.byTitle[nt] {
+		if c.days[i].IsZero() {
 			continue
 		}
-		days := int(aired.Sub(d).Hours() / 24)
-		if days < 0 {
-			days = -days
-		}
-		ne := NormTitle(e.Title)
 		score := 0
-		switch {
-		case ne == nt && days <= 7:
+		if d := absDays(i); d <= 7 {
 			score = 3
-		case days == 0 && nt != "" && ne != "" && (strings.Contains(ne, nt) || strings.Contains(nt, ne)):
-			score = 2
-		case ne == nt && days <= 400: // gleicher Titel, Datum stark abweichend (Wiederholung als Erstausstrahlung bei TMDB)
+		} else if d <= 400 {
 			score = 1
 		}
 		if score > bestScore {
 			best, bestScore = i, score
+		}
+	}
+	// Gleicher Tag, Titel enthält/ist enthalten.
+	if bestScore < 3 && nt != "" {
+		for _, i := range c.byDay[aired.Format("2006-01-02")] {
+			ne := NormTitle(c.Episodes[i].Title)
+			if ne != "" && (strings.Contains(ne, nt) || strings.Contains(nt, ne)) && bestScore < 2 {
+				best, bestScore = i, 2
+			}
 		}
 	}
 	return best
