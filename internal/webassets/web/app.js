@@ -901,6 +901,17 @@ function restoreSortForContext() {
       // „Veröffentlicht" absteigend sortiert sein — Chronologie ist dort die
       // sinnvolle Reihenfolge. Alle anderen bleiben auf "title" aufsteigend.
       const lib = state.libraries && state.libraries.find(l => l.id == state.currentLibrary);
+      // Folgen eines Kommissars (Unterordner in erzwungener Ordner-Ansicht,
+      // über Kachel-Klick oder Tatort-Sammlung, seit 1.4.64): immer nach
+      // Erstausstrahlung, älteste zuerst (User-Wunsch 2026-09-30).
+      const fv = state.forcedFolderView;
+      if (fv && state.currentFolder && state.currentFolder.includes("/") &&
+          (state.currentFolder === fv.folder || state.currentFolder.startsWith(fv.folder + "/"))) {
+        $("#sortSelect").value = "released";
+        state.sortDir = "asc";
+        updateSortDirIcon();
+        return;
+      }
       if (lib && lib.kind === "private") {
         // Chronologisch aufsteigend: älteste zuerst (bei YouTube/Urlaubsvideos
         // üblicherweise die Wunsch-Reihenfolge). `effectiveSortDir` würde für
