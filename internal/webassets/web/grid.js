@@ -1231,6 +1231,9 @@ async function loadItemsBody() {
     merged.forEach(it => frag.appendChild(renderCard(it)));
     grid.innerHTML = "";
     grid.appendChild(frag);
+    // Fehlende Folgen je Kommissar (Tatort-Katalog, seit 1.4.65) — die
+    // Kommissar-Ansicht läuft standardmäßig über „Veröffentlicht" = hier.
+    applyCatalogGaps(grid, stale);
     return;
   }
 

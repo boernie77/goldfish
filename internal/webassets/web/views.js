@@ -2005,7 +2005,7 @@ async function applyCatalogGaps(grid, stale) {
     return;
   }
 
-  const count = $("#bc-count");
+  const count = $("#bc-count") || document.querySelector("#breadcrumb .count");
   if (count && data.total) count.textContent += ` · ${data.owned}/${data.total} Folgen vorhanden`;
   const missing = data.missing || [];
   if (!missing.length) return;
