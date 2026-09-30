@@ -256,6 +256,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/collections/{id}/parts/{tmdbMovieId}/hide", s.hideCollectionPart)
 		r.Delete("/collections/{id}/parts/{tmdbMovieId}/hide", s.unhideCollectionPart)
 		r.Get("/tmdb/movie/{tmdbId}", s.getTMDBMovieDetail)
+		r.Get("/tmdb/tv/{tmdbId}/season/{season}", requireAdmin(s.getTMDBSeason))
 
 		// Missing-Export für Radarr/Sonarr-Brücke
 		r.Get("/missing/movies", s.missingMovies)
@@ -426,7 +427,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.4.58"
+const appVersion = "1.4.59"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{

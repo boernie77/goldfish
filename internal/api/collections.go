@@ -334,3 +334,28 @@ func (s *Server) setFolderCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"enabled": true, "id": -id, "name": name})
 }
+
+// getTMDBSeason (Admin, seit 1.4.59): reicht die TMDB-Folgenliste einer
+// Staffel durch (Titel, Nummer, Ausstrahlung). Werkzeug für Sammel-
+// Zuordnungen, bei denen der Dateiname nicht zu TMDB passt — erster Einsatz:
+// Tatort (Dateien nach fortlaufender Nummer, TMDB nach Jahr/Staffel). Der
+// Abgleich läuft beim Admin im Browser, zugeordnet wird danach über den
+// normalen Weg POST /items/{id}/metadata.
+func (s *Server) getTMDBSeason(w http.ResponseWriter, r *http.Request) {
+	if s.Enrich == nil || !s.Enrich.Client().Enabled() {
+		writeError(w, 400, "TMDB-Key nicht konfiguriert")
+		return
+	}
+	tid, err1 := strconv.ParseInt(chi.URLParam(r, "tmdbId"), 10, 64)
+	season, err2 := strconv.Atoi(chi.URLParam(r, "season"))
+	if err1 != nil || err2 != nil || tid <= 0 || season < 0 {
+		writeError(w, 400, "ungültige tmdbId/season")
+		return
+	}
+	sea, err := s.Enrich.Client().GetSeason(r.Context(), tid, season)
+	if err != nil {
+		writeError(w, 502, "TMDB: "+err.Error())
+		return
+	}
+	writeJSON(w, 200, sea)
+}
