@@ -37,6 +37,7 @@ Eine Umbenennung des Modulpfads ist bewusst unterlassen (nur Churn).
   Zahnrad-Menü-Fuß (`#drawerVersion`).
 - Zwei bewusst dokumentierte Ausnahmen vom +0.0.1-Schema: 1.0.94 → **1.2.0** und 1.2.53 → **1.3.0**
   (beide ausdrücklich so gewünscht). Danach läuft die Patch-Regel auf der neuen Basis weiter.
+- **Angekündigt (2026-10-01): Der nächste Deploy nach 1.4.71 wird 1.5.0**, danach wieder +0.0.1.
 - Die App-Repos (Android/Apple/Linux/FireTV) zählen unabhängig davon.
 
 ## Repo-Sichtbarkeit — vier von fünf Repos sind ÖFFENTLICH
