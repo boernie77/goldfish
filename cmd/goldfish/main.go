@@ -215,6 +215,8 @@ func main() {
 	go srv.RunDownloadCacheCleanup(workerCtx)
 	// Englische TMDB-Folgenbeschreibungen übersetzen (seit 1.4.70).
 	go srv.RunOverviewTranslator(workerCtx)
+	// Tatort-Katalog (Wikipedia) wöchentlich aktualisieren (seit 1.4.71).
+	go srv.RunCatalogRefresh(workerCtx)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

@@ -1,10 +1,15 @@
 package api
 
 import (
+	"context"
+	"fmt"
+	"log"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/boernie77/goldfish/internal/catalog"
 	"github.com/boernie77/goldfish/internal/store"
@@ -196,4 +201,40 @@ func (s *Server) libraryCatalog(w http.ResponseWriter, r *http.Request) {
 		"available": true, "source": cat.Source, "teams": teamNames,
 		"total": len(list), "owned": nOwned, "missing": missing,
 	})
+}
+
+// RunCatalogRefresh (seit 1.4.71): Tatort-Katalog wöchentlich von Wikipedia
+// aktualisieren, damit neue Folgen ohne Server-Update in der Kommissar-Ansicht
+// und bei der Zuordnung beim Scannen bekannt sind. Gespeichert unter
+// <config>/catalog/tatort.json; beim Start wird eine vorhandene Datei geladen.
+func (s *Server) RunCatalogRefresh(ctx context.Context) {
+	dir := filepath.Join(s.ConfigDir, "catalog")
+	catalog.UseFile(dir)
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(10 * time.Minute):
+	}
+	refresh := func() {
+		rctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+		n, err := catalog.Refresh(rctx, dir)
+		if err != nil {
+			log.Printf("[catalog] Tatort-Liste nicht aktualisiert: %v", err)
+			return
+		}
+		log.Printf("[catalog] Tatort-Liste aktualisiert: %d Folgen", n)
+		_ = s.Store.LogActivity(0, "", "job", "catalog_refresh", fmt.Sprintf("Tatort-Liste (Wikipedia): %d Folgen", n), "")
+	}
+	refresh()
+	t := time.NewTicker(7 * 24 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			refresh()
+		}
+	}
 }

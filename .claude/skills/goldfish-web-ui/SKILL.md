@@ -549,8 +549,18 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
 ### Ermittler-Katalog / fehlende Folgen je Kommissar (seit 1.4.65)
 - Daten: `internal/catalog/data/tatort.json` (Wikipedia „Liste der Tatort-Folgen", CC BY-SA,
   eingelesen mit `scripts/import_tatort_catalog.py`, go:embed). Pro Folge Nr/Titel/Sender/Datum/
-  Ermittler-Teams (Crossover = mehrere Teams, Gastauftritte entfernt). Neu einlesen: Skript
-  laufen lassen + committen.
+  Ermittler-Teams (Crossover = mehrere Teams, Gastauftritte entfernt). Eingebettete Fassung
+  = Rückfall; neu einbetten: Skript laufen lassen + committen.
+- **Wöchentliche Aktualisierung (seit 1.4.71):** `RunCatalogRefresh` (api/catalog.go) lädt beim
+  Start `<config>/catalog/tatort.json` (`catalog.UseFile`), holt 10 min nach Start und dann alle
+  7 Tage die Wikipedia-Seite (`catalog.Refresh`, Go-Port des Python-Parsers in
+  `catalog/wiki.go`, liefert identisch 1353 Zeilen). Schutz: weniger als aktuell −5 Zeilen →
+  verworfen; `install` ersetzt nie durch eine kürzere Liste. Protokoll-Eintrag `catalog_refresh`.
+- **Zuordnung neuer Folgen beim Scannen (seit 1.4.71, enrich/catalog_match.go):** Dateien
+  `Tatort.S<Jahr>E<Nr>.<Ermittler>.<Titel>.ext` (Nameparser erkennt S2026E1341 nicht) werden bei
+  Serien mit Katalog über TMDB-Staffel = Jahr−1969 (±1) per Titel (Katalogtitel zur Nr +
+  Suffixe des Dateititels) bzw. Erstausstrahlung = Katalogdatum auf (S,E) abgebildet. Steht die
+  Folge noch nicht bei TMDB, bleibt sie unzugeordnet und der Worker versucht es später erneut.
 - `GET /api/libraries/{id}/catalog?folder=…[&team=…]` (api/catalog.go): ordnet vorhandene
   Dateien per TMDB-Titel + Erstausstrahlung (±7 Tage) bzw. Nummer im Dateinamen einer Zeile
   zu; ein Team gehört zu dem Unterordner mit den MEISTEN seiner Folgen. Serien-Ordner →

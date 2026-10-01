@@ -57,22 +57,52 @@ func (c *Catalog) index() {
 
 var (
 	once     sync.Once
+	mu       sync.RWMutex
 	byShowID map[int64]*Catalog
 )
 
 func load() {
+	mu.Lock()
 	byShowID = map[int64]*Catalog{}
+	mu.Unlock()
 	var c Catalog
 	if err := json.Unmarshal(tatortJSON, &c); err == nil && c.TMDBShowID > 0 {
-		c.index()
-		byShowID[c.TMDBShowID] = &c
+		install(&c)
 	}
+}
+
+// install aktiviert einen Katalog, sofern er mindestens so viele Folgen hat
+// wie der bisher aktive (eine ältere gespeicherte Datei verdrängt nie die
+// neuere eingebettete Fassung).
+func install(c *Catalog) {
+	c.index()
+	mu.Lock()
+	defer mu.Unlock()
+	if byShowID == nil {
+		byShowID = map[int64]*Catalog{}
+	}
+	if cur := byShowID[c.TMDBShowID]; cur != nil && len(c.Episodes) < len(cur.Episodes) {
+		return
+	}
+	byShowID[c.TMDBShowID] = c
 }
 
 // ForShow liefert den Katalog einer TMDB-Serie (nil = keiner vorhanden).
 func ForShow(tmdbShowID int64) *Catalog {
 	once.Do(load)
+	mu.RLock()
+	defer mu.RUnlock()
 	return byShowID[tmdbShowID]
+}
+
+// ByNr liefert die Katalog-Zeile zu einer Folgennummer (z. B. "1341", "186a").
+func (c *Catalog) ByNr(nr string) *Episode {
+	for i := range c.Episodes {
+		if c.Episodes[i].Nr == nr {
+			return &c.Episodes[i]
+		}
+	}
+	return nil
 }
 
 // NormTitle vereinheitlicht Titel für den Vergleich: Kleinbuchstaben,

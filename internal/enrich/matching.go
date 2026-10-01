@@ -8,9 +8,11 @@ import (
 	"context"
 	"errors"
 	"log"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/boernie77/goldfish/internal/catalog"
 	"github.com/boernie77/goldfish/internal/model"
 	"github.com/boernie77/goldfish/internal/nameparser"
 	"github.com/boernie77/goldfish/internal/tmdb"
@@ -298,7 +300,10 @@ func (w *Worker) matchItem(ctx context.Context, lib *model.Library, it model.Ite
 		return errors.New("kein Film-Treffer auf allen Ebenen (TMDB + OMDb)")
 
 	case model.KindTV:
-		if !parsed.IsEpisode {
+		// Jahr/Nummer-Schema (Tatort.S2026E1341…) erkennt der Namens-Parser
+		// nicht als Folge — durchlassen, die Katalog-Zuordnung unten entscheidet.
+		yearNr := yearNrFileRe.MatchString(filepath.Base(it.Path))
+		if !parsed.IsEpisode && !yearNr {
 			return errors.New("kein Episodenformat SxxExx im Namen")
 		}
 		// Show-ID über den Top-Level-Ordner
@@ -339,6 +344,20 @@ func (w *Worker) matchItem(ctx context.Context, lib *model.Library, it model.Ite
 		showMeta, err := w.store.GetMetadata(showMetaID)
 		if err != nil || showMeta == nil {
 			return errors.New("Show-Metadata nicht auffindbar")
+		}
+		// Serien mit Folgenkatalog (Tatort): Jahr + Titel statt SxxExx, siehe
+		// catalog_match.go. Kein Treffer (z. B. TMDB kennt eine brandneue
+		// Folge noch nicht) → nächster Worker-Lauf versucht es erneut.
+		if catalog.ForShow(showMeta.TMDBID) != nil && yearNr {
+			s, e, ok := w.catalogEpisode(ctx, showMeta.TMDBID, it.Path)
+			if !ok {
+				return errors.New("Folge (noch) nicht bei TMDB gefunden — Jahr/Titel ohne Treffer")
+			}
+			parsed.Season, parsed.Episode, parsed.EpisodeEnd = s, e, 0
+			parsed.IsEpisode = true
+		}
+		if !parsed.IsEpisode {
+			return errors.New("kein Episodenformat SxxExx im Namen")
 		}
 		ep, err := w.client.GetEpisode(ctx, showMeta.TMDBID, parsed.Season, parsed.Episode)
 		if err != nil {
