@@ -124,6 +124,13 @@ func (s *Store) migrate() error {
 			drilldown INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY (library_id, folder)
 		)`,
+		// Löschschutz: folder = '' schützt die ganze Bibliothek, sonst den Ordner
+		// (rel_path-Präfix, rekursiv). Siehe delete_protection.go.
+		`CREATE TABLE IF NOT EXISTS delete_protection (
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			PRIMARY KEY (library_id, folder)
+		)`,
 		`CREATE TABLE IF NOT EXISTS playlists (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,

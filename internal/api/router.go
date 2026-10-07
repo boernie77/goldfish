@@ -104,6 +104,8 @@ func (s *Server) Router() http.Handler {
 		r.Put("/libraries/{id}/folders/drilldown", requireAdmin(s.setFolderDrilldown))
 		r.Put("/libraries/{id}/home-visibility", requireAdmin(s.setLibraryHomeVisibility))
 		r.Put("/libraries/{id}/channel-label-on-top", requireAdmin(s.setLibraryChannelLabelOnTop))
+		r.Get("/libraries/{id}/delete-protection", requireAdmin(s.getDeleteProtection))
+		r.Put("/libraries/{id}/delete-protection", requireAdmin(s.setDeleteProtection))
 		r.Put("/libraries/{id}/delete-watched-button", requireAdmin(s.setLibraryDeleteWatchedButtonEnabled))
 		r.Put("/libraries/{id}/show-release-date", requireAdmin(s.setLibraryShowReleaseDate))
 		r.Put("/libraries/order", requireAdmin(s.setLibraryOrder))

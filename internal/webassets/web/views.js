@@ -1149,6 +1149,7 @@ async function loadCount(el, libId, folder) {
 // erhalten). Bewusst NUR für kind=private sichtbar, damit diese Aktion
 // Serien/Filme nie treffen kann (User-Vorgabe).
 function renderDeleteWatchedExceptLastButton(bc, lib, folder) {
+  renderDeleteProtectionButton(bc, lib, folder);
   if (!lib || lib.kind !== "private" || !lib.deleteWatchedButtonEnabled) return;
   if (!state.me || !state.me.isAdmin) return;
   const btn = document.createElement("button");
@@ -1157,6 +1158,41 @@ function renderDeleteWatchedExceptLastButton(bc, lib, folder) {
   btn.title = "Löscht alle gesehenen Videos in diesem Bereich, behält aber pro Ordner immer das letzte gesehene Video";
   btn.addEventListener("click", () => deleteWatchedExceptLast(lib.id, folder || ""));
   bc.appendChild(btn);
+}
+
+// Löschschutz-Schalter (Admin) für Bibliothek (folder "") bzw. Ordner/Serie.
+// Geschützte Bereiche lassen sich weder einzeln noch per "Gesehene löschen"
+// leeren — durchgesetzt serverseitig (deleteItemFilesAndRow).
+function renderDeleteProtectionButton(bc, lib, folder) {
+  if (!lib || !state.me || !state.me.isAdmin) return;
+  const btn = document.createElement("button");
+  btn.className = "delete-protection-btn";
+  btn.textContent = "🔓 Löschschutz";
+  btn.disabled = true;
+  bc.appendChild(btn);
+  const base = `/api/libraries/${lib.id}/delete-protection`;
+  const fq = folder ? `?folder=${encodeURIComponent(folder)}` : "";
+  const apply = (st) => {
+    btn.disabled = false;
+    btn.textContent = st.protected ? "🔒 Löschschutz an" : "🔓 Löschschutz";
+    btn.title = st.protected && !st.own
+      ? `Geschützt über ${st.from ? `den Ordner „${st.from}"` : "die Bibliothek"} — dort ausschalten`
+      : "Schützt diesen Bereich vor dem Löschen von Videos (auch vor „Gesehene löschen“)";
+    btn.dataset.own = st.own ? "1" : "";
+    btn.dataset.prot = st.protected ? "1" : "";
+  };
+  api(base + fq).then(apply).catch(() => { btn.remove(); });
+  btn.addEventListener("click", async () => {
+    if (btn.dataset.prot && !btn.dataset.own) { appAlert(btn.title); return; }
+    btn.disabled = true;
+    try {
+      await api(base, { method: "PUT", body: JSON.stringify({ folder: folder || "", enabled: !btn.dataset.own }) });
+      apply(await api(base + fq));
+    } catch (e) {
+      btn.disabled = false;
+      appAlert(e.message);
+    }
+  });
 }
 
 // Zeigt zuerst eine Vorschau der betroffenen Dateien (dryRun=1, löscht

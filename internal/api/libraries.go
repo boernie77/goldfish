@@ -278,6 +278,10 @@ func (s *Server) deleteLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lib, _ := s.Store.GetLibrary(id)
+	if prot, _, err := s.Store.DeleteProtected(id, ""); err == nil && prot {
+		writeError(w, 403, errDeleteProtected.Error())
+		return
+	}
 	if err := s.Store.DeleteLibrary(id); err != nil {
 		writeError(w, 500, err.Error())
 		return

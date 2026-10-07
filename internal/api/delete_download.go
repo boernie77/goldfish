@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,6 +15,9 @@ import (
 	"github.com/boernie77/goldfish/internal/playback"
 	"github.com/boernie77/goldfish/internal/store"
 )
+
+// errDeleteProtected: Item liegt in einer Bibliothek/einem Ordner mit Löschschutz.
+var errDeleteProtected = errors.New("Löschschutz aktiv — zuerst den Löschschutz für diesen Bereich ausschalten")
 
 // deleteItem löscht ein Item vom Filesystem UND aus der Datenbank. Admin-only.
 // Zusätzlich werden Thumbnail, Trickplay-Daten und Subtitle-Cache entfernt.
@@ -39,6 +43,10 @@ func (s *Server) deleteItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.deleteItemFilesAndRow(it); err != nil {
+		if errors.Is(err, errDeleteProtected) {
+			writeError(w, 403, err.Error())
+			return
+		}
 		writeError(w, 500, err.Error())
 		return
 	}
@@ -52,6 +60,12 @@ func (s *Server) deleteItem(w http.ResponseWriter, r *http.Request) {
 // Sammel-Aktion mit einem Eintrag pro Lauf, siehe „Aktivitäts-Protokoll" in
 // CLAUDE.md).
 func (s *Server) deleteItemFilesAndRow(it *model.Item) error {
+	// Löschschutz zentral hier, damit KEIN Löschpfad ihn umgehen kann.
+	if prot, _, err := s.Store.DeleteProtected(it.LibraryID, it.RelPath); err != nil {
+		return err
+	} else if prot {
+		return errDeleteProtected
+	}
 	// 1. Video-Datei vom Filesystem entfernen.
 	if err := os.Remove(it.Path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("Datei konnte nicht gelöscht werden: %w"+
@@ -113,6 +127,13 @@ func (s *Server) deleteWatchedExceptLast(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	folder := r.URL.Query().Get("folder")
+	if prot, _, err := s.Store.DeleteProtected(libID, folder); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	} else if prot {
+		writeError(w, 403, errDeleteProtected.Error())
+		return
+	}
 	dryRun := r.URL.Query().Get("dryRun") == "1"
 
 	candidates, err := s.deleteWatchedExceptLastCandidates(libID, folder, me.ID)
@@ -209,9 +230,24 @@ func (s *Server) deleteWatchedExceptLastCandidates(libID int64, folder string, u
 		keepID[folderOf(it.RelPath)] = it.ID
 	}
 
+	// Unterordner mit eigenem Löschschutz fallen aus der Auswahl (Vorschau
+	// und Ausführung nutzen dieselbe Liste).
+	protected, err := s.Store.DeleteProtectionFolders(libID)
+	if err != nil {
+		return nil, err
+	}
+	isProtected := func(relPath string) bool {
+		for _, f := range protected {
+			if f == "" || relPath == f || strings.HasPrefix(relPath, f+"/") {
+				return true
+			}
+		}
+		return false
+	}
+
 	candidates := make([]model.Item, 0, len(items))
 	for _, it := range items {
-		if !it.Watched || it.ID == keepID[folderOf(it.RelPath)] {
+		if !it.Watched || it.ID == keepID[folderOf(it.RelPath)] || isProtected(it.RelPath) {
 			continue
 		}
 		candidates = append(candidates, it)
