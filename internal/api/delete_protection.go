@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // getDeleteProtection liefert den Löschschutz-Status für Bibliothek bzw.
@@ -64,4 +65,19 @@ func (s *Server) setDeleteProtection(w http.ResponseWriter, r *http.Request) {
 			"Löschschutz "+state+": "+body.Folder, deviceLabel(r))
 	}
 	w.WriteHeader(204)
+}
+
+// listDeleteProtections: alle Schutz-Einträge, {"<libId>": ["", "Kanal", ...]}
+// ("" = ganze Bibliothek). Für das Anzeige-Menü. Admin-only.
+func (s *Server) listDeleteProtections(w http.ResponseWriter, r *http.Request) {
+	all, err := s.Store.AllDeleteProtections()
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	out := make(map[string][]string, len(all))
+	for id, f := range all {
+		out[strconv.FormatInt(id, 10)] = f
+	}
+	writeJSON(w, 200, out)
 }

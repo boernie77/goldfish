@@ -495,6 +495,7 @@ function openDisplayPrefsDialog() {
   tvBox.checked = state.showFilenameTv;
 
   renderDeleteWatchedButtonPrefs();
+  renderDeleteProtectionPrefs();
 
   // Oberflächen-Stil (Glass) + Player-Steuerleiste (Pill) — siehe
   // applyUiSkin() in app.js und .video-js.player-skin-pill in style.css.
@@ -1160,39 +1161,91 @@ function renderDeleteWatchedExceptLastButton(bc, lib, folder) {
   bc.appendChild(btn);
 }
 
-// Löschschutz-Schalter (Admin) für Bibliothek (folder "") bzw. Ordner/Serie.
-// Geschützte Bereiche lassen sich weder einzeln noch per "Gesehene löschen"
-// leeren — durchgesetzt serverseitig (deleteItemFilesAndRow).
+// Kleines Schloss im Breadcrumb, wenn für Bibliothek/Ordner Löschschutz aktiv
+// ist (auch geerbt). Eingestellt wird er im Menü „Anzeige“ (Admin).
 function renderDeleteProtectionButton(bc, lib, folder) {
   if (!lib || !state.me || !state.me.isAdmin) return;
-  const btn = document.createElement("button");
-  btn.className = "delete-protection-btn";
-  btn.textContent = "🔓 Löschschutz";
-  btn.disabled = true;
-  bc.appendChild(btn);
-  const base = `/api/libraries/${lib.id}/delete-protection`;
+  const lock = document.createElement("span");
+  lock.className = "delete-protection-lock";
+  lock.textContent = "🔒";
+  lock.style.cssText = "font-size:13px; opacity:.8; margin-left:6px; display:none;";
+  bc.appendChild(lock);
   const fq = folder ? `?folder=${encodeURIComponent(folder)}` : "";
-  const apply = (st) => {
-    btn.disabled = false;
-    btn.textContent = st.protected ? "🔒 Löschschutz an" : "🔓 Löschschutz";
-    btn.title = st.protected && !st.own
-      ? `Geschützt über ${st.from ? `den Ordner „${st.from}"` : "die Bibliothek"} — dort ausschalten`
-      : "Schützt diesen Bereich vor dem Löschen von Videos (auch vor „Gesehene löschen“)";
-    btn.dataset.own = st.own ? "1" : "";
-    btn.dataset.prot = st.protected ? "1" : "";
+  api(`/api/libraries/${lib.id}/delete-protection${fq}`).then(st => {
+    if (!st.protected) return;
+    lock.style.display = "";
+    lock.title = st.own ? "Löschschutz aktiv"
+      : `Löschschutz aktiv (über ${st.from ? `den Ordner „${st.from}"` : "die Bibliothek"})`;
+  }).catch(() => lock.remove());
+}
+
+// Löschschutz im Menü „Anzeige“: je Bibliothek ein Schalter, dazu aufklappbar
+// die Ordner der obersten Ebene (YouTube-Kanäle, Serien …). Admin-only,
+// serverseitig durchgesetzt.
+async function renderDeleteProtectionPrefs() {
+  const section = $("#displayPrefsProtectSection");
+  const list = $("#displayPrefsProtectLibs");
+  if (!state.me || !state.me.isAdmin) { section.classList.add("hidden"); return; }
+  section.classList.remove("hidden");
+  list.innerHTML = "";
+  let prot = {};
+  try { prot = await api("/api/delete-protections"); } catch { /* leer */ }
+  const mkRow = (label, checked, onChange) => {
+    const row = document.createElement("label");
+    row.className = "switch-row";
+    const name = document.createElement("span");
+    name.textContent = label;
+    name.style.cssText = "overflow:hidden; text-overflow:ellipsis;";
+    const sw = document.createElement("span");
+    sw.className = "switch";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = checked;
+    const slider = document.createElement("span");
+    slider.className = "slider";
+    sw.append(input, slider);
+    row.append(name, sw);
+    input.addEventListener("change", async () => {
+      const enabled = input.checked;
+      input.disabled = true;
+      try { await onChange(enabled); }
+      catch (e) { input.checked = !enabled; appAlert(e.message); }
+      finally { input.disabled = false; }
+    });
+    return row;
   };
-  api(base + fq).then(apply).catch(() => { btn.remove(); });
-  btn.addEventListener("click", async () => {
-    if (btn.dataset.prot && !btn.dataset.own) { appAlert(btn.title); return; }
-    btn.disabled = true;
-    try {
-      await api(base, { method: "PUT", body: JSON.stringify({ folder: folder || "", enabled: !btn.dataset.own }) });
-      apply(await api(base + fq));
-    } catch (e) {
-      btn.disabled = false;
-      appAlert(e.message);
-    }
-  });
+  const put = (libId, folder, enabled) => api(`/api/libraries/${libId}/delete-protection`, {
+    method: "PUT", body: JSON.stringify({ folder, enabled }),
+  }).then(() => { if (state.currentLibrary == libId) renderBreadcrumb(); });
+
+  for (const lib of (state.libraries || [])) {
+    const set = new Set(prot[lib.id] || []);
+    list.appendChild(mkRow(lib.name, set.has(""), (en) => put(lib.id, "", en)));
+    const det = document.createElement("details");
+    det.style.cssText = "margin:0 0 8px 14px;";
+    const sum = document.createElement("summary");
+    sum.textContent = "Ordner …";
+    sum.style.cssText = "cursor:pointer; color:var(--text-dim); font-size:13px;";
+    const box = document.createElement("div");
+    det.append(sum, box);
+    let loaded = false;
+    det.addEventListener("toggle", async () => {
+      if (!det.open || loaded) return;
+      loaded = true;
+      box.textContent = "Lade …";
+      try {
+        const all = await api(`/api/libraries/${lib.id}/all-folders`);
+        const tops = new Set(all.filter(f => f && !f.includes("/")));
+        for (const f of set) if (f) tops.add(f);
+        box.innerHTML = "";
+        if (!tops.size) { box.textContent = "Keine Ordner."; return; }
+        for (const f of [...tops].sort((a, b) => a.localeCompare(b, "de"))) {
+          box.appendChild(mkRow(f, set.has(f), (en) => put(lib.id, f, en)));
+        }
+      } catch (e) { box.textContent = e.message; loaded = false; }
+    });
+    list.appendChild(det);
+  }
 }
 
 // Zeigt zuerst eine Vorschau der betroffenen Dateien (dryRun=1, löscht

@@ -1235,6 +1235,13 @@
     <p class="hint" style="margin:8px 0 0">Löscht in dieser Bibliothek alle gesehenen Videos, behält aber pro Ordner immer das letzte. Nur für private Bibliotheken verfügbar.</p>
   </div>
 
+  <!-- Admin-only: Löschschutz je Bibliothek/Ordner (serverseitig durchgesetzt) -->
+  <div id="displayPrefsProtectSection" class="hidden">
+    <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
+    <p class="hint" style="margin:0 0 8px">🔒 Löschschutz — Videos in geschützten Bereichen lassen sich nicht löschen (auch nicht per „Gesehene löschen“):</p>
+    <div id="displayPrefsProtectLibs"></div>
+  </div>
+
   <hr style="border:none; border-top:1px solid var(--border); margin:16px 0">
 
   <label class="switch-row">

@@ -51,3 +51,22 @@ func (s *Store) DeleteProtected(libraryID int64, relPath string) (bool, string, 
 	}
 	return false, "", nil
 }
+
+// AllDeleteProtections liefert alle Schutz-Einträge je Bibliothek-ID.
+func (s *Store) AllDeleteProtections() (map[int64][]string, error) {
+	rows, err := s.db.Query(`SELECT library_id, folder FROM delete_protection ORDER BY library_id, folder`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[int64][]string{}
+	for rows.Next() {
+		var id int64
+		var f string
+		if err := rows.Scan(&id, &f); err != nil {
+			return nil, err
+		}
+		out[id] = append(out[id], f)
+	}
+	return out, rows.Err()
+}

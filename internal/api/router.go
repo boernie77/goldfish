@@ -104,6 +104,7 @@ func (s *Server) Router() http.Handler {
 		r.Put("/libraries/{id}/folders/drilldown", requireAdmin(s.setFolderDrilldown))
 		r.Put("/libraries/{id}/home-visibility", requireAdmin(s.setLibraryHomeVisibility))
 		r.Put("/libraries/{id}/channel-label-on-top", requireAdmin(s.setLibraryChannelLabelOnTop))
+		r.Get("/delete-protections", requireAdmin(s.listDeleteProtections))
 		r.Get("/libraries/{id}/delete-protection", requireAdmin(s.getDeleteProtection))
 		r.Put("/libraries/{id}/delete-protection", requireAdmin(s.setDeleteProtection))
 		r.Put("/libraries/{id}/delete-watched-button", requireAdmin(s.setLibraryDeleteWatchedButtonEnabled))
@@ -431,7 +432,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.5.0"
+const appVersion = "1.5.1"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
