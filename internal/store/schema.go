@@ -714,7 +714,7 @@ func (s *Store) migrate() error {
 		`CREATE TRIGGER IF NOT EXISTS items_fts_ai AFTER INSERT ON items BEGIN
 			INSERT INTO items_fts(item_id, title, artist, album)
 			SELECT NEW.id,
-			       COALESCE(parent.title, m.title, NEW.title),
+			       `+ftsTitleExpr("NEW.title")+`,
 			       COALESCE(NEW.artist, ''),
 			       COALESCE(NEW.album, '')
 			FROM (SELECT 1)
@@ -735,7 +735,7 @@ func (s *Store) migrate() error {
 			DELETE FROM items_fts WHERE item_id = OLD.id;
 			INSERT INTO items_fts(item_id, title, artist, album)
 			SELECT NEW.id,
-			       COALESCE(parent.title, m.title, NEW.title),
+			       `+ftsTitleExpr("NEW.title")+`,
 			       COALESCE(NEW.artist, ''),
 			       COALESCE(NEW.album, '')
 			FROM (SELECT 1)
@@ -771,7 +771,7 @@ func (s *Store) migrate() error {
 			);
 			INSERT INTO items_fts(item_id, title, artist, album)
 			SELECT i.id,
-			       COALESCE(parent.title, m.title, i.title),
+			       `+ftsTitleExpr("i.title")+`,
 			       COALESCE(i.artist, ''),
 			       COALESCE(i.album, '')
 			FROM items i
@@ -780,6 +780,15 @@ func (s *Store) migrate() error {
 			WHERE i.metadata_id = NEW.id
 			   OR i.metadata_id IN (SELECT id FROM metadata WHERE parent_id = NEW.id);
 		END`,
+	}
+	// Trigger-Definition hat sich geändert (Tatort-Folgentitel, v2) — alte
+	// Trigger verwerfen, CREATE ... IF NOT EXISTS legt sie neu an.
+	if done, _ := s.GetSetting("items_fts_backfill_v2", ""); done != "1" {
+		for _, t := range []string{"items_fts_ai", "items_fts_au", "items_fts_ad", "items_fts_metadata_title_au"} {
+			if _, err := s.db.Exec(`DROP TRIGGER IF EXISTS ` + t); err != nil {
+				return fmt.Errorf("migrate items_fts drop trigger: %w", err)
+			}
+		}
 	}
 	for _, q := range ftsTriggerStmts {
 		if _, err := s.db.Exec(q); err != nil {
@@ -795,7 +804,7 @@ func (s *Store) migrate() error {
 		if _, err := s.db.Exec(`
 			INSERT INTO items_fts (item_id, title, artist, album)
 			SELECT i.id,
-			       COALESCE(parent.title, m.title, i.title),
+			       `+ftsTitleExpr("i.title")+`,
 			       COALESCE(i.artist, ''),
 			       COALESCE(i.album, '')
 			FROM items i
@@ -806,6 +815,27 @@ func (s *Store) migrate() error {
 		}
 		if err := s.SetSetting("items_fts_backfill_v1", "1"); err != nil {
 			return fmt.Errorf("migrate items_fts_backfill_v1 flag: %w", err)
+		}
+	}
+	// v2: Tatort-Folgentitel in den Index — kompletter Neuaufbau.
+	if done, _ := s.GetSetting("items_fts_backfill_v2", ""); done != "1" {
+		if _, err := s.db.Exec(`DELETE FROM items_fts`); err != nil {
+			return fmt.Errorf("migrate items_fts v2 clear: %w", err)
+		}
+		if _, err := s.db.Exec(`
+			INSERT INTO items_fts (item_id, title, artist, album)
+			SELECT i.id,
+			       `+ftsTitleExpr("i.title")+`,
+			       COALESCE(i.artist, ''),
+			       COALESCE(i.album, '')
+			FROM items i
+			LEFT JOIN metadata m ON m.id = i.metadata_id
+			LEFT JOIN metadata parent ON parent.id = m.parent_id
+		`); err != nil {
+			return fmt.Errorf("migrate items_fts v2 backfill: %w", err)
+		}
+		if err := s.SetSetting("items_fts_backfill_v2", "1"); err != nil {
+			return fmt.Errorf("migrate items_fts_backfill_v2 flag: %w", err)
 		}
 	}
 	if _, err := s.db.Exec(`

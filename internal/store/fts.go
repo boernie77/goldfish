@@ -36,3 +36,14 @@ func ftsQuery(search string, prefix bool) string {
 	}
 	return strings.Join(parts, " ")
 }
+
+// ftsTitleExpr liefert den SQL-Ausdruck für die indizierte Titelspalte:
+// Serientitel schlägt Episodentitel (User-Wunsch 2026-09-17) — Ausnahme
+// Tatort (User-Wunsch 2026-10-07): dort zusätzlich der Folgentitel, weil
+// Tatort-Folgen unter ihrem Titel gesucht werden. Erwartet die Aliase
+// parent/m (metadata) im Kontext; fallback ist der Item-Titel.
+func ftsTitleExpr(itemTitle string) string {
+	return "CASE WHEN parent.title = 'Tatort' AND m.title IS NOT NULL " +
+		"THEN parent.title || ' ' || m.title " +
+		"ELSE COALESCE(parent.title, m.title, " + itemTitle + ") END"
+}
