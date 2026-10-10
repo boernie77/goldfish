@@ -1441,3 +1441,14 @@ Musik-UI unverändert bewusst schlank).
   diesem Repo für HTTP-Handler-Ebene vorhanden) — Build/Vet/Test-Suite
   bleibt grün, Verhalten am echten Server verifiziert.
 
+
+
+### Löschschutz (seit 2026-10-07, v1.5.1)
+- Tabelle `delete_protection(library_id, folder)`; `folder=''` = ganze Bibliothek, sonst rel_path-Präfix (rekursiv). Store: `internal/store/delete_protection.go`, API `internal/api/delete_protection.go`.
+- Durchsetzung **zentral** in `deleteItemFilesAndRow` (liefert `errDeleteProtected` → 403) – jeder Löschpfad geht dort durch. „Gesehene löschen (außer letzte)“ lehnt geschützte Bereiche ab und lässt geschützte Unterordner aus Vorschau und Lauf weg. Geschützte Bibliothek lässt sich auch nicht löschen.
+- Einstellen: Menü „🔤 Anzeige“ → „🔒 Löschschutz“ (alle Bibliotheken, aufklappbar Ordner der obersten Ebene; `GET /api/delete-protections`). In der Ansicht nur ein kleines 🔒 im Breadcrumb (`renderDeleteProtectionButton`, trotz Namen kein Button mehr). Admin-only.
+- Apps haben keinen Schalter; sie zeigen nur die 403-Meldung.
+
+### Titelsuche: Tatort-Folgentitel (seit 2026-10-07)
+- `items_fts.title` = Serientitel (Serientitel schlägt Folgentitel, Entscheidung 2026-09-17) – **Ausnahme Tatort**: `ftsTitleExpr()` (`internal/store/fts.go`) indiziert „Tatort <Folgentitel>“. User wählte „nur Tatort“, nicht alle Serien. Regel ist am Serientitel `'Tatort'` festgemacht.
+- Trigger-Definitionen haben sich geändert → beim Start Drop+Neuanlage und Neuaufbau über Flag `items_fts_backfill_v2`. Künftige Änderungen am Ausdruck brauchen ein `_v3`.
