@@ -17,6 +17,17 @@
 // werden. Zum Zeitpunkt des Aufrufs ist app.js voll geladen und state
 // initialisiert.
 
+// Release-Pack-Ordner ("Luther.S01.-.S05.COMPLETE.German.DL.1080p.BluRay.x264-Scene")
+// als Serientitel unbrauchbar: bei Scene-Namen (Punkte statt Leerzeichen) alles ab
+// Staffel-/Qualitäts-/Jahresmarker abschneiden. Normale Ordnernamen bleiben unverändert.
+function cleanShowFolderName(name) {
+  if (!name || /\s/.test(name) || (name.match(/\./g) || []).length < 2) return name;
+  const work = name.replace(/[._]/g, " ");
+  const m = work.match(/\s(S\d{1,2}|Staffel|Season|COMPLETE|German|GERMAN|\d{3,4}p|(?:19|20)\d{2})(?=\s|$)/);
+  const cut = (m ? work.slice(0, m.index) : work).trim();
+  return cut || name;
+}
+
 function renderPlaylistCard(p) {
   const el = document.createElement("article");
   // card--poster = gleiches 2:3-Format wie Film-/Serien-Kacheln
@@ -720,7 +731,7 @@ function renderCard(it, opts = {}) {
   const isEpisode = it.metadata && it.metadata.tmdbType === "episode";
   if (isEpisode) {
     const rel = (it.relPath || "").split("/");
-    const showName = rel.length > 1 ? rel[0] : "";
+    const showName = rel.length > 1 ? cleanShowFolderName(rel[0]) : "";
     if (showName) title = showName;
     const sn = String(it.metadata.season || 0).padStart(2, "0");
     const ep = String(it.metadata.episode || 0).padStart(2, "0");
@@ -744,7 +755,7 @@ function renderCard(it, opts = {}) {
     // hat): Show-Name aus rel_path[0], Episodencode aus dem Filename
     // parsen — sonst zeigt die Kachel den Release-Junk-Filename als Titel.
     const rel = (it.relPath || "").split("/");
-    const showName = rel.length > 1 ? rel[0] : "";
+    const showName = rel.length > 1 ? cleanShowFolderName(rel[0]) : "";
     const m = (it.title || "").match(/[Ss](\d{1,2})[Ee](\d{1,3})/);
     if (showName && m) {
       title = showName;
