@@ -206,6 +206,20 @@ func (w *Worker) matchShow(ctx context.Context, libraryID int64, folder string) 
 	return nil
 }
 
+// folderEpisodeEnd sucht in den Ordner-Segmenten von relPath nach einem
+// Folgenbereich derselben Staffel, der mit episode beginnt (S03E01E02), und
+// liefert dessen Ende. 0, wenn kein passender Bereich im Pfad steht.
+func folderEpisodeEnd(relPath string, season, episode int) int {
+	segs := strings.Split(relPath, "/")
+	for i := len(segs) - 2; i >= 0; i-- {
+		fp := nameparser.ParseSegmentStrict(segs[i])
+		if fp.IsEpisode && fp.Season == season && fp.Episode == episode && fp.EpisodeEnd > episode {
+			return fp.EpisodeEnd
+		}
+	}
+	return 0
+}
+
 func (w *Worker) matchItem(ctx context.Context, lib *model.Library, it model.Item) error {
 	// TV-Kontext: Priorität liegt auf explizitem SxxExx in den Ordner-Segmenten —
 	// Release-Dateinamen wie "tvs-911-dd51-dl-x264-108.mkv" würden sonst eine
@@ -217,6 +231,11 @@ func (w *Worker) matchItem(ctx context.Context, lib *model.Library, it model.Ite
 		fileParsed := nameparser.ParseFileStrict(it.Path)
 		if fileParsed.IsEpisode {
 			parsed = fileParsed
+			// Scene-Doppelfolgen: Ordner "Show.S03E01E02.…/r-show.s03e01-1080p.mkv" —
+			// der Dateiname nennt nur die erste Folge, der Ordner den Bereich.
+			if parsed.EpisodeEnd == 0 && it.RelPath != "" {
+				parsed.EpisodeEnd = folderEpisodeEnd(it.RelPath, parsed.Season, parsed.Episode)
+			}
 		} else if it.RelPath != "" {
 			// 2) Ordner-Segmente rückwärts mit demselben strikten Parser prüfen
 			segs := strings.Split(it.RelPath, "/")
