@@ -28,6 +28,10 @@ function cleanShowFolderName(name) {
   return cut || name;
 }
 
+function isReleaseFolderName(name) {
+  return /[Ss]\d{1,2}[Ee]\d{1,3}/.test(name) || (!/\s/.test(name) && (name.match(/\./g) || []).length >= 2);
+}
+
 function renderPlaylistCard(p) {
   const el = document.createElement("article");
   // card--poster = gleiches 2:3-Format wie Film-/Serien-Kacheln
@@ -747,7 +751,10 @@ function renderCard(it, opts = {}) {
     // beim Tatort der Kommissar (`Tatort/Batic und Leitmayr/…`). User-Wunsch
     // 2026-09-30, nach der TMDB-Zuordnung stand er nirgends mehr auf der
     // Kachel. Staffel-/Specials-Ordner normaler Serien bleiben unsichtbar.
-    if (rel.length > 2 && !/^(staffel|season|serie|s)\s*\d+$|^specials?$|^extras?$/i.test(rel[1].trim())) {
+    // Release-Unterordner ("Luther.S05E03E04.German.DL…", Scene-Pack) sind keine
+    // Gruppen — sie tragen nur den Release-Namen.
+    if (rel.length > 2 && !/^(staffel|season|serie|s)\s*\d+$|^specials?$|^extras?$/i.test(rel[1].trim())
+        && !isReleaseFolderName(rel[1])) {
       episodeGroup = rel[1];
     }
   } else if (itLib && itLib.kind === "tv") {
