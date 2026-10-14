@@ -874,7 +874,7 @@
 
   <div class="missing-section">
     <h3>📺 Folgen (pro TV-Bibliothek)</h3>
-    <p class="hint">Erfordert TMDB-Calls — kann ein paar Sekunden dauern.</p>
+    <p class="hint">Erfordert TMDB-Calls — kann bis zu einer Minute dauern. Der CSV-Download nutzt danach das Ergebnis der Prüfung.</p>
     <div class="row">
       <select id="missingEpLib"></select>
       <button type="button" id="missingEpRun">Jetzt prüfen</button>
@@ -882,7 +882,8 @@
     <div id="missingEpStatus" class="hint" style="margin-top:8px"></div>
     <div id="missingEpPreview" class="missing-preview"></div>
     <div class="row" style="margin-top:8px">
-      <button type="button" id="missingEpCsv" disabled>⬇ CSV-Download</button>
+      <button type="button" id="missingEpCsv" class="primary" disabled>⬇ CSV-Download</button>
+      <button type="button" id="missingEpCopy" disabled>📋 TMDB-IDs kopieren</button>
     </div>
   </div>
 

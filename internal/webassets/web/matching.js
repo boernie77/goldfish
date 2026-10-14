@@ -137,12 +137,36 @@ async function openMissingDialog() {
     $("#missingEpRun").disabled = false;
   }
   $("#missingEpRun").onclick = () => runMissingEpisodesScan(Number(sel.value));
+  // CSV/Kopieren nutzen das Ergebnis der Prüfung — kein zweiter TMDB-Lauf.
   $("#missingEpCsv").onclick = () => {
-    if (!state.lastMissingEpisodesLib) return;
-    window.location.href = `/api/missing/episodes?libraryId=${state.lastMissingEpisodesLib}&format=csv`;
+    const list = state.lastMissingEpisodes || [];
+    if (!list.length) return;
+    const q = (v) => {
+      const t = String(v ?? "");
+      return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+    };
+    const rows = [["show_tmdb_id", "show_title", "season", "episode", "title", "air_date", "folder"]]
+      .concat(list.map(e => [e.showTmdbId, e.showTitle, e.season, e.episode, e.title, e.airDate || "", e.folder]));
+    const csv = rows.map(r => r.map(q).join(";")).join("\r\n") + "\r\n";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "fehlende-folgen.csv";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+  $("#missingEpCopy").onclick = async () => {
+    const ids = [...new Set((state.lastMissingEpisodes || []).map(e => e.showTmdbId))];
+    try {
+      await navigator.clipboard.writeText(ids.join("\n"));
+      showToast(`${ids.length} TMDB-IDs in Zwischenablage`, { kind: "success" });
+    } catch {
+      appAlert("Konnte nicht in die Zwischenablage schreiben. CSV-Download nutzen.");
+    }
   };
   $("#missingEpPreview").innerHTML = "";
   $("#missingEpCsv").disabled = true;
+  $("#missingEpCopy").disabled = true;
 }
 
 async function runMissingEpisodesScan(libID) {
@@ -152,9 +176,11 @@ async function runMissingEpisodesScan(libID) {
   if (runBtn) { runBtn.disabled = true; runBtn.textContent = "Prüfe…"; }
   $("#missingEpStatus").textContent = "Prüfe (kann dauern, fragt TMDB pro Show)…";
   $("#missingEpCsv").disabled = true;
+  $("#missingEpCopy").disabled = true;
   try {
     const list = await api(`/api/missing/episodes?libraryId=${libID}`);
     state.lastMissingEpisodesLib = libID;
+    state.lastMissingEpisodes = list;
     $("#missingEpStatus").textContent = list.length
       ? `${list.length} fehlende Folgen gefunden.`
       : "Keine fehlenden Folgen für diese Bibliothek (oder kein TMDB-Match).";
@@ -166,6 +192,7 @@ async function runMissingEpisodesScan(libID) {
       list.length,
     );
     $("#missingEpCsv").disabled = list.length === 0;
+    $("#missingEpCopy").disabled = list.length === 0;
   } catch (e) {
     $("#missingEpStatus").textContent = "Fehler: " + e.message;
   } finally {
