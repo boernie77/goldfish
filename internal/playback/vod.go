@@ -188,11 +188,71 @@ func PlanVOD(inputPath string, durationSec, startSec float64, deinterlace, audio
 	if !ok {
 		return nil
 	}
+	// Container-Laufzeit (Ton) kann länger sein als das Bild: ffmpeg schneidet
+	// nach BILDANZAHL, die letzten geplanten Segmente gäbe es dann nie → 404
+	// auf Segment am Ende, Apple TV bricht mit -12938 ab (Unforgettable
+	// S01E05, 14.10.2026: Bild endete 2,6 s vor dem Ton, 1–2 Segmente fehlten).
+	if end := probeVideoEnd(inputPath, durationSec); end > 0 && end < durationSec {
+		durationSec = end
+	}
 	p, ok := planVOD(num, den, durationSec, startSec)
 	if !ok {
 		return nil
 	}
 	return &p
+}
+
+var (
+	vEndMu    sync.Mutex
+	vEndCache = map[string]float64{}
+)
+
+// probeVideoEnd liefert das Ende des Videostroms (letzter Pakete-PTS + Dauer)
+// in Sekunden, 0 wenn unbekannt. Liest nur die letzten ~30 s (Cues/Index),
+// ist also auch bei großen Dateien schnell. Gecacht je Pfad.
+func probeVideoEnd(path string, durationSec float64) float64 {
+	vEndMu.Lock()
+	if v, hit := vEndCache[path]; hit {
+		vEndMu.Unlock()
+		return v
+	}
+	vEndMu.Unlock()
+
+	from := durationSec - 30
+	if from < 0 {
+		from = 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "V:0",
+		"-show_entries", "packet=pts_time,duration_time", "-read_intervals",
+		strconv.FormatFloat(from, 'f', 3, 64)+"%", "-of", "csv=p=0", path).Output()
+	end := 0.0
+	if err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			pts, dur, ok := strings.Cut(strings.TrimSpace(line), ",")
+			if !ok {
+				continue
+			}
+			a, e1 := strconv.ParseFloat(pts, 64)
+			d, e2 := strconv.ParseFloat(strings.TrimRight(dur, ","), 64)
+			if e1 != nil || e2 != nil {
+				continue
+			}
+			if a+d > end {
+				end = a + d
+			}
+		}
+	}
+	if end > 0 {
+		// Sicherheitsabstand: lieber ein Segment zu wenig geplant als eines,
+		// das es nicht gibt.
+		end -= 0.05
+	}
+	vEndMu.Lock()
+	vEndCache[path] = end
+	vEndMu.Unlock()
+	return end
 }
 
 // ─── Segment besorgen: warten oder neu starten ─────────────────────────────
