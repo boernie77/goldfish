@@ -1452,3 +1452,10 @@ Musik-UI unverändert bewusst schlank).
 ### Titelsuche: Tatort-Folgentitel (seit 2026-10-07)
 - `items_fts.title` = Serientitel (Serientitel schlägt Folgentitel, Entscheidung 2026-09-17) – **Ausnahme Tatort**: `ftsTitleExpr()` (`internal/store/fts.go`) indiziert „Tatort <Folgentitel>“. User wählte „nur Tatort“, nicht alle Serien. Regel ist am Serientitel `'Tatort'` festgemacht.
 - Trigger-Definitionen haben sich geändert → beim Start Drop+Neuanlage und Neuaufbau über Flag `items_fts_backfill_v2`. Künftige Änderungen am Ausdruck brauchen ein `_v3`.
+
+### Scene-Doppelfolgen, Dubletten-Prüfung, Fehlende-Folgen-Export (Stand 2026-10-14, v1.5.6)
+- Scene-Packs benennen Doppelfolgen als `S03E01` im Ordner und `E01E02` o. ä. nur im Ordnernamen: `folderEpisodeEnd()` (`internal/enrich/matching.go`) holt das Ende aus den Ordnersegmenten (gleiche Staffel + Startfolge, End > Start). Test: `folder_episode_end_test.go`.
+- Kacheln: Pack-Ordnernamen (`isReleaseFolderName`, `cleanShowFolderName` in `cards.js`) nie als Serientitel oder Kommissar-Zeile zeigen.
+- „Fehlende Inhalte → Folgen“: CSV und „TMDB-IDs kopieren“ entstehen **clientseitig aus dem Prüfergebnis** (`state.lastMissingEpisodes`), kein zweiter TMDB-Lauf. Server bricht die Prüfung nach 60 s ab (Teilergebnis bei sehr großen Bibliotheken). Die Vorschau zeigt nur 30 Zeilen, die CSV alle.
+- Dubletten-/Vollständigkeitsprüfung ohne Admin-Login: Produktiv-DB per Portainer-Archive (`/config/videoplayer.db` **und** `-wal`), Dubletten = gleiche `(metadata.parent_id, season, episode)` bei mehreren Items; Vollständigkeit per TMDB direkt im Container (Key steht in `settings.tmdb_api_key`). Ordnerpräfix-Filter vorsichtig wählen (`Love%` traf „Love to hate you“, `Love Life%` übersah das Pack-Verzeichnis).
+- Löschschutz (`delete_protection`, Bibliothek „Serien“ komplett geschützt) gilt nur über Goldfish; Löschen direkt auf der Platte umgeht ihn und braucht ausdrückliche Freigabe des Users. Danach Serien-Scan, damit die DB-Zeilen verschwinden.
