@@ -1101,3 +1101,9 @@ und Texte wie `WatchLinkSettingsView.swift`. Verknüpfungen mit Status, „Best�
 bzw. „Trennen“ (mit `appConfirm`), Auswahl ohne bereits verknüpfte Konten. `refreshWatchLinkHint()`
 läuft in `boot()` und schreibt eine wartende Anfrage orange in die Menüzeile
 (`.drawer-item-sub--attention`). Server-Endpunkte: Skill `goldfish-users`.
+
+### Suche & Breadcrumb – Stand 2026-10-15 (v1.5.8–1.5.10)
+- FTS-Titelsuche ist **Ganzwort** (Index trennt nur an `_`/`-`/Leerzeichen): „Farrah" findet `FarrahAbraham` nicht. Findet die exakte Suche **0** Treffer, liefert `listItems` (`internal/api/items.go`) automatisch die Wortanfang-Treffer (Header `X-Fuzzy-Auto: 1`); bei ≥1 exaktem Treffer bleibt der Knopf „🔍 N weitere Treffer" (`X-Fuzzy-Extra-Count`). Nicht bei `sort=random`.
+- `appendSearchResultCards` (`cards.js`): Bibliotheks-Überschrift „<Name> · N" erscheint bei mehreren Bibliotheken **oder** wenn die Schauspieler-Sektion oben steht (`multiLib || peopleShown`).
+- Jeder `.back-btn` braucht `textContent = "←"` (Personen-Filter-Zweig in `renderBreadcrumb` hatte ihn vergessen → leerer Kreis). Beim Anlegen neuer Zurück-Knöpfe prüfen.
+- „Fehlende Inhalte → Folgen": CSV/Kopieren clientseitig aus `state.lastMissingEpisodes` (siehe goldfish-library).

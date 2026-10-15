@@ -1196,3 +1196,8 @@ Feature über alle Clients (Browser, iOS/macOS/tvOS, Android, Fire TV, Linux):
 - Fehler (z. B. DeepL 456 Kontingent) beenden den Lauf; nächster Lauf setzt fort. Ein Protokoll-Eintrag
   `job/overview_translate` pro Lauf.
 - Rund 2/3 der Tatort-Folgen haben bei TMDB GAR KEINE Beschreibung — die bleiben leer.
+
+#### VOD-Plan nach Videoende (2026-10-15, v1.5.7)
+- `PlanVOD` plant mit `probeVideoEnd()` (letzte ~30 s per ffprobe, Paket-PTS + Dauer − 0,05 s, gecacht je Pfad) statt mit der Container-Laufzeit. Grund: Endet das Bild vor dem Ton (Unforgettable S01E05: Bild 2463,0 s, Ton 2465,6 s), kündigte der Plan 1–2 Segmente an, die ffmpeg (schneidet nach Bildanzahl) nie schrieb → 404 am Ende, **Apple TV -12938**, weil AVPlayer weit vorlädt.
+- Regressionstest `vod_audio_longer_test.go` (ffmpeg nötig, sonst Skip): Bild 100 s / Ton 104 s, alle angekündigten Segmente müssen existieren. Ohne den Fix schlägt er mit „Segment 50 von 52 fehlt" fehl.
+- Diagnose-Zeile im Wiedergabefehler (`session=… segmente=N`) mit Plan (`ceil(rest/segDur)`) vergleichen: zu wenig Segmente bei `ffmpeg_laeuft=false` = genau dieser Fehler.
