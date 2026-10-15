@@ -1521,6 +1521,7 @@ function renderBreadcrumb(opts) {
   if (state.personFilter) {
     const back = document.createElement("button");
     back.className = "back-btn";
+    back.textContent = "←";
     if (opts.personFilterShow) {
       // Innerhalb einer Show-Sammelkachel: ← geht zurück zur Personen-Übersicht
       // (Filme+Serien-Kacheln), NICHT den Person-Filter ganz verlassen.
