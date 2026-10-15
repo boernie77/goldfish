@@ -413,7 +413,10 @@ async function appendSearchResultCards(frag, items, opts) {
       .sort((a, c) => a.folder.localeCompare(c.folder, "de"));
     const n = mergedRest.length + showList.length;
     if (!n) continue;
-    if (multiLib) {
+    // Überschrift je Bibliothek mit Anzahl: bei mehreren Bibliotheken ODER
+    // wenn oben die Schauspieler-Sektion steht (sonst hängen die Filme
+    // unüberschrieben unter den Personen, User-Report 2026-10-15).
+    if (multiLib || peopleShown) {
       const h = document.createElement("div");
       h.className = "person-section-title";
       h.textContent = libName(libID) + " \u00b7 " + n;
