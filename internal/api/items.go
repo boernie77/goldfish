@@ -472,6 +472,18 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	// Exakte Suche ohne einen einzigen Treffer: gleich die Wortanfang-Treffer
+	// liefern (User-Wunsch 2026-10-15: „Farrah" findet sonst „FarrahAbraham"
+	// nicht, weil der Index nur an _ und - trennt). Gilt für alle Clients,
+	// auch ohne den „weitere Treffer"-Knopf. Nicht bei Zufall (LIMIT 20).
+	if len(items) == 0 && f.Search != "" && !f.SearchFuzzy && f.Sort != "random" {
+		fuzzy := f
+		fuzzy.SearchFuzzy = true
+		if fi, ferr := s.Store.ListItems(fuzzy); ferr == nil && len(fi) > 0 {
+			items = fi
+			w.Header().Set("X-Fuzzy-Auto", "1")
+		}
+	}
 	if items == nil {
 		items = []model.Item{}
 	}
