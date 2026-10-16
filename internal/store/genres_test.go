@@ -132,3 +132,39 @@ func TestListItemsGenreFilter(t *testing.T) {
 		t.Fatalf("expected 2 items with OR filter, got %d", len(items))
 	}
 }
+
+// TestSearchMatchesGenre: Textsuche findet Filme über den Wortanfang ihres
+// TMDB-Genres (User-Wunsch 2026-10-16), auch ohne Titeltreffer.
+func TestSearchMatchesGenre(t *testing.T) {
+	s := newTestStore(t)
+	lib, err := s.CreateLibrary("Filme", t.TempDir(), model.KindMovies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(tmdb int64, title, genres string) {
+		m, err := s.UpsertMetadata(&model.Metadata{TMDBType: "movie", TMDBID: tmdb, Title: title, Genres: genres})
+		if err != nil {
+			t.Fatal(err)
+		}
+		it := &model.Item{LibraryID: lib, Path: "/media/" + title + ".mkv", RelPath: title + ".mkv", Title: title}
+		if err := s.UpsertItem(it); err != nil {
+			t.Fatal(err)
+		}
+		id, _ := s.ItemIDByPath(it.Path)
+		if err := s.SetItemMetadata(id, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(1, "Alpha", `["Komödie","Drama"]`)
+	add(2, "Beta", `["Horror"]`)
+
+	for term, want := range map[string]int{"Komödie": 1, "komodie": 1, "Kom": 1, "Horror": 1, "Alpha": 1, "Western": 0} {
+		items, err := s.ListItems(ItemFilter{LibraryID: lib, Search: term, SearchFuzzy: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(items) != want {
+			t.Errorf("Suche %q: erwartet %d, got %d", term, want, len(items))
+		}
+	}
+}
