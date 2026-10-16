@@ -342,6 +342,7 @@ function startPausePrefetch(vjs) {
 // videojs.Vhs.* sind VHS-weite Werte, die VHS bei jeder Prüfung frisch liest
 // (goalBufferLength/trimBackBuffer) — es gibt immer nur einen Player.
 const VHS_BYTE_BUDGET = 90 * 1024 * 1024;
+const FIREFOX_GOAL_CAP = 40;
 let vhsTuned = { goal: 0, back: 0 };
 
 function tuneVhsBuffer(vjs) {
@@ -352,8 +353,14 @@ function tuneVhsBuffer(vjs) {
   if (!st || !(st.mediaSecondsLoaded > 6) || !(st.mediaBytesTransferred > 0)) return;
   const bytesPerSec = st.mediaBytesTransferred / st.mediaSecondsLoaded;
   const userGoal = Number(state.settings && state.settings.bufferSeconds) || 30;
-  const goal = Math.max(8, Math.min(userGoal, Math.floor(VHS_BYTE_BUDGET * 0.8 / bytesPerSec)));
-  const back = Math.max(4, Math.min(30, Math.floor(VHS_BYTE_BUDGET * 0.2 / bytesPerSec)));
+  // Firefox verträgt ca. 66 s Video im MSE-Puffer nicht: VHS will mehr, der Puffer
+  // läuft voll und wird komplett geleert (Anzeige springt von ~65 s auf 0, Bild
+  // stockt). 2026-10-16 gemessen: mit Ziel 40 s tritt es nicht mehr auf.
+  const isFirefox = /firefox/i.test(navigator.userAgent);
+  const goalCap = isFirefox ? FIREFOX_GOAL_CAP : Infinity;
+  const backCap = isFirefox ? 10 : 30;
+  const goal = Math.max(8, Math.min(userGoal, goalCap, Math.floor(VHS_BYTE_BUDGET * 0.8 / bytesPerSec)));
+  const back = Math.max(4, Math.min(backCap, Math.floor(VHS_BYTE_BUDGET * 0.2 / bytesPerSec)));
   // Nur bei Änderung setzen — jeder Zugriff schreibt eine Warnung ins Log.
   if (goal === vhsTuned.goal && back === vhsTuned.back) return;
   vhsTuned = { goal, back };

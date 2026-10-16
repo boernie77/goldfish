@@ -832,6 +832,7 @@ Stufe 2 — maximal ein zusätzlicher Fehlversuch, nie eine tote Wiedergabe.
   Browser-Konsole: `sendPlaybackDiag(playbackDiag, "manuell")`. **Erst prüfen, ob der User hart
   neu geladen hat** (Cmd+Shift+R): Ein vermeintlich fortbestehendes Ruckeln am 26.09. lief noch
   mit altem JS.
+- **Firefox-Puffergrenze (v1.5.14, 2026-10-16):** Puffer sprang im Firefox von ~65 s auf 0, Bild stockte (nicht serverseitig: ffmpeg fertig, err/to/drop = 0). Diagnose: im Pausenzustand blieb der Puffer bei 66 s stehen (Ziel war 80), Rückpuffer schon weg. Test per Konsole `state.settings.bufferSeconds = 40` → Problem weg. Fix: `tuneVhsBuffer` kappt in Firefox Ziel auf `FIREFOX_GOAL_CAP` (40 s) und Rückpuffer auf 10 s. Nicht wieder anheben.
 - **Pausen-Vorladen** (`startPausePrefetch`) lädt seit v1.4.41 nur 300 s ab der aktuellen
   Position und nur in einer Schleife. Vorher lud es die ganze Playlist, mit VOD also den
   kompletten Film, in parallelen Schleifen alle 4 s.
