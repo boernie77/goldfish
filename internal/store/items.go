@@ -392,13 +392,8 @@ func (s *Store) itemsFromWhere(f ItemFilter) (string, []any) {
 			// leerer/nur-Leerzeichen-Suchbegriff → kein Titel-Treffer möglich
 			q += ` AND 1=0`
 		} else {
-			// Genre-Suche (User-Wunsch 2026-10-16): Suchbegriff passt zusätzlich
-			// auf den Wortanfang eines TMDB-Genres ("Horr" → Horror). Episoden
-			// erben die Genres der Serie (m.genres ist dort meist leer). Nur
-			// metadata.genres — Musik-Genres bleiben dem Genre-Filter vorbehalten.
-			q += ` AND (i.id IN (SELECT item_id FROM items_fts WHERE items_fts MATCH ?)
-				OR UNACCENT(LOWER(COALESCE(NULLIF(m.genres,''), parent.genres, ''))) LIKE '%"' || UNACCENT(LOWER(?)) || '%' ESCAPE '\')`
-			args = append(args, ftsMatch, escapeLike(strings.TrimSpace(f.Search)))
+			q += ` AND i.id IN (SELECT item_id FROM items_fts WHERE items_fts MATCH ?)`
+			args = append(args, ftsMatch)
 		}
 	}
 	if !f.DateFrom.IsZero() {
@@ -544,6 +539,14 @@ func (s *Store) itemsFromWhere(f ItemFilter) (string, []any) {
 		if len(or) > 0 {
 			q += ` AND (` + strings.Join(or, " OR ") + `)`
 		}
+	}
+	if g := strings.TrimSpace(f.GenreSearch); g != "" {
+		// Genre-Sektion der Suche (User-Wunsch 2026-10-16): Suchbegriff passt
+		// auf den Wortanfang eines TMDB-Genres ("Horr" -> Horror). Episoden
+		// erben die Genres der Serie. Bewusst NICHT Teil der Titelsuche
+		// (f.Search) — der Client zeigt die Treffer unter eigener Überschrift.
+		q += ` AND UNACCENT(LOWER(COALESCE(NULLIF(m.genres,''), parent.genres, ''))) LIKE '%"' || UNACCENT(LOWER(?)) || '%' ESCAPE '\'`
+		args = append(args, escapeLike(g))
 	}
 	if len(f.Genres) > 0 {
 		var or []string

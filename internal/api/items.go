@@ -381,6 +381,7 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := store.ItemFilter{
 		Search:          q.Get("search"),
+		GenreSearch:     q.Get("genreSearch"),
 		Sort:            q.Get("sort"),
 		SortDir:         q.Get("dir"),
 		DateFrom:        parseDate(q.Get("dateFrom")),

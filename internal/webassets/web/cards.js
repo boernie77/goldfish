@@ -427,17 +427,44 @@ async function appendSearchResultCards(frag, items, opts) {
     total += n;
   }
   state.lastRenderedItems = renderedItems;
+  // Genre-Sektion (User-Wunsch 2026-10-16): NACH den Titeltreffern, unter
+  // eigener Überschrift alle Filme/Serien, deren TMDB-Genre mit dem Suchbegriff
+  // beginnt. Titeltreffer werden nicht doppelt gezeigt. Nicht bei
+  // "weitere Treffer" (kein opts.term) und nicht im rekursiven Aufruf.
+  let genreShown = 0;
+  if (term.length >= 3 && !opts.noGenre) {
+    let gItems = [];
+    try {
+      const p = new URLSearchParams({ genreSearch: term, sort: "title", dir: "asc" });
+      if (opts.libraryId) p.set("libraryId", opts.libraryId);
+      if (opts.folder) p.set("folder", opts.folder);
+      gItems = await api(`/api/items?${p}`);
+    } catch (e) {
+      gItems = [];
+    }
+    const seen = new Set((items || []).map(i => i.id));
+    gItems = (gItems || []).filter(i => !seen.has(i.id));
+    if (gItems.length) {
+      const h = document.createElement("div");
+      h.className = "person-section-title";
+      h.textContent = "\ud83c\udff7 Genre \u00b7 " + gItems.length;
+      frag.appendChild(h);
+      const shownBefore = state.lastRenderedItems || [];
+      genreShown = await appendSearchResultCards(frag, gItems, { noGenre: true });
+      state.lastRenderedItems = shownBefore.concat(state.lastRenderedItems || []);
+    }
+  }
   // Bug (User-Report 2026-09-20): Suche nach "Kaley" (Schauspielerin Kaley
   // Cuoco, kein Filmtitel "Kaley") zeigte 0 Treffer — der Aufrufer brach vor
   // dieser Funktion ab, sobald items leer war, BEVOR die unabhängige
   // Personen-Sektion überhaupt geladen wurde (siehe grid.js). Jetzt läuft
   // diese Funktion immer; bleiben am Ende BEIDE Sektionen leer, zeigt sie
   // selbst die "Keine Treffer"-Meldung.
-  if (!total && !peopleShown) {
+  if (!total && !peopleShown && !genreShown) {
     frag.appendChild(Object.assign(document.createElement("div"),
       { className: "empty", textContent: `Keine Treffer für „${opts && opts.term ? opts.term : ""}".` }));
   }
-  return total + peopleShown;
+  return total + peopleShown + genreShown;
 }
 
 // renderSearchPersonCard: Schauspieler-Kachel in der aufgegliederten

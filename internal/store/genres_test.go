@@ -133,7 +133,7 @@ func TestListItemsGenreFilter(t *testing.T) {
 	}
 }
 
-// TestSearchMatchesGenre: Textsuche findet Filme über den Wortanfang ihres
+// TestSearchMatchesGenre: GenreSearch findet Filme über den Wortanfang ihres
 // TMDB-Genres (User-Wunsch 2026-10-16), auch ohne Titeltreffer.
 func TestSearchMatchesGenre(t *testing.T) {
 	s := newTestStore(t)
@@ -158,8 +158,8 @@ func TestSearchMatchesGenre(t *testing.T) {
 	add(1, "Alpha", `["Komödie","Drama"]`)
 	add(2, "Beta", `["Horror"]`)
 
-	for term, want := range map[string]int{"Komödie": 1, "komodie": 1, "Kom": 1, "Horror": 1, "Alpha": 1, "Western": 0} {
-		items, err := s.ListItems(ItemFilter{LibraryID: lib, Search: term, SearchFuzzy: true})
+	for term, want := range map[string]int{"Komödie": 1, "komodie": 1, "Kom": 1, "Horror": 1, "Alpha": 0, "Western": 0} {
+		items, err := s.ListItems(ItemFilter{LibraryID: lib, GenreSearch: term})
 		if err != nil {
 			t.Fatal(err)
 		}

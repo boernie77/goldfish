@@ -121,6 +121,8 @@ type ItemFilter struct {
 	// "Rock" kommt praktisch nie in TMDB-Genres vor und umgekehrt, echte
 	// Kollisionen sind kein realistisches Risiko.
 	Genres []string
+	// GenreSearch: Wortanfang-Suche über TMDB-Genres (eigene Sektion der Suche).
+	GenreSearch string
 	// SearchFuzzy: true = die Titel-/Artist-/Album-Suche (FTS5, siehe items.go)
 	// schließt zusätzlich Präfix-Treffer ein (Wortfragmente, z.B. "star" findet
 	// auch "starship"). Wird gesetzt, wenn der User im Frontend auf "N weitere
