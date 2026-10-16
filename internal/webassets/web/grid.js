@@ -1460,7 +1460,12 @@ async function loadItemsBody() {
   }
   if (stale()) return;
 
-  if (folders.length === 0 && items.length === 0) {
+  // Ab 3 Zeichen NICHT hier abbrechen: auch ohne Titeltreffer müssen die
+  // Schauspieler- und Genre-Sektion laden (appendSearchResultCards unten zeigt
+  // bei komplett leerem Ergebnis selbst „Keine Treffer"). Bug 2026-10-16:
+  // „dakota" in Filme zeigte 0 Treffer, obwohl Dakota Johnson im Bestand ist.
+  const searchSections = searching && searchQ.trim().length >= 3;
+  if (folders.length === 0 && items.length === 0 && !searchSections) {
     if (filterActive) {
       // fuzzyExtraCount auch bei 0 exakten Treffern mitgeben — ein kurzer
       // Suchbegriff kann exakt leer sein, obwohl der Fuzzy-Modus etwas
