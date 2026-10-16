@@ -1201,3 +1201,9 @@ Feature über alle Clients (Browser, iOS/macOS/tvOS, Android, Fire TV, Linux):
 - `PlanVOD` plant mit `probeVideoEnd()` (letzte ~30 s per ffprobe, Paket-PTS + Dauer − 0,05 s, gecacht je Pfad) statt mit der Container-Laufzeit. Grund: Endet das Bild vor dem Ton (Unforgettable S01E05: Bild 2463,0 s, Ton 2465,6 s), kündigte der Plan 1–2 Segmente an, die ffmpeg (schneidet nach Bildanzahl) nie schrieb → 404 am Ende, **Apple TV -12938**, weil AVPlayer weit vorlädt.
 - Regressionstest `vod_audio_longer_test.go` (ffmpeg nötig, sonst Skip): Bild 100 s / Ton 104 s, alle angekündigten Segmente müssen existieren. Ohne den Fix schlägt er mit „Segment 50 von 52 fehlt" fehl.
 - Diagnose-Zeile im Wiedergabefehler (`session=… segmente=N`) mit Plan (`ceil(rest/segDur)`) vergleichen: zu wenig Segmente bei `ffmpeg_laeuft=false` = genau dieser Fehler.
+
+#### Genre-Sektion der Suche (2026-10-16, v1.5.12/1.5.13)
+- `GET /api/items?genreSearch=<Begriff>` liefert Filme/Serien, deren TMDB-Genre (`metadata.genres`, bei Episoden das der Serie) mit dem Begriff **beginnt** (Wortanfang, akzent-/Groß-Klein-unabhängig). Scope-Parameter (`libraryId`, `folder`, ACL/FSK) wie bei `search`. Store: `ItemFilter.GenreSearch`.
+- **Die Titelsuche (`search=`) liefert bewusst KEINE Genre-Treffer** (v1.5.11 hatte sie vermischt — User wollte eine eigene Überschrift). Jeder Client muss `genreSearch` selbst abfragen: ab 3 Zeichen, nicht bei Musik, Titeltreffer per ID herausfiltern, Sektion „🏷 Genre · N" **nach** den Titeltreffern. Browser: `appendSearchResultCards` (cards.js).
+- Musik-Genres sind nicht Teil davon (dafür gibt es den Genre-Filter `?genre=`).
+- Die Clients Apple/Android/Fire TV/Linux haben die Sektion seit 2026-10-16 (Apple `9e840e1`, Android `a68250b`, Fire TV `74fc279`, Linux `09f09f7`) — gelten erst nach neuem Build.
