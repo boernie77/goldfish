@@ -62,6 +62,7 @@ var supportedExt = map[string]bool{
 	".mov": true,
 	".avi": true,
 	".wmv": true,
+	".flv": true,
 	// Musik-Bibliotheken (kind=music, seit 2026-09-04)
 	".mp3":  true,
 	".flac": true,

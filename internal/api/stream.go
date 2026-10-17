@@ -511,6 +511,8 @@ func mimeForExt(ext string) string {
 		return "video/x-msvideo"
 	case ".wmv":
 		return "video/x-ms-wmv"
+	case ".flv":
+		return "video/x-flv"
 	// 🔴 Bug 2026-09-04: fehlte komplett — Musik-Direct-Play (mimeForExt kannte
 	// nur Video-Extensions) lief dadurch mit Content-Type
 	// "application/octet-stream" vom Server. Browser lehnen es ab, ein

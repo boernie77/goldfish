@@ -33,7 +33,7 @@ var sidecarImageSuffixes = []string{
 // videoExts: Endungen, deren Dateien selbst Videos sind — ihr Stamm konkurriert
 // um Begleitdateien (siehe ownerStem).
 var videoExts = map[string]bool{
-	".mp4": true, ".mkv": true, ".mov": true, ".avi": true, ".wmv": true,
+	".mp4": true, ".mkv": true, ".mov": true, ".avi": true, ".wmv": true, ".flv": true,
 	".m4v": true, ".ts": true, ".m2ts": true, ".webm": true,
 }
 
