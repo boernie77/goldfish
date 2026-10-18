@@ -197,8 +197,33 @@ func (s *Store) SetItemMetadata(itemID, metadataID int64) error {
 		_, err := s.db.Exec(`UPDATE items SET metadata_id = NULL, metadata_confirmed = 0, episode_end = 0 WHERE id = ?`, itemID)
 		return err
 	}
-	_, err := s.db.Exec(`UPDATE items SET metadata_id = ? WHERE id = ?`, metadataID, itemID)
+	// Eine neue Zuordnung hebt die bewusste „bleibt unzugeordnet"-Sperre auf.
+	_, err := s.db.Exec(`UPDATE items SET metadata_id = ?, match_skipped = 0 WHERE id = ?`, metadataID, itemID)
 	return err
+}
+
+// SetItemMatchSkipped markiert ein Item als „bewusst unzugeordnet": der
+// Enrichment-Worker (PendingItems) und der Duplikate-Merge fassen es danach
+// nicht mehr an. Anlass: „Zuordnung entfernen" setzte nur metadata_id auf NULL,
+// und der 5-Minuten-Worker ordnete denselben Film kurz darauf wieder falsch zu.
+// Eine spätere manuelle Zuordnung (SetItemMetadata/ConfirmItemMatch) hebt die
+// Sperre wieder auf.
+func (s *Store) SetItemMatchSkipped(itemID int64, skipped bool) error {
+	v := 0
+	if skipped {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE items SET match_skipped = ? WHERE id = ?`, v, itemID)
+	return err
+}
+
+// ItemMatchSkipped meldet, ob das Item bewusst unzugeordnet bleiben soll.
+func (s *Store) ItemMatchSkipped(itemID int64) bool {
+	var v int
+	if err := s.db.QueryRow(`SELECT COALESCE(match_skipped,0) FROM items WHERE id = ?`, itemID).Scan(&v); err != nil {
+		return false
+	}
+	return v == 1
 }
 
 // SetItemMetadataConfirmed markiert (oder entfernt) die Bestätigung einer
@@ -231,7 +256,7 @@ func (s *Store) SetItemVariantSplit(itemID int64, split bool) error {
 // eines expliziten manuellen Match-Calls. Der User ordnet eine TMDB-ID zu →
 // wir nehmen an, dass dies eine bewusste Entscheidung ist.
 func (s *Store) ConfirmItemMatch(itemID, metadataID int64) error {
-	_, err := s.db.Exec(`UPDATE items SET metadata_id = ?, metadata_confirmed = 1 WHERE id = ?`, metadataID, itemID)
+	_, err := s.db.Exec(`UPDATE items SET metadata_id = ?, metadata_confirmed = 1, match_skipped = 0 WHERE id = ?`, metadataID, itemID)
 	return err
 }
 
@@ -373,7 +398,7 @@ func (s *Store) PendingItems(limit int) ([]model.Item, error) {
 			i.size_bytes, i.bitrate_kbps, COALESCE(i.thumb_path,''), i.has_thumb, i.mod_time,
 			i.released_at, i.added_at, l.kind
 		FROM items i JOIN libraries l ON l.id = i.library_id
-		WHERE i.metadata_id IS NULL AND l.kind IN ('movies','tv')
+		WHERE i.metadata_id IS NULL AND COALESCE(i.match_skipped,0) = 0 AND l.kind IN ('movies','tv')
 		ORDER BY i.added_at DESC
 		LIMIT ?`, limit)
 	if err != nil {

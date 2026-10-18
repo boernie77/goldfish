@@ -441,6 +441,12 @@ func (s *Store) migrate() error {
 	if err := addCol("items", "metadata_confirmed", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	// match_skipped: der Admin hat die Zuordnung bewusst entfernt (z. B. weil es
+	// für den Film keinen Treffer gibt). Der Auto-Matcher lässt das Item dann
+	// in Ruhe — metadata_id IS NULL allein hieße „noch nie versucht".
+	if err := addCol("items", "match_skipped", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	if err := addCol("items", "released_at", "DATETIME"); err != nil {
 		return err
 	}

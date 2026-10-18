@@ -268,6 +268,12 @@ func (s *Server) unmatchItemMetadata(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	// Bewusst entfernt = bleibt entfernt: sonst ordnet der Enrichment-Worker
+	// das Item beim nächsten Lauf (alle 5 Minuten) wieder zu.
+	if err := s.Store.SetItemMatchSkipped(id, true); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
 	if me := currentUser(r); me != nil {
 		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "metadata_unmatch", fmt.Sprintf("%q", it.Title), deviceLabel(r))
 	}
@@ -342,6 +348,10 @@ func (s *Server) autoMergeDuplicates(w http.ResponseWriter, r *http.Request) {
 		touched := 0
 		for _, it := range group {
 			if it.MetadataID == canonical {
+				continue
+			}
+			// Bewusst unzugeordnete Items nicht durch den Merge wieder zuordnen.
+			if it.MetadataID == 0 && s.Store.ItemMatchSkipped(it.ID) {
 				continue
 			}
 			if err := s.Store.SetItemMetadata(it.ID, canonical); err != nil {

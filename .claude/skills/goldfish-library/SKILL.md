@@ -941,6 +941,13 @@ Musik-UI unverändert bewusst schlank).
   einen eigenen Endpoint für Einzel-Items erreichbar). Button sichtbar wenn
   `item.metadataId` gesetzt ist (nichts zu entfernen sonst), mit
   `appConfirm`-Bestätigung davor.
+- **🚫 Zuordnung entfernen bei Einzel-Items ist dauerhaft (seit v1.5.19):** `items.match_skipped=1`
+  (gesetzt in `unmatchItemMetadata`). `PendingItems` und der Duplikate-Merge (`autoMergeDuplicates`)
+  überspringen solche Items, sonst ordnete der 5-Minuten-Worker denselben Film kurz darauf wieder
+  falsch zu (`metadata_id IS NULL` heißt sonst nur „noch nie versucht"). Eine manuelle Zuordnung
+  (`SetItemMetadata` mit ID, `ConfirmItemMatch`) hebt die Sperre auf; ein Rescan behält sie (Upsert
+  auf `path`). Wird die Datei umbenannt/verschoben, entsteht ein neues Item ohne Sperre.
+  Test: `internal/store/match_skipped_test.go`.
 - **🚫 Zuordnung entfernen für ganze Serien-Ordner** (Staffel-Ansicht-Header,
   seit 2026-09-05, admin-only, neben „↻ TMDB neu laden"/„⚠ Episoden neu
   zuordnen"): dieselbe Lücke wie oben, nur auf Ordner-Ebene — „Serie
