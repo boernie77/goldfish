@@ -175,3 +175,21 @@ func TestVodDecide(t *testing.T) {
 		}
 	}
 }
+
+func TestVODEndedEarly(t *testing.T) {
+	for _, c := range []struct {
+		produced, planned int
+		want              bool
+	}{
+		{33, 578, true},   // Lauf endet nach 66 s Material
+		{577, 578, false}, // ein Segment Rundungstoleranz
+		{578, 578, false},
+		{0, 2, false}, // Mini-Clip: nichts zu beurteilen
+		{2, 3, false}, // ein Segment fehlt: Toleranz
+		{0, 3, true},
+	} {
+		if got := vodEndedEarly(c.produced, c.planned); got != c.want {
+			t.Errorf("vodEndedEarly(%d,%d)=%v, erwartet %v", c.produced, c.planned, got, c.want)
+		}
+	}
+}

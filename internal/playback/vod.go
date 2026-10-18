@@ -308,6 +308,18 @@ func vodDecide(k, runStart, produced int, runAge time.Duration, done, failed boo
 	return vodRestart
 }
 
+// vodEndedEarly: ein sauber beendeter Lauf, der merklich weniger Segmente
+// geliefert hat als geplant. Ein Segment Toleranz — das letzte, kürzere
+// Segment hängt von der Rundung am Dateiende ab. Bei Plänen bis 2 Segmente
+// (Mini-Clips) gibt es nichts zu beurteilen.
+func vodEndedEarly(produced, planned int) bool {
+	return planned > 2 && produced < planned-1
+}
+
+// ErrVODSourceShort: ffmpeg hat die Quelle bis zu ihrem (vorzeitigen) Ende
+// gelesen, das angefragte Segment liegt dahinter — die Datei ist beschädigt.
+var ErrVODSourceShort = errors.New("Quelldatei endet vorzeitig")
+
 // ErrVODSegmentGone: das Segment existiert nicht (Dateiende überschritten oder
 // Sitzung beendet).
 var ErrVODSegmentGone = errors.New("Segment existiert nicht")
@@ -348,6 +360,9 @@ func (m *Manager) EnsureVODSegment(ctx context.Context, id string, k int, arrive
 		act := vodDecide(k, s.spec.vodStartSeg, s.vodProduced(), time.Since(s.StartedAt), s.Done(), s.Done() && s.Failed())
 		switch act {
 		case vodGiveUp:
+			if got, want, early := s.EndedEarly(); early {
+				return "", fmt.Errorf("%w (nach Segment %d von %d)", ErrVODSourceShort, got, want)
+			}
 			return "", ErrVODSegmentGone
 		case vodRestart:
 			if arrived.After(m.vodLastRestart(id)) {

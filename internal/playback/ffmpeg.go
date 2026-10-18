@@ -136,6 +136,13 @@ type Session struct {
 	// zuletzt zeigte und wann sich das zuletzt geändert hat. Geschützt durch mu.
 	paceExposed int
 	paceChanged time.Time
+	// Quelle endet vorzeitig: ffmpeg beendete einen VOD-Lauf sauber (Exit 0,
+	// ohne Kontext-Abbruch), lieferte aber weniger Segmente als geplant. Die
+	// Datei ist dann in der Mitte unlesbar/beschädigt, ihr Container-Header
+	// verspricht mehr Laufzeit, als die Daten hergeben. Wird vor close(done)
+	// gesetzt, geschützt durch mu (siehe EndedEarly).
+	earlyEnd                    bool
+	earlyProduced, earlyPlanned int
 }
 
 // UsesSoftwareDecode meldet, ob diese Sitzung bereits vollständig per CPU
@@ -632,9 +639,13 @@ func (m *Manager) DiagnoseItem(itemID int64) string {
 				}
 			}
 		}
-		parts = append(parts, fmt.Sprintf(
+		line := fmt.Sprintf(
 			"session=%s alter=%s ffmpeg_laeuft=%v playlist=%v segmente=%d",
-			id, m.round(time.Since(s.StartedAt)), alive, playlist, segs))
+			id, m.round(time.Since(s.StartedAt)), alive, playlist, segs)
+		if got, want, early := s.EndedEarly(); early {
+			line += fmt.Sprintf(" quelle_endet_frueh=%d/%d", got, want)
+		}
+		parts = append(parts, line)
 	}
 	if len(parts) == 0 {
 		return "keine aktive Transcode-Session (Direct Play, oder Session bereits beendet)"
@@ -1005,7 +1016,21 @@ func (m *Manager) launchLocked(id string, spec sessionSpec, stage fallbackStage,
 			s.failed = true
 			s.mu.Unlock()
 		}
+		earlyProduced, earlyPlanned, early := 0, 0, false
+		if err == nil && ctx.Err() == nil && s.spec.vod != nil {
+			earlyProduced, earlyPlanned = s.vodProduced(), s.spec.vod.Segments
+			early = vodEndedEarly(earlyProduced, earlyPlanned)
+			if early {
+				s.mu.Lock()
+				s.earlyEnd, s.earlyProduced, s.earlyPlanned = true, earlyProduced, earlyPlanned
+				s.mu.Unlock()
+			}
+		}
 		close(s.done)
+		if early {
+			log.Printf("[transcode] session %s: ffmpeg endete ohne Fehler nach %d von %d Segmenten — Quelldatei %q ist vermutlich beschädigt (Header verspricht mehr Laufzeit als die Daten enthalten)",
+				id, earlyProduced, earlyPlanned, spec.inputPath)
+		}
 		// Kontext-Abbruch = gewolltes Stop (fresh/GC), das ist kein Fehler.
 		if err != nil && ctx.Err() == nil {
 			if out := errBuf.String(); out != "" {
@@ -1434,6 +1459,14 @@ func (s *Session) Done() bool {
 // AV1, siehe Kommentar am `failed`-Feld) seine Segmente verlieren, bevor der
 // Client sie abgeholt hat. Nur sinnvoll, NACHDEM Done() true ist — vorher ist
 // `failed` per Definition noch nicht gesetzt.
+// EndedEarly meldet, ob der Lauf sauber, aber vor dem geplanten Ende
+// aufgehört hat (Quelldatei vorzeitig zu Ende), samt Ist/Soll der Segmente.
+func (s *Session) EndedEarly() (produced, planned int, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.earlyProduced, s.earlyPlanned, s.earlyEnd
+}
+
 func (s *Session) Failed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

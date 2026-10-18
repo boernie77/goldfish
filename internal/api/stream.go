@@ -975,6 +975,10 @@ func (s *Server) serveVODSegment(w http.ResponseWriter, r *http.Request, it *mod
 	}
 	path, err := s.Playback.EnsureVODSegment(r.Context(), sess.ID, k, arrived)
 	if err != nil {
+		if errors.Is(err, playback.ErrVODSourceShort) {
+			writeError(w, 404, "Die Videodatei ist beschädigt: "+err.Error())
+			return
+		}
 		writeError(w, 404, "Segment nicht verfügbar")
 		return
 	}
