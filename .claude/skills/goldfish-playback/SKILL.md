@@ -971,6 +971,10 @@ Stufe 2 — maximal ein zusätzlicher Fehlversuch, nie eine tote Wiedergabe.
   kippt). GoldfishApple zog dieselbe Ergänzung im selben Zug in
   `Item.isLikelyAudiobook` nach (dort für die Client-seitigen Shuffle-Pfade,
   die den Server-Endpoint nicht nutzen — siehe App-CLAUDE.md).
+- **Startkontext wird festgehalten (seit v1.5.20):** `playRandom` speichert die
+  `/api/items/random`-Query in `state.shuffleParams`; `shuffleNext` nutzt sie statt
+  `randomParams()` der gerade sichtbaren Ansicht. Vorher zog ⏭ im Mini-Player auf der
+  Startseite eine Serienfolge statt des nächsten Musiktitels.
 - `openShuffleItem(item)` (playlists.js, seit 2026-09-04) prüft die
   Bibliotheks-Art des gezogenen Items: Musik → `musicPlayShuffleTrack()`
   (Mini-Player), sonst → `openPlayer(item, {fromShuffle:true})`.
