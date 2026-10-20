@@ -17,18 +17,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/boernie77/goldfish/internal/mediainput"
 	"github.com/boernie77/goldfish/internal/store"
 	"github.com/boernie77/goldfish/internal/translate"
 )
 
 const (
-	whisperBin    = "whisper-cli"
-	ffmpegBin     = "ffmpeg"
-	defaultModel  = "ggml-small"
-	pollInterval  = 10 * time.Second
-	audioTimeout  = 5 * time.Minute
-	whisperPerMin = 5 * time.Minute  // 5× real-time pro Minute Audio als Puffer
-	whisperMaxTimeout = 8 * time.Hour // Hard-Cap für sehr lange Inhalte
+	whisperBin        = "whisper-cli"
+	ffmpegBin         = "ffmpeg"
+	defaultModel      = "ggml-small"
+	pollInterval      = 10 * time.Second
+	audioTimeout      = 5 * time.Minute
+	whisperPerMin     = 5 * time.Minute // 5× real-time pro Minute Audio als Puffer
+	whisperMaxTimeout = 8 * time.Hour   // Hard-Cap für sehr lange Inhalte
 )
 
 // Status holds the current worker state for the status API.
@@ -39,7 +40,7 @@ type Status struct {
 	CurrentLang   string `json:"currentLang,omitempty"`
 	CurrentTitle  string `json:"currentTitle,omitempty"`
 	ProgressPct   int    `json:"progressPct"` // 0–100, nur während Transkription
-	Phase         string `json:"phase"`        // "transcribe" | "translate" | ""
+	Phase         string `json:"phase"`       // "transcribe" | "translate" | ""
 }
 
 // Worker processes pending subtitle generation jobs in a background goroutine.
@@ -174,12 +175,13 @@ func (w *Worker) process(ctx context.Context, job store.SubtitleJob, videoPath s
 	// --- 1. Extract audio ---
 	audioCtx, audioCancel := context.WithTimeout(ctx, audioTimeout)
 	defer audioCancel()
-	ffArgs := []string{
-		"-y", "-i", videoPath,
+	ffArgs := append([]string{"-y"}, mediainput.ProbeOpts(videoPath)...)
+	ffArgs = append(ffArgs,
+		"-i", mediainput.Arg(videoPath),
 		"-ar", "16000", "-ac", "1", "-vn",
 		"-c:a", "pcm_s16le",
 		tmpWAV,
-	}
+	)
 	ffCmd := exec.CommandContext(audioCtx, ffmpegBin, ffArgs...)
 	if out, err := ffCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("ffmpeg audio extract: %w — %s", err, truncate(string(out), 200))

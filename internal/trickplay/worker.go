@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/boernie77/goldfish/internal/mediainput"
 	"github.com/boernie77/goldfish/internal/model"
 	"github.com/boernie77/goldfish/internal/store"
 )
@@ -137,9 +138,9 @@ func (w *Worker) DeleteAll() error {
 type Status struct {
 	Running          bool      `json:"running"`
 	StartedAt        time.Time `json:"startedAt,omitempty"`
-	Processed        int       `json:"processed"`          // erfolgreich generiert in dieser Session
-	Failed           int       `json:"failed"`             // Fehler in dieser Session
-	Total            int       `json:"total"`              // Gesamt in der Queue dieser Session
+	Processed        int       `json:"processed"` // erfolgreich generiert in dieser Session
+	Failed           int       `json:"failed"`    // Fehler in dieser Session
+	Total            int       `json:"total"`     // Gesamt in der Queue dieser Session
 	CurrentItemID    int64     `json:"currentItemId,omitempty"`
 	CurrentTitle     string    `json:"currentTitle,omitempty"`
 	CurrentLibraryID int64     `json:"currentLibraryId,omitempty"`
@@ -272,6 +273,10 @@ func (w *Worker) runOnce(ctx context.Context) {
 func (w *Worker) generate(ctx context.Context, it model.Item) error {
 	if it.DurationSec <= 0 {
 		return errors.New("unbekannte Laufzeit")
+	}
+	// Hunderte Seeks in einem 40–95-GB-Abbild wären Dauerlast auf dem Array.
+	if mediainput.IsDisc(it.Path) {
+		return errors.New("Blu-ray-Abbild: keine Vorschaubilder")
 	}
 	_ = w.store.SetItemTrickplay(it.ID, "pending")
 	interval := w.intervalSec()

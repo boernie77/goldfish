@@ -16,6 +16,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/boernie77/goldfish/internal/mediainput"
 )
 
 // Profile definiert Auflösungs- und Bitraten-Zielwerte für einen Transcode.
@@ -1051,6 +1053,10 @@ func (m *Manager) launchLocked(id string, spec sessionSpec, stage fallbackStage,
 // dekodieren — siehe `Manager.RetryWithFallback`.
 func (m *Manager) buildArgs(input, outDir string, p Profile, audioIdx int, startSec float64, deinterlace, audioOnly bool, stage fallbackStage, vod *VODPlan, vodStartSeg int) []string {
 	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
+	// Blu-ray-Abbild: libbluray-Protokoll + größere Analysefenster (Eingabe-
+	// Optionen, müssen vor -ss/-i stehen).
+	args = append(args, mediainput.ProbeOpts(input)...)
+	input = mediainput.Arg(input)
 	if audioOnly {
 		vod = nil // Musik laeuft nie als VOD (siehe PlanVOD)
 	}

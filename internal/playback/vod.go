@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/boernie77/goldfish/internal/mediainput"
 )
 
 // ─── VOD-Playlist (Jellyfin-Ansatz, seit 2026-09-25, hinter Schalter) ───────
@@ -181,7 +183,9 @@ func parseRational(s string) (int, int, bool) {
 // PlanVOD prüft, ob eine Sitzung als VOD laufen kann, und liefert den Plan.
 // nil = bisherige EVENT-Playlist verwenden.
 func PlanVOD(inputPath string, durationSec, startSec float64, deinterlace, audioOnly bool) *VODPlan {
-	if audioOnly || deinterlace || durationSec <= 0 {
+	// Blu-ray-Abbilder: Zeitstempel beginnen nicht bei 0 (start_time z. B.
+	// 4198 s), die Segmentgrenzen ließen sich nicht vorab berechnen.
+	if audioOnly || deinterlace || durationSec <= 0 || mediainput.IsDisc(inputPath) {
 		return nil
 	}
 	num, den, ok := probeFrameRate(inputPath)

@@ -17,7 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/boernie77/goldfish/internal/mediainput"
 	"github.com/boernie77/goldfish/internal/model"
+	"github.com/boernie77/goldfish/internal/nameparser"
 	"github.com/boernie77/goldfish/internal/store"
 )
 
@@ -63,6 +65,8 @@ var supportedExt = map[string]bool{
 	".avi": true,
 	".wmv": true,
 	".flv": true,
+	// Blu-ray-Abbilder: ffmpeg liest sie über "bluray:" (siehe mediainput).
+	".iso": true,
 	// Musik-Bibliotheken (kind=music, seit 2026-09-04)
 	".mp3":  true,
 	".flac": true,
@@ -670,13 +674,9 @@ type probeResult struct {
 }
 
 func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path string, info os.FileInfo) (*model.Item, error) {
-	cmd := exec.CommandContext(ctx, "ffprobe",
-		"-v", "quiet",
-		"-print_format", "json",
-		"-show_format",
-		"-show_streams",
-		path,
-	)
+	probeArgs := append([]string{"-v", "quiet", "-print_format", "json", "-show_format", "-show_streams"},
+		mediainput.ProbeOpts(path)...)
+	cmd := exec.CommandContext(ctx, "ffprobe", append(probeArgs, mediainput.Arg(path))...)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe: %w", err)
@@ -694,6 +694,14 @@ func (sc *Scanner) probeItem(ctx context.Context, lib model.Library, root, path 
 		SizeBytes:  info.Size(),
 		ModTime:    info.ModTime(),
 		ReleasedAt: extractReleaseTime(p, info.ModTime()),
+	}
+	if mediainput.IsDisc(path) {
+		// Dateiname eines Abbilds ist meist nichtssagend (fb-regrettingyou-bd);
+		// der Release-Ordner trägt den Titel.
+		it.Container = "iso"
+		if t := nameparser.ParseFile(filepath.Base(filepath.Dir(path))).Title; t != "" {
+			it.Title = t
+		}
 	}
 	rel, err := filepath.Rel(root, path)
 	if err == nil {
@@ -890,17 +898,24 @@ func (sc *Scanner) makeThumbnail(ctx context.Context, it *model.Item) {
 	fname := hex.EncodeToString(sum[:]) + ".jpg"
 	out := filepath.Join(sc.thumbDir, fname)
 
-	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	// Abbilder (40–95 GB) brauchen für Öffnen + Seek deutlich länger.
+	thumbTimeout := 20 * time.Second
+	if mediainput.IsDisc(it.Path) {
+		thumbTimeout = 120 * time.Second
+	}
+	cctx, cancel := context.WithTimeout(ctx, thumbTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, "ffmpeg",
-		"-hide_banner", "-loglevel", "error", "-y",
+	thumbArgs := append([]string{"-hide_banner", "-loglevel", "error", "-y"}, mediainput.ProbeOpts(it.Path)...)
+	thumbArgs = append(thumbArgs,
 		"-ss", fmt.Sprintf("%.2f", seek),
-		"-i", it.Path,
+		"-i", mediainput.Arg(it.Path),
+		"-map", "0:v:0",
 		"-vframes", "1",
 		"-vf", "scale=480:-2",
 		"-q:v", "5",
 		out,
 	)
+	cmd := exec.CommandContext(cctx, "ffmpeg", thumbArgs...)
 	if err := cmd.Run(); err != nil {
 		log.Printf("[thumb] %s: %v", it.Path, err)
 		return
