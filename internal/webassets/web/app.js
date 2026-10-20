@@ -15,6 +15,7 @@ const state = {
   shuffleMode: false,    // wenn true, sind Prev/Next-Buttons im Player aktiv
   shuffleHistory: [],    // bereits abgespielte Items in Reihenfolge
   shuffleIdx: -1,        // aktuelle Position in shuffleHistory
+  shuffleParams: null,   // /api/items/random-Query vom Start des Zufallsmodus (⏭ nutzt sie, nicht die aktuelle Ansicht)
   settings: { bufferSeconds: 30, startBufferSeconds: 0, trickplayIntervalSec: 10 },
   hwaccel: { enabled: false, device: "", driver: "" },
   scanPoll: null,

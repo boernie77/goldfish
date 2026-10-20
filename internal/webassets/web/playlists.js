@@ -297,7 +297,12 @@ async function playRandom() {
     return;
   }
   try {
-    const item = await api(`/api/items/random?${randomParams()}`);
+    // Kontext EINMAL festhalten: ⏭ später (Mini-Player auf der Startseite,
+    // anderer Tab) darf nicht aus der dann sichtbaren Ansicht ziehen — sonst
+    // startet nach einem Musiktitel plötzlich eine Serienfolge.
+    const qs = randomParams().toString();
+    const item = await api(`/api/items/random?${qs}`);
+    state.shuffleParams = qs;
     state.shuffleMode = true;
     state.shuffleHistory = [item];
     state.shuffleIdx = 0;
@@ -317,7 +322,7 @@ async function shuffleNext() {
   }
   // Sonst: neues Zufalls-Item holen und anhängen
   try {
-    const item = await api(`/api/items/random?${randomParams()}`);
+    const item = await api(`/api/items/random?${state.shuffleParams ?? randomParams()}`);
     state.shuffleHistory.push(item);
     state.shuffleIdx = state.shuffleHistory.length - 1;
     openShuffleItem(item);
