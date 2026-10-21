@@ -329,5 +329,12 @@ eingebettetes Web-UI, SQLite, ffmpeg mit VAAPI.
 - **Linux 0.1.65**: released (Tag), Infoseite erkennt einen fertigen Download sofort
   („Offline abspielen“ mit lokaler Weiterschauen-Abfrage). Maintainer-Adresse in
   `debian/changelog` und `debian/control` seit 27.09. GitHub-noreply (Repo ist öffentlich).
-- **Apple**: Letzte Archive vom 25.09. (Mac 1.7/248, iOS 1.13/217, tvOS 1.10/17). Zwei
-  Player-Fixes liegen nur auf GitHub (8aa5c82 -12888-Wiederaufnahme, 835c84d 502/504 still).
+- **Apple**: Letzte Uploads zu App Store Connect (nicht eingereicht, User reicht selbst ein):
+  iOS 1.17/222, tvOS 1.13/23, Mac 1.10/252 (Stand 21.10.). Neu: Varianten-Gruppierung auf
+  Startseite/Suche/Personenfilter, Dateiname in der Versionsauswahl, Download-Abbruch (✕),
+  tvOS-Fokus (eigener `TVControlButtonStyle`, `.focusSection()` auf Startseiten-Zeilen –
+  „Fortsetzen“-Fix am Gerät unbestätigt). Start-Tab-Reselect auf tvOS = Plattformgrenze.
+  Login-Vorbelegung für Tests nur als lokaler Patch, nie committen/hochladen.
+- **Server 1.5.17**, **Linux 0.1.74**, **Fire TV 0.5.3 (44)** (Amazon eingereicht 20.10.;
+  neue APK nur per „Replace“), **Android** 1.4.x unverändert (Download-Abbruch/Varianten im
+  Code, AAB nicht neu gebaut).
