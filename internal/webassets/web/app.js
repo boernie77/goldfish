@@ -1733,6 +1733,15 @@ function wire() {
       } catch {}
     }
     disposePlayer();
+    // Startseite nach dem Schliessen neu laden: "Als nächstes"/"Fortsetzen"
+    // zeigten sonst weiter die eben beendete Folge (User-Report 2026-10-23).
+    // Kurze Verzögerung, damit der Stop-Report/Gesehen-Status den Server
+    // sicher erreicht hat.
+    if (state.homeView) {
+      setTimeout(() => {
+        if (state.homeView && !$("#playerDialog").open) loadItems();
+      }, 700);
+    }
   });
   // Klick auf den Backdrop (außerhalb von .player-wrap) schließt den Player
   // genauso wie der X-Button — native <dialog>-Elemente tun das NICHT von
