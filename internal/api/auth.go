@@ -38,7 +38,7 @@ func isPublicPath(path string) bool {
 	if path == "/api/auth/login" || path == "/api/auth/logout" ||
 		path == "/api/auth/status" || path == "/api/auth/setup" ||
 		path == "/api/auth/oidc/login" || path == "/api/auth/oidc/callback" ||
-		path == "/api/health" {
+		path == "/api/health" || path == "/api/catalog/tatort" {
 		return true
 	}
 	// Alles außer /api/* → statische Assets, /login etc. kommen vom Server durch

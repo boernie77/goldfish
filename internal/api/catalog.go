@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -237,4 +238,18 @@ func (s *Server) RunCatalogRefresh(ctx context.Context) {
 			refresh()
 		}
 	}
+}
+
+// tatortCatalogPublic liefert die (wöchentlich aktualisierte) Tatort-Folgenliste
+// ohne Login. Es sind ausschließlich öffentliche Wikipedia-Daten; das
+// Sortier-Skript des Tatort-Fetchers holt sich damit neue Folgen, die in seiner
+// eingebauten Liste fehlen.
+func (s *Server) tatortCatalogPublic(w http.ResponseWriter, r *http.Request) {
+	cat := catalog.ForShow(3034)
+	if cat == nil {
+		http.Error(w, "kein Katalog", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"source": cat.Source, "episodes": cat.Episodes})
 }

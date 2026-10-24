@@ -84,6 +84,8 @@ func (s *Server) Router() http.Handler {
 		r.Put("/users/{id}/libraries", requireAdmin(s.setUserLibraries))
 
 		r.Get("/health", s.handleHealth)
+		// Öffentliche Wikipedia-Tatort-Liste für externe Sortier-Skripte (ohne Login).
+		r.Get("/catalog/tatort", s.tatortCatalogPublic)
 		r.Get("/home", s.home)
 		// Pro-User-Startseite: jeder User steuert für sich, welche seiner
 		// Bibliotheken auf der Startseite erscheinen (nicht admin-only).
@@ -433,7 +435,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.5.23"
+const appVersion = "1.5.24"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
