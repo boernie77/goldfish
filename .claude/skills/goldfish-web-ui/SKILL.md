@@ -546,6 +546,12 @@ Refactor-Verlauf: app.js startete bei 7531 Zeilen und endete bei **1371 Zeilen (
   Admin-Schalter pro Bibliothek; auf User-Wunsch wieder ausgebaut, Spalte show_file_size bleibt
   in bestehenden DBs ungenutzt liegen.) Apps beachten die Kommissar-Zeile noch nicht.
 
+### Tatort-Kachel: Folgennummer + Größen (seit 1.5.26/1.5.27, 2026-10-24)
+- Nur Ordner `Tatort`: die fortlaufende Nummer steckt im Dateinamen (`Tatort.S1972E0019.…`, ORF `E186a`);
+  `cards.js` stellt sie dem Code voran („Nr. 19 · S01E02“) und setzt `isTatort` → Klassen `.is-tatort`
+  (Meta-Zeile, Kommissar-Zeile). Layout (User bestätigt): Folgentitel 15 px fett, Kommissare 14 px fett,
+  Nr./Staffel-Folge 11 px gedämpft darunter. Andere Serien unverändert (Code dort 14 px fett). Apps zeigen die Nummer noch nicht.
+
 ### Ermittler-Katalog / fehlende Folgen je Kommissar (seit 1.4.65)
 - Daten: `internal/catalog/data/tatort.json` (Wikipedia „Liste der Tatort-Folgen", CC BY-SA,
   eingelesen mit `scripts/import_tatort_catalog.py`, go:embed). Pro Folge Nr/Titel/Sender/Datum/
