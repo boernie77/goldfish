@@ -776,6 +776,11 @@ function renderCard(it, opts = {}) {
       const ee = String(it.episodeEnd).padStart(2, "0");
       episodeCode = `S${sn}E${ep}-${ee}`;
     }
+    // Tatort: fortlaufende Folgennummer steckt im Dateinamen
+    // (`Tatort.S1972E0019.Finke.Strandgut.mp4`, ORF `E186a`) — vor dem Code zeigen.
+    const tNr = /^tatort$/i.test(cleanShowFolderName(rel[0] || "")) &&
+      (it.relPath || "").match(/\.S\d{4}E0*(\d+[a-z]?)\./i);
+    if (tNr) episodeCode = `Nr. ${tNr[1]} · ${episodeCode}`;
     episodeName = it.metadata.title || "";
     // Zwischenordner der Serie anzeigen, wenn er KEIN Staffel-Ordner ist —
     // beim Tatort der Kommissar (`Tatort/Batic und Leitmayr/…`). User-Wunsch
