@@ -756,6 +756,7 @@ function renderCard(it, opts = {}) {
   let subtitle = "";
   let episodeCode = ""; // separat, damit wir fett+groß stylen können
   let episodeName = ""; // TMDB-Episodentitel (kommt als 2. Zeile)
+  let isTatort = false; // Tatort-Kachel: Titel + Kommissare groß, Nr./Code klein
   let episodeGroup = ""; // Zwischenordner, z. B. Tatort-Kommissar (3. Zeile)
 
   // Episode-Handling IMMER wenn TMDB-Type=episode, unabhängig davon ob ein
@@ -780,7 +781,7 @@ function renderCard(it, opts = {}) {
     // (`Tatort.S1972E0019.Finke.Strandgut.mp4`, ORF `E186a`) — vor dem Code zeigen.
     const tNr = /^tatort$/i.test(cleanShowFolderName(rel[0] || "")) &&
       (it.relPath || "").match(/\.S\d{4}E0*(\d+[a-z]?)\./i);
-    if (tNr) episodeCode = `Nr. ${tNr[1]} · ${episodeCode}`;
+    if (tNr) { episodeCode = `Nr. ${tNr[1]} · ${episodeCode}`; isTatort = true; }
     episodeName = it.metadata.title || "";
     // Zwischenordner der Serie anzeigen, wenn er KEIN Staffel-Ordner ist —
     // beim Tatort der Kommissar (`Tatort/Batic und Leitmayr/…`). User-Wunsch
@@ -979,7 +980,7 @@ function renderCard(it, opts = {}) {
     </div>
     <div class="card-body">
       <div class="card-title ${episodeCode ? "is-show-link" : ""}" title="${escapeHTML(title)}" data-show-link="${episodeCode ? 1 : 0}">${escapeHTML(title)}</div>
-      <div class="card-meta">
+      <div class="card-meta${isTatort ? " is-tatort" : ""}">
         ${episodeCode ? `<span class="episode-code">${episodeCode}</span>` : ""}
         ${episodeName ? `<span class="episode-name">${escapeHTML(episodeName)}</span>` :
           isMusicLib ? (it.trackNo ? `<span>Track ${it.trackNo}</span>` : "") :
@@ -988,7 +989,7 @@ function renderCard(it, opts = {}) {
         ${it.metadataConfirmed ? `<span class="confirmed-tick" title="Zuordnung bestätigt">✓</span>` : ""}
         ${released && !subtitle && !episodeName ? `<span>${released}</span>` : ""}
       </div>
-      ${episodeGroup ? `<div class="card-group" data-group-link="1" title="Alle Folgen: ${escapeHTML(episodeGroup)}">${escapeHTML(episodeGroup)}</div>` : ""}
+      ${episodeGroup ? `<div class="card-group${isTatort ? " is-tatort" : ""}" data-group-link="1" title="Alle Folgen: ${escapeHTML(episodeGroup)}">${escapeHTML(episodeGroup)}</div>` : ""}
       ${showFilenameLine ? `<div class="card-filename" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(channelTop ? (it.title || cardFileName(it)) : (title === rawTitle && cardFolderPath(it)) ? cardFolderPath(it) : cardFileName(it))}</div>` : ""}
       ${sortVal === "duplicates" ? `<div class="card-duppath" title="${escapeHTML(it.relPath || it.path || "")}">${escapeHTML(cardFolderPath(it))}</div>` : ""}
       ${dupePaths.length ? `<div class="card-duppath" title="${escapeHTML(dupePaths.join("\n"))}">↳ auch: ${(() => {

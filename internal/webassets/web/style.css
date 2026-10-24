@@ -1480,6 +1480,24 @@ body.selection-mode .track-row-select { display: flex; }
   letter-spacing: .4px;
   margin-right: 2px;
 }
+/* Tatort-Kacheln: Folgentitel + Kommissare groß, Nr./Staffel-Folge klein */
+.card .card-body .card-meta.is-tatort { flex-direction: column; gap: 1px; }
+.card .card-body .card-meta.is-tatort .episode-code {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-dim) !important;
+  letter-spacing: 0;
+  order: 2;
+}
+.card .card-body .card-meta.is-tatort .episode-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  order: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.card-group.is-tatort { font-size: 14px; font-weight: 600; color: var(--text); }
 
 .scanbar {
   position: fixed;
