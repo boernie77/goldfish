@@ -170,6 +170,9 @@ func FetchTatort(ctx context.Context) (*Catalog, error) {
 // UseFile lädt eine gespeicherte (neuere) Fassung aus dir/tatort.json, sofern
 // sie mindestens so viele Folgen hat wie die aktive. Beim Start aufrufen.
 func UseFile(dir string) {
+	// Eingebettete Fassung zuerst laden: load() setzt die Tabelle zurück und
+	// würde eine vorher installierte Datei sonst wieder verwerfen.
+	once.Do(load)
 	raw, err := os.ReadFile(filepath.Join(dir, "tatort.json"))
 	if err != nil {
 		return
