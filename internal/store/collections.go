@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -342,13 +343,16 @@ type MissingMovieRow struct {
 	ReleaseDate    string `json:"releaseDate,omitempty"`
 	CollectionName string `json:"collectionName"`
 	CollectionID   int64  `json:"collectionId"`
+	// OwnedTitles: die Filme dieser Sammlung, die der User besitzt ("Titel (Jahr)"),
+	// damit sichtbar ist, zu welchem Film der fehlende Teil gehört.
+	OwnedTitles []string `json:"ownedTitles"`
 }
 
 // ListMissingMovies liefert alle Collection-Parts, die der User NICHT im
 // Bestand hat UND nicht per hidden_collection_parts ausgeblendet sind.
 // Pure SQL — keine TMDB-Calls nötig, weil alle Parts bereits beim Enrichment
 // in `collection_parts` persistiert wurden.
-func (s *Store) ListMissingMovies(userID int64) ([]MissingMovieRow, error) {
+func (s *Store) ListMissingMovies(userID int64, isAdmin bool, maxAgeRating int) ([]MissingMovieRow, error) {
 	rows, err := s.db.Query(`
 		SELECT cp.tmdb_movie_id, cp.title, COALESCE(cp.release_date,''),
 		       c.name, c.id
@@ -380,7 +384,47 @@ func (s *Store) ListMissingMovies(userID int64) ([]MissingMovieRow, error) {
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+	// Besessene Filme je Sammlung nachladen — mit derselben ACL/FSK-Klausel wie
+	// die Sammlungsansicht, damit keine Titel aus unzugänglichen Bibliotheken
+	// durchsickern.
+	aclSQL, aclArgs := s.itemVisibilityClause("i.library_id", "i.metadata_id", userID, isAdmin, maxAgeRating)
+	orows, err := s.db.Query(`
+		SELECT DISTINCT m.collection_id, m.title, COALESCE(m.year,0)
+		FROM items i
+		JOIN metadata m ON m.id = i.metadata_id
+		WHERE m.collection_id IS NOT NULL AND `+aclSQL+`
+		ORDER BY m.collection_id, COALESCE(m.release_date, m.year), m.title COLLATE NOCASE
+	`, aclArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = orows.Close() }()
+	owned := map[int64][]string{}
+	for orows.Next() {
+		var cid int64
+		var title string
+		var year int
+		if err := orows.Scan(&cid, &title, &year); err != nil {
+			return nil, err
+		}
+		if year > 0 {
+			title = fmt.Sprintf("%s (%d)", title, year)
+		}
+		owned[cid] = append(owned[cid], title)
+	}
+	if err := orows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].OwnedTitles = owned[out[i].CollectionID]
+	}
+	return out, nil
 }
 
 // CollectionPartRow entspricht einem Eintrag in collection_parts.

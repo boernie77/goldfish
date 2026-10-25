@@ -87,7 +87,8 @@ async function loadMissingMovies() {
   $("#missingMoviesPreview").innerHTML = renderMissingPreview(
     movies.slice(0, 30).map(m => ({
       label: `${m.title}${m.releaseDate ? " (" + m.releaseDate.slice(0, 4) + ")" : ""}`,
-      sub: `TMDB ${m.tmdbId} · ${m.collectionName}`,
+      sub: `TMDB ${m.tmdbId} · ${m.collectionName}` +
+        (m.ownedTitles && m.ownedTitles.length ? ` · vorhanden: ${m.ownedTitles.join(", ")}` : ""),
     })),
     movies.length,
   );

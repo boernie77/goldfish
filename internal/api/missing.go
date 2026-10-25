@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,20 +26,25 @@ func (s *Server) missingMovies(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "nicht angemeldet")
 		return
 	}
-	rows, err := s.Store.ListMissingMovies(me.ID)
+	maxAgeRating := 0
+	if !me.IsAdmin && me.MaxAgeRating != nil {
+		maxAgeRating = *me.MaxAgeRating
+	}
+	rows, err := s.Store.ListMissingMovies(me.ID, me.IsAdmin, maxAgeRating)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
 	if r.URL.Query().Get("format") == "csv" {
 		writeMissingCSV(w, "fehlende-filme.csv",
-			[]string{"tmdb_id", "title", "release_date", "collection"},
+			[]string{"tmdb_id", "title", "release_date", "collection", "owned"},
 			func() [][]string {
 				out := make([][]string, 0, len(rows))
 				for _, m := range rows {
 					out = append(out, []string{
 						strconv.FormatInt(m.TMDBMovieID, 10),
 						m.Title, m.ReleaseDate, m.CollectionName,
+						strings.Join(m.OwnedTitles, "; "),
 					})
 				}
 				return out
