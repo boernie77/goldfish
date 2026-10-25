@@ -183,6 +183,46 @@ function ratingRowHTML(item, lib) {
   </div>`;
 }
 
+// Hinweis „Teil X von Y" (seit 1.5.29, nur Filme): eine Zeile unter den
+// Meta-Angaben mit Kreisen je Teil (grün vorhanden, blau dieser Film, rot
+// gestrichelt fehlt). Asynchron nachgeladen; verschwindet still, wenn der Film zu
+// keiner Sammlung gehört oder der Dialog inzwischen ein anderes Item zeigt.
+async function loadDetailCollectionHint(item) {
+  if (!item || !item.metadata || item.metadata.tmdbType !== "movie") return;
+  let d;
+  try { d = await api(`/api/items/${item.id}/collection`); } catch { return; }
+  if (!d || !d.available) return;
+  const sub = document.querySelector("#detailContent .detail-body .sub");
+  if (!sub || document.querySelector("#detailContent .col-line")) return;
+  if (state.currentItem && state.currentItem.id !== item.id && !(item._variants || []).some(v => v.id === state.currentItem.id)) return;
+  const line = document.createElement("div");
+  line.className = "col-line";
+  const miss = d.parts.filter(p => !p.owned);
+  const missTxt = miss.length === 0 ? `<span class="col-ok">✓ komplett</span>`
+    : `<span class="miss-txt">${miss.length === 1 ? "Teil " + (d.parts.indexOf(miss[0]) + 1) + " fehlt"
+        : "Teil " + miss.map(m => d.parts.indexOf(m) + 1).join(", ").replace(/, (\d+)$/, " und $1") + " fehlen"}</span>`;
+  line.innerHTML = `📚 <b>Teil ${d.position} von ${d.total}</b> · <a class="col-name" title="Sammlung öffnen">${escapeHTML(d.name)}</a>
+    <span class="dots">${d.parts.map((p, i) => `<span class="dot ${p.current ? "cur" : p.owned ? "" : "miss"}" data-i="${i}"
+      title="${escapeHTML(p.title + (p.year ? " (" + p.year + ")" : "") + (p.current ? " – dieser Film" : p.owned ? "" : " – fehlt"))}">${i + 1}</span>`).join("")}</span>
+    ${missTxt}`;
+  sub.insertAdjacentElement("afterend", line);
+  line.querySelector(".col-name").addEventListener("click", () => {
+    try { $("#detailDialog").close(); } catch {}
+    goCollectionsView();
+    state.currentCollection = { id: d.collectionId, name: d.name };
+    loadItems();
+  });
+  line.querySelectorAll(".dot").forEach(el => el.addEventListener("click", async () => {
+    const p = d.parts[Number(el.dataset.i)];
+    if (p.current) return;
+    if (!p.owned) {
+      appAlert(`${p.title}${p.year ? " (" + p.year + ")" : ""}\n\nFehlt in der Bibliothek.`);
+      return;
+    }
+    try { openDetail(await api(`/api/items/${p.itemId}`)); } catch {}
+  }));
+}
+
 async function openDetail(item) {
   let pbStreams = null;   // volle Stream-Liste inkl. erzeugter OCR/KI-Untertitel
   state.detailPrefs = null;
@@ -344,6 +384,7 @@ async function openDetail(item) {
       </div>
     </div>
   `;
+  loadDetailCollectionHint(item);
   if (hasVariants) {
     const sel = $("#detailVariant");
     sel.value = String(item.id);

@@ -698,3 +698,13 @@ func (s *Store) UnhideCollectionPart(userID, collectionID, tmdbMovieID int64) er
 	`, userID, collectionID, tmdbMovieID)
 	return err
 }
+
+// GetMetadataCollectionID liefert die Sammlungs-ID eines Films (0 = keine).
+func (s *Store) GetMetadataCollectionID(metadataID int64) (int64, error) {
+	var id sql.NullInt64
+	err := s.db.QueryRow(`SELECT collection_id FROM metadata WHERE id = ? AND tmdb_type = 'movie'`, metadataID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return id.Int64, err
+}

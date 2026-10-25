@@ -4553,3 +4553,17 @@ button.danger:hover { background: #991b1b; }
 .scan-back-all {
   margin-bottom: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer;
 }
+
+/* Infoseite: Hinweis „Teil X von Y" (Filme in einer Sammlung, seit 1.5.29) */
+.col-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; flex-wrap: wrap; }
+.col-line .col-name { color: #60a5fa; cursor: pointer; }
+.col-line .col-name:hover { text-decoration: underline; }
+.col-line .dots { display: inline-flex; gap: 4px; }
+.col-line .dot {
+  width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 700; background: #16a34a; color: #fff; cursor: pointer;
+}
+.col-line .dot.cur { background: var(--accent); outline: 2px solid #93c5fd; cursor: default; }
+.col-line .dot.miss { background: transparent; border: 2px dashed #ef4444; color: #ef4444; }
+.col-line .miss-txt { color: #fca5a5; }
+.col-line .col-ok { color: #86efac; font-weight: 600; }

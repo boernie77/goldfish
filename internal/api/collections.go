@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -358,4 +359,108 @@ func (s *Server) getTMDBSeason(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, sea)
+}
+
+// itemCollection (seit 1.5.29): Hinweis „Teil X von Y" auf der Film-Infoseite.
+// Liefert die Teile der TMDB-Sammlung, zu der der Film gehört — mit
+// Besitz-Status. Ausgeblendete Teile (pro User) und noch nicht erschienene
+// Teile (Datum leer/Zukunft, wie beim Komplett-Badge) zählen nicht mit. Gleiche
+// ACL/FSK-Regeln wie das Sammlungs-Grid (GetCollectionParts).
+// `available:false`, wenn kein Film, keine Sammlung, Parts noch nicht gefetcht
+// oder weniger als zwei Teile.
+func (s *Server) itemCollection(w http.ResponseWriter, r *http.Request) {
+	me := currentUser(r)
+	if me == nil {
+		writeError(w, 401, "nicht angemeldet")
+		return
+	}
+	id, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	it, err := s.Store.GetItemFor(me.ID, id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if it == nil {
+		writeError(w, 404, "nicht gefunden")
+		return
+	}
+	if !s.requireLibAccess(w, r, it.LibraryID) {
+		return
+	}
+	if !s.requireAgeAllowed(w, r, it.MetadataID) {
+		return
+	}
+	none := map[string]any{"available": false}
+	colID, err := s.Store.GetMetadataCollectionID(it.MetadataID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if colID == 0 {
+		writeJSON(w, 200, none)
+		return
+	}
+	col, err := s.Store.GetCollection(colID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	var maxAge int
+	if !me.IsAdmin && me.MaxAgeRating != nil {
+		maxAge = *me.MaxAgeRating
+	}
+	parts, err := s.Store.GetCollectionParts(colID, me.ID, me.IsAdmin, maxAge)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	today := time.Now().Format("2006-01-02")
+	type partOut struct {
+		TMDBMovieID int64  `json:"tmdbMovieId"`
+		Title       string `json:"title"`
+		Year        string `json:"year"`
+		Owned       bool   `json:"owned"`
+		ItemID      int64  `json:"itemId,omitempty"`
+		Current     bool   `json:"current"`
+	}
+	out := []partOut{}
+	pos, missing := 0, 0
+	for _, p := range parts {
+		if h, _ := p["hidden"].(bool); h {
+			continue
+		}
+		rd, _ := p["releaseDate"].(string)
+		owned, _ := p["owned"].(bool)
+		if (rd == "" || rd > today) && !owned {
+			continue // noch nicht erschienen
+		}
+		po := partOut{Owned: owned}
+		po.TMDBMovieID, _ = p["tmdbMovieId"].(int64)
+		po.Title, _ = p["title"].(string)
+		if len(rd) >= 4 {
+			po.Year = rd[:4]
+		}
+		if owned {
+			po.ItemID, _ = p["itemId"].(int64)
+			if mid, _ := p["metadataId"].(int64); mid == it.MetadataID {
+				po.Current = true
+				pos = len(out) + 1
+			}
+		} else {
+			missing++
+		}
+		out = append(out, po)
+	}
+	if len(out) < 2 || pos == 0 {
+		writeJSON(w, 200, none)
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"available": true, "collectionId": col.ID, "name": col.Name,
+		"position": pos, "total": len(out), "missing": missing, "parts": out,
+	})
 }
