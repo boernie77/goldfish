@@ -2353,6 +2353,16 @@ body.has-mini-player { padding-bottom: 68px; }
 .video-js.player-skin-pill .vjs-control-bar .vjs-control:hover {
   background: rgba(255, 255, 255, .14);
 }
+/* Lautstärke-Regler: ohne diese Regel zwingt die Kreis-Breite (3.6em) das
+   Panel auf feste Breite, der aufklappende Slider ragt dann über die
+   Zeitanzeige. Panel wächst stattdessen im Flex-Fluss und schiebt sie weg. */
+.video-js.player-skin-pill .vjs-control-bar .vjs-volume-panel {
+  width: auto;
+  border-radius: 999px;
+}
+.video-js.player-skin-pill .vjs-volume-panel .vjs-mute-control {
+  width: 3.6em;
+}
 .video-js.player-skin-pill .vjs-play-control {
   background: #fff;
   color: #10141c;
