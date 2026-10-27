@@ -47,7 +47,8 @@ function resSizeHTML(item) {
 // Dialogs: Pfad · Container · Codecs · ggf. „🪤 Interlaced"-Hinweis · Item-ID.
 function fileHintHTML(item) {
   if (!item) return "";
-  const path = escapeHTML(item.relPath || item.path || "");
+  // Vollständiger Pfad auf dem Server (nicht nur ab dem Serienordner/der Bibliothek).
+  const path = escapeHTML(item.path || item.relPath || "");
   const container = escapeHTML((item.container || "").toUpperCase());
   const codecs = `${escapeHTML(item.videoCodec || "")}/${escapeHTML(item.audioCodec || "")}`;
   const videoStreams = (item.streams || []).filter(s => s.type === "video");
