@@ -923,7 +923,8 @@ body.skin-glass .topbar .user-menu strong {
   position: relative;
   background-color: var(--card-2);
 }
-.card.folder .folder-gear {
+.card.folder .folder-gear,
+.card.folder .folder-alias {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -940,10 +941,15 @@ body.skin-glass .topbar .user-menu strong {
   transition: opacity .15s, background .15s;
 }
 .card.folder:hover .folder-gear,
-.card.folder:focus-within .folder-gear {
+.card.folder:focus-within .folder-gear,
+.card.folder:hover .folder-alias,
+.card.folder:focus-within .folder-alias {
   opacity: 1;
 }
-.card.folder .folder-gear:hover { background: var(--accent); }
+.card.folder .folder-gear:hover,
+.card.folder .folder-alias:hover { background: var(--accent); }
+/* Zweiter Admin-Knopf: Ordner nur in der Anzeige verschieben, links neben dem Zahnrad. */
+.card.folder .folder-alias { right: 38px; }
 
 .card.folder .folder-merged {
   position: absolute;

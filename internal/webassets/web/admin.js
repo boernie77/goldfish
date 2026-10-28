@@ -903,7 +903,18 @@ async function openMoveDialog(ctx) {
   const input = $("#moveFolderInput");
   const libSelect = $("#moveLibrarySelect");
   let libId, currentFolder = "";
-  if (ctx.mode === "single") {
+  // Anzeige-Verschiebung: Bibliothek fest, kein Datenträger-Dropdown.
+  const isAlias = ctx.mode === "alias";
+  libSelect.closest("label").classList.toggle("hidden", isAlias);
+  if (isAlias) $("#moveRootRow").classList.add("hidden");
+  if (isAlias) {
+    libId = state.currentLibrary;
+    title.textContent = "Ordner nur in der Anzeige verschieben";
+    hint.textContent = `„${ctx.folder}“ bleibt physisch, wo er ist, und wird nur unter dem Zielordner angezeigt. Leer lassen = zurück an den Originalplatz.`;
+    const segs = ctx.folder.split("/").filter(Boolean);
+    segs.pop();
+    currentFolder = segs.join("/");
+  } else if (ctx.mode === "single") {
     const it = ctx.item;
     libId = it.libraryId;
     title.textContent = "Verschieben";
@@ -938,7 +949,7 @@ async function openMoveDialog(ctx) {
   };
   input.value = currentFolder;
   await loadMoveFolderList(libId, currentFolder);
-  await loadMoveRootList(libId);
+  if (!isAlias) await loadMoveRootList(libId);
   dlg.showModal();
   input.focus();
   input.select();
@@ -1017,6 +1028,19 @@ async function handleMoveSubmit(e) {
   const ctx = state.moveContext;
   if (!ctx) return;
   const targetFolder = $("#moveFolderInput").value.trim();
+  if (ctx.mode === "alias") {
+    try {
+      await api(`/api/libraries/${state.currentLibrary}/folders/alias`, {
+        method: "PUT",
+        body: JSON.stringify({ folder: ctx.folder, parent: targetFolder }),
+      });
+      showToast(targetFolder ? "Ordner wird jetzt dort angezeigt" : "Ordner steht wieder am Originalplatz", { kind: "success" });
+      $("#moveDialog").close();
+      invalidateItemsCache();
+      loadItems();
+    } catch (err) { appAlert(err.message); }
+    return;
+  }
   let targetLibraryId = Number($("#moveLibrarySelect").value);
   // targetRoot: nur gefüllt, wenn das Ziel-Quellordner-Dropdown sichtbar ist
   // (Multi-Path-Bibliothek, siehe loadMoveRootList) — sonst "" = altes

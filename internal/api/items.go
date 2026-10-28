@@ -451,6 +451,10 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 			f.LibraryIDs = nil
 		}
 	}
+	// Angezeigter Ordnerpfad (Anzeige-Verschiebung) → echter rel_path-Pfad.
+	if f.LibraryID != 0 && f.Folder != "" {
+		f.Folder = s.Store.ResolveFolderAlias(f.LibraryID, f.Folder)
+	}
 	if v := q.Get("personId"); v != "" {
 		f.PersonTMDB, _ = strconv.ParseInt(v, 10, 64)
 	}

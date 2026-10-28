@@ -1472,3 +1472,15 @@ Musik-UI unverändert bewusst schlank).
 - 1.5.25: `catalog.UseFile` ruft `once.Do(load)` zuerst – sonst überschrieb die eingebettete Liste nach jedem Neustart die gespeicherte.
 - Zählerlogik: Kopfzeile = alle Dateien; Kachel „Episoden“ = DISTINCT metadata_id + unmatched einzeln; Seriendetail „x/y Folgen“ = TMDB-zugeordnete von allen TMDB-Folgen.
 - Duplikate (59 Mehrfach-Folgen, 60 Dateien) wurden 2026-10-24 vom User per Skript gelöscht („Auflösung ist wichtiger als Speicher“).
+
+### Ordner nur in der Anzeige verschieben (Folder-Alias, seit 1.6.2)
+- Tabelle `folder_alias(library_id, folder, parent)`: `folder` = echter rel_path, `parent` = Anzeige-Ordner
+  derselben Bibliothek (leer = zurück an den Originalplatz). **Dateien und `items.rel_path` bleiben
+  unverändert** — rein virtuell, analog zum Serien-Auto-Merge.
+- Admin-Knopf `↪` auf der Ordner-Kachel (neben ⚙) öffnet `#moveDialog` im Modus `alias`
+  (`PUT /api/libraries/{id}/folders/alias {folder, parent}`); leeres Ziel hebt den Alias auf.
+- Server übersetzt angezeigte → echte Pfade (`Store.ResolveFolderAlias`/`ResolveAlias`) in `listFolders`
+  (`parent`, plus Aus-/Einblenden und Umschreiben der Namen in `applyFolderAliases`), `listItems`
+  (`folder`) und `seriesSeasons`. Andere Endpoints mit `folder=` (catalog, shuffle, Scan …) kennen den Alias noch nicht.
+- Grenzen: nur innerhalb einer Bibliothek; die flache Liste des Anzeige-Ordners (ohne Drilldown) enthält die
+  verschobenen Items nicht; Apps/Linux sehen die Verschiebung über dieselbe API, haben aber keinen Knopf dafür.

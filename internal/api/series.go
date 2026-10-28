@@ -58,6 +58,7 @@ func (s *Server) seriesSeasons(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "folder nötig")
 		return
 	}
+	folder = s.Store.ResolveFolderAlias(libID, folder)
 	// Virtuelles Multi-Folder-Browsing (seit 2026-09-10, User-Wunsch "Two and
 	// a Half Men" S01/S02 in getrennten physischen Ordnern): liegt dieselbe
 	// Show noch in einem oder mehreren weiteren Top-Level-Ordnern (gleiche

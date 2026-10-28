@@ -672,6 +672,9 @@ function renderFolderCard(f) {
   const adminGear = state.me && state.me.isAdmin
     ? `<button class="folder-gear" title="Unterordner als Ebene anzeigen">⚙</button>`
     : "";
+  const aliasBtn = state.me && state.me.isAdmin
+    ? `<button class="folder-alias" title="Ordner nur in der Anzeige verschieben (Dateien bleiben)">↪</button>`
+    : "";
   // Zeigt an, wenn diese Kachel mehrere physische Ordner zusammenfasst, die auf
   // dieselbe TMDB-Show gematcht sind (Store.mergeFoldersBySameShow) — z. B. ein
   // verwaister Ordner mit nur NFO/Poster neben dem echten Serienordner.
@@ -694,6 +697,7 @@ function renderFolderCard(f) {
       ${mergedIcon}
       ${excludedIcon}
       ${adminGear}
+      ${aliasBtn}
       <span class="folder-count">${f.itemCount} Video${f.itemCount === 1 ? "" : "s"}</span>
     </div>
     <div class="card-body">
@@ -708,7 +712,7 @@ function renderFolderCard(f) {
     loadItems();
   };
   el.addEventListener("click", (e) => {
-    if (e.target.classList.contains("folder-gear")) return; // gear handled separately
+    if (e.target.classList.contains("folder-gear") || e.target.classList.contains("folder-alias")) return; // Knöpfe separat
     enter();
   });
   el.addEventListener("keydown", (e) => { if (e.key === "Enter") enter(); });
@@ -726,6 +730,13 @@ function renderFolderCard(f) {
         });
         loadItems();
       } catch (err) { appAlert(err.message); }
+    });
+  }
+  const aliasEl = el.querySelector(".folder-alias");
+  if (aliasEl) {
+    aliasEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openMoveDialog({ mode: "alias", folder: f.name });
     });
   }
   return el;

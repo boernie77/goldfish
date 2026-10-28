@@ -118,6 +118,14 @@ func (s *Store) migrate() error {
 			folder TEXT NOT NULL,
 			PRIMARY KEY (library_id, folder)
 		)`,
+		// Ordner nur in der Anzeige unter einen anderen Ordner derselben Bibliothek
+		// hängen (Dateien bleiben unverändert). Siehe folder_alias.go.
+		`CREATE TABLE IF NOT EXISTS folder_alias (
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			folder TEXT NOT NULL,
+			parent TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY (library_id, folder)
+		)`,
 		`CREATE TABLE IF NOT EXISTS folder_nav (
 			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
 			folder TEXT NOT NULL,
