@@ -1113,3 +1113,8 @@ läuft in `boot()` und schreibt eine wartende Anfrage orange in die Menüzeile
 - `appendSearchResultCards` (`cards.js`): Bibliotheks-Überschrift „<Name> · N" erscheint bei mehreren Bibliotheken **oder** wenn die Schauspieler-Sektion oben steht (`multiLib || peopleShown`).
 - Jeder `.back-btn` braucht `textContent = "←"` (Personen-Filter-Zweig in `renderBreadcrumb` hatte ihn vergessen → leerer Kreis). Beim Anlegen neuer Zurück-Knöpfe prüfen.
 - „Fehlende Inhalte → Folgen": CSV/Kopieren clientseitig aus `state.lastMissingEpisodes` (siehe goldfish-library).
+
+### Film-Infoseite: „Teil X von Y" und Dateipfad (seit 1.5.29 / 1.6.1)
+- `GET /api/items/{id}/collection` (`itemCollection` in `internal/api/collections.go`): Felder collectionId, name, position, total, missing, parts[tmdbMovieId,title,year,owned,itemId,current]; `available:false` bei <2 Teilen, ohne Sammlung oder Nicht-Film. Ausgeblendete und unveröffentlichte (Datum leer/Zukunft, nicht besessene) Teile zählen nicht.
+- Web: `loadDetailCollectionHint()` in `player.js`, CSS `.col-line/.dots/.dot/.cur/.miss` (grün vorhanden, blau dieser Film, rot gestrichelt fehlt). Klick auf grünen Kreis → Infoseite, roter → „Fehlt in der Bibliothek", Sammlungsname → Sammlung. Clients: Linux 0.1.77+, Apple 1.19/1.15/1.12 (tvOS nur Anzeige); Android/Fire TV offen.
+- Die „Datei:"-Zeile (`fileHintHTML`) zeigt den vollständigen Serverpfad `item.path`, nicht nur `relPath`.
