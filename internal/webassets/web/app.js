@@ -55,6 +55,7 @@ const state = {
   transcodePollTimer: null, // setInterval-Handle für Transcode-Progress-Polling
   flatView: false,          // wenn true: loadItems überspringt Ordner-Navigation
   selectionMode: false,     // Bulk-Auswahl aktiv
+  selectedFolders: new Set(), // ausgewählte Ordner/Serien (nur fürs Verschieben)
   selection: new Set(),     // Set von item-IDs in der aktuellen Auswahl
   selectionAnchorId: null,  // letzte NICHT-Shift-angeklickte Kachel — Ausgangspunkt für Shift-Klick-Bereichsauswahl
   lastRenderedItems: [],    // Referenz auf zuletzt gerenderte Items (für „Alle auswählen")
@@ -533,6 +534,7 @@ function setSelectionMode(on) {
   $("#selectModeBtn").classList.toggle("active", on);
   if (!on) {
     state.selection.clear();
+    state.selectedFolders.clear();
     state.selectionAnchorId = null;
     updateBulkBar();
     // Kartenstyling zurücksetzen (Kacheln UND Musik-Listenzeilen)
@@ -541,6 +543,18 @@ function setSelectionMode(on) {
   } else {
     updateBulkBar();
   }
+}
+
+// toggleFolderSelection: ganze Ordner/Serien auswählen (nur "Verschieben" wertet
+// sie aus; alle anderen Bulk-Aktionen arbeiten weiter nur mit Videos).
+function toggleFolderSelection(f, el) {
+  if (state.selectedFolders.has(f.name)) state.selectedFolders.delete(f.name);
+  else state.selectedFolders.add(f.name);
+  const on = state.selectedFolders.has(f.name);
+  el.classList.toggle("selected", on);
+  const box = el.querySelector(".card-select");
+  if (box) box.textContent = on ? "✓" : "";
+  updateBulkBar();
 }
 
 function toggleSelection(item) {
@@ -617,7 +631,10 @@ function updateBulkBar() {
   // dem, was z.B. Bulk-Download/-Löschen tatsächlich verarbeiten würden.
   const totalBytes = selectedItems().reduce((sum, it) => sum + (it.sizeBytes || 0), 0);
   const sizeLabel = totalBytes > 0 ? ` · ${fmtSize(totalBytes)}` : "";
-  $("#bulkCount").textContent = `${state.selection.size} ausgewählt${sizeLabel}`;
+  const folderLabel = state.selectedFolders.size
+    ? `${state.selectedFolders.size} Ordner${state.selection.size ? " + " : ""}${state.selection.size ? state.selection.size + " Videos" : ""}`
+    : `${state.selection.size} ausgewählt${sizeLabel}`;
+  $("#bulkCount").textContent = state.selectedFolders.size ? `${folderLabel} ausgewählt` : folderLabel;
 }
 
 function selectAllVisible() {
@@ -1985,8 +2002,8 @@ function wire() {
     openMoveDialog({ mode: "single", item: state.currentItem });
   });
   $("#bulkMove").addEventListener("click", () => {
-    if (!state.selection.size) return;
-    openMoveDialog({ mode: "bulk", ids: Array.from(state.selection) });
+    if (!state.selection.size && !state.selectedFolders.size) return;
+    openMoveDialog({ mode: "bulk", ids: Array.from(state.selection), folders: Array.from(state.selectedFolders) });
   });
   $("#moveForm").addEventListener("submit", handleMoveSubmit);
   $("#detailWatched").addEventListener("click", async () => {

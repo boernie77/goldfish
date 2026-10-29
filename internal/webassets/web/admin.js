@@ -926,14 +926,20 @@ async function openMoveDialog(ctx) {
     // Alle ausgewählten Items müssen aus derselben Quell-Library kommen —
     // Verschieben liest den Ordnerpfad relativ zu genau einem Root.
     const selectedItems = (state.lastRenderedItems || []).filter(it => ctx.ids.includes(it.id));
+    const nFolders = (ctx.folders || []).length;
     const libIds = new Set(selectedItems.map(it => it.libraryId));
     if (libIds.size > 1) {
       appAlert("Verschieben funktioniert nur mit Items aus derselben Quell-Bibliothek — die Auswahl enthält Items aus mehreren Bibliotheken.");
       return;
     }
     libId = selectedItems[0] ? selectedItems[0].libraryId : state.currentLibrary;
-    title.textContent = `${ctx.ids.length} Videos verschieben`;
-    hint.textContent = `${ctx.ids.length} ausgewählte Datei${ctx.ids.length === 1 ? "" : "en"}`;
+    if (nFolders) {
+      title.textContent = `${nFolders} Ordner verschieben`;
+      hint.textContent = `${ctx.folders.map(f => f.split("/").pop()).join(", ")} — mit allen Unterordnern und Videos, Struktur bleibt erhalten (physisch). Ziel auch auf anderem Speicherort wählbar.`;
+    } else {
+      title.textContent = `${ctx.ids.length} Videos verschieben`;
+      hint.textContent = `${ctx.ids.length} ausgewählte Datei${ctx.ids.length === 1 ? "" : "en"}`;
+    }
     currentFolder = state.currentFolder || "";
   }
   state.moveContext.libId = libId;
@@ -991,7 +997,7 @@ async function resolveMoveConfirmation(ctx, ids, targetFolder, targetLibraryId, 
   try {
     preview = await api(`/api/items/move-preview`, {
       method: "POST",
-      body: JSON.stringify({ ids, targetFolder, targetLibraryId, targetRoot }),
+      body: JSON.stringify({ ids, folders: ctx.folders || [], libraryId: ctx.libId, targetFolder, targetLibraryId, targetRoot }),
     });
   } catch {
     // Preview fehlgeschlagen (z.B. Netzwerk-Hänger) — normal weiterversuchen;
@@ -1075,10 +1081,10 @@ async function handleMoveSubmit(e) {
       invalidateItemsCache();
       loadItems();
     } else {
-      showToast(`Verschieben von ${ctx.ids.length} Datei${ctx.ids.length === 1 ? "" : "en"} gestartet…`, { kind: "info" });
+      showToast((ctx.folders || []).length ? `Verschieben von ${ctx.folders.length} Ordner${ctx.folders.length === 1 ? "" : "n"} gestartet…` : `Verschieben von ${ctx.ids.length} Datei${ctx.ids.length === 1 ? "" : "en"} gestartet…`, { kind: "info" });
       await api(`/api/items/move`, {
         method: "POST",
-        body: JSON.stringify({ ids: ctx.ids, targetFolder, targetLibraryId, targetRoot, allowCrossDevice }),
+        body: JSON.stringify({ ids: ctx.ids, folders: ctx.folders || [], libraryId: ctx.libId, targetFolder, targetLibraryId, targetRoot, allowCrossDevice }),
       });
       // Server verschiebt asynchron im Hintergrund (kann bei vielen/großen
       // Dateien lange dauern) — Dialog bleibt offen und pollt den Fortschritt,

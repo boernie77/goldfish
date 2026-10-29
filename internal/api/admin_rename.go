@@ -544,12 +544,15 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 		TargetLibraryID  int64   `json:"targetLibraryId"`
 		TargetRoot       string  `json:"targetRoot"`
 		AllowCrossDevice bool    `json:"allowCrossDevice"`
+		// Ganze Ordner (Serien) samt Unterstruktur; libraryId = Quell-Bibliothek.
+		Folders   []string `json:"folders"`
+		LibraryID int64    `json:"libraryId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiger Body")
 		return
 	}
-	if len(body.IDs) == 0 {
+	if len(body.IDs) == 0 && len(body.Folders) == 0 {
 		writeError(w, 400, "keine Items ausgewählt")
 		return
 	}
@@ -558,12 +561,21 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	plan, folderMoves, perr := s.planMoves(body.LibraryID, body.IDs, body.Folders, body.TargetFolder)
+	if perr != nil {
+		writeError(w, 400, perr.Error())
+		return
+	}
+	if len(plan) == 0 {
+		writeError(w, 400, "keine Videos im gewählten Ordner")
+		return
+	}
 	me := currentUser(r)
-	job := &moveBulkJob{running: true, total: len(body.IDs), startedAt: time.Now()}
+	job := &moveBulkJob{running: true, total: len(plan), startedAt: time.Now()}
 	currentMoveJob = job
 	go func() {
-		for _, id := range body.IDs {
-			it, err := s.Store.GetItem(id)
+		for _, pl := range plan {
+			it, err := s.Store.GetItem(pl.ID)
 			job.mu.Lock()
 			if it != nil {
 				job.current = filepath.Base(it.Path)
@@ -576,7 +588,7 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 				job.mu.Unlock()
 				continue
 			}
-			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, body.TargetFolder, body.TargetRoot, "move", body.AllowCrossDevice)
+			_, _, msg, code := s.executeMove(it, body.TargetLibraryID, pl.Target, body.TargetRoot, "move", body.AllowCrossDevice)
 			job.mu.Lock()
 			job.done++
 			if code != 0 {
@@ -589,6 +601,14 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 			}
 			job.mu.Unlock()
 		}
+		// Serien-Zuordnung/Drilldown der verschobenen Ordner mitnehmen.
+		destLib := body.TargetLibraryID
+		if destLib <= 0 {
+			destLib = body.LibraryID
+		}
+		for _, fm := range folderMoves {
+			_ = s.Store.CopyFolderSettings(body.LibraryID, fm.Src, destLib, fm.NewDir)
+		}
 		job.mu.Lock()
 		job.running = false
 		job.finished = true
@@ -600,7 +620,7 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 				fmt.Sprintf("%d verschoben, %d fehlgeschlagen (von %d) → %q", moved, failed, total, body.TargetFolder), deviceLabel(r))
 		}
 	}()
-	writeJSON(w, 202, map[string]any{"total": len(body.IDs)})
+	writeJSON(w, 202, map[string]any{"total": len(plan)})
 }
 
 // moveBulkStatus liefert den Fortschritt des zuletzt gestarteten Bulk-Moves.
@@ -618,17 +638,24 @@ func (s *Server) moveBulkStatus(w http.ResponseWriter, _ *http.Request) {
 // wechselt — siehe executeMove-Kommentar).
 func (s *Server) moveItemsPreview(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		IDs             []int64 `json:"ids"`
-		TargetFolder    string  `json:"targetFolder"`
-		TargetLibraryID int64   `json:"targetLibraryId"`
-		TargetRoot      string  `json:"targetRoot"`
+		IDs             []int64  `json:"ids"`
+		TargetFolder    string   `json:"targetFolder"`
+		TargetLibraryID int64    `json:"targetLibraryId"`
+		TargetRoot      string   `json:"targetRoot"`
+		Folders         []string `json:"folders"`
+		LibraryID       int64    `json:"libraryId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, 400, "ungültiger Body")
 		return
 	}
-	if len(body.IDs) == 0 {
+	if len(body.IDs) == 0 && len(body.Folders) == 0 {
 		writeError(w, 400, "keine Items ausgewählt")
+		return
+	}
+	plan, _, perr := s.planMoves(body.LibraryID, body.IDs, body.Folders, body.TargetFolder)
+	if perr != nil {
+		writeError(w, 400, perr.Error())
 		return
 	}
 	if body.TargetLibraryID > 0 {
@@ -641,15 +668,16 @@ func (s *Server) moveItemsPreview(w http.ResponseWriter, r *http.Request) {
 		CrossDevice bool   `json:"crossDevice"`
 		Error       string `json:"error,omitempty"`
 	}
-	results := make([]itemResult, 0, len(body.IDs))
+	results := make([]itemResult, 0, len(plan))
 	anyCrossDevice := false
-	for _, id := range body.IDs {
+	for _, pl := range plan {
+		id := pl.ID
 		it, err := s.Store.GetItem(id)
 		if err != nil || it == nil {
 			results = append(results, itemResult{ID: id, Error: "nicht gefunden"})
 			continue
 		}
-		_, newDir, _, msg, code := s.resolveMoveTarget(it, body.TargetLibraryID, body.TargetFolder, body.TargetRoot)
+		_, newDir, _, msg, code := s.resolveMoveTarget(it, body.TargetLibraryID, pl.Target, body.TargetRoot)
 		if code != 0 {
 			results = append(results, itemResult{ID: id, Error: msg})
 			continue

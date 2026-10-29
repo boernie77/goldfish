@@ -1484,3 +1484,15 @@ Musik-UI unverändert bewusst schlank).
   (`folder`) und `seriesSeasons`. Andere Endpoints mit `folder=` (catalog, shuffle, Scan …) kennen den Alias noch nicht.
 - Grenzen: nur innerhalb einer Bibliothek; die flache Liste des Anzeige-Ordners (ohne Drilldown) enthält die
   verschobenen Items nicht; Apps/Linux sehen die Verschiebung über dieselbe API, haben aber keinen Knopf dafür.
+
+### Ganze Ordner/Serien verschieben (Browser, seit 1.6.3)
+- Im Auswahl-Modus lassen sich Ordner-Kacheln (nur Admin) markieren (`state.selectedFolders`,
+  `toggleFolderSelection` in `app.js`; Checkbox `.card-select` auf der Kachel). Nur „📁 Verschieben“
+  wertet sie aus, die übrigen Bulk-Aktionen arbeiten weiter nur mit Videos.
+- `POST /api/items/move` und `/api/items/move-preview` nehmen zusätzlich `folders` (Ordnerpfade) und `libraryId`
+  (Quell-Bibliothek). `planMoves` (`internal/api/move_folders.go`) macht daraus Item → Zielordner: Name und
+  Unterstruktur bleiben („Serie/S1/x.mkv“ + Ziel „Archiv“ → „Archiv/Serie/S1“); angezeigte Pfade (Folder-Alias) werden
+  auf echte zurückgeführt; ein Ziel innerhalb des Quellordners wird abgelehnt.
+- Nach dem Job übernimmt `Store.CopyFolderSettings` Serien-Zuordnung (`folder_metadata`) und Drilldown auf den neuen
+  Pfad. Ordner-Dateien (tvshow.nfo, Poster) und leere Quellordner bleiben liegen; Ziel-Bibliothek/-Quellordner wie
+  beim normalen Verschieben wählbar (Datenträgerwechsel-Rückfrage inklusive).

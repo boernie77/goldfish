@@ -644,6 +644,7 @@ function renderFolderCard(f) {
   el.setAttribute("role", "button");
   // Damit die Alphabet-Sidebar zu Folder-Kacheln springen kann:
   if (f && f.name) el.dataset.folderName = f.name;
+  if (f && state.selectedFolders.has(f.name)) el.classList.add("selected");
 
   // Nur letztes Pfadsegment anzeigen (z.B. "KanalX" statt "a/Siterips/KanalX")
   const segs = f.name.split("/");
@@ -691,6 +692,7 @@ function renderFolderCard(f) {
 
   el.innerHTML = `
     <div class="thumb">
+      <div class="card-select" data-select></div>
       ${imgTag}
       ${rating}
       ${drilldownIcon}
@@ -707,12 +709,20 @@ function renderFolderCard(f) {
   `;
 
   const enter = () => {
+    // Auswahl-Modus: Ordner/Serie markieren statt öffnen (zum Verschieben).
+    if (state.selectionMode && state.me && state.me.isAdmin) { toggleFolderSelection(f, el); return; }
     state.currentFolder = f.name;
     state.currentFolderDrilldown = !!f.drilldown;
     loadItems();
   };
   el.addEventListener("click", (e) => {
     if (e.target.classList.contains("folder-gear") || e.target.classList.contains("folder-alias")) return; // Knöpfe separat
+    // Klick auf die Checkbox schaltet den Auswahl-Modus ein und markiert den Ordner.
+    if (e.target.closest("[data-select]") && state.me && state.me.isAdmin) {
+      if (!state.selectionMode) setSelectionMode(true);
+      toggleFolderSelection(f, el);
+      return;
+    }
     enter();
   });
   el.addEventListener("keydown", (e) => { if (e.key === "Enter") enter(); });
