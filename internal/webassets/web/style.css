@@ -441,7 +441,8 @@ body.skin-glass .topbar .user-menu strong {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  /* --tile-min wird nur in Privat-Bibliotheken gesetzt (Kachelgröße-Regler). */
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min, 190px), 1fr));
   gap: 16px;
   padding: 16px;
 }
@@ -4583,3 +4584,7 @@ button.danger:hover { background: #991b1b; }
 .col-line .dot.miss { background: transparent; border: 2px dashed #ef4444; color: #ef4444; }
 .col-line .miss-txt { color: #fca5a5; }
 .col-line .col-ok { color: #86efac; font-weight: 600; }
+
+/* Kachelgröße-Regler (nur Privat-Bibliotheken) */
+.tile-size { display: inline-flex; align-items: center; gap: 4px; color: var(--muted, inherit); }
+.tile-size input[type="range"] { width: 110px; vertical-align: middle; }

@@ -222,6 +222,7 @@ async function loadItemsBody() {
     // (kein Genre-Konzept) und ohne aktive Library (Home/Sammlungen/
     // Playlists) ausgeblendet.
     $("#genreFilterLabel").classList.toggle("hidden", !kind || kind === "private");
+    applyTileSize(kind);
     // Suchfeld-Beschriftung an die Bibliothek anpassen (User-Wunsch
     // 2026-09-04): "Titel oder Schauspieler" passt für Musik nicht (kein
     // Cast), dort sucht man nach Künstler/Album.
@@ -1603,4 +1604,29 @@ async function loadMoreFuzzySearchResults() {
   // Button wird von appendFuzzyExtraButton() nach dem Klick ohnehin entfernt,
   // dies ist nur die zugehörige Absicherung auf State-Ebene.
   state.fuzzySearchParams = null;
+}
+
+// Kachelgröße-Regler (User-Wunsch 2026-10-30): nur in Privat-Bibliotheken, dort
+// skaliert er die Video-Kacheln. Filme-/Serien-Cover behalten ihre feste Größe.
+// Wert pro Browser in localStorage; auf dem Handy (≤ 700 px) gelten weiter die
+// festen Spalten aus dem Stylesheet.
+function applyTileSize(kind) {
+  const label = $("#tileSizeLabel");
+  const slider = $("#tileSize");
+  const grid = $("#grid");
+  if (!label || !slider || !grid) return;
+  const on = kind === "private";
+  label.classList.toggle("hidden", !on);
+  if (!on) { grid.style.removeProperty("--tile-min"); return; }
+  let px = 190;
+  try { px = Number(localStorage.getItem("tileMin")) || 190; } catch {}
+  slider.value = String(px);
+  grid.style.setProperty("--tile-min", px + "px");
+  if (!slider.dataset.bound) {
+    slider.dataset.bound = "1";
+    slider.addEventListener("input", () => {
+      grid.style.setProperty("--tile-min", slider.value + "px");
+      try { localStorage.setItem("tileMin", slider.value); } catch {}
+    });
+  }
 }

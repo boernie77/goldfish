@@ -138,6 +138,12 @@
         <div id="musicColumnsList" class="genre-dropdown-list"></div>
       </div>
     </span>
+    <!-- Kachelgröße: nur in Privat-Bibliotheken (Video-Kacheln), Filme/Serien-Cover bleiben fest. -->
+    <label id="tileSizeLabel" class="tile-size hidden" title="Kachelgröße">
+      <span aria-hidden="true">▫</span>
+      <input id="tileSize" type="range" min="140" max="420" step="10" value="190" aria-label="Kachelgröße">
+      <span aria-hidden="true">▣</span>
+    </label>
     <button id="selectModeBtn" title="Mehrfach-Auswahl" aria-label="Mehrfach-Auswahl" class="toggle-btn icon-only">☑</button>
     <span class="btn-group">
       <button id="shuffleBtn" title="Zufällige Wiedergabe" aria-label="Zufällige Wiedergabe" class="icon-only">🎲</button>
