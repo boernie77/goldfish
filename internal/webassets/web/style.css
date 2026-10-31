@@ -2370,6 +2370,18 @@ body.has-mini-player { padding-bottom: 68px; }
 .video-js.player-skin-pill .vjs-volume-panel .vjs-mute-control {
   width: 3.6em;
 }
+/* Flattern beim Hover (User-Bericht 2026-10-31): Video.js verbreitert das Panel
+   beim Hover (Slider-Breite mit 1 s-Transition), die Fortschrittsleiste daneben
+   (flex) schrumpft dadurch laufend, Hover-Zustand und Layout schaukeln sich auf.
+   Fix: Panel hat IMMER die volle Breite (Mute 3.6em + Slider 5em), es ändert sich
+   nichts im Layout; der Slider wird nur ein-/ausgeblendet. */
+.video-js.player-skin-pill .vjs-control-bar .vjs-volume-panel.vjs-volume-panel-horizontal {
+  width: 9em;
+  transition: none;
+}
+.video-js.player-skin-pill .vjs-control-bar .vjs-volume-panel .vjs-volume-control.vjs-volume-horizontal {
+  transition: visibility .15s, opacity .15s;
+}
 .video-js.player-skin-pill .vjs-play-control {
   background: #fff;
   color: #10141c;
