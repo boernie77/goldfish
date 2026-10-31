@@ -1118,3 +1118,7 @@ läuft in `boot()` und schreibt eine wartende Anfrage orange in die Menüzeile
 - `GET /api/items/{id}/collection` (`itemCollection` in `internal/api/collections.go`): Felder collectionId, name, position, total, missing, parts[tmdbMovieId,title,year,owned,itemId,current]; `available:false` bei <2 Teilen, ohne Sammlung oder Nicht-Film. Ausgeblendete und unveröffentlichte (Datum leer/Zukunft, nicht besessene) Teile zählen nicht.
 - Web: `loadDetailCollectionHint()` in `player.js`, CSS `.col-line/.dots/.dot/.cur/.miss` (grün vorhanden, blau dieser Film, rot gestrichelt fehlt). Klick auf grünen Kreis → Infoseite, roter → „Fehlt in der Bibliothek", Sammlungsname → Sammlung. Clients: Linux 0.1.77+, Apple 1.19/1.15/1.12 (tvOS nur Anzeige); Android/Fire TV offen.
 - Die „Datei:"-Zeile (`fileHintHTML`) zeigt den vollständigen Serverpfad `item.path`, nicht nur `relPath`.
+
+### Kachelgröße-Regler (seit 1.6.4, nur Privat-Bibliotheken)
+- `#tileSizeLabel`/`#tileSize` (range 140–420) in `index.html` direkt vor `#selectModeBtn`; setzt die CSS-Variable `--tile-min` an `.grid`. `applyTileSize(kind)` am Ende von `grid.js`, aufgerufen neben dem Genre-Filter-Toggle (zeigt/versteckt den Regler je nach Bibliotheksart). Wert in `localStorage` (`tileMin`). Handy-Media-Queries bleiben unverändert.
+- Im Browser nicht verifiziert (Stand 30.10.). Apps/Linux haben den Regler nicht.

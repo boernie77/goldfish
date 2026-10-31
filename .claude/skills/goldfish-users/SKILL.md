@@ -193,6 +193,7 @@ Aus der früheren Sammel-CLAUDE.md des Goldfish-Repos ausgelagerter Themenbereic
   „Daten & Sicherheit" → „📜 Protokoll". Zwei Filter-Dropdowns (Kategorie +
   Benutzer, User-Wunsch 2026-09-02 nachträglich ergänzt). `ACTIVITY_LOG_LABELS`
   übersetzt die internen Action-Codes in lesbare deutsche Labels für die Tabelle.
+- **Clients:** Linux 1.0.6/1.0.7 (`ActivityLogPage`, Kategorie- **und** Benutzer-Filter seit 1.0.7, Benutzerliste via `user_names`) und Mac 1.13 (Build 256, `AdminLogView`, `adminUserNames`) zeigen das Protokoll mit denselben zwei Filtern; nur für Admins, auf Gerät ungetestet.
 - **Gerät + Wiedergabe-Ende/-Fehler (seit 2026-09-11, User-Wunsch: "ich
   würde gerne sehen, auf welchem Gerät etwas passiert ist, und nicht nur
   Wiedergabe gestartet, sondern auch beendet. Kann man auch Fehlermeldungen
