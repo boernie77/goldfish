@@ -4588,3 +4588,15 @@ button.danger:hover { background: #991b1b; }
 /* Kachelgröße-Regler (nur Privat-Bibliotheken) */
 .tile-size { display: inline-flex; align-items: center; gap: 4px; color: var(--muted, inherit); }
 .tile-size input[type="range"] { width: 110px; vertical-align: middle; }
+
+/* Musik-Live-Suche: Abschnitte Künstler / Alben / Titel */
+.music-search-heading { margin: 18px 4px 6px; font-size: 14px; font-weight: 600; color: var(--muted, #9aa4b2); letter-spacing: .04em; text-transform: uppercase; }
+.music-search-list { display: flex; flex-direction: column; gap: 2px; }
+.music-search-row { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.music-search-row:hover, .music-search-row:focus-visible { background: rgba(127,127,127,.15); outline: none; }
+.music-search-cover { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; background: rgba(127,127,127,.2); }
+.music-search-text { flex: 1; min-width: 0; }
+.music-search-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-search-sub { font-size: 12px; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-search-meta { font-size: 12px; opacity: .7; white-space: nowrap; }
+.music-search-back { grid-column: 1 / -1; display: block; margin: 4px 0 10px; padding: 6px 12px; border: 0; border-radius: 8px; background: rgba(127,127,127,.18); color: inherit; cursor: pointer; font: inherit; }

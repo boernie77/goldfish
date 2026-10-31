@@ -1518,7 +1518,14 @@ function wire() {
   // 500 ms Debounce — Suche ist bei großen Libraries server-seitig teuer
   // (LIKE+EXISTS auf Cast). Unter dem Wert feuert jeder Tastendruck einen
   // neuen Request, der den vorigen überholt — UI fühlt sich „eingefroren" an.
-  $("#searchInput").addEventListener("input", debounce(loadItems, 500));
+  // Musik-Bibliotheken: Treffer erscheinen live (kurzer Debounce), die Suche
+  // dort ist ein Filter auf bereits geladene Alben + ein Track-Query.
+  const searchSlow = debounce(loadItems, 500);
+  const searchFast = debounce(loadItems, 200);
+  $("#searchInput").addEventListener("input", () => {
+    const lib = (state.libraries || []).find(l => l.id == state.currentLibrary);
+    (lib && lib.kind === "music" ? searchFast : searchSlow)();
+  });
   $("#searchClear").addEventListener("click", () => {
     $("#searchInput").value = "";
     $("#searchInput").focus();

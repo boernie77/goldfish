@@ -1325,7 +1325,7 @@ async function loadItemsBody() {
     // nirgends als solchen zeigte, nur das umgebende Album. Nutzt denselben
     // Zeilen-Renderer wie „Alle Titel" (`renderAllTracksList`).
     if (musicSearchQ) {
-      let matches;
+      let matches, allAlbums;
       try {
         const p = new URLSearchParams({
           libraryId: state.currentLibrary,
@@ -1334,11 +1334,14 @@ async function loadItemsBody() {
           dir: effectiveSortDir(),
         });
         applyGenreFilter(p);
-        matches = await api(`/api/items?${p}`);
+        [matches, allAlbums] = await Promise.all([
+          api(`/api/items?${p}`),
+          api(`/api/libraries/${state.currentLibrary}/albums?${musicGenreQS()}`),
+        ]);
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
       renderBreadcrumb({ searchCount: matches.length });
-      renderAllTracksList(grid, matches, `Keine Treffer für „${musicSearchQ}".`);
+      renderMusicSearchResults(grid, musicSearchQ, allAlbums, matches);
       return;
     }
     let albums;

@@ -1304,3 +1304,97 @@ function renderMusicTrackRow(it, queue, idx, columns) {
   row.addEventListener("keydown", e => { if (e.key === "Enter") row.click(); });
   return row;
 }
+
+// renderMusicSearchResults: Live-Suche in Musik-Bibliotheken, getrennt nach
+// Künstler / Alben / Titel (User-Wunsch 2026-10-31, analog zur Filmsuche).
+// Künstler werden aus der Albumliste abgeleitet (Name enthält die Suche) mit
+// Anzahl Alben und Songs; Alben zeigen ihre Songzahl. Klick auf einen Künstler
+// zeigt dessen Alben (mit „Zurück zur Suche“), Klick auf ein Album öffnet es.
+function renderMusicSearchResults(grid, q, allAlbums, tracks) {
+  const ql = q.toLowerCase();
+  const byArtist = new Map();
+  for (const a of allAlbums) {
+    const name = a.artist || "";
+    if (!name || !name.toLowerCase().includes(ql)) continue;
+    let g = byArtist.get(name);
+    if (!g) { g = { name, albums: [], songs: 0, cover: null }; byArtist.set(name, g); }
+    g.albums.push(a);
+    g.songs += a.trackCount || 0;
+    if (!g.cover && a.coverSource) g.cover = a.id;
+  }
+  const artists = [...byArtist.values()].sort((x, y) => x.name.localeCompare(y.name, "de"));
+  const albums = allAlbums.filter(a => (a.album || "").toLowerCase().includes(ql));
+  const rerender = () => renderMusicSearchResults(grid, q, allAlbums, tracks);
+
+  grid.innerHTML = "";
+  grid.classList.add("track-list-grid");
+  document.body.classList.remove("has-alpha-sidebar");
+  const bar = $("#alphaSidebar"); if (bar) bar.classList.add("hidden");
+  if (!artists.length && !albums.length && !tracks.length) {
+    grid.innerHTML = `<div class="empty">Keine Treffer für „${escapeHTML(q)}“.</div>`;
+    state.lastRenderedItems = [];
+    return;
+  }
+  const heading = (text, n) => {
+    const h = document.createElement("h3");
+    h.className = "music-search-heading";
+    h.textContent = `${text} · ${n}`;
+    return h;
+  };
+  const row = (coverId, title, sub, meta, onClick) => {
+    const el = document.createElement("div");
+    el.className = "music-search-row";
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    const cover = coverId ? `/api/poster/album/${coverId}` : "/placeholder.svg";
+    el.innerHTML = `<img class="music-search-cover" loading="lazy" decoding="async" alt="" src="${cover}">
+      <div class="music-search-text"><div class="music-search-title">${escapeHTML(title)}</div>${sub ? `<div class="music-search-sub">${escapeHTML(sub)}</div>` : ""}</div>
+      <div class="music-search-meta">${escapeHTML(meta)}</div>`;
+    el.addEventListener("click", onClick);
+    el.addEventListener("keydown", e => { if (e.key === "Enter") el.click(); });
+    return el;
+  };
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+  if (artists.length) {
+    grid.appendChild(heading("Künstler", artists.length));
+    const list = document.createElement("div");
+    list.className = "music-search-list";
+    for (const g of artists) {
+      list.appendChild(row(g.cover, g.name, "", `${plural(g.albums.length, "Album", "Alben")} · ${plural(g.songs, "Song", "Songs")}`, () => {
+        renderAlbumTiles(grid, g.albums, state.musicListView);
+        const back = document.createElement("button");
+        back.type = "button";
+        back.className = "music-search-back";
+        back.textContent = `← Zurück zur Suche · ${g.name}`;
+        back.addEventListener("click", rerender);
+        grid.insertBefore(back, grid.firstChild);
+      }));
+    }
+    grid.appendChild(list);
+  }
+  if (albums.length) {
+    grid.appendChild(heading("Alben", albums.length));
+    const list = document.createElement("div");
+    list.className = "music-search-list";
+    for (const a of albums) {
+      list.appendChild(row(a.coverSource ? a.id : null, a.album || "(Unbekanntes Album)", a.artist || "", plural(a.trackCount || 0, "Song", "Songs"), () => openMusicAlbum(a.id)));
+    }
+    grid.appendChild(list);
+  }
+  if (tracks.length) {
+    grid.appendChild(heading("Titel", tracks.length));
+    state.playQueue = tracks;
+    state.lastRenderedItems = tracks;
+    const list = document.createElement("div");
+    list.className = "track-list track-list--all";
+    musicSortRows("all", tracks);
+    renderMusicColumnHeader("all", list);
+    const columns = musicEffectiveColumns("all");
+    tracks.forEach((it, idx) => list.appendChild(renderMusicTrackRow(it, tracks, idx, columns)));
+    applyMusicGridTemplate(list, "all");
+    grid.appendChild(list);
+  } else {
+    state.lastRenderedItems = [];
+  }
+}

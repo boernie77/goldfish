@@ -1122,3 +1122,7 @@ läuft in `boot()` und schreibt eine wartende Anfrage orange in die Menüzeile
 ### Kachelgröße-Regler (seit 1.6.4, nur Privat-Bibliotheken)
 - `#tileSizeLabel`/`#tileSize` (range 140–420) in `index.html` direkt vor `#selectModeBtn`; setzt die CSS-Variable `--tile-min` an `.grid`. `applyTileSize(kind)` am Ende von `grid.js`, aufgerufen neben dem Genre-Filter-Toggle (zeigt/versteckt den Regler je nach Bibliotheksart). Wert in `localStorage` (`tileMin`). Handy-Media-Queries bleiben unverändert.
 - Im Browser nicht verifiziert (Stand 30.10.). Apps/Linux haben den Regler nicht.
+
+### Musik-Live-Suche (seit 1.6.5)
+- Aktive Suche im Album-Root einer Musik-Bibliothek (`renderMusicLibraryBranch`, grid.js) lädt parallel `/api/items?search=` (Titel) und die Albumliste und ruft `renderMusicSearchResults` (music.js): Abschnitte **Künstler** (aus Alben abgeleitet; „N Alben · M Songs"), **Alben** („N Songs"), **Titel** (normale Track-Zeilen mit Spalten/Fav/Queue). Künstler-Klick zeigt dessen Alben mit „← Zurück zur Suche"; Album-Klick → `openMusicAlbum`.
+- Debounce in Musik-Bibliotheken 200 ms (sonst 500 ms), `app.js`. CSS `.music-search-*`. In flachen Modi („Alle Titel", Favoriten, Sortierungen) und innerhalb eines Albums bleibt die alte Suche.
