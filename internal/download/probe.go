@@ -95,3 +95,58 @@ func probeAudioStreams(ctx context.Context, path string) ([]AudioStream, error) 
 	}
 	return streams, nil
 }
+
+// SubtitleStream ist ein einzelner Text-Untertitelstream der Quelle.
+type SubtitleStream struct {
+	Index    int    // absoluter Stream-Index in der Quelldatei, für -map 0:<Index>
+	Codec    string // subrip, ass, ssa, mov_text, webvtt, text
+	Language string // leer wenn nicht gesetzt
+	Title    string
+}
+
+// textSubtitleCodecs sind die Untertitelformate, die ffmpeg verlustarm nach
+// `mov_text` (tx3g) wandeln kann — das einzige Untertitelformat im MP4, das
+// AVFoundation als wählbare Spur (`AVMediaSelectionGroup(.legible)`) anzeigt.
+// Bild-Untertitel (hdmv_pgs_subtitle, dvd_subtitle, dvb_subtitle) bleiben
+// bewusst draußen: sie lassen sich nicht in Text wandeln.
+var textSubtitleCodecs = map[string]bool{
+	"subrip": true, "srt": true, "ass": true, "ssa": true,
+	"mov_text": true, "webvtt": true, "text": true,
+}
+
+// probeSubtitleStreams liefert alle wandelbaren Text-Untertitelstreams der
+// Quelldatei. Ein Fehler hier ist nicht fatal (der Aufrufer macht dann ohne
+// Untertitel weiter).
+func probeSubtitleStreams(ctx context.Context, path string) ([]SubtitleStream, error) {
+	cmd := exec.CommandContext(ctx, "ffprobe",
+		"-v", "error", "-analyzeduration", "200M", "-probesize", "200M",
+		"-select_streams", "s",
+		"-show_entries", "stream=index,codec_name:stream_tags=language,title",
+		"-of", "json", path,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	var parsed struct {
+		Streams []struct {
+			Index     int               `json:"index"`
+			CodecName string            `json:"codec_name"`
+			Tags      map[string]string `json:"tags"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		return nil, err
+	}
+	var subs []SubtitleStream
+	for _, s := range parsed.Streams {
+		if !textSubtitleCodecs[s.CodecName] {
+			continue
+		}
+		subs = append(subs, SubtitleStream{
+			Index: s.Index, Codec: s.CodecName,
+			Language: s.Tags["language"], Title: s.Tags["title"],
+		})
+	}
+	return subs, nil
+}

@@ -3,6 +3,7 @@ package download
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/boernie77/goldfish/internal/playback"
@@ -121,5 +122,20 @@ func TestClampProfileToSource(t *testing.T) {
 				t.Errorf("Video+Audio (%d) liegt über der Quell-Bitrate (%d)", got.VideoKbps+got.AudioKbps, c.itemBitrateKbps)
 			}
 		})
+	}
+}
+
+func TestWithSubtitleArgs(t *testing.T) {
+	base := []string{"-i", "in.mkv", "-map", "0:V:0", "out.mp4"}
+	if got := withSubtitleArgs(base, nil); len(got) != len(base) {
+		t.Fatalf("ohne Untertitel muss die Liste unverändert bleiben: %v", got)
+	}
+	got := withSubtitleArgs(base, []SubtitleStream{{Index: 4, Codec: "subrip", Language: "ger"}})
+	want := []string{"-i", "in.mkv", "-map", "0:V:0", "-map", "0:4", "-c:s:0", "mov_text", "-metadata:s:s:0", "language=ger", "out.mp4"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	if got[len(got)-1] != "out.mp4" {
+		t.Fatal("Ausgabedatei muss letztes Element bleiben")
 	}
 }

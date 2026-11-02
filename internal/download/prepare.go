@@ -76,6 +76,11 @@ type AudioStream struct {
 //	    hob die Summe wieder über die Quelle (User meldete beim erneuten Test
 //	    immer noch eine zu große Datei, 273 MB Original → 293 statt < 273 MB).
 //	    Fix zieht `profile.AudioKbps` vorher ab.
+//	8 = Text-Untertitel (subrip/ass/ssa/webvtt/mov_text) werden als `mov_text`
+//	    mitgenommen (vorher fielen sie komplett weg → Mac/iOS-App konnte offline
+//	    keine Untertitel anzeigen, User 2026-11-02). Kopien ohne Text-Untertitel
+//	    sind inhaltlich identisch, werden aber einmalig neu erzeugt.
+//
 // ACHTUNG, bewusste Ausnahme von der Regel "bei JEDER buildArgs-Änderung
 // hochzählen" (CLAUDE.md): der HW-Decode-Umbau vom 2026-09-14 ändert den WEG,
 // nicht das ERGEBNIS — beide Varianten liefern dieselbe Auflösung, dasselbe
@@ -84,7 +89,7 @@ type AudioStream struct {
 // verwerfen und stundenlange Neuberechnungen auslösen, ohne dass eine davon
 // fehlerhaft wäre. Die Regel zielt auf Korrektheitsänderungen; hier greift sie
 // nicht.
-const convVersion = 7
+const convVersion = 8
 
 // h264PixFmtOK ist true, wenn VideoToolbox/AVFoundation den h264-Stream mit
 // diesem Pixelformat hardware-dekodieren kann (nur 8-Bit 4:2:0). Alles andere
@@ -525,12 +530,31 @@ func runPrep(j *prepJob, hw playback.HWAccel, outPath, metaPath, sourcePath stri
 	// durch die „Wird vorbereitet … %"-Anzeige im Client abgedeckt.
 	faststart := true
 
-	args := buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, false, faststart, profile, downscale)
+	// Text-Untertitel mitnehmen (als mov_text). Probe-Fehler sind nicht fatal.
+	subs, subErr := probeSubtitleStreams(ctx, sourcePath)
+	if subErr != nil {
+		log.Printf("[download] compat-prep ffprobe(subtitle) übersprungen src=%q: %v", sourcePath, subErr)
+		subs = nil
+	}
+	if len(subs) > 0 {
+		log.Printf("[download] compat-prep src=%q textuntertitel=%d", sourcePath, len(subs))
+	}
+
+	args := withSubtitleArgs(buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, false, faststart, profile, downscale), subs)
 	out, runErr := runFFmpeg(ctx, j, args)
 	if runErr != nil && needsReencode && hw.Selected != playback.BackendSoftware {
 		_ = os.Remove(tmp)
 		j.doneMS.Store(0) // Fortschritt startet für den Fallback-Lauf neu
-		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, true, faststart, profile, downscale)
+		args = withSubtitleArgs(buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, true, faststart, profile, downscale), subs)
+		out, runErr = runFFmpeg(ctx, j, args)
+	}
+	if runErr != nil && len(subs) > 0 {
+		// Ein exotischer Untertitelstream darf den Download nicht verhindern:
+		// einmal ohne Untertitel wiederholen.
+		log.Printf("[download] compat-prep ffmpeg FEHLER mit Untertiteln src=%q — wiederhole ohne: %v", sourcePath, runErr)
+		_ = os.Remove(tmp)
+		j.doneMS.Store(0)
+		args = buildArgs(sourcePath, tmp, videoCodec, videoTag, videoPixFmt, audioStreams, hw, hw.Selected == playback.BackendSoftware, faststart, profile, downscale)
 		out, runErr = runFFmpeg(ctx, j, args)
 	}
 	if runErr != nil {
@@ -878,4 +902,24 @@ func tail(s string, n int) string {
 		return s
 	}
 	return s[len(s)-n:]
+}
+
+// withSubtitleArgs hängt die Untertitel-Mappings an die fertige Argumentliste
+// (vor dem Ausgabedateinamen, dem letzten Element). Die Reihenfolge der -map-
+// Optionen bestimmt die Ausgabe-Indizes: Video, Audio, dann Untertitel.
+func withSubtitleArgs(args []string, subs []SubtitleStream) []string {
+	if len(subs) == 0 || len(args) == 0 {
+		return args
+	}
+	out := append([]string{}, args[:len(args)-1]...)
+	for i, sub := range subs {
+		out = append(out, "-map", fmt.Sprintf("0:%d", sub.Index), fmt.Sprintf("-c:s:%d", i), "mov_text")
+		if sub.Language != "" {
+			out = append(out, fmt.Sprintf("-metadata:s:s:%d", i), "language="+sub.Language)
+		}
+		if sub.Title != "" {
+			out = append(out, fmt.Sprintf("-metadata:s:s:%d", i), "title="+sub.Title)
+		}
+	}
+	return append(out, args[len(args)-1])
 }
