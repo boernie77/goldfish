@@ -1479,6 +1479,7 @@ function renderBreadcrumb(opts) {
       count.textContent = `(${opts.searchCount.toLocaleString("de-DE")} Treffer)`;
       bc.appendChild(count);
     }
+    appendFuzzyExtraButton(bc, opts);
     return;
   }
 

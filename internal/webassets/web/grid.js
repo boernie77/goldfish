@@ -514,12 +514,20 @@ async function loadItemsBody() {
     // ist nicht hilfreich und der Roundtrip mehrere Sekunden.
     if (sq.length >= 2) {
       let items = [];
+      let fuzzyExtraCount = 0;
       try {
         const params = new URLSearchParams({ search: sq, sort: "title", dir: "asc" });
-        items = await apiGetCached(`/api/items?${params}`);
+        // Ungecacht, damit X-Fuzzy-Extra-Count ausgewertet werden kann —
+        // sonst fehlt auf der Startseite der „N weitere Treffer"-Button
+        // („Muti" fand Mutiny nicht, nur „Mutin" per Auto-Fallback).
+        const meta = await fetchItemsWithMeta(`/api/items?${params}`);
+        items = meta.data;
+        fuzzyExtraCount = meta.fuzzyExtraCount;
+        state.fuzzySearchParams = new URLSearchParams(params);
+        state.lastSearchRawItems = items;
       } catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
       if (stale()) return;
-      renderBreadcrumb({ homeRoot: true, searchCount: items.length });
+      renderBreadcrumb({ homeRoot: true, searchCount: items.length, fuzzyExtraCount });
       grid.innerHTML = "";
       const frag = document.createDocumentFragment();
       // appendSearchResultCards setzt state.lastRenderedItems selbst (siehe
@@ -538,7 +546,7 @@ async function loadItemsBody() {
       // wenn wirklich nichts gefunden wurde — inklusive der Personen-Sektion).
       const shown = await appendSearchResultCards(frag, items, { term: sq });
       grid.appendChild(frag);
-      renderBreadcrumb({ homeRoot: true, searchCount: shown });
+      renderBreadcrumb({ homeRoot: true, searchCount: shown, fuzzyExtraCount });
       return;
     }
     let data;
