@@ -168,7 +168,10 @@ async function loadItemsBody() {
     // (z. B. Playlist aus einer Musik-Bibliothek geöffnet) — dort gilt NICHT die
     // Album-Übersicht, sonst verschwand „☑ Auswählen" in Playlisten.
     const otherView = state.currentPlaylist || state.playlistsView || state.homeView || state.collectionsView;
-    const musicEligible = lib0 && lib0.kind === "music" && state.currentFolder === null && !otherView;
+    // !! ist Pflicht: ohne Bibliothek (Playlist-Ansicht) wäre lib0 undefined, und
+    // classList.toggle("hidden", undefined) SCHALTET dann nur um statt zu setzen —
+    // der Button flackerte so je Ladevorgang zwischen sichtbar und versteckt.
+    const musicEligible = !!(lib0 && lib0.kind === "music" && state.currentFolder === null && !otherView);
     $("#musicListViewBtn").classList.toggle("hidden", !musicEligible);
     $("#musicAllTracksBtn").classList.toggle("hidden", !musicEligible);
     $("#musicAllTracksBtn").classList.toggle("active", musicEligible && !!state.musicAllTracks);
