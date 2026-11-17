@@ -584,7 +584,7 @@ async function loadItemsBody() {
     const wat = $("#watchedFilter").value;
     const fav = currentFavoriteMode();
     const rat = currentRatingFilter();
-    const resB = state.resBuckets || [];
+    const resB = Array.from(state.resBuckets || []);
     const RES_RANGES = { "4k": [2000, Infinity], "2k": [1400, 1999], "1080p": [1000, 1399], "720p": [700, 999],
       "576p": [540, 699], "540p": [500, 539], "480p": [440, 499], "360p": [0, 439] };
     items = items.filter(it => {
