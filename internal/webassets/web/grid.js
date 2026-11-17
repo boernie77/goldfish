@@ -584,6 +584,9 @@ async function loadItemsBody() {
     const wat = $("#watchedFilter").value;
     const fav = currentFavoriteMode();
     const rat = currentRatingFilter();
+    const resB = state.resBuckets || [];
+    const RES_RANGES = { "4k": [2000, Infinity], "2k": [1400, 1999], "1080p": [1000, 1399], "720p": [700, 999],
+      "576p": [540, 699], "540p": [500, 539], "480p": [440, 499], "360p": [0, 439] };
     items = items.filter(it => {
       if (q && !(it.title || "").toLowerCase().includes(q) && !((it.metadata && it.metadata.title) || "").toLowerCase().includes(q)) return false;
       if (wat === "yes" && !it.watched) return false;
@@ -594,6 +597,12 @@ async function loadItemsBody() {
       if (rat === "min1" && r < 1) return false;
       if (rat === "min2" && r < 2) return false;
       if (rat === "exact3" && r < 3) return false;
+      if (resB.length) {
+        // Gleiche Klassen wie der Server (store/items.go): effektive Höhe =
+        // max(Höhe, Breite·9/16), damit Cinemascope im richtigen Bucket landet.
+        const eh = Math.max(it.height || 0, Math.floor((it.width || 0) * 9 / 16));
+        if (!resB.some(b => { const rg = RES_RANGES[b]; return rg && eh >= rg[0] && eh <= rg[1]; })) return false;
+      }
       return true;
     });
     if ($("#sortSelect").value === "shuffle") shuffleInPlace(items);
