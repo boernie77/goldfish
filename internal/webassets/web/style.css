@@ -4612,3 +4612,7 @@ button.danger:hover { background: #991b1b; }
 .music-search-sub { font-size: 12px; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .music-search-meta { font-size: 12px; opacity: .7; white-space: nowrap; }
 .music-search-back { grid-column: 1 / -1; display: block; margin: 4px 0 10px; padding: 6px 12px; border: 0; border-radius: 8px; background: rgba(127,127,127,.18); color: inherit; cursor: pointer; font: inherit; }
+
+/* Weißes Zeit-Tooltip am Fortschrittsbalken ausblenden: die aktuelle Zeit steht
+   schon links neben der Leiste und überdeckte die Zielzeit-Anzeige beim Hovern. */
+.video-js .vjs-progress-holder .vjs-play-progress .vjs-time-tooltip { display: none !important; }

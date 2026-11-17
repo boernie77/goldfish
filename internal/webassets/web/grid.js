@@ -164,7 +164,11 @@ async function loadItemsBody() {
   // Ordner-Navigation).
   {
     const lib0 = state.libraries.find(l => l.id == state.currentLibrary);
-    const musicEligible = lib0 && lib0.kind === "music" && state.currentFolder === null;
+    // Playlist-/Start-/Sammlungs-Ansichten behalten state.currentLibrary teils bei
+    // (z. B. Playlist aus einer Musik-Bibliothek geöffnet) — dort gilt NICHT die
+    // Album-Übersicht, sonst verschwand „☑ Auswählen" in Playlisten.
+    const otherView = state.currentPlaylist || state.playlistsView || state.homeView || state.collectionsView;
+    const musicEligible = lib0 && lib0.kind === "music" && state.currentFolder === null && !otherView;
     $("#musicListViewBtn").classList.toggle("hidden", !musicEligible);
     $("#musicAllTracksBtn").classList.toggle("hidden", !musicEligible);
     $("#musicAllTracksBtn").classList.toggle("active", musicEligible && !!state.musicAllTracks);
