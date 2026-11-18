@@ -8,7 +8,10 @@ function renderImageCard(im, idx, list) {
   el.tabIndex = 0;
   el.setAttribute("role", "button");
   el.dataset.imageId = im.id;
-  const dim = im.width && im.height ? `${im.width}×${im.height}` : "";
+  // Maße werden im Scan nicht gelesen (zu langsam) — stattdessen die Dateigröße.
+  const dim = im.width && im.height
+    ? `${im.width}×${im.height}`
+    : (im.sizeBytes ? (im.sizeBytes / 1048576).toFixed(1).replace(".", ",") + " MB" : "");
   el.innerHTML = `
     <div class="thumb">
       <img class="thumb-img" loading="lazy" decoding="async" alt="" src="/api/images/${im.id}/thumb">

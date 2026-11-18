@@ -28,6 +28,12 @@ func TestScanImages(t *testing.T) {
 	mk("Bilder/a.png")
 	mk("Bilder/Urlaub/b.png")
 	mk("Skip/c.png")
+	// Begleitbilder von Videos dürfen NICHT als Bilder erscheinen.
+	mk("Filme/film.mp4.jpg")
+	mk("Filme/film2.png")
+	_ = os.WriteFile(filepath.Join(dir, "Filme", "film2.mkv"), []byte("v"), 0o644)
+	mk("Filme/poster.jpg")
+	mk("Filme/season01-poster.jpg")
 	_ = os.WriteFile(filepath.Join(dir, "Bilder", "notes.txt"), []byte("x"), 0o644)
 
 	db, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
@@ -52,11 +58,16 @@ func TestScanImages(t *testing.T) {
 		t.Fatalf("erwartet 3 Bilder, got %d", n)
 	}
 	in, _ := db.ListImagesInFolder(libID, "Bilder")
-	if len(in) != 1 || in[0].Width != 64 || in[0].Height != 48 {
-		t.Fatalf("Maße/Ordner: %+v", in)
+	if len(in) != 1 {
+		t.Fatalf("Ordner: %+v", in)
 	}
-	if _, err := os.Stat(ImageThumbPath(thumbs, filepath.Join(dir, "Bilder", "a.png"))); err != nil {
-		t.Fatalf("Vorschau fehlt: %v", err)
+	// Vorschau entsteht erst auf Anfrage, nicht im Scan.
+	thumb := ImageThumbPath(thumbs, filepath.Join(dir, "Bilder", "a.png"))
+	if _, err := os.Stat(thumb); err == nil {
+		t.Fatal("Scan darf keine Vorschauen erzeugen")
+	}
+	if err := MakeImageThumb(context.Background(), filepath.Join(dir, "Bilder", "a.png"), thumb); err != nil {
+		t.Fatalf("Vorschau auf Anfrage: %v", err)
 	}
 	// Ausschluss: Skip wird nicht gewalkt, bestehende Zeilen bleiben erhalten.
 	if err := sc.scanImages(context.Background(), *lib, []string{dir}, false, "", []string{"Skip"}); err != nil {

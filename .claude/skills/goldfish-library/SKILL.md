@@ -1505,7 +1505,7 @@ Musik-UI unverändert bewusst schlank).
 - Bilder (jpg/jpeg/png/webp/gif, **kein HEIC**) liegen in der **eigenen Tabelle `images`**, NICHT in `items` —
   so sehen Zufall, Statistik, Trickplay, Untertitel, Dubletten, Auto-Rename usw. nie Bilder. Nicht „vereinheitlichen“.
 - Scanner: `internal/scanner/images.go` (`scanImages`, eigener Walk nach dem Video-Scan, Orphan-Cleanup mit Scan-Ausschlüssen,
-  Maße per ffprobe, Vorschau 480 px per ffmpeg in `/config/thumbs/img_<sha1>.jpg`).
+  nur Datei-Metadaten im Scan — **kein ffprobe/ffmpeg pro Bild** (14.000 Fotos à 15 MB dauerten Stunden); Vorschau 480 px entsteht lazy beim ersten Abruf (max. 2 parallele ffmpeg) in `/config/thumbs/img_<sha1>.jpg`; **Begleitbilder von Videos** (`x.mp4.jpg`, `x.jpg` neben `x.mkv`, poster/folder/cover/…) werden übersprungen, sonst landen alle Video-Vorschaubilder der Bibliothek in `images`).
 - API (`internal/api/images.go`): `GET /api/libraries/{id}/images?folder=`, `GET /api/images/{id}/file|thumb`; ACL über
   `requireLibAccess` + Schalter-Prüfung (Test `images_e2e_test.go`). Ordnerliste liefert Bild-Ordner nur mit `?images=1`
   (`imageCount`, `thumbImageId`; reine Bild-Ordner `drilldown:true`) — die nativen Apps kennen Bilder noch nicht.
