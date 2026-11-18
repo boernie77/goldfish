@@ -118,6 +118,21 @@ func (s *Store) migrate() error {
 			folder TEXT NOT NULL,
 			PRIMARY KEY (library_id, folder)
 		)`,
+		// Bilddateien (nur Bibliotheken mit images_enabled). Eigene Tabelle statt
+		// items, damit keine der ~100 Video-Abfragen Bilder sieht.
+		`CREATE TABLE IF NOT EXISTS images (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+			path TEXT NOT NULL UNIQUE,
+			rel_path TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			width INTEGER NOT NULL DEFAULT 0,
+			height INTEGER NOT NULL DEFAULT 0,
+			size_bytes INTEGER NOT NULL DEFAULT 0,
+			mod_time DATETIME,
+			added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_images_lib_rel ON images(library_id, rel_path)`,
 		// Ordner nur in der Anzeige unter einen anderen Ordner derselben Bibliothek
 		// hängen (Dateien bleiben unverändert). Siehe folder_alias.go.
 		`CREATE TABLE IF NOT EXISTS folder_alias (
@@ -545,6 +560,9 @@ func (s *Store) migrate() error {
 	// Library im "🔤 Anzeige"-Menü (siehe channel_label_on_top oben, gleiches
 	// Muster).
 	if err := addCol("libraries", "show_release_date", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addCol("libraries", "images_enabled", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	// Maschinelle Übersetzung englischer TMDB-Folgenbeschreibungen (seit 1.4.70):

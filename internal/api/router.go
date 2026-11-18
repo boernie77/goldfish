@@ -113,6 +113,10 @@ func (s *Server) Router() http.Handler {
 		r.Put("/libraries/{id}/delete-protection", requireAdmin(s.setDeleteProtection))
 		r.Put("/libraries/{id}/delete-watched-button", requireAdmin(s.setLibraryDeleteWatchedButtonEnabled))
 		r.Put("/libraries/{id}/show-release-date", requireAdmin(s.setLibraryShowReleaseDate))
+		r.Put("/libraries/{id}/images-enabled", requireAdmin(s.setLibraryImagesEnabled))
+		r.Get("/libraries/{id}/images", s.listLibraryImages)
+		r.Get("/images/{id}/file", s.getImageFile)
+		r.Get("/images/{id}/thumb", s.getImageThumb)
 		r.Put("/libraries/order", requireAdmin(s.setLibraryOrder))
 		r.Get("/libraries/{id}/stats", s.libraryStats)
 		r.Get("/libraries/{id}/stats-detail", s.libraryStatDetail)
@@ -437,7 +441,7 @@ const buildTag = "2026-05-02T10:00Z"
 // versioniert. **Bei JEDEM Deploy die Patch-Stelle um 1 erhöhen** (User-Vorgabe
 // 2026-08-31: "Server Version bei jedem deploy um x.x.1 erhöhen"). Wird im
 // /api/health ausgeliefert und im Zahnrad-Menü der Web-UI angezeigt.
-const appVersion = "1.6.11"
+const appVersion = "1.6.12"
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{

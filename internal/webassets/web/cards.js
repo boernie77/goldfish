@@ -662,7 +662,14 @@ function renderFolderCard(f) {
     }
   } else if (f.thumbItemId) {
     imgUrl = `/api/thumb/${f.thumbItemId}`;
+  } else if (f.thumbImageId) {
+    imgUrl = `/api/images/${f.thumbImageId}/thumb`;
   }
+  // Zähltext: Videos und/oder Bilder (Bilder nur in Bibliotheken mit "🖼 Bilder").
+  const countParts = [];
+  if (f.itemCount > 0 || !f.imageCount) countParts.push(`${f.itemCount} Video${f.itemCount === 1 ? "" : "s"}`);
+  if (f.imageCount > 0) countParts.push(`${f.imageCount} Bild${f.imageCount === 1 ? "" : "er"}`);
+  const countText = countParts.join(" · ");
   const imgTag = imgUrl
     ? `<img class="thumb-img" loading="lazy" decoding="async" alt="" src="${imgUrl}">`
     : "";
@@ -700,7 +707,7 @@ function renderFolderCard(f) {
       ${excludedIcon}
       ${adminGear}
       ${aliasBtn}
-      <span class="folder-count">${f.itemCount} Video${f.itemCount === 1 ? "" : "s"}</span>
+      <span class="folder-count">${countText}</span>
     </div>
     <div class="card-body">
       <div class="card-title" title="${escapeHTML(title)}">${escapeHTML(title)}</div>

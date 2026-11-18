@@ -4616,3 +4616,30 @@ button.danger:hover { background: #991b1b; }
 /* Weißes Zeit-Tooltip am Fortschrittsbalken ausblenden: die aktuelle Zeit steht
    schon links neben der Leiste und überdeckte die Zielzeit-Anzeige beim Hovern. */
 .video-js .vjs-progress-holder .vjs-play-progress .vjs-time-tooltip { display: none !important; }
+
+/* ===== Bilder (Bibliotheken mit "🖼 Bilder") ===== */
+.card.image-card .thumb-img { object-fit: cover; width: 100%; height: 100%; }
+.image-viewer {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .94);
+  display: flex; align-items: center; justify-content: center;
+}
+.image-viewer.hidden { display: none; }
+.image-viewer .iv-img { max-width: 100vw; max-height: 100vh; object-fit: contain; user-select: none; }
+.image-viewer .iv-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 1; display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; color: #fff; background: linear-gradient(rgba(0, 0, 0, .65), transparent);
+}
+.image-viewer .iv-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+.image-viewer .iv-btn {
+  background: rgba(255, 255, 255, .14); color: #fff; border: 0; border-radius: 8px; min-width: 36px; height: 36px;
+  font-size: 18px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+}
+.image-viewer .iv-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; width: 52px; height: 84px;
+  background: rgba(255, 255, 255, .1); color: #fff; border: 0; border-radius: 10px; font-size: 40px; cursor: pointer;
+}
+.image-viewer .iv-nav:hover, .image-viewer .iv-btn:hover { background: rgba(255, 255, 255, .24); }
+.image-viewer .iv-prev { left: 12px; }
+.image-viewer .iv-next { right: 12px; }
+body.iv-open { overflow: hidden; }
+@media (max-width: 700px) { .image-viewer .iv-nav { width: 40px; height: 64px; font-size: 30px; } }

@@ -550,6 +550,13 @@ func (sc *Scanner) run(ctx context.Context, lib model.Library, force bool, folde
 	log.Printf("[scan] lib=%d folder=%q fertig: %d Dateien aus %d Quellen, %d entfernt",
 		lib.ID, folder, len(files), len(paths), removed)
 
+	// Bilder (nur Bibliotheken mit images_enabled): eigener Durchgang, eigene Tabelle.
+	if lib.ImagesEnabled {
+		if err := sc.scanImages(ctx, lib, paths, force, folder, excludedFolders); err != nil {
+			log.Printf("[scan] lib=%d Bilder: %v", lib.ID, err)
+		}
+	}
+
 	// Musik: Artist/Album-Gruppierung + Cover-Extraktion aus der Audiodatei
 	// selbst (MusicBrainz/Cover-Art-Archive-Fallback läuft separat im
 	// MusicWorker, getriggert über sc.OnComplete in main.go).

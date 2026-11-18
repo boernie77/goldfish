@@ -534,6 +534,27 @@ async function openManage() {
       dateLabel.appendChild(dateBox);
       dateLabel.appendChild(document.createTextNode(" 📅 Datum"));
       toolbar.appendChild(dateLabel);
+      // Bilder (jpg/png/webp/gif) in dieser Bibliothek einlesen und im Grid/
+      // Betrachter anzeigen. Default AUS. Nach dem Einschalten einmal "⟳ Scan".
+      const imgLabel = document.createElement("label");
+      imgLabel.className = "lib-toggle";
+      imgLabel.title = "Bilddateien (jpg, png, webp, gif) dieser Bibliothek einlesen und anzeigen. Nach dem Einschalten einmal scannen.";
+      const imgBox = document.createElement("input");
+      imgBox.type = "checkbox";
+      imgBox.checked = l.imagesEnabled === true;
+      imgBox.addEventListener("change", async () => {
+        try {
+          await api(`/api/libraries/${l.id}/images-enabled`, {
+            method: "PUT",
+            body: JSON.stringify({ enabled: imgBox.checked }),
+          });
+          await loadLibraries();
+          if (imgBox.checked) showToast("Bilder aktiviert – jetzt „⟳ Scan“ ausführen, um sie einzulesen.");
+        } catch (e) { appAlert(e.message); }
+      });
+      imgLabel.appendChild(imgBox);
+      imgLabel.appendChild(document.createTextNode(" 🖼 Bilder"));
+      toolbar.appendChild(imgLabel);
       header.appendChild(toolbar);
     }
     li.appendChild(header);

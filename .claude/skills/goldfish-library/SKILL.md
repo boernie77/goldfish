@@ -1496,3 +1496,19 @@ Musik-UI unverändert bewusst schlank).
 - Nach dem Job übernimmt `Store.CopyFolderSettings` Serien-Zuordnung (`folder_metadata`) und Drilldown auf den neuen
   Pfad. Ordner-Dateien (tvshow.nfo, Poster) und leere Quellordner bleiben liegen; Ziel-Bibliothek/-Quellordner wie
   beim normalen Verschieben wählbar (Datenträgerwechsel-Rückfrage inklusive).
+
+
+## Bilder in Bibliotheken (seit 1.6.12)
+
+- Schalter pro Bibliothek: `libraries.images_enabled` (Default AUS), im Verwalten-Dialog „🖼 Bilder“ (nur kind=private),
+  `PUT /api/libraries/{id}/images-enabled`. Nach dem Einschalten einmal „⟳ Scan“.
+- Bilder (jpg/jpeg/png/webp/gif, **kein HEIC**) liegen in der **eigenen Tabelle `images`**, NICHT in `items` —
+  so sehen Zufall, Statistik, Trickplay, Untertitel, Dubletten, Auto-Rename usw. nie Bilder. Nicht „vereinheitlichen“.
+- Scanner: `internal/scanner/images.go` (`scanImages`, eigener Walk nach dem Video-Scan, Orphan-Cleanup mit Scan-Ausschlüssen,
+  Maße per ffprobe, Vorschau 480 px per ffmpeg in `/config/thumbs/img_<sha1>.jpg`).
+- API (`internal/api/images.go`): `GET /api/libraries/{id}/images?folder=`, `GET /api/images/{id}/file|thumb`; ACL über
+  `requireLibAccess` + Schalter-Prüfung (Test `images_e2e_test.go`). Ordnerliste liefert Bild-Ordner nur mit `?images=1`
+  (`imageCount`, `thumbImageId`; reine Bild-Ordner `drilldown:true`) — die nativen Apps kennen Bilder noch nicht.
+- Frontend: `imageviewer.js` (Kachel + Vollbild-Betrachter: ←/→, Wischen, Leertaste = Diashow, Esc), Einbindung in
+  `renderDefaultLibraryGrid` (grid.js) und `renderFolderCard` (cards.js).
+- Offen: native Apps (Mac/iOS/tvOS/Android/Fire TV/Linux) zeigen Bilder noch nicht; Bilder erscheinen nicht in Suche/Flat-View.

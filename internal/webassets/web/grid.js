@@ -1456,7 +1456,8 @@ async function loadItemsBody() {
     // Item zurückgeben (siehe SubfoldersAtFiltered im Store). Sonst werden im
     // TV-Library-Root komplett ungemappte Serien überhaupt nicht sichtbar,
     // weil die Episoden in Subfoldern liegen und der Items-Filter dort nicht greift.
-    const folderQS = match ? `?match=${match}` : "";
+    const imgQS = (lib && lib.imagesEnabled) ? "images=1" : "";
+    const folderQS = (match || imgQS) ? "?" + [match ? `match=${match}` : "", imgQS].filter(Boolean).join("&") : "";
     [folders, items] = await Promise.all([
       api(`/api/libraries/${state.currentLibrary}/folders${folderQS}`),
       api(`/api/items?${params}`),
@@ -1464,7 +1465,7 @@ async function loadItemsBody() {
   } else if (state.currentFolderDrilldown) {
     // Subfolder mit aktiviertem Drilldown: zeige seine direkten Unterordner + Items direkt in diesem Ordner
     const dpath = state.currentFolder;
-    const ddMatchQS = match ? `&match=${match}` : "";
+    const ddMatchQS = (match ? `&match=${match}` : "") + ((lib && lib.imagesEnabled) ? "&images=1" : "");
     [folders, items] = await Promise.all([
       api(`/api/libraries/${state.currentLibrary}/folders?parent=${encodeURIComponent(dpath)}${ddMatchQS}`),
       (async () => {
@@ -1488,12 +1489,22 @@ async function loadItemsBody() {
   }
   if (stale()) return;
 
+  // Bilder (nur Bibliotheken mit "🖼 Bilder"): die Bilder, die direkt im
+  // aktuellen Ordner liegen. Nicht bei Suche/Flat-View (die zeigen Videos).
+  let images = [];
+  if (lib && lib.imagesEnabled && !searching && !flatView) {
+    try {
+      images = await api(`/api/libraries/${state.currentLibrary}/images?folder=${encodeURIComponent(state.currentFolder || "")}`);
+    } catch (e) { images = []; }
+    if (stale()) return;
+  }
+
   // Ab 3 Zeichen NICHT hier abbrechen: auch ohne Titeltreffer müssen die
   // Schauspieler- und Genre-Sektion laden (appendSearchResultCards unten zeigt
   // bei komplett leerem Ergebnis selbst „Keine Treffer"). Bug 2026-10-16:
   // „dakota" in Filme zeigte 0 Treffer, obwohl Dakota Johnson im Bestand ist.
   const searchSections = searching && searchQ.trim().length >= 3;
-  if (folders.length === 0 && items.length === 0 && !searchSections) {
+  if (folders.length === 0 && items.length === 0 && images.length === 0 && !searchSections) {
     if (filterActive) {
       // fuzzyExtraCount auch bei 0 exakten Treffern mitgeben — ein kurzer
       // Suchbegriff kann exakt leer sein, obwohl der Fuzzy-Modus etwas
@@ -1570,6 +1581,7 @@ async function loadItemsBody() {
     renderBreadcrumb({ searchCount: shown + folders.length, fuzzyExtraCount });
   } else {
     for (const it of merged) frag.appendChild(renderCard(it));
+    images.forEach((im, i) => frag.appendChild(renderImageCard(im, i, images)));
   }
   grid.innerHTML = "";
   grid.appendChild(frag);

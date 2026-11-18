@@ -83,6 +83,12 @@ func (s *Server) listFolders(w http.ResponseWriter, r *http.Request) {
 	if folders == nil {
 		folders = []store.Folder{}
 	}
+	if r.URL.Query().Get("images") == "1" {
+		folders = s.mergeImageFolders(id, realParent, folders)
+		sort.SliceStable(folders, func(i, j int) bool {
+			return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
+		})
+	}
 	if len(aliases) > 0 {
 		folders = s.applyFolderAliases(id, aliases, parent, realParent, onlyUnmatched, folders)
 	}

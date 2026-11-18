@@ -101,8 +101,27 @@ type Library struct {
 	// im "🔤 Anzeige"-Menü — dort ist es fuer private/YouTube-Bibliotheken
 	// relevant, da es dort kein TMDB-Jahr auf der Infokarte gibt.
 	ShowReleaseDate bool      `json:"showReleaseDate"`
+	// ImagesEnabled: der Scanner nimmt in dieser Bibliothek zusätzlich Bilddateien
+	// (jpg/png/webp/gif) in die Tabelle `images` auf (Default AUS). Bilder sind
+	// bewusst KEINE items — so bleiben Zufall, Statistik, Trickplay, Untertitel,
+	// Dubletten usw. unberührt.
+	ImagesEnabled bool `json:"imagesEnabled"`
 
 	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// Image ist eine Bilddatei in einer Bibliothek mit ImagesEnabled.
+type Image struct {
+	ID        int64     `json:"id"`
+	LibraryID int64     `json:"libraryId"`
+	Path      string    `json:"-"`
+	RelPath   string    `json:"relPath"`
+	Title     string    `json:"title"`
+	Width     int       `json:"width"`
+	Height    int       `json:"height"`
+	SizeBytes int64     `json:"sizeBytes"`
+	ModTime   time.Time `json:"modTime"`
+	AddedAt   time.Time `json:"addedAt"`
 }
 
 // Metadata hält angereicherte TMDB-Daten zu einem Film, einer Serie oder einer Episode.

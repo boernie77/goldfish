@@ -150,6 +150,11 @@ type Folder struct {
 	MetadataID  int64           `json:"metadataId,omitempty"`
 	Metadata    *model.Metadata `json:"metadata,omitempty"`
 	Drilldown   bool            `json:"drilldown"` // true = Klick zeigt Subfolder statt flacher Liste
+	// ImageCount/ThumbImageID: Bilder in/unter diesem Ordner (nur wenn die Bibliothek
+	// images_enabled hat und der Client ?images=1 anfragt). Reine Bild-Ordner haben
+	// ItemCount 0.
+	ImageCount   int   `json:"imageCount,omitempty"`
+	ThumbImageID int64 `json:"thumbImageId,omitempty"`
 	// Excluded: dieser Ordner (oder ein Vorfahre davon) steht in
 	// scan_excluded_folders — der Auto-Scan überspringt ihn (manuelle Scans
 	// NICHT, siehe „Scan-Ausschlüsse" in CLAUDE.md). Rein informativ fürs
