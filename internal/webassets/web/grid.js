@@ -1244,7 +1244,25 @@ async function loadItemsBody() {
     catch (e) { if (!stale()) grid.innerHTML = `<div class="empty">Fehler: ${escapeHTML(e.message)}</div>`; return; }
     if (stale()) return;
     renderBreadcrumb({ searchCount: items.length, flatSortView: flatSort });
-    if (!items.length) {
+    // Bilder (Bibliotheken mit "🖼 Bilder"): auch in den Flat-Sortierungen die Bilder
+    // dieses Ordners und Bild-Ordner (ohne Videos) zeigen — sonst wirkte ein reiner
+    // Bilder-Ordner leer („Keine Videos in diesem Ordner"). Nicht bei Suche.
+    let flatImgs = [];
+    let flatImgFolders = [];
+    const flatLib = state.libraries.find(l => l.id == state.currentLibrary);
+    if (flatLib && flatLib.imagesEnabled && !searchQ) {
+      const lid = state.currentLibrary;
+      const parentQS = state.currentFolder ? `&parent=${encodeURIComponent(state.currentFolder)}` : "";
+      try {
+        [flatImgs, flatImgFolders] = await Promise.all([
+          api(`/api/libraries/${lid}/images?folder=${encodeURIComponent(state.currentFolder || "")}`),
+          api(`/api/libraries/${lid}/folders?images=1${parentQS}`),
+        ]);
+      } catch (e) { flatImgs = []; flatImgFolders = []; }
+      flatImgFolders = (flatImgFolders || []).filter(f => !f.itemCount && f.imageCount);
+      if (stale()) return;
+    }
+    if (!items.length && !flatImgs.length && !flatImgFolders.length) {
       const scope = state.currentFolder ? "in diesem Ordner" : "in dieser Bibliothek";
       const msg = flatSort === "played" ? `Noch nichts abgespielt ${scope}.` : `Keine Videos ${scope}.`;
       grid.innerHTML = `<div class="empty">${msg}</div>`;
@@ -1253,7 +1271,9 @@ async function loadItemsBody() {
     const merged = groupVariants(items);
     state.lastRenderedItems = merged;
     const frag = document.createDocumentFragment();
+    flatImgFolders.forEach(f => frag.appendChild(renderFolderCard(f)));
     merged.forEach(it => frag.appendChild(renderCard(it)));
+    flatImgs.forEach((im, i) => frag.appendChild(renderImageCard(im, i, flatImgs)));
     grid.innerHTML = "";
     grid.appendChild(frag);
     // Fehlende Folgen je Kommissar (Tatort-Katalog, seit 1.4.65) — die
@@ -1490,9 +1510,9 @@ async function loadItemsBody() {
   if (stale()) return;
 
   // Bilder (nur Bibliotheken mit "🖼 Bilder"): die Bilder, die direkt im
-  // aktuellen Ordner liegen. Nicht bei Suche/Flat-View (die zeigen Videos).
+  // aktuellen Ordner liegen. Nicht bei Suche (die zeigt Videos).
   let images = [];
-  if (lib && lib.imagesEnabled && !searching && !flatView) {
+  if (lib && lib.imagesEnabled && !searching) {
     try {
       images = await api(`/api/libraries/${state.currentLibrary}/images?folder=${encodeURIComponent(state.currentFolder || "")}`);
     } catch (e) { images = []; }
