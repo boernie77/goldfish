@@ -999,7 +999,7 @@ async function loadMoveRootList(libId) {
     select.innerHTML = "";
     return;
   }
-  select.innerHTML = paths.map(p => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("");
+  select.innerHTML = `<option value="">Wie Quelle (automatisch)</option>` + paths.map(p => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("");
   row.classList.remove("hidden");
 }
 

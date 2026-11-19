@@ -249,9 +249,10 @@ func (s *Server) executeImageMove(im *model.Image, targetLib int64, targetFolder
 	return "", 0
 }
 
-// deleteImageFolders: POST /api/libraries/{id}/images/delete-folders {folders:[...]}
-// Löscht alle Bilddateien unterhalb der Ordner von der Platte (Videos bleiben),
-// danach leer gewordene Ordner. Admin-only, Löschschutz wird beachtet.
+// deleteImageFolders: POST /api/libraries/{id}/images/delete-folders
+// Body {folders:[...], includeVideos:bool, dryRun:bool}. Löscht die Bilddateien
+// (und mit includeVideos auch alle Videos) unterhalb der Ordner von der Platte,
+// danach leer gewordene Ordner. dryRun zählt nur. Admin-only, Löschschutz gilt.
 func (s *Server) deleteImageFolders(w http.ResponseWriter, r *http.Request) {
 	libID, err := pathInt(r, "id")
 	if err != nil {
@@ -262,13 +263,15 @@ func (s *Server) deleteImageFolders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Folders []string `json:"folders"`
+		Folders       []string `json:"folders"`
+		IncludeVideos bool     `json:"includeVideos"`
+		DryRun        bool     `json:"dryRun"`
 	}
 	if json.NewDecoder(r.Body).Decode(&body) != nil || len(body.Folders) == 0 {
 		writeError(w, 400, "keine Ordner angegeben")
 		return
 	}
-	deleted, skipped, failed := 0, 0, 0
+	deleted, videos, skipped, failed := 0, 0, 0, 0
 	for _, raw := range body.Folders {
 		folder := s.Store.ResolveFolderAlias(libID, strings.Trim(raw, "/"))
 		if folder == "" {
@@ -278,6 +281,18 @@ func (s *Server) deleteImageFolders(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			writeError(w, 500, err.Error())
 			return
+		}
+		var vids []store.FolderItem
+		if body.IncludeVideos {
+			if vids, err = s.Store.ItemsUnderFolder(libID, folder); err != nil {
+				writeError(w, 500, err.Error())
+				return
+			}
+		}
+		if body.DryRun {
+			deleted += len(ims)
+			videos += len(vids)
+			continue
 		}
 		dirs := map[string]bool{}
 		var root string
@@ -296,21 +311,42 @@ func (s *Server) deleteImageFolders(w http.ResponseWriter, r *http.Request) {
 			dirs[filepath.Dir(im.Path)] = true
 			root = strings.TrimSuffix(filepath.ToSlash(im.Path), "/"+filepath.ToSlash(im.RelPath))
 		}
+		for _, v := range vids {
+			it, err := s.Store.GetItem(v.ID)
+			if err != nil || it == nil {
+				failed++
+				continue
+			}
+			if err := s.deleteItemFilesAndRow(it); err != nil {
+				if errors.Is(err, errDeleteProtected) {
+					skipped++
+				} else {
+					failed++
+				}
+				continue
+			}
+			videos++
+			dirs[filepath.Dir(it.Path)] = true
+			root = strings.TrimSuffix(filepath.ToSlash(it.Path), "/"+filepath.ToSlash(it.RelPath))
+		}
 		if root != "" {
-			top := filepath.FromSlash(root + "/" + folder)
+			top := root + "/" + folder
 			for d := range dirs {
+				d = filepath.ToSlash(d)
 				for len(d) >= len(top) && strings.HasPrefix(d, top) {
-					if os.Remove(d) != nil { // nicht leer → stehen lassen
+					if os.Remove(filepath.FromSlash(d)) != nil { // nicht leer → stehen lassen
 						break
 					}
-					d = filepath.Dir(d)
+					d = filepath.ToSlash(filepath.Dir(d))
 				}
 			}
 		}
 	}
-	if me := currentUser(r); me != nil {
-		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "image_delete",
-			fmt.Sprintf("%d Bilder gelöscht in %d Ordner(n)", deleted, len(body.Folders)), deviceLabel(r))
+	if !body.DryRun {
+		if me := currentUser(r); me != nil {
+			_ = s.Store.LogActivity(me.ID, me.Username, "admin", "folder_delete",
+				fmt.Sprintf("%d Videos, %d Bilder gelöscht in %d Ordner(n)", videos, deleted, len(body.Folders)), deviceLabel(r))
+		}
 	}
-	writeJSON(w, 200, map[string]int{"deleted": deleted, "skipped": skipped, "failed": failed})
+	writeJSON(w, 200, map[string]int{"deleted": deleted, "videos": videos, "skipped": skipped, "failed": failed})
 }

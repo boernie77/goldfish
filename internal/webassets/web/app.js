@@ -790,6 +790,125 @@ async function bulkDelete() {
     } catch { fails++; }
   }
   if (folders.length) {
+    // Ausgewählte Ordner: erst zählen, dann mit konkreten Zahlen nachfragen.
+    const url = `/api/libraries/${state.currentLibrary}/images/delete-folders`;
+    try {
+      const c = await api(url, { method: "POST", body: JSON.stringify({ folders, includeVideos: true, dryRun: true }) });
+      const names = folders.map(f => f.split("/").pop()).slice(0, 5).join(", ");
+      const msg = `${folders.length} Ordner (${names}${folders.length > 5 ? ", …" : ""}) endgültig von der Platte löschen?\n${c.videos} Videos und ${c.deleted} Bilder samt Unterordnern. Das kann nicht rückgängig gemacht werden.`;
+      if (c.videos + c.deleted > 0 && await appConfirm(msg)) {
+        const r = await api(url, { method: "POST", body: JSON.stringify({ folders, includeVideos: true }) });
+        showToast(`${r.videos} Videos und ${r.deleted} Bilder gelöscht${r.skipped ? `, ${r.skipped} durch Löschschutz übersprungen` : ""}${r.failed ? `, ${r.failed} fehlgeschlagen` : ""}`, { kind: r.failed ? "error" : "success" });
+      } else if (c.videos + c.deleted === 0) {
+        appAlert("In den gewählten Ordnern wurden keine Dateien gefunden.");
+      }
+    } catch (e) { appAlert(`Ordner löschen fehlgeschlagen: ${e.message}`); }
+  }
+  if (fails) appAlert(`${fails} von ${ids.length} fehlgeschlagen.`);
+  setSelectionMode(false);
+  loadItems();
+}
+
+async function bulkSetWatched() {
+  const ids = Array.from(state.selection);
+  if (!ids.length) return;
+  let fails = 0;
+  for (const id of ids) {
+    try {
+      await api(`/api/items/${id}/watched`, { method: "PUT", body: JSON.stringify({ watched: true }) });
+    } catch { fails++; }
+  }
+  if (fails) appAlert(`${fails} von ${ids.length} fehlgeschlagen.`);
+  setSelectionMode(false);
+  loadItems();
+}
+
+async function bulkAddToPlaylist() {
+  const ids = Array.from(state.selection);
+  if (!ids.length) return;
+  // Wiederverwendung des Detail-Dialogs: zeigt die Liste aller Playlists UND
+  // das Quick-Create-Formular, sodass auch aus der Bulk-Auswahl direkt eine
+  // neue Playlist mit den gewählten Videos erstellt werden kann.
+  await openAddToPlaylist({ itemIDs: ids });
+}
+
+async function bulkDownload() {
+  const items = selectedItems();
+  if (!items.length) return;
+  if (!(await appConfirm(`${items.length} Dateien herunterladen? Dein Browser blockiert evtl. mehrfache Downloads — bestätige die Nachfrage.`))) return;
+  // Zeitversetzt triggern, damit Browser nicht als Popup-Spam blockt
+  items.forEach((it, i) => {
+    setTimeout(() => {
+      const a = document.createElement("a");
+      a.href = `/api/download/${it.id}`;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, i * 400);
+  });
+}
+
+// Zusammenführen mehrerer Kacheln unter derselben TMDB-Zuordnung (User-
+// Anfrage 2026-09-07: "Ich dachte, das passiert bei mir automatisch" — der
+// automatische Merge (groupVariants im Grid) wirkt nur, wenn alle Dateien
+// bereits dieselbe metadata_id tragen. Wurden zwei Dateien desselben Films
+// unabhängig voneinander manuell zugeordnet (z. B. bei der Korrektur einer
+// Fehlzuordnung) und landeten dabei auf verschiedenen TMDB-Einträgen für
+// denselben Film (TMDB hat gelegentlich Doppel-/Fehleinträge), bleiben sie
+// als getrennte Kacheln stehen — genau das Muster bei "A Complete Unknown".
+// Nutzt den bereits vorhandenen, aber seit einer früheren UI-Aufräumrunde
+// nicht mehr verlinkten Server-Endpoint POST /api/items/merge (CLAUDE.md
+// "Merge-Duplikate" → "Manueller Bulk-Merge (API)").
+async function bulkMerge() {
+  const items = selectedItems();
+  if (items.length < 2) {
+    appAlert("Bitte mindestens 2 Kacheln auswählen, die zusammengeführt werden sollen.");
+    return;
+  }
+  // Bug gefixt 2026-09-07 (User-Report: nach dem Merge blieben trotzdem 2
+  // Kacheln stehen, eine davon weiterhin mit ×N-Badge): eine ausgewählte
+  // Kachel kann bereits mehrere Dateien bündeln (groupVariants() legt die
+  // Geschwister in `_variants` ab, `it.id` ist nur der Repräsentant). Wurden
+  // hier nur die Repräsentanten-IDs verschickt, bekam NUR die sichtbare
+  // Datei die neue gemeinsame Zuordnung — ihre bereits vorher korrekt
+  // gruppierten Geschwister blieben auf der ALTEN metadata_id hängen und
+  // wurden dadurch aus ihrer eigenen, bis dahin richtigen Gruppe
+  // herausgerissen. Jetzt werden alle `_variants`-IDs jeder Auswahl mit
+  // eingesammelt, nicht nur die des Repräsentanten.
+  const allIds = new Set();
+  for (const it of items) {
+    const variants = Array.isArray(it._variants) && it._variants.length ? it._variants : [it];
+    for (const v of variants) allIds.add(v.id);
+  }
+  const ids = Array.from(allIds);
+  if (!(await appConfirm(`${ids.length} Dateien (aus ${items.length} ausgewählten Kacheln) unter einer gemeinsamen Zuordnung zusammenführen? Der erste Eintrag mit TMDB-Zuordnung gewinnt, alle anderen übernehmen sie.`))) return;
+  try {
+    const res = await api("/api/items/merge", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    });
+    showToast(`${res.merged} Dateien zusammengeführt`, { kind: "success" });
+  } catch (e) {
+    appAlert(`Zusammenführen fehlgeschlagen: ${e.message}`);
+    return;
+  }
+  setSelectionMode(false);
+  loadItems();
+}
+
+async function bulkDelete() {
+  const ids = Array.from(state.selection);
+  const folders = Array.from(state.selectedFolders);
+  if (!ids.length && !folders.length) return;
+  if (ids.length && !(await appConfirm(`${ids.length} Dateien endgültig löschen (inkl. Datei auf Disk)?`))) return;
+  let fails = 0;
+  for (const id of ids) {
+    try {
+      await api(`/api/items/${id}?deleteFile=true`, { method: "DELETE" });
+    } catch { fails++; }
+  }
+  if (folders.length) {
     // Ausgewählte Ordner: nur die BILDER darin (inkl. Unterordner) werden gelöscht,
     // Videos bleiben unangetastet.
     if (await appConfirm(`Alle Bilder in ${folders.length} Ordner${folders.length === 1 ? "" : "n"} (inkl. Unterordner) endgültig von der Platte löschen? Videos bleiben erhalten.`)) {
