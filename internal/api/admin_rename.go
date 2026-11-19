@@ -584,6 +584,7 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 			job.done++
 			if code != 0 {
 				job.failed++
+				log.Printf("[move] Bild %s: %s", ip.Image.Path, msg)
 				if len(job.failures) < 20 {
 					job.failures = append(job.failures, fmt.Sprintf("%s: %s", filepath.Base(ip.Image.Path), msg))
 				}
@@ -618,6 +619,15 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 				job.moved++
 			}
 			job.mu.Unlock()
+		}
+		// Leer gewordene Quellordner (Bilder) aufräumen.
+		for _, ip := range imgPlan {
+			root := strings.TrimSuffix(filepath.ToSlash(ip.Image.Path), "/"+filepath.ToSlash(ip.Image.RelPath))
+			for d := filepath.ToSlash(filepath.Dir(ip.Image.Path)); len(d) > len(root) && strings.HasPrefix(d, root+"/"); d = filepath.ToSlash(filepath.Dir(d)) {
+				if os.Remove(filepath.FromSlash(d)) != nil { // nicht leer → stehen lassen
+					break
+				}
+			}
 		}
 		// Serien-Zuordnung/Drilldown der verschobenen Ordner mitnehmen.
 		destLib := body.TargetLibraryID

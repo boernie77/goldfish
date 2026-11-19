@@ -1155,6 +1155,7 @@ async function pollMoveProgress() {
     if (status.finished || !status.running) {
       if (status.failed > 0) {
         showToast(`${status.moved} verschoben, ${status.failed} fehlgeschlagen`, { kind: status.moved ? "info" : "error" });
+        if (status.failures && status.failures.length) appAlert(`Fehlgeschlagen:\n${status.failures.slice(0, 8).join("\n")}`);
       } else {
         showToast(`${status.moved} verschoben`, { kind: "success" });
       }
