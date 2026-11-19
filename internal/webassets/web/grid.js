@@ -62,6 +62,10 @@ async function loadItems() {
     // Nach jedem Render den Alpha-Filter erneut anwenden (DOM-Cards sind
     // frisch und haben die .alpha-hidden-Klasse noch nicht).
     applyAlphaFilter();
+    {
+      const l = state.libraries.find(x => x.id == state.currentLibrary);
+      applyTileSize(l ? l.kind : null, true);
+    }
     // requestAnimationFrame: Browser hatte einen Frame Zeit, das Grid zu
     // layouten — sonst landen wir auf scrollY=0 weil der Inhalt noch nicht
     // hoch genug ist. Doppelt rAF, weil rendering manchmal zwei Frames
@@ -229,7 +233,7 @@ async function loadItemsBody() {
     // (kein Genre-Konzept) und ohne aktive Library (Home/Sammlungen/
     // Playlists) ausgeblendet.
     $("#genreFilterLabel").classList.toggle("hidden", !kind || kind === "private");
-    applyTileSize(kind);
+    applyTileSize(kind, false);
     // Suchfeld-Beschriftung an die Bibliothek anpassen (User-Wunsch
     // 2026-09-04): "Titel oder Schauspieler" passt für Musik nicht (kein
     // Cast), dort sucht man nach Künstler/Album.
@@ -1669,14 +1673,19 @@ async function loadMoreFuzzySearchResults() {
 // skaliert er die Video-Kacheln. Filme-/Serien-Cover behalten ihre feste Größe.
 // Wert pro Browser in localStorage; auf dem Handy (≤ 700 px) gelten weiter die
 // festen Spalten aus dem Stylesheet.
-function applyTileSize(kind) {
+function applyTileSize(kind, final) {
   const label = $("#tileSizeLabel");
   const slider = $("#tileSize");
   const grid = $("#grid");
   if (!label || !slider || !grid) return;
   const on = kind === "private";
   label.classList.toggle("hidden", !on);
-  if (!on) { grid.style.removeProperty("--tile-min"); return; }
+  if (!on) { grid.style.removeProperty("--tile-min"); grid.dataset.tileApplied = ""; return; }
+  // Beim Wechsel in eine Privat-Bibliothek zeigt das Grid noch die alten
+  // (z. B. Film-)Kacheln — die Größe erst nach dem Rendern anwenden, sonst
+  // blitzen die alten Poster kurz riesig auf.
+  if (!final && grid.dataset.tileApplied !== "1") return;
+  grid.dataset.tileApplied = "1";
   let px = 190;
   try { px = Number(localStorage.getItem("tileMin")) || 190; } catch {}
   slider.value = String(px);
