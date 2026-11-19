@@ -232,6 +232,9 @@ func (s *Server) executeImageMove(im *model.Image, targetLib int64, targetFolder
 	if resolved == "" {
 		return "Zielordner voll — alle Namens-Varianten belegt", 409
 	}
+	if m := checkTargetSpace(newDir, im.SizeBytes); m != "" {
+		return m, 507
+	}
 	if err := os.MkdirAll(newDir, 0o755); err != nil {
 		return "Zielordner konnte nicht angelegt werden: " + err.Error(), 500
 	}

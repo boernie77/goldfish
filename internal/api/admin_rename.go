@@ -461,6 +461,11 @@ func (s *Server) executeMove(it *model.Item, targetLibraryID int64, targetFolder
 	}
 	newPath = resolved
 	newRelPath := filepath.Join(targetFolder, filepath.Base(resolved))
+	if cross, _ := rename.IsCrossDevice(it.Path, newDir); cross {
+		if m := checkTargetSpace(newDir, it.SizeBytes); m != "" {
+			return 0, "", m, 507
+		}
+	}
 	if err := os.MkdirAll(newDir, 0o755); err != nil {
 		return 0, "", "Zielordner konnte nicht angelegt werden: " + err.Error(), 500
 	}

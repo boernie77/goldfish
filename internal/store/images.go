@@ -191,7 +191,7 @@ func (s *Store) CountImages(libraryID int64) (int, error) {
 
 // ImagesUnderFolder liefert alle Bilder unterhalb von folder (rekursiv), samt Disk-Pfad.
 func (s *Store) ImagesUnderFolder(libraryID int64, folder string) ([]model.Image, error) {
-	rows, err := s.db.Query(`SELECT id, library_id, path, rel_path, title FROM images
+	rows, err := s.db.Query(`SELECT id, library_id, path, rel_path, title, size_bytes FROM images
 		WHERE library_id = ? AND rel_path LIKE ? ESCAPE '\' ORDER BY rel_path`, libraryID, escapeLike(folder)+"/%")
 	if err != nil {
 		return nil, err
@@ -200,7 +200,7 @@ func (s *Store) ImagesUnderFolder(libraryID int64, folder string) ([]model.Image
 	var out []model.Image
 	for rows.Next() {
 		var im model.Image
-		if err := rows.Scan(&im.ID, &im.LibraryID, &im.Path, &im.RelPath, &im.Title); err != nil {
+		if err := rows.Scan(&im.ID, &im.LibraryID, &im.Path, &im.RelPath, &im.Title, &im.SizeBytes); err != nil {
 			return nil, err
 		}
 		out = append(out, im)
