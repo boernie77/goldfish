@@ -5,12 +5,17 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"mime"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/boernie77/goldfish/internal/model"
+	"github.com/boernie77/goldfish/internal/rename"
 	"github.com/boernie77/goldfish/internal/scanner"
 	"github.com/boernie77/goldfish/internal/store"
 )
@@ -175,4 +180,137 @@ func (s *Server) mergeImageFolders(libID int64, realParent string, folders []sto
 		})
 	}
 	return folders
+}
+
+type imageMovePlan struct {
+	Image  *model.Image
+	Target string
+}
+
+// planImageMoves: Bilder unterhalb der gewählten Ordner mit ihrem Zielordner
+// (gleiche Struktur wie planMoves für Videos).
+func (s *Server) planImageMoves(libID int64, folders []string, targetFolder string) []imageMovePlan {
+	targetFolder = strings.Trim(strings.TrimSpace(targetFolder), "/")
+	var out []imageMovePlan
+	for _, raw := range folders {
+		src := s.Store.ResolveFolderAlias(libID, strings.Trim(raw, "/"))
+		if src == "" || targetFolder == src || strings.HasPrefix(targetFolder+"/", src+"/") {
+			continue
+		}
+		ims, err := s.Store.ImagesUnderFolder(libID, src)
+		if err != nil {
+			continue
+		}
+		parent := ""
+		if i := strings.LastIndex(src, "/"); i >= 0 {
+			parent = src[:i+1]
+		}
+		for i := range ims {
+			dir := path.Dir(strings.TrimPrefix(ims[i].RelPath, parent))
+			if dir == "." {
+				dir = ""
+			}
+			im := ims[i]
+			out = append(out, imageMovePlan{Image: &im, Target: path.Join(targetFolder, dir)})
+		}
+	}
+	return out
+}
+
+// executeImageMove verschiebt eine Bilddatei samt DB-Zeile (Vorschau wird neu erzeugt).
+func (s *Server) executeImageMove(im *model.Image, targetLib int64, targetFolder, targetRoot string, allowCross bool) (string, int) {
+	pseudo := &model.Item{LibraryID: im.LibraryID, Path: im.Path, RelPath: im.RelPath}
+	destLib, newDir, targetFolder, msg, code := s.resolveMoveTarget(pseudo, targetLib, targetFolder, targetRoot)
+	if code != 0 {
+		return msg, code
+	}
+	base := filepath.Base(im.Path)
+	if filepath.Join(newDir, base) == im.Path {
+		return "", 0
+	}
+	resolved := rename.ResolveConflict(newDir, base, im.Path)
+	if resolved == "" {
+		return "Zielordner voll — alle Namens-Varianten belegt", 409
+	}
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		return "Zielordner konnte nicht angelegt werden: " + err.Error(), 500
+	}
+	if err := rename.RenameOnDisk(im.Path, resolved, allowCross); err != nil {
+		if errors.Is(err, rename.ErrCrossDevice) {
+			return "CROSS_DEVICE", 409
+		}
+		return "Verschieben auf Disk fehlgeschlagen: " + err.Error(), 500
+	}
+	if err := s.Store.MoveImage(im.ID, destLib, resolved, filepath.ToSlash(filepath.Join(targetFolder, filepath.Base(resolved)))); err != nil {
+		_ = rename.RenameOnDisk(resolved, im.Path, true)
+		return "DB-Update fehlgeschlagen: " + err.Error(), 500
+	}
+	_ = os.Remove(scanner.ImageThumbPath(filepath.Join(s.ConfigDir, "thumbs"), im.Path))
+	return "", 0
+}
+
+// deleteImageFolders: POST /api/libraries/{id}/images/delete-folders {folders:[...]}
+// Löscht alle Bilddateien unterhalb der Ordner von der Platte (Videos bleiben),
+// danach leer gewordene Ordner. Admin-only, Löschschutz wird beachtet.
+func (s *Server) deleteImageFolders(w http.ResponseWriter, r *http.Request) {
+	libID, err := pathInt(r, "id")
+	if err != nil {
+		writeError(w, 400, "ungültige id")
+		return
+	}
+	if !s.requireLibAccess(w, r, libID) {
+		return
+	}
+	var body struct {
+		Folders []string `json:"folders"`
+	}
+	if json.NewDecoder(r.Body).Decode(&body) != nil || len(body.Folders) == 0 {
+		writeError(w, 400, "keine Ordner angegeben")
+		return
+	}
+	deleted, skipped, failed := 0, 0, 0
+	for _, raw := range body.Folders {
+		folder := s.Store.ResolveFolderAlias(libID, strings.Trim(raw, "/"))
+		if folder == "" {
+			continue
+		}
+		ims, err := s.Store.ImagesUnderFolder(libID, folder)
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		dirs := map[string]bool{}
+		var root string
+		for _, im := range ims {
+			if prot, _, err := s.Store.DeleteProtected(im.LibraryID, im.RelPath); err == nil && prot {
+				skipped++
+				continue
+			}
+			if err := os.Remove(im.Path); err != nil && !os.IsNotExist(err) {
+				failed++
+				continue
+			}
+			_ = os.Remove(scanner.ImageThumbPath(filepath.Join(s.ConfigDir, "thumbs"), im.Path))
+			_ = s.Store.DeleteImage(im.ID)
+			deleted++
+			dirs[filepath.Dir(im.Path)] = true
+			root = strings.TrimSuffix(filepath.ToSlash(im.Path), "/"+filepath.ToSlash(im.RelPath))
+		}
+		if root != "" {
+			top := filepath.FromSlash(root + "/" + folder)
+			for d := range dirs {
+				for len(d) >= len(top) && strings.HasPrefix(d, top) {
+					if os.Remove(d) != nil { // nicht leer → stehen lassen
+						break
+					}
+					d = filepath.Dir(d)
+				}
+			}
+		}
+	}
+	if me := currentUser(r); me != nil {
+		_ = s.Store.LogActivity(me.ID, me.Username, "admin", "image_delete",
+			fmt.Sprintf("%d Bilder gelöscht in %d Ordner(n)", deleted, len(body.Folders)), deviceLabel(r))
+	}
+	writeJSON(w, 200, map[string]int{"deleted": deleted, "skipped": skipped, "failed": failed})
 }

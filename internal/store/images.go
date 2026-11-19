@@ -188,3 +188,34 @@ func (s *Store) CountImages(libraryID int64) (int, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM images WHERE library_id = ?`, libraryID).Scan(&n)
 	return n, err
 }
+
+// ImagesUnderFolder liefert alle Bilder unterhalb von folder (rekursiv), samt Disk-Pfad.
+func (s *Store) ImagesUnderFolder(libraryID int64, folder string) ([]model.Image, error) {
+	rows, err := s.db.Query(`SELECT id, library_id, path, rel_path, title FROM images
+		WHERE library_id = ? AND rel_path LIKE ? ESCAPE '\' ORDER BY rel_path`, libraryID, escapeLike(folder)+"/%")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []model.Image
+	for rows.Next() {
+		var im model.Image
+		if err := rows.Scan(&im.ID, &im.LibraryID, &im.Path, &im.RelPath, &im.Title); err != nil {
+			return nil, err
+		}
+		out = append(out, im)
+	}
+	return out, rows.Err()
+}
+
+// MoveImage schreibt Pfad/Bibliothek eines Bildes nach einem Verschieben auf der Platte um.
+func (s *Store) MoveImage(id, libraryID int64, newPath, newRel string) error {
+	_, err := s.db.Exec(`UPDATE images SET library_id = ?, path = ?, rel_path = ? WHERE id = ?`, libraryID, newPath, newRel, id)
+	return err
+}
+
+// DeleteImage entfernt den DB-Eintrag eines Bildes.
+func (s *Store) DeleteImage(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM images WHERE id = ?`, id)
+	return err
+}

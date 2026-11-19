@@ -566,14 +566,32 @@ func (s *Server) moveItemsBulk(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, perr.Error())
 		return
 	}
-	if len(plan) == 0 {
-		writeError(w, 400, "keine Videos im gewählten Ordner")
+	imgPlan := s.planImageMoves(body.LibraryID, body.Folders, body.TargetFolder)
+	if len(plan) == 0 && len(imgPlan) == 0 {
+		writeError(w, 400, "keine Videos oder Bilder im gewählten Ordner")
 		return
 	}
 	me := currentUser(r)
-	job := &moveBulkJob{running: true, total: len(plan), startedAt: time.Now()}
+	job := &moveBulkJob{running: true, total: len(plan) + len(imgPlan), startedAt: time.Now()}
 	currentMoveJob = job
 	go func() {
+		for _, ip := range imgPlan {
+			job.mu.Lock()
+			job.current = filepath.Base(ip.Image.Path)
+			job.mu.Unlock()
+			msg, code := s.executeImageMove(ip.Image, body.TargetLibraryID, ip.Target, body.TargetRoot, body.AllowCrossDevice)
+			job.mu.Lock()
+			job.done++
+			if code != 0 {
+				job.failed++
+				if len(job.failures) < 20 {
+					job.failures = append(job.failures, fmt.Sprintf("%s: %s", filepath.Base(ip.Image.Path), msg))
+				}
+			} else {
+				job.moved++
+			}
+			job.mu.Unlock()
+		}
 		for _, pl := range plan {
 			it, err := s.Store.GetItem(pl.ID)
 			job.mu.Lock()
@@ -670,6 +688,15 @@ func (s *Server) moveItemsPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	results := make([]itemResult, 0, len(plan))
 	anyCrossDevice := false
+	for _, ip := range s.planImageMoves(body.LibraryID, body.Folders, body.TargetFolder) {
+		pseudo := &model.Item{LibraryID: ip.Image.LibraryID, Path: ip.Image.Path, RelPath: ip.Image.RelPath}
+		if _, newDir, _, _, code := s.resolveMoveTarget(pseudo, body.TargetLibraryID, ip.Target, body.TargetRoot); code == 0 {
+			if cross, err := rename.IsCrossDevice(ip.Image.Path, newDir); err == nil && cross {
+				anyCrossDevice = true
+				break
+			}
+		}
+	}
 	for _, pl := range plan {
 		id := pl.ID
 		it, err := s.Store.GetItem(id)

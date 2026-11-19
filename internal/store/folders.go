@@ -153,6 +153,20 @@ func (s *Store) AllFolderPaths(libraryID int64) ([]string, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// Ordner mit Bildern (Tabelle images) gehören ebenfalls in die Zielauswahl.
+	if irows, err := s.db.Query(`SELECT rel_path FROM images WHERE library_id = ?`, libraryID); err == nil {
+		for irows.Next() {
+			var rel string
+			if irows.Scan(&rel) != nil {
+				continue
+			}
+			segs := strings.Split(rel, "/")
+			for i := 1; i < len(segs); i++ {
+				seen[strings.Join(segs[:i], "/")] = true
+			}
+		}
+		_ = irows.Close()
+	}
 	out := make([]string, 0, len(seen))
 	for f := range seen {
 		out = append(out, f)

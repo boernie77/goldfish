@@ -536,6 +536,7 @@ function setSelectionMode(on) {
     state.selection.clear();
     state.selectedFolders.clear();
     state.selectionAnchorId = null;
+    state.folderAnchorName = null;
     updateBulkBar();
     // Kartenstyling zurücksetzen (Kacheln UND Musik-Listenzeilen)
     document.querySelectorAll(".card.selected, .track-row.selected").forEach(c => c.classList.remove("selected"));
@@ -547,13 +548,30 @@ function setSelectionMode(on) {
 
 // toggleFolderSelection: ganze Ordner/Serien auswählen (nur "Verschieben" wertet
 // sie aus; alle anderen Bulk-Aktionen arbeiten weiter nur mit Videos).
-function toggleFolderSelection(f, el) {
-  if (state.selectedFolders.has(f.name)) state.selectedFolders.delete(f.name);
-  else state.selectedFolders.add(f.name);
-  const on = state.selectedFolders.has(f.name);
+function setFolderSelected(name, el, on) {
+  if (on) state.selectedFolders.add(name);
+  else state.selectedFolders.delete(name);
   el.classList.toggle("selected", on);
   const box = el.querySelector(".card-select");
   if (box) box.textContent = on ? "✓" : "";
+}
+
+function toggleFolderSelection(f, el, ev) {
+  // Shift-Klick: Bereich vom zuletzt normal angeklickten Ordner bis hierher
+  // (Reihenfolge = Kachelreihenfolge im DOM).
+  if (ev && ev.shiftKey && state.folderAnchorName != null) {
+    const cards = Array.from(document.querySelectorAll(".card.folder[data-folder-name]"));
+    const ai = cards.findIndex(c => c.dataset.folderName === state.folderAnchorName);
+    const ti = cards.indexOf(el);
+    if (ai !== -1 && ti !== -1) {
+      const [a, b] = ai < ti ? [ai, ti] : [ti, ai];
+      for (let i = a; i <= b; i++) setFolderSelected(cards[i].dataset.folderName, cards[i], true);
+      updateBulkBar();
+      return;
+    }
+  }
+  setFolderSelected(f.name, el, !state.selectedFolders.has(f.name));
+  state.folderAnchorName = f.name;
   updateBulkBar();
 }
 
@@ -762,16 +780,30 @@ async function bulkMerge() {
 
 async function bulkDelete() {
   const ids = Array.from(state.selection);
-  if (!ids.length) return;
-  if (!(await appConfirm(`${ids.length} Dateien endgültig löschen (inkl. Datei auf Disk)?`))) return;
+  const folders = Array.from(state.selectedFolders);
+  if (!ids.length && !folders.length) return;
+  if (ids.length && !(await appConfirm(`${ids.length} Dateien endgültig löschen (inkl. Datei auf Disk)?`))) return;
   let fails = 0;
   for (const id of ids) {
     try {
       await api(`/api/items/${id}?deleteFile=true`, { method: "DELETE" });
     } catch { fails++; }
   }
+  if (folders.length) {
+    // Ausgewählte Ordner: nur die BILDER darin (inkl. Unterordner) werden gelöscht,
+    // Videos bleiben unangetastet.
+    if (await appConfirm(`Alle Bilder in ${folders.length} Ordner${folders.length === 1 ? "" : "n"} (inkl. Unterordner) endgültig von der Platte löschen? Videos bleiben erhalten.`)) {
+      try {
+        const r = await api(`/api/libraries/${state.currentLibrary}/images/delete-folders`, {
+          method: "POST", body: JSON.stringify({ folders }),
+        });
+        showToast(`${r.deleted} Bilder gelöscht${r.skipped ? `, ${r.skipped} durch Löschschutz übersprungen` : ""}${r.failed ? `, ${r.failed} fehlgeschlagen` : ""}`, { kind: r.failed ? "error" : "success" });
+      } catch (e) { appAlert(`Bilder löschen fehlgeschlagen: ${e.message}`); }
+    }
+  }
   if (fails) appAlert(`${fails} von ${ids.length} fehlgeschlagen.`);
   setSelectionMode(false);
+  invalidateItemsCache();
   loadItems();
 }
 

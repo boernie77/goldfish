@@ -715,9 +715,9 @@ function renderFolderCard(f) {
     </div>
   `;
 
-  const enter = () => {
+  const enter = (ev) => {
     // Auswahl-Modus: Ordner/Serie markieren statt öffnen (zum Verschieben).
-    if (state.selectionMode && state.me && state.me.isAdmin) { toggleFolderSelection(f, el); return; }
+    if (state.selectionMode && state.me && state.me.isAdmin) { toggleFolderSelection(f, el, ev); return; }
     state.currentFolder = f.name;
     state.currentFolderDrilldown = !!f.drilldown;
     loadItems();
@@ -727,12 +727,12 @@ function renderFolderCard(f) {
     // Klick auf die Checkbox schaltet den Auswahl-Modus ein und markiert den Ordner.
     if (e.target.closest("[data-select]") && state.me && state.me.isAdmin) {
       if (!state.selectionMode) setSelectionMode(true);
-      toggleFolderSelection(f, el);
+      toggleFolderSelection(f, el, e);
       return;
     }
-    enter();
+    enter(e);
   });
-  el.addEventListener("keydown", (e) => { if (e.key === "Enter") enter(); });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") enter(e); });
 
   // Admin-Toggle für Drilldown via Gear-Icon
   const gearBtn = el.querySelector(".folder-gear");
