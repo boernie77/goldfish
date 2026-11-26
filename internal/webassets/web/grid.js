@@ -1497,9 +1497,7 @@ async function loadItemsBody() {
       api(`/api/libraries/${state.currentLibrary}/folders${folderQS}`),
       api(`/api/items?${params}`),
     ]);
-  } else if (state.currentFolderDrilldown || imagesLib) {
-    // Bilder-Bibliotheken immer ebenenweise (Unterordner + direkte Videos +
-    // direkte Bilder), sonst verschwänden Bild-Unterordner von Video-Ordnern.
+  } else if (state.currentFolderDrilldown) {
     // Subfolder mit aktiviertem Drilldown: zeige seine direkten Unterordner + Items direkt in diesem Ordner
     const dpath = state.currentFolder;
     const ddMatchQS = (match ? `&match=${match}` : "") + ((lib && lib.imagesEnabled) ? "&images=1" : "");
@@ -1522,7 +1520,18 @@ async function loadItemsBody() {
   } else {
     // Standard: Subfolder ohne Drilldown → alle Items rekursiv flach
     params.set("folder", state.currentFolder);
-    items = await apiGetCached(`/api/items?${params}`);
+    if (imagesLib) {
+      // Bilder-Bibliotheken: Videos bleiben flach (Einstellung „Unterordner
+      // anzeigen" gilt weiter, 1.6.21), aber Unterordner MIT Bildern bleiben als
+      // Kachel erreichbar — Bilder gibt es nur ordnerweise, sonst wären sie hier
+      // unsichtbar (Ursache des Mac/Linux-Unterschieds aus 1.6.20).
+      const fp = `/api/libraries/${state.currentLibrary}/folders?parent=${encodeURIComponent(state.currentFolder)}&images=1${match ? `&match=${match}` : ""}`;
+      let sub;
+      [sub, items] = await Promise.all([api(fp), apiGetCached(`/api/items?${params}`)]);
+      folders = (sub || []).filter(f => f.imageCount > 0);
+    } else {
+      items = await apiGetCached(`/api/items?${params}`);
+    }
   }
   if (stale()) return;
 
