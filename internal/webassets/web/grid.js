@@ -372,7 +372,15 @@ async function loadItemsBody() {
   // (Album-Übersicht/"Alle Titel"), der die Listenansicht respektiert —
   // dieser generische Zweig würde "Zuletzt abgespielt" IMMER als Kachel-
   // Grid rendern, unabhängig vom Listen-Toggle (User-Bericht 2026-09-04).
-  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && !isMusicFlatLib) return await renderFlatSortLibraryBranch();
+  // Bibliotheken mit "🖼 Bilder": KEIN Flatten — Bilder hängen an der Ordner-
+  // Struktur. Die Flat-Sorts sortieren dort stattdessen die sichtbare Ebene
+  // (Ordner, Videos, Bilder; renderDefaultLibraryGrid). Vorher zeigte z. B.
+  // „Hinzugefügt" nur die Videos rekursiv und versteckte jeden Bild-Ordner,
+  // der auch ein Video enthielt — der Sortier-Modus ist pro Browser
+  // gespeichert, daher sah dieselbe Bibliothek auf zwei Rechnern verschieden
+  // aus (User-Bericht 2026-11-26).
+  const imagesFlatLib = !!(musicFlatLib && musicFlatLib.imagesEnabled && !isMusicFlatLib);
+  if (FLAT_SORTS.has(flatSort) && state.currentLibrary && !isMusicFlatLib && !imagesFlatLib) return await renderFlatSortLibraryBranch();
 
   if (!state.currentLibrary) {
     grid.innerHTML = `<div class="empty">Noch keine Bibliothek. Klicke auf 📁, um eine hinzuzufügen.</div>`;
@@ -1444,7 +1452,10 @@ async function loadItemsBody() {
   // aber, dass „Zufällig" wirklich aus allen Videos der Library/des Folders
   // wählt, rekursiv).
   const isShuffle = $("#sortSelect").value === "shuffle";
-  const flatView = state.flatView || (lib && lib.kind === "movies") || isShuffle;
+  // Bilder-Bibliotheken: Flach-Ansicht (pro Browser gespeichert!) würde alle
+  // Bild-Ordner ausblenden — dort zählt immer die Ordner-Struktur.
+  const imagesLib = !!(lib && lib.imagesEnabled && lib.kind !== "music");
+  const flatView = ((state.flatView || (lib && lib.kind === "movies")) && !imagesLib) || isShuffle;
   if (searching || flatView) {
     // Bei aktiver Suche IM Subfolder: Suche auf diesen Folder + Subfolder
     // beschränken (Server-Filter `folder=<path>` matcht rekursiv via LIKE).
@@ -1486,7 +1497,9 @@ async function loadItemsBody() {
       api(`/api/libraries/${state.currentLibrary}/folders${folderQS}`),
       api(`/api/items?${params}`),
     ]);
-  } else if (state.currentFolderDrilldown) {
+  } else if (state.currentFolderDrilldown || imagesLib) {
+    // Bilder-Bibliotheken immer ebenenweise (Unterordner + direkte Videos +
+    // direkte Bilder), sonst verschwänden Bild-Unterordner von Video-Ordnern.
     // Subfolder mit aktiviertem Drilldown: zeige seine direkten Unterordner + Items direkt in diesem Ordner
     const dpath = state.currentFolder;
     const ddMatchQS = (match ? `&match=${match}` : "") + ((lib && lib.imagesEnabled) ? "&images=1" : "");
@@ -1571,6 +1584,9 @@ async function loadItemsBody() {
     const folderCollator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
     folders.sort((a, b) => folderCollator.compare(folderDisplayTitle(a), folderDisplayTitle(b)));
   }
+  // „Hinzugefügt"/„Dateigröße" in Bilder-Bibliotheken: auch Ordner und Bilder
+  // der sichtbaren Ebene danach sortieren (Ordner: jüngster Inhalt).
+  if (imagesLib && !searching) sortImagesLevel(folders, images, sort, effectiveSortDir());
   // Bei searching=true überschreibt appendSearchResultCards() diese
   // Zuweisung weiter unten mit den tatsächlich gerenderten (pro Bibliothek
   // gruppierten) Kacheln — siehe Bugfix-Kommentar dort (Bulk-Auswahl fand
@@ -1609,6 +1625,7 @@ async function loadItemsBody() {
   }
   grid.innerHTML = "";
   grid.appendChild(frag);
+  if (imagesLib && !searching) showImageLevelSummary(folders, images);
   updateAlphaSidebar();
   // Season-Fallback-Info-Header voranstellen (s. Reset oben) — muss NACH dem
   // `grid.innerHTML = ""` passieren, sonst würde er sofort wieder gelöscht.
@@ -1697,4 +1714,40 @@ function applyTileSize(kind, final) {
       try { localStorage.setItem("tileMin", slider.value); } catch {}
     });
   }
+}
+
+// sortImagesLevel: Ordner und Bilder einer Ebene in Bilder-Bibliotheken nach
+// dem gewählten Sortier-Modus ordnen. „added" = jüngster Inhalt (Ordner:
+// addedAt = MAX aus Videos und Bildern, siehe mergeImageFolders), „size" nur
+// für Bilder. Andere Modi lassen die Namens-Reihenfolge stehen.
+function sortImagesLevel(folders, images, sort, dir) {
+  const sign = dir === "asc" ? 1 : -1;
+  const t = (v) => { const n = Date.parse(String(v || "").replace(" ", "T")); return isNaN(n) ? 0 : n; };
+  if (sort === "added") {
+    if (Array.isArray(folders)) folders.sort((a, b) => sign * (t(a.addedAt) - t(b.addedAt)));
+    images.sort((a, b) => sign * (t(a.addedAt) - t(b.addedAt)));
+  } else if (sort === "size") {
+    images.sort((a, b) => sign * ((a.sizeBytes || 0) - (b.sizeBytes || 0)));
+  }
+}
+
+// showImageLevelSummary: hängt an die Breadcrumb-Zählung an, wie viele Ordner
+// mit Bildern und wie viele Bilder auf der sichtbaren Ebene liegen. Eigenes
+// Span, weil loadCount() das #bc-count asynchron überschreibt.
+function showImageLevelSummary(folders, images) {
+  const bc = $("#breadcrumb");
+  if (!bc) return;
+  const old = bc.querySelector(".img-count");
+  if (old) old.remove();
+  const nFolders = (folders || []).filter(f => f.imageCount > 0).length;
+  const nImages = (images || []).length;
+  if (!nFolders && !nImages) return;
+  const parts = [];
+  if (nFolders) parts.push(`${nFolders.toLocaleString("de-DE")} Ordner mit Bildern`);
+  if (nImages) parts.push(`${nImages.toLocaleString("de-DE")} Bild${nImages === 1 ? "" : "er"}`);
+  const span = document.createElement("span");
+  span.className = "count img-count";
+  span.textContent = `🖼 ${parts.join(" · ")}`;
+  const anchor = bc.querySelector("#bc-count");
+  if (anchor) anchor.after(span); else bc.appendChild(span);
 }

@@ -172,6 +172,10 @@ func (s *Server) mergeImageFolders(libID int64, realParent string, folders []sto
 		if i, ok := idx[ig.Name]; ok {
 			folders[i].ImageCount = ig.ImageCount
 			folders[i].ThumbImageID = ig.ThumbImageID
+			// „Hinzugefügt" sortiert Ordner nach jüngstem Inhalt — auch neue Bilder zählen.
+			if laterAddedAt(ig.AddedAt, folders[i].AddedAt) {
+				folders[i].AddedAt = ig.AddedAt
+			}
 			continue
 		}
 		folders = append(folders, store.Folder{
@@ -180,6 +184,14 @@ func (s *Server) mergeImageFolders(libID int64, realParent string, folders []sto
 		})
 	}
 	return folders
+}
+
+// laterAddedAt: a ist jünger als b. Items und Bilder speichern added_at in
+// leicht unterschiedlichem Format ("2026-11-26 10:00:00" vs. "2026-11-26T10:00:00Z"),
+// daher vor dem String-Vergleich das Trennzeichen angleichen.
+func laterAddedAt(a, b string) bool {
+	norm := func(v string) string { return strings.Replace(v, "T", " ", 1) }
+	return a != "" && norm(a) > norm(b)
 }
 
 type imageMovePlan struct {
