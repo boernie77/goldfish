@@ -1511,4 +1511,10 @@ Musik-UI unverändert bewusst schlank).
   (`imageCount`, `thumbImageId`; reine Bild-Ordner `drilldown:true`) — die nativen Apps kennen Bilder noch nicht.
 - Frontend: `imageviewer.js` (Kachel + Vollbild-Betrachter: ←/→, Wischen, Leertaste = Diashow, Esc), Einbindung in
   `renderDefaultLibraryGrid` (grid.js) und `renderFolderCard` (cards.js).
-- Offen: native Apps (Mac/iOS/tvOS/Android/Fire TV/Linux) zeigen Bilder noch nicht; Bilder erscheinen nicht in Suche/Flat-View.
+- **Seit 1.6.20: Bilder-Bibliotheken werden NIE geflattet.** Flat-Sorts (Hinzugefügt/Größe/…), Flach-Ansicht und
+  Ordner ohne Drilldown zeigen dort immer die Ebene (Unterordner + direkte Videos + direkte Bilder). Grund: Sortierung
+  und Flach-Ansicht sind **pro Browser** (localStorage) gespeichert — derselbe User sah „a/Bilder" auf einem Rechner
+  korrekt, auf dem anderen nur die Videos (Bild-Ordner mit Videos fielen im Flat-Zweig raus). „Hinzugefügt" sortiert
+  Ordner nach jüngstem Inhalt (`mergeImageFolders` nimmt MAX aus Video- und Bild-`addedAt`) und Bilder nach `addedAt`;
+  Breadcrumb zeigt „🖼 N Ordner mit Bildern · M Bilder" der sichtbaren Ebene (`showImageLevelSummary`).
+- Offen: native Apps (Mac/iOS/tvOS/Android/Fire TV/Linux) zeigen Bilder noch nicht; Bilder erscheinen nicht in der Suche.
